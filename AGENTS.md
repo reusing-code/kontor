@@ -2,9 +2,13 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
+## Documentation maintenance
+
+After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) and `README.md` (root, `frontend/`) need updating. Keep these files in sync with the actual code — new modules, routes, DB keys, API endpoints, and dependency versions must be reflected here.
+
 ## Prerequisites
 
-- **Go 1.22+** — https://go.dev/dl/
+- **Go 1.25+** — https://go.dev/dl/
 - **Bun** — JavaScript runtime/package manager: https://bun.sh
 - **Task** — Task runner (taskfile.dev): `go install github.com/go-task/task/v3/cmd/task@latest` or `pacman -S go-task`
 - **Air** — Live reload for Go: `go install github.com/air-verse/air@latest`
@@ -23,25 +27,32 @@ See `frontend/AGENTS.md` and `backend/AGENTS.md` for per-project commands.
 - `frontend/` — React 19 + TypeScript SPA (Vite, TanStack Router/Query, shadcn/ui)
 - `backend/` — Go API server (stdlib net/http, BadgerDB, slog, Prometheus)
 - `Dockerfile` — Multi-stage build: frontend (Bun) → backend (Go) → Alpine runtime
-- `docker-compose.yml` — Single-service deployment with named volume for DB
+- `compose.yml` — Single-service deployment with named volume for DB
 
 ## Architecture overview
 
-The app is a multi-module personal finance manager. Currently two modules exist:
+The app is a multi-module personal finance manager. Currently three modules exist:
 
 - **Contracts** — Recurring subscriptions with renewal tracking, notice periods, and email reminders
 - **Purchases** — One-time purchases with item details, dealer info, and document links
+- **Auto** — Vehicle management with cost tracking (service, fuel, insurance, tax, inspection, tires, mileage, misc) and total cost of ownership projections
 
-Each module has its own categories stored under separate DB key prefixes. Categories are module-scoped via the API route (`/api/v1/modules/{module}/categories`), not via a field on the Category model.
+Each module has its own categories stored under separate DB key prefixes. Categories are module-scoped via the API route (`/api/v1/modules/{module}/categories`), not via a field on the Category model. The Auto module uses its own vehicle/cost key structure instead of categories.
 
 ### DB key schema
 
+- Users: `usr/{userId}`
+- User email index: `usr_email/{email}`
+- User settings: `u/{userId}/settings`
 - Contract categories: `u/{userId}/mod/contracts/cat/{categoryId}`
 - Purchase categories: `u/{userId}/mod/purchases/cat/{categoryId}`
 - Contracts: `u/{userId}/con/{contractId}`
 - Contract category index: `u/{userId}/idx/cat_con/{catId}/{conId}`
 - Purchases: `u/{userId}/pur/{purchaseId}`
 - Purchase category index: `u/{userId}/idx/cat_pur/{catId}/{purId}`
+- Vehicles: `u/{userId}/veh/{vehicleId}`
+- Cost entries: `u/{userId}/cost/{costEntryId}`
+- Vehicle cost index: `u/{userId}/idx/veh_cost/{vehicleId}/{costEntryId}`
 - Schema version: `_meta/schema_version` (current: 2)
 
 ### Frontend routes
@@ -49,11 +60,15 @@ Each module has its own categories stored under separate DB key prefixes. Catego
 | Route | Purpose |
 |-------|---------|
 | `/` | Homepage with overview cards for all modules |
+| `/login` | Login / registration |
+| `/settings` | User settings |
 | `/contracts` | Contracts dashboard |
 | `/contracts/categories/$categoryId` | Contract category detail |
 | `/contracts/upcoming-renewals` | Upcoming renewals |
 | `/purchases` | Purchases dashboard |
 | `/purchases/categories/$categoryId` | Purchase category detail |
+| `/auto` | Auto / vehicles dashboard |
+| `/auto/vehicles/$vehicleId` | Vehicle detail with cost entries and summary |
 
 Routes use TanStack Router file-based conventions with dots for nesting (e.g. `contracts.index.tsx`, `contracts.categories.$categoryId.tsx`). All routes use `rootRoute` as parent with full paths (flat structure).
 

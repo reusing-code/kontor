@@ -2,6 +2,10 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
+## Documentation maintenance
+
+After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) and `README.md` (root, `frontend/`) need updating. Keep these files in sync with the actual code — new modules, routes, DB keys, API endpoints, and dependency versions must be reflected here.
+
 ## Commands
 
 - `bun dev` — Start dev server (Vite, port 5173)
@@ -16,7 +20,7 @@ React 19 + TypeScript SPA built with Vite. No SSR — this is a CRUD/business ap
 
 **Routing:** TanStack Router with type-safe route definitions in `src/routes/`. The router is created in `router.ts`, root layout in `__root.tsx`. Register the router type via the `Register` interface in `router.ts`. Routes use file-based conventions with dots for nesting (e.g. `contracts.index.tsx`, `contracts.categories.$categoryId.tsx`). All routes use `rootRoute` as parent with full paths (flat structure, no nested layout routes).
 
-**Data fetching:** TanStack Query. `QueryClientProvider` wraps the app in `App.tsx`. Hooks in `src/hooks/` wrap query/mutation logic per module (contracts, purchases, categories).
+**Data fetching:** TanStack Query. `QueryClientProvider` wraps the app in `App.tsx`. Hooks in `src/hooks/` wrap query/mutation logic per module (contracts, purchases, categories, vehicles).
 
 **Forms:** React Hook Form + Zod for validation via `@hookform/resolvers`. Field configs in `src/config/` drive both form and table rendering via `FormFieldRenderer`.
 
@@ -28,10 +32,10 @@ React 19 + TypeScript SPA built with Vite. No SSR — this is a CRUD/business ap
 
 ## Key directories
 
-- `src/routes/` — Route definitions (pages): homepage, contracts/*, purchases/*
+- `src/routes/` — Route definitions (pages): homepage, contracts/*, purchases/*, auto/*
 - `src/components/` — React components; `ui/` subdirectory for shadcn/ui
-- `src/lib/` — Utilities, API client, per-module repositories (category, contract, purchase)
-- `src/hooks/` — Custom React hooks (use-categories, use-contracts, use-purchases)
-- `src/types/` — Shared TypeScript types (contract, purchase, category, summary)
-- `src/config/` — Field configuration for forms/tables (contract-fields, purchase-fields)
+- `src/lib/` — Utilities, API client, per-module repositories (category, contract, purchase, vehicle)
+- `src/hooks/` — Custom React hooks (use-categories, use-contracts, use-purchases, use-vehicles)
+- `src/types/` — Shared TypeScript types (contract, purchase, category, vehicle, summary)
+- `src/config/` — Field configuration for forms/tables (contract-fields, purchase-fields, vehicle-fields)
 - `src/i18n/` — Internationalization setup and locale files
