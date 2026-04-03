@@ -1,4 +1,5 @@
 import { z } from "zod/v4"
+import { numericString } from "@/lib/utils"
 
 export const billingIntervalSchema = z.enum(["monthly", "yearly"])
 export type BillingInterval = z.infer<typeof billingIntervalSchema>
@@ -35,13 +36,13 @@ export const contractFormSchema = z.object({
   company: z.string().optional(),
   contractNumber: z.string().optional(),
   customerNumber: z.string().optional(),
-  price: z.number().nonnegative().optional(),
+  price: numericString(z.number().nonnegative()),
   billingInterval: billingIntervalSchema,
   startDate: z.string().date(),
   endDate: z.string().date().optional(),
-  minimumDurationMonths: z.number().int().nonnegative(),
-  extensionDurationMonths: z.number().int().nonnegative(),
-  noticePeriodMonths: z.number().int().nonnegative(),
+  minimumDurationMonths: numericString(z.number().int().nonnegative()),
+  extensionDurationMonths: numericString(z.number().int().nonnegative()),
+  noticePeriodMonths: numericString(z.number().int().nonnegative()),
   customerPortalUrl: z.string().url().optional().or(z.literal("")),
   paperlessUrl: z.string().url().optional().or(z.literal("")),
   comments: z.string().optional(),

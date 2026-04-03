@@ -1,7 +1,11 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { differenceInDays } from "date-fns"
+import { z } from "zod/v4"
 import type { Contract } from "@/types/contract"
+
+export const numericString = (schema: z.ZodNumber) =>
+  z.preprocess((v) => (v === "" || v === undefined ? undefined : Number(v)), schema.optional())
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

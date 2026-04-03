@@ -1,12 +1,13 @@
 # Contracts
 
-A self-hosted personal finance manager for tracking contracts, subscriptions, and purchases. Built with a Go backend and React frontend.
+A self-hosted personal finance manager for tracking contracts, subscriptions, purchases, and vehicle costs. Built with a Go backend and React frontend.
 
 ## Features
 
-- **Modular design** — Separate modules for contracts and purchases, each with independent categories and dashboards
+- **Modular design** — Separate modules for contracts, purchases, and auto/vehicles, each with independent dashboards
 - **Contract tracking** — Store contract details including dates, pricing, notice periods, and renewal terms
 - **Purchase tracking** — Track one-time purchases with item details, pricing, dealer info, and document links
+- **Vehicle cost tracking** — Manage vehicles with cost entries (service, fuel, insurance, tax, inspection, tires, mileage, misc) and total cost of ownership projections
 - **Category organization** — Per-module categories (e.g. insurance/telecom for contracts, PC hardware/tools for purchases)
 - **Homepage overview** — Dashboard at `/` with summary cards and stats across all modules
 - **Renewal monitoring** — Upcoming renewals with color-coded urgency indicators
@@ -54,7 +55,7 @@ task down     # stop
 frontend/          React SPA (Vite, TanStack, shadcn/ui)
 backend/           Go API server (net/http, BadgerDB)
 Dockerfile         Multi-stage build (Bun → Go → Alpine)
-docker-compose.yml Single-service deployment with named volume
+compose.yml        Single-service deployment with named volume
 ```
 
 See `frontend/AGENTS.md` and `backend/AGENTS.md` for per-project details.
@@ -78,6 +79,11 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | GET | `/purchases` | List all purchases |
 | GET/PUT/DELETE | `/purchases/{id}` | Purchase CRUD |
 | GET | `/purchases/summary` | Purchase spending stats |
+| GET/POST | `/vehicles` | List / create vehicles |
+| GET/PUT/DELETE | `/vehicles/{id}` | Vehicle CRUD |
+| GET | `/vehicles/{id}/summary` | Vehicle cost summary + projection |
+| GET/POST | `/vehicles/{id}/costs` | List / create cost entries |
+| GET/PUT/DELETE | `/costs/{id}` | Cost entry CRUD |
 | GET/PUT | `/settings` | Renewal preferences |
 | PUT | `/settings/password` | Change password |
 | GET | `/summary` | Contract dashboard stats |
