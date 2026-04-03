@@ -8,22 +8,25 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tobi/contracts/backend/internal/email"
+	"github.com/tobi/contracts/backend/internal/ledgerimport"
 	"github.com/tobi/contracts/backend/internal/store"
 )
 
 type Handler struct {
-	store       store.Store
-	logger      *slog.Logger
-	jwtSecret   []byte
-	emailClient *email.Client
+	store        store.Store
+	logger       *slog.Logger
+	jwtSecret    []byte
+	emailClient  *email.Client
+	ledgerImport *ledgerimport.Service
 }
 
 func New(s store.Store, logger *slog.Logger, jwtSecret []byte, emailClient *email.Client) *Handler {
 	return &Handler{
-		store:       s,
-		logger:      logger,
-		jwtSecret:   jwtSecret,
-		emailClient: emailClient,
+		store:        s,
+		logger:       logger,
+		jwtSecret:    jwtSecret,
+		emailClient:  emailClient,
+		ledgerImport: ledgerimport.NewService(s, logger),
 	}
 }
 

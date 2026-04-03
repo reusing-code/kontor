@@ -1,0 +1,11 @@
+;
+"Umsätze Girokonto";"Zeitraum: 30 Tage";
+"Neuer Kontostand";"111.111,11 EUR";
+
+"Buchungstag";"Wertstellung (Valuta)";"Vorgang";"Buchungstext";"Umsatz in EUR";
+"02.04.2026";"02.04.2026";"Kartenverfügung";" Buchungstext: AMAZON* , LUXEMBOURG LU Karte Nr. XXXX XXXX XXXX XXXX Kartenzahlung comdirect Visa-Debitkarte 2026-03-31 00:00:00 Ref. XXXXXXX/11111";"-123,34";
+"02.04.2026";"02.04.2026";"Lastschrift / Belastung";"Auftraggeber: MARKTKAUF Buchungstext: MARKTKAUF DE Karte Nr. XXXX XXXX XXXX XXXX Kartenzahlung comdirect Visa-Debitkarte 2026-03-31 00:00:00 Ref. XXXXX/2222";"-23,45";
+"01.04.2026";"01.04.2026";"Übertrag / Überweisung";"Empfänger: Fred MustermannKto/IBAN: DE1111 BLZ/BIC: XXXXX  Buchungstext: Uebertrag Konto Ref. XXXXXXXXXX/11111";"-111.111,11";
+
+"Alter Kontostand";"222.222,22 EUR";
+

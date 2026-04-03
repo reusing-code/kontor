@@ -96,6 +96,13 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("PUT /api/v1/settings", h.UpdateSettings)
 	apiMux.HandleFunc("PUT /api/v1/settings/password", h.ChangePassword)
 
+	// Ledger routes
+	apiMux.HandleFunc("POST /api/v1/ledger/imports/preview", h.LedgerImportPreview)
+	apiMux.HandleFunc("POST /api/v1/ledger/imports/{previewId}/commit", h.LedgerImportCommit)
+	apiMux.HandleFunc("GET /api/v1/ledger/accounts", h.ListLedgerAccounts)
+	apiMux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}/transactions", h.ListLedgerTransactions)
+	apiMux.HandleFunc("GET /api/v1/ledger/imports", h.ListLedgerImports)
+
 	protectedAPI := middleware.Auth(jwtSecret)(apiMux)
 
 	mux := http.NewServeMux()

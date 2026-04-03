@@ -1,0 +1,7 @@
+﻿"Girokonto";"DE12345678901234567890"
+
+"Kontostand vom DD.MM.YYYY:";"111.111,11 €"
+""
+"Buchungsdatum";"Wertstellung";"Status";"Zahlungspflichtige*r";"Zahlungsempfänger*in";"Verwendungszweck";"Umsatztyp";"IBAN";"Betrag (€)";"Gläubiger-ID";"Mandatsreferenz";"Kundenreferenz"
+"07.04.26";"02.04.26";"Gebucht";"DKB AG";"Mustermann,Fred";"Depot 0123 Wertpapierertrag 02.04.2026 WKN A1JX52 VANG.FTSE A.-WO.U.ETF DLD ISIN";"Eingang";"0000000000";"800,23";"";"";""
+"01.04.26";"01.04.26";"Gebucht";"Fred Mustermann";"Fred Mustermann";"Uebertrag Konto";"Eingang";"DE11222233334444555566";"12.345";"";"";""

@@ -49,5 +49,17 @@ type Store interface {
 	UpdateCostEntry(ctx context.Context, userID string, c model.CostEntry) error
 	DeleteCostEntry(ctx context.Context, userID string, id uuid.UUID) error
 
+	ListLedgerAccounts(ctx context.Context, userID string) ([]model.LedgerAccount, error)
+	GetLedgerAccount(ctx context.Context, userID string, id uuid.UUID) (model.LedgerAccount, error)
+	FindLedgerAccountByIBAN(ctx context.Context, userID string, iban string) (model.LedgerAccount, error)
+	CreateLedgerAccount(ctx context.Context, userID string, a model.LedgerAccount) error
+
+	GetLedgerImportByFileHash(ctx context.Context, userID string, sha256 string) (model.LedgerImportBatch, error)
+	LedgerTransactionFingerprintExists(ctx context.Context, userID string, fingerprint string) (bool, error)
+	CommitLedgerImport(ctx context.Context, userID string, batch model.LedgerImportBatch, txns []model.LedgerTransaction) error
+	ListLedgerImports(ctx context.Context, userID string) ([]model.LedgerImportBatch, error)
+
+	ListLedgerTransactions(ctx context.Context, userID string, accountID uuid.UUID) ([]model.LedgerTransaction, error)
+
 	Close() error
 }
