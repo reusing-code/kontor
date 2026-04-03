@@ -58,17 +58,11 @@ export function FormFieldRenderer<T extends FieldValues>({ config, control }: Fo
               />
             ) : (
               <Input
-                type={config.type === "number" ? "number" : config.type === "date" ? "date" : "text"}
+                type={config.type === "date" ? "date" : "text"}
+                inputMode={config.type === "number" ? "decimal" : undefined}
                 {...field}
                 value={field.value === undefined || field.value === null ? "" : String(field.value)}
-                onChange={(e) => {
-                  if (config.type === "number") {
-                    const val = e.target.value
-                    field.onChange(val === "" ? undefined : Number(val))
-                  } else {
-                    field.onChange(e.target.value || undefined)
-                  }
-                }}
+                onChange={(e) => field.onChange(e.target.value || undefined)}
               />
             )}
           </FormControl>

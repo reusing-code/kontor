@@ -1,4 +1,5 @@
 import { z } from "zod/v4"
+import { numericString } from "@/lib/utils"
 
 export const purchaseSchema = z.object({
   id: z.string().uuid(),
@@ -27,7 +28,7 @@ export const purchaseFormSchema = z.object({
   brand: z.string().optional(),
   articleNumber: z.string().optional(),
   dealer: z.string().optional(),
-  price: z.number().nonnegative().optional(),
+  price: numericString(z.number().nonnegative()),
   purchaseDate: z.string().date().optional(),
   descriptionUrl: z.string().url().optional().or(z.literal("")),
   invoiceUrl: z.string().url().optional().or(z.literal("")),
