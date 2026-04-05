@@ -100,6 +100,7 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("POST /api/v1/ledger/imports/preview", h.LedgerImportPreview)
 	apiMux.HandleFunc("POST /api/v1/ledger/imports/{previewId}/commit", h.LedgerImportCommit)
 	apiMux.HandleFunc("GET /api/v1/ledger/accounts", h.ListLedgerAccounts)
+	apiMux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}", h.GetLedgerAccount)
 	apiMux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}/transactions", h.ListLedgerTransactions)
 	apiMux.HandleFunc("GET /api/v1/ledger/imports", h.ListLedgerImports)
 

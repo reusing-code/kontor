@@ -7,6 +7,16 @@ import (
 	"github.com/tobi/contracts/backend/internal/model"
 )
 
+type LedgerTransactionPage struct {
+	Items      []model.LedgerTransaction
+	NextCursor string
+}
+
+type LedgerImportCommitResult struct {
+	ImportedRows  int
+	DuplicateRows int
+}
+
 type Store interface {
 	CreateUser(ctx context.Context, u model.User) error
 	GetUserByEmail(ctx context.Context, email string) (model.User, error)
@@ -56,10 +66,11 @@ type Store interface {
 
 	GetLedgerImportByFileHash(ctx context.Context, userID string, sha256 string) (model.LedgerImportBatch, error)
 	LedgerTransactionFingerprintExists(ctx context.Context, userID string, fingerprint string) (bool, error)
-	CommitLedgerImport(ctx context.Context, userID string, batch model.LedgerImportBatch, txns []model.LedgerTransaction) error
+	CommitLedgerImport(ctx context.Context, userID string, batch model.LedgerImportBatch, txns []model.LedgerTransaction) (LedgerImportCommitResult, error)
 	ListLedgerImports(ctx context.Context, userID string) ([]model.LedgerImportBatch, error)
 
 	ListLedgerTransactions(ctx context.Context, userID string, accountID uuid.UUID) ([]model.LedgerTransaction, error)
+	ListLedgerTransactionsPage(ctx context.Context, userID string, accountID uuid.UUID, limit int, cursor string) (LedgerTransactionPage, error)
 
 	Close() error
 }

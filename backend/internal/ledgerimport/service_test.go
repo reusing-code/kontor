@@ -75,14 +75,20 @@ func (m *mockStore) LedgerTransactionFingerprintExists(_ context.Context, _ stri
 	return m.fingerprints[fp], nil
 }
 
-func (m *mockStore) CommitLedgerImport(_ context.Context, _ string, batch model.LedgerImportBatch, txns []model.LedgerTransaction) error {
+func (m *mockStore) CommitLedgerImport(_ context.Context, _ string, batch model.LedgerImportBatch, txns []model.LedgerTransaction) (store.LedgerImportCommitResult, error) {
 	m.batches[batch.ID.String()] = batch
 	m.fileHashes[batch.FileSHA256] = batch
+	result := store.LedgerImportCommitResult{}
 	for _, t := range txns {
+		if m.fingerprints[t.Fingerprint] {
+			result.DuplicateRows++
+			continue
+		}
 		m.fingerprints[t.Fingerprint] = true
 		m.transactions = append(m.transactions, t)
+		result.ImportedRows++
 	}
-	return nil
+	return result, nil
 }
 
 func (m *mockStore) ListLedgerImports(_ context.Context, _ string) ([]model.LedgerImportBatch, error) {
@@ -95,6 +101,33 @@ func (m *mockStore) ListLedgerImports(_ context.Context, _ string) ([]model.Ledg
 
 func (m *mockStore) ListLedgerTransactions(_ context.Context, _ string, _ uuid.UUID) ([]model.LedgerTransaction, error) {
 	return m.transactions, nil
+}
+func (m *mockStore) ListLedgerTransactionsPage(_ context.Context, _ string, _ uuid.UUID, limit int, cursor string) (store.LedgerTransactionPage, error) {
+	items := append([]model.LedgerTransaction(nil), m.transactions...)
+	if limit <= 0 || limit > len(items) {
+		limit = len(items)
+	}
+	start := 0
+	if cursor != "" {
+		for i, txn := range items {
+			if txn.ID.String() == cursor {
+				start = i + 1
+				break
+			}
+		}
+	}
+	if start > len(items) {
+		start = len(items)
+	}
+	end := start + limit
+	if end > len(items) {
+		end = len(items)
+	}
+	page := store.LedgerTransactionPage{Items: items[start:end]}
+	if end < len(items) && end > start {
+		page.NextCursor = items[end-1].ID.String()
+	}
+	return page, nil
 }
 
 // Stub all other store.Store methods

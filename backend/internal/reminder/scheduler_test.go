@@ -118,14 +118,17 @@ func (m *mockStore) GetLedgerImportByFileHash(_ context.Context, _ string, _ str
 func (m *mockStore) LedgerTransactionFingerprintExists(_ context.Context, _ string, _ string) (bool, error) {
 	return false, nil
 }
-func (m *mockStore) CommitLedgerImport(_ context.Context, _ string, _ model.LedgerImportBatch, _ []model.LedgerTransaction) error {
-	return nil
+func (m *mockStore) CommitLedgerImport(_ context.Context, _ string, _ model.LedgerImportBatch, _ []model.LedgerTransaction) (store.LedgerImportCommitResult, error) {
+	return store.LedgerImportCommitResult{}, nil
 }
 func (m *mockStore) ListLedgerImports(_ context.Context, _ string) ([]model.LedgerImportBatch, error) {
 	return nil, nil
 }
 func (m *mockStore) ListLedgerTransactions(_ context.Context, _ string, _ uuid.UUID) ([]model.LedgerTransaction, error) {
 	return nil, nil
+}
+func (m *mockStore) ListLedgerTransactionsPage(_ context.Context, _ string, _ uuid.UUID, _ int, _ string) (store.LedgerTransactionPage, error) {
+	return store.LedgerTransactionPage{}, nil
 }
 
 func (m *mockStore) Close() error { return nil }

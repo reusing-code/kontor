@@ -53,7 +53,7 @@ func (svc *Service) Preview(ctx context.Context, req PreviewRequest) (*PreviewRe
 	// Check if this exact file was already imported
 	_, err = svc.store.GetLedgerImportByFileHash(ctx, req.UserID, fileHash)
 	if err == nil {
-		return nil, fmt.Errorf("this file has already been imported")
+		return nil, store.ErrLedgerFileImported
 	}
 	if !isNotFound(err) {
 		return nil, fmt.Errorf("checking file hash: %w", err)
@@ -152,7 +152,10 @@ type CommitResult struct {
 func (svc *Service) Commit(ctx context.Context, req CommitRequest) (*CommitResult, error) {
 	preview, err := svc.cache.Get(req.PreviewID)
 	if err != nil {
-		return nil, err
+		if err.Error() == fmt.Sprintf("preview %q expired", req.PreviewID) {
+			return nil, store.ErrLedgerPreviewExpired
+		}
+		return nil, store.ErrNotFound
 	}
 
 	// Resolve account
@@ -189,6 +192,9 @@ func (svc *Service) Commit(ctx context.Context, req CommitRequest) (*CommitResul
 			UpdatedAt: now,
 		}
 		if err := svc.store.CreateLedgerAccount(ctx, req.UserID, acc); err != nil {
+			if err == store.ErrConflict {
+				return nil, err
+			}
 			return nil, fmt.Errorf("creating account: %w", err)
 		}
 	} else {
@@ -203,19 +209,8 @@ func (svc *Service) Commit(ctx context.Context, req CommitRequest) (*CommitResul
 	now := time.Now().UTC()
 	batchID := uuid.New()
 	var txns []model.LedgerTransaction
-	dupCount := 0
-
 	for _, pt := range preview.Transactions {
 		fp := Fingerprint(accountID.String(), pt.Row)
-
-		exists, err := svc.store.LedgerTransactionFingerprintExists(ctx, req.UserID, fp)
-		if err != nil {
-			return nil, fmt.Errorf("checking fingerprint: %w", err)
-		}
-		if exists {
-			dupCount++
-			continue
-		}
 
 		txns = append(txns, model.LedgerTransaction{
 			ID:               uuid.New(),
@@ -246,32 +241,38 @@ func (svc *Service) Commit(ctx context.Context, req CommitRequest) (*CommitResul
 		FileSHA256:    preview.FileSHA256,
 		Status:        model.ImportStatusCommitted,
 		TotalRows:     preview.TotalRows,
-		ImportedRows:  len(txns),
-		DuplicateRows: dupCount,
+		ImportedRows:  0,
+		DuplicateRows: 0,
 		ErrorRows:     0,
 		Warnings:      preview.Warnings,
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
 
-	if err := svc.store.CommitLedgerImport(ctx, req.UserID, batch, txns); err != nil {
+	commitResult, err := svc.store.CommitLedgerImport(ctx, req.UserID, batch, txns)
+	if err != nil {
+		if err == store.ErrLedgerFileImported {
+			return nil, err
+		}
 		return nil, fmt.Errorf("committing import: %w", err)
 	}
+	batch.ImportedRows = commitResult.ImportedRows
+	batch.DuplicateRows = commitResult.DuplicateRows
 
 	svc.cache.Delete(req.PreviewID)
 
 	svc.logger.Info("import committed",
 		"batchId", batchID,
 		"accountId", accountID,
-		"imported", len(txns),
-		"duplicates", dupCount,
+		"imported", commitResult.ImportedRows,
+		"duplicates", commitResult.DuplicateRows,
 	)
 
 	return &CommitResult{
 		BatchID:       batchID,
 		AccountID:     accountID,
-		ImportedRows:  len(txns),
-		DuplicateRows: dupCount,
+		ImportedRows:  commitResult.ImportedRows,
+		DuplicateRows: commitResult.DuplicateRows,
 	}, nil
 }
 

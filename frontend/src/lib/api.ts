@@ -69,3 +69,31 @@ export function put<T>(path: string, body: unknown): Promise<T> {
 export function del(path: string): Promise<void> {
   return request<void>("DELETE", path)
 }
+
+export async function postForm<T>(path: string, body: FormData): Promise<T> {
+  const headers: Record<string, string> = {}
+  const token = getToken()
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`
+  }
+
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers,
+    body,
+  })
+
+  if (res.status === 401) {
+    clearToken()
+    window.location.href = "/login"
+    throw new ApiError(401, "unauthorized")
+  }
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, data.error ?? res.statusText)
+  }
+
+  if (res.status === 204) return undefined as T
+  return res.json()
+}

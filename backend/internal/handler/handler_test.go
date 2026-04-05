@@ -20,20 +20,25 @@ import (
 
 // mockStore implements store.Store in memory for handler tests.
 type mockStore struct {
-	categories map[string]map[uuid.UUID]model.Category // keyed by module, then ID
-	contracts  map[uuid.UUID]model.Contract
-	users      map[string]model.User // keyed by email
-	usersById  map[string]model.User // keyed by ID
-	settings   map[string]model.UserSettings
+	categories         map[string]map[uuid.UUID]model.Category // keyed by module, then ID
+	contracts          map[uuid.UUID]model.Contract
+	users              map[string]model.User // keyed by email
+	usersById          map[string]model.User // keyed by ID
+	settings           map[string]model.UserSettings
+	ledgerAccounts     map[uuid.UUID]model.LedgerAccount
+	ledgerImports      []model.LedgerImportBatch
+	ledgerTransactions map[uuid.UUID][]model.LedgerTransaction
 }
 
 func newMockStore() *mockStore {
 	return &mockStore{
-		categories: make(map[string]map[uuid.UUID]model.Category),
-		contracts:  make(map[uuid.UUID]model.Contract),
-		users:      make(map[string]model.User),
-		usersById:  make(map[string]model.User),
-		settings:   make(map[string]model.UserSettings),
+		categories:         make(map[string]map[uuid.UUID]model.Category),
+		contracts:          make(map[uuid.UUID]model.Contract),
+		users:              make(map[string]model.User),
+		usersById:          make(map[string]model.User),
+		settings:           make(map[string]model.UserSettings),
+		ledgerAccounts:     make(map[uuid.UUID]model.LedgerAccount),
+		ledgerTransactions: make(map[uuid.UUID][]model.LedgerTransaction),
 	}
 }
 
@@ -231,15 +236,24 @@ func (m *mockStore) UpdateCostEntry(_ context.Context, _ string, _ model.CostEnt
 func (m *mockStore) DeleteCostEntry(_ context.Context, _ string, _ uuid.UUID) error       { return nil }
 
 func (m *mockStore) ListLedgerAccounts(_ context.Context, _ string) ([]model.LedgerAccount, error) {
-	return nil, nil
+	out := make([]model.LedgerAccount, 0, len(m.ledgerAccounts))
+	for _, a := range m.ledgerAccounts {
+		out = append(out, a)
+	}
+	return out, nil
 }
-func (m *mockStore) GetLedgerAccount(_ context.Context, _ string, _ uuid.UUID) (model.LedgerAccount, error) {
-	return model.LedgerAccount{}, store.ErrNotFound
+func (m *mockStore) GetLedgerAccount(_ context.Context, _ string, id uuid.UUID) (model.LedgerAccount, error) {
+	a, ok := m.ledgerAccounts[id]
+	if !ok {
+		return model.LedgerAccount{}, store.ErrNotFound
+	}
+	return a, nil
 }
 func (m *mockStore) FindLedgerAccountByIBAN(_ context.Context, _ string, _ string) (model.LedgerAccount, error) {
 	return model.LedgerAccount{}, store.ErrNotFound
 }
-func (m *mockStore) CreateLedgerAccount(_ context.Context, _ string, _ model.LedgerAccount) error {
+func (m *mockStore) CreateLedgerAccount(_ context.Context, _ string, a model.LedgerAccount) error {
+	m.ledgerAccounts[a.ID] = a
 	return nil
 }
 func (m *mockStore) GetLedgerImportByFileHash(_ context.Context, _ string, _ string) (model.LedgerImportBatch, error) {
@@ -248,14 +262,45 @@ func (m *mockStore) GetLedgerImportByFileHash(_ context.Context, _ string, _ str
 func (m *mockStore) LedgerTransactionFingerprintExists(_ context.Context, _ string, _ string) (bool, error) {
 	return false, nil
 }
-func (m *mockStore) CommitLedgerImport(_ context.Context, _ string, _ model.LedgerImportBatch, _ []model.LedgerTransaction) error {
-	return nil
+func (m *mockStore) CommitLedgerImport(_ context.Context, _ string, batch model.LedgerImportBatch, txns []model.LedgerTransaction) (store.LedgerImportCommitResult, error) {
+	m.ledgerImports = append(m.ledgerImports, batch)
+	for _, txn := range txns {
+		m.ledgerTransactions[txn.AccountID] = append(m.ledgerTransactions[txn.AccountID], txn)
+	}
+	return store.LedgerImportCommitResult{ImportedRows: len(txns)}, nil
 }
 func (m *mockStore) ListLedgerImports(_ context.Context, _ string) ([]model.LedgerImportBatch, error) {
-	return nil, nil
+	return append([]model.LedgerImportBatch(nil), m.ledgerImports...), nil
 }
-func (m *mockStore) ListLedgerTransactions(_ context.Context, _ string, _ uuid.UUID) ([]model.LedgerTransaction, error) {
-	return nil, nil
+func (m *mockStore) ListLedgerTransactions(_ context.Context, _ string, accountID uuid.UUID) ([]model.LedgerTransaction, error) {
+	return append([]model.LedgerTransaction(nil), m.ledgerTransactions[accountID]...), nil
+}
+func (m *mockStore) ListLedgerTransactionsPage(_ context.Context, _ string, accountID uuid.UUID, limit int, cursor string) (store.LedgerTransactionPage, error) {
+	items := append([]model.LedgerTransaction(nil), m.ledgerTransactions[accountID]...)
+	if limit <= 0 || limit > len(items) {
+		limit = len(items)
+	}
+	start := 0
+	if cursor != "" {
+		for i, txn := range items {
+			if txn.ID.String() == cursor {
+				start = i + 1
+				break
+			}
+		}
+	}
+	if start > len(items) {
+		start = len(items)
+	}
+	end := start + limit
+	if end > len(items) {
+		end = len(items)
+	}
+	page := store.LedgerTransactionPage{Items: items[start:end]}
+	if end < len(items) {
+		page.NextCursor = items[end-1].ID.String()
+	}
+	return page, nil
 }
 
 var testJWTSecret = []byte("test-secret-key")
@@ -286,6 +331,10 @@ func newMux(h *Handler) http.Handler {
 	mux.HandleFunc("GET /api/v1/settings", h.GetSettings)
 	mux.HandleFunc("PUT /api/v1/settings", h.UpdateSettings)
 	mux.HandleFunc("PUT /api/v1/settings/password", h.ChangePassword)
+	mux.HandleFunc("GET /api/v1/ledger/accounts", h.ListLedgerAccounts)
+	mux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}", h.GetLedgerAccount)
+	mux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}/transactions", h.ListLedgerTransactions)
+	mux.HandleFunc("GET /api/v1/ledger/imports", h.ListLedgerImports)
 	// Inject test user into context for all requests
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := middleware.SetUserID(r.Context(), testUserID)
@@ -939,5 +988,113 @@ func TestUpdateSettings_PreservesLastReminderSent(t *testing.T) {
 	}
 	if persisted.ReminderFrequency != "monthly" {
 		t.Errorf("ReminderFrequency = %q, want %q", persisted.ReminderFrequency, "monthly")
+	}
+}
+
+func TestGetLedgerAccount_Success(t *testing.T) {
+	h, ms := newTestHandler()
+	mux := newMux(h)
+
+	account := model.LedgerAccount{
+		ID:       uuid.New(),
+		Name:     "Main account",
+		Bank:     "DKB",
+		Currency: "EUR",
+	}
+	ms.ledgerAccounts[account.ID] = account
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/v1/ledger/accounts/"+account.ID.String(), nil)
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	got := decodeJSON[model.LedgerAccount](t, rec)
+	if got.ID != account.ID {
+		t.Fatalf("ID = %s, want %s", got.ID, account.ID)
+	}
+}
+
+func TestGetLedgerAccount_InvalidUUID(t *testing.T) {
+	h, _ := newTestHandler()
+	mux := newMux(h)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/v1/ledger/accounts/not-a-uuid", nil)
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestListLedgerTransactions_Paginated(t *testing.T) {
+	h, ms := newTestHandler()
+	mux := newMux(h)
+
+	accountID := uuid.New()
+	ms.ledgerAccounts[accountID] = model.LedgerAccount{ID: accountID, Name: "Main", Bank: "DKB", Currency: "EUR"}
+	firstID := uuid.New()
+	secondID := uuid.New()
+	thirdID := uuid.New()
+	ms.ledgerTransactions[accountID] = []model.LedgerTransaction{
+		{ID: firstID, AccountID: accountID, BookingDate: "2026-04-03", Currency: "EUR"},
+		{ID: secondID, AccountID: accountID, BookingDate: "2026-04-02", Currency: "EUR"},
+		{ID: thirdID, AccountID: accountID, BookingDate: "2026-04-01", Currency: "EUR"},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/v1/ledger/accounts/"+accountID.String()+"/transactions?limit=2", nil)
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var page struct {
+		Items      []model.LedgerTransaction `json:"items"`
+		NextCursor string                    `json:"nextCursor"`
+	}
+	page = decodeJSON[struct {
+		Items      []model.LedgerTransaction `json:"items"`
+		NextCursor string                    `json:"nextCursor"`
+	}](t, rec)
+	if len(page.Items) != 2 {
+		t.Fatalf("len(items) = %d, want 2", len(page.Items))
+	}
+	if page.NextCursor == "" {
+		t.Fatal("expected nextCursor")
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/api/v1/ledger/accounts/"+accountID.String()+"/transactions?limit=2&cursor="+page.NextCursor, nil)
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("second page status = %d, want %d; body: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	page = decodeJSON[struct {
+		Items      []model.LedgerTransaction `json:"items"`
+		NextCursor string                    `json:"nextCursor"`
+	}](t, rec)
+	if len(page.Items) != 1 {
+		t.Fatalf("second page len(items) = %d, want 1", len(page.Items))
+	}
+}
+
+func TestListLedgerTransactions_InvalidLimit(t *testing.T) {
+	h, ms := newTestHandler()
+	mux := newMux(h)
+
+	accountID := uuid.New()
+	ms.ledgerAccounts[accountID] = model.LedgerAccount{ID: accountID, Name: "Main", Bank: "DKB", Currency: "EUR"}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/v1/ledger/accounts/"+accountID.String()+"/transactions?limit=abc", nil)
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
 	}
 }

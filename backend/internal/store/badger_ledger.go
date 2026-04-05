@@ -5,10 +5,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/google/uuid"
 	"github.com/tobi/contracts/backend/internal/model"
+)
+
+var (
+	ErrLedgerPreviewExpired = errors.New("ledger preview expired")
+	ErrLedgerFileImported   = errors.New("ledger file already imported")
 )
 
 // Ledger account key helpers
@@ -88,6 +95,12 @@ func (s *BadgerStore) ListLedgerAccounts(_ context.Context, userID string) ([]mo
 	if accounts == nil {
 		accounts = []model.LedgerAccount{}
 	}
+	sort.Slice(accounts, func(i, j int) bool {
+		if accounts[i].Name == accounts[j].Name {
+			return accounts[i].CreatedAt.Before(accounts[j].CreatedAt)
+		}
+		return strings.ToLower(accounts[i].Name) < strings.ToLower(accounts[j].Name)
+	})
 	return accounts, nil
 }
 
@@ -146,6 +159,13 @@ func (s *BadgerStore) CreateLedgerAccount(_ context.Context, userID string, a mo
 		return err
 	}
 	return s.db.Update(func(txn *badger.Txn) error {
+		if a.IBAN != "" {
+			if _, err := txn.Get(idxLedAccIBANKey(userID, a.IBAN)); err == nil {
+				return ErrConflict
+			} else if !errors.Is(err, badger.ErrKeyNotFound) {
+				return err
+			}
+		}
 		if err := txn.Set(ledAccKey(userID, a.ID), data); err != nil {
 			return err
 		}
@@ -208,13 +228,21 @@ func (s *BadgerStore) LedgerTransactionFingerprintExists(_ context.Context, user
 	return exists, err
 }
 
-func (s *BadgerStore) CommitLedgerImport(_ context.Context, userID string, batch model.LedgerImportBatch, txns []model.LedgerTransaction) error {
+func (s *BadgerStore) CommitLedgerImport(_ context.Context, userID string, batch model.LedgerImportBatch, txns []model.LedgerTransaction) (LedgerImportCommitResult, error) {
 	batchData, err := json.Marshal(batch)
 	if err != nil {
-		return err
+		return LedgerImportCommitResult{}, err
 	}
 
-	return s.db.Update(func(txn *badger.Txn) error {
+	result := LedgerImportCommitResult{}
+
+	err = s.db.Update(func(txn *badger.Txn) error {
+		if _, err := txn.Get(idxLedFileHashKey(userID, batch.FileSHA256)); err == nil {
+			return ErrLedgerFileImported
+		} else if !errors.Is(err, badger.ErrKeyNotFound) {
+			return err
+		}
+
 		if err := txn.Set(ledImpKey(userID, batch.ID), batchData); err != nil {
 			return err
 		}
@@ -224,6 +252,13 @@ func (s *BadgerStore) CommitLedgerImport(_ context.Context, userID string, batch
 
 		for i := range txns {
 			t := &txns[i]
+			if _, err := txn.Get(idxLedTxnFPKey(userID, t.Fingerprint)); err == nil {
+				result.DuplicateRows++
+				continue
+			} else if !errors.Is(err, badger.ErrKeyNotFound) {
+				return err
+			}
+
 			data, err := json.Marshal(t)
 			if err != nil {
 				return err
@@ -240,9 +275,14 @@ func (s *BadgerStore) CommitLedgerImport(_ context.Context, userID string, batch
 			if err := txn.Set(idxLedImpTxnKey(userID, batch.ID, t.ID), []byte{}); err != nil {
 				return err
 			}
+			result.ImportedRows++
 		}
 		return nil
 	})
+	if err != nil {
+		return LedgerImportCommitResult{}, err
+	}
+	return result, nil
 }
 
 func (s *BadgerStore) ListLedgerImports(_ context.Context, userID string) ([]model.LedgerImportBatch, error) {
@@ -270,14 +310,36 @@ func (s *BadgerStore) ListLedgerImports(_ context.Context, userID string) ([]mod
 	if batches == nil {
 		batches = []model.LedgerImportBatch{}
 	}
+	sort.Slice(batches, func(i, j int) bool {
+		if batches[i].CreatedAt.Equal(batches[j].CreatedAt) {
+			return batches[i].ID.String() > batches[j].ID.String()
+		}
+		return batches[i].CreatedAt.After(batches[j].CreatedAt)
+	})
 	return batches, nil
 }
 
 // Ledger Transactions
 
 func (s *BadgerStore) ListLedgerTransactions(_ context.Context, userID string, accountID uuid.UUID) ([]model.LedgerTransaction, error) {
+	page, err := s.ListLedgerTransactionsPage(context.Background(), userID, accountID, 1000, "")
+	if err != nil {
+		return nil, err
+	}
+	return page.Items, nil
+}
+
+func (s *BadgerStore) ListLedgerTransactionsPage(_ context.Context, userID string, accountID uuid.UUID, limit int, cursor string) (LedgerTransactionPage, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+
 	var txns []model.LedgerTransaction
 	prefix := idxLedAccTxnPrefix(userID, accountID)
+	page := LedgerTransactionPage{Items: []model.LedgerTransaction{}}
 
 	err := s.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -318,10 +380,34 @@ func (s *BadgerStore) ListLedgerTransactions(_ context.Context, userID string, a
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return page, err
 	}
-	if txns == nil {
-		txns = []model.LedgerTransaction{}
+	sort.Slice(txns, func(i, j int) bool {
+		if txns[i].BookingDate == txns[j].BookingDate {
+			return txns[i].ID.String() > txns[j].ID.String()
+		}
+		return txns[i].BookingDate > txns[j].BookingDate
+	})
+
+	start := 0
+	if cursor != "" {
+		for i, txn := range txns {
+			if txn.ID.String() == cursor {
+				start = i + 1
+				break
+			}
+		}
 	}
-	return txns, nil
+	if start > len(txns) {
+		start = len(txns)
+	}
+	end := start + limit
+	if end > len(txns) {
+		end = len(txns)
+	}
+	page.Items = txns[start:end]
+	if end < len(txns) && end > start {
+		page.NextCursor = txns[end-1].ID.String()
+	}
+	return page, nil
 }

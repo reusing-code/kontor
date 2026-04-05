@@ -54,6 +54,14 @@ func (h *Handler) handleStoreError(w http.ResponseWriter, err error) {
 		h.errorResponse(w, http.StatusNotFound, "not found")
 		return
 	}
+	if errors.Is(err, store.ErrConflict) || errors.Is(err, store.ErrLedgerFileImported) {
+		h.errorResponse(w, http.StatusConflict, err.Error())
+		return
+	}
+	if errors.Is(err, store.ErrLedgerPreviewExpired) {
+		h.errorResponse(w, http.StatusGone, err.Error())
+		return
+	}
 	h.logger.Error("store error", "error", err)
 	h.errorResponse(w, http.StatusInternalServerError, "internal error")
 }
