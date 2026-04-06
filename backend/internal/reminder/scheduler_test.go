@@ -151,6 +151,18 @@ func (m *mockStore) ListLedgerTransactionsFiltered(_ context.Context, _ string, 
 func (m *mockStore) GetLedgerTransaction(_ context.Context, _ string, _ uuid.UUID) (model.LedgerTransaction, error) {
 	return model.LedgerTransaction{}, store.ErrNotFound
 }
+func (m *mockStore) UpdateLedgerTransactionDetails(_ context.Context, _ string, _ uuid.UUID, _ model.LedgerTransactionDetailsInput) (model.LedgerTransaction, error) {
+	return model.LedgerTransaction{}, store.ErrNotFound
+}
+func (m *mockStore) ListLedgerTransferCandidates(_ context.Context, _ string, _ uuid.UUID) (store.LedgerTransferCandidatesResult, error) {
+	return store.LedgerTransferCandidatesResult{}, nil
+}
+func (m *mockStore) LinkLedgerTransfer(_ context.Context, _ string, _ uuid.UUID, _ model.LedgerTransferLinkInput) (model.LedgerTransferLinkResult, error) {
+	return model.LedgerTransferLinkResult{}, store.ErrNotFound
+}
+func (m *mockStore) UnlinkLedgerTransfer(_ context.Context, _ string, _ uuid.UUID) (store.LedgerTransferLinkResult, error) {
+	return store.LedgerTransferLinkResult{}, store.ErrNotFound
+}
 func (m *mockStore) ReviewLedgerTransaction(_ context.Context, _ string, _ uuid.UUID, _ model.LedgerTransactionReviewInput) (store.LedgerReviewResult, error) {
 	return store.LedgerReviewResult{}, store.ErrNotFound
 }
