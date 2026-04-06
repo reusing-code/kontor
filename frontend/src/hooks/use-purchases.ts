@@ -44,6 +44,19 @@ export function useCreatePurchase(categoryId: string) {
   })
 }
 
+export function useCreatePurchaseByCategory() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ categoryId, data }: { categoryId: string; data: PurchaseFormData }) => createPurchase(categoryId, data),
+    onSuccess: (purchase) => {
+      qc.invalidateQueries({ queryKey: ["purchases"] })
+      qc.invalidateQueries({ queryKey: purchasesKey(purchase.categoryId) })
+      qc.invalidateQueries({ queryKey: ["categories", "purchases"] })
+      qc.invalidateQueries({ queryKey: ["purchases-summary"] })
+    },
+  })
+}
+
 export function useUpdatePurchase(categoryId: string) {
   const qc = useQueryClient()
   return useMutation({

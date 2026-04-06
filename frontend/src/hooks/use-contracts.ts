@@ -53,6 +53,19 @@ export function useCreateContract(categoryId: string) {
   })
 }
 
+export function useCreateContractByCategory() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ categoryId, data }: { categoryId: string; data: ContractFormData }) => createContract(categoryId, data),
+    onSuccess: (contract) => {
+      qc.invalidateQueries({ queryKey: ["contracts"] })
+      qc.invalidateQueries({ queryKey: contractsKey(contract.categoryId) })
+      qc.invalidateQueries({ queryKey: ["categories", "contracts"] })
+      qc.invalidateQueries({ queryKey: ["summary"] })
+    },
+  })
+}
+
 export function useUpdateContract(categoryId: string) {
   const qc = useQueryClient()
   return useMutation({
