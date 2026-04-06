@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { Pencil, Plus, Trash2 } from "lucide-react"
+import { ChevronRight, Pencil, Plus, Trash2 } from "lucide-react"
 import type { LedgerCategory, LedgerCategoryInput } from "@/types/ledger"
 import {
   useCreateLedgerCategory,
@@ -18,6 +18,12 @@ interface LedgerCategoryTreeManagerProps {
   categories: LedgerCategory[]
 }
 
+interface CategoryDialogState {
+  mode: "create" | "edit"
+  category: LedgerCategory | null
+  parentId?: string
+}
+
 function sortCategories(categories: LedgerCategory[]) {
   return [...categories].sort((left, right) => left.name.localeCompare(right.name))
 }
@@ -27,8 +33,7 @@ export function LedgerCategoryTreeManager({ categories }: LedgerCategoryTreeMana
   const createCategory = useCreateLedgerCategory()
   const updateCategory = useUpdateLedgerCategory()
   const deleteCategory = useDeleteLedgerCategory()
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingCategory, setEditingCategory] = useState<LedgerCategory | null>(null)
+  const [dialogState, setDialogState] = useState<CategoryDialogState | null>(null)
   const [deleteCandidate, setDeleteCandidate] = useState<LedgerCategory | null>(null)
 
   const childrenByParent = useMemo(() => {
@@ -49,18 +54,18 @@ export function LedgerCategoryTreeManager({ categories }: LedgerCategoryTreeMana
     createCategory.mutate(data, {
       onSuccess: () => {
         toast.success(t("ledger.categoryCreated"))
-        setDialogOpen(false)
+        setDialogState(null)
       },
       onError: (error) => toast.error(error.message),
     })
   }
 
   function handleUpdate(data: LedgerCategoryInput) {
-    if (!editingCategory) return
-    updateCategory.mutate({ id: editingCategory.id, data }, {
+    if (!dialogState?.category) return
+    updateCategory.mutate({ id: dialogState.category.id, data }, {
       onSuccess: () => {
         toast.success(t("ledger.categoryUpdated"))
-        setEditingCategory(null)
+        setDialogState(null)
       },
       onError: (error) => toast.error(error.message),
     })
@@ -77,62 +82,72 @@ export function LedgerCategoryTreeManager({ categories }: LedgerCategoryTreeMana
     })
   }
 
-  function renderTree(parentId?: string, depth: number = 0): React.ReactNode {
+  function renderTree(parentId: string | undefined = undefined, depth: number = 0): React.ReactNode {
     const items = childrenByParent.get(parentId ?? "root") ?? []
-    return items.map((category) => (
-      <div key={category.id} className="space-y-3">
-        <div className="rounded-lg border p-4" style={{ marginLeft: `${depth * 20}px` }}>
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div className="space-y-2">
-              <div className="font-medium">{category.name}</div>
-              <div className="flex flex-wrap gap-2">
-                {category.matchWords.length === 0 ? (
-                  <span className="text-sm text-muted-foreground">{t("ledger.noMatchWords")}</span>
-                ) : (
-                  category.matchWords.map((word) => (
-                    <Badge key={word} variant="outline">{word}</Badge>
-                  ))
-                )}
+
+    return items.map((category) => {
+      const children = childrenByParent.get(category.id) ?? []
+
+      return (
+        <div key={category.id} className="space-y-3">
+          <div className="relative rounded-lg border bg-card/60 p-4">
+            {depth > 0 ? (
+              <div aria-hidden="true" className="pointer-events-none absolute left-0 top-0 bottom-0 w-8">
+                <div className="absolute left-4 top-0 bottom-6 border-l border-border" />
+                <div className="absolute left-4 top-6 w-4 border-t border-border" />
+              </div>
+            ) : null}
+
+            <div className="flex flex-col gap-3" style={{ paddingLeft: depth > 0 ? `${depth * 20}px` : undefined }}>
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    {children.length > 0 ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <span className="w-4" />}
+                    <span className="font-medium">{category.name}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pl-6">
+                    {category.matchWords.length === 0 ? (
+                      <span className="text-sm text-muted-foreground">{t("ledger.noMatchWords")}</span>
+                    ) : (
+                      category.matchWords.map((word) => (
+                        <Badge key={word} variant="outline">{word}</Badge>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pl-6 md:pl-0">
+                  <Button size="sm" variant="outline" onClick={() => setDialogState({ mode: "edit", category })}>
+                    <Pencil className="h-4 w-4" />
+                    {t("common.edit")}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setDialogState({ mode: "create", category: null, parentId: category.id })}>
+                    <Plus className="h-4 w-4" />
+                    {t("ledger.addChild")}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setDeleteCandidate(category)}>
+                    <Trash2 className="h-4 w-4" />
+                    {t("common.delete")}
+                  </Button>
+                </div>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setEditingCategory(category)}>
-                <Pencil className="h-4 w-4" />
-                {t("common.edit")}
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => {
-                setEditingCategory({
-                  ...category,
-                  id: "",
-                } as LedgerCategory)
-                setDialogOpen(true)
-              }}>
-                <Plus className="h-4 w-4" />
-                {t("ledger.addChild")}
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setDeleteCandidate(category)}>
-                <Trash2 className="h-4 w-4" />
-                {t("common.delete")}
-              </Button>
-            </div>
           </div>
+
+          {children.length > 0 ? <div className="space-y-3">{renderTree(category.id, depth + 1)}</div> : null}
         </div>
-        {renderTree(category.id, depth + 1)}
-      </div>
-    ))
+      )
+    })
   }
 
-  const dialogCategory = dialogOpen && editingCategory?.id === "" ? null : editingCategory
-  const dialogCategories = dialogOpen && editingCategory?.id === "" && editingCategory?.parentId
-    ? categories
-    : categories
+  const dialogCategory = dialogState?.mode === "edit" ? dialogState.category : null
 
   return (
     <>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">
           <CardTitle>{t("ledger.categories")}</CardTitle>
-          <Button onClick={() => { setEditingCategory(null); setDialogOpen(true) }}>
+          <Button onClick={() => setDialogState({ mode: "create", category: null })}>
             <Plus className="h-4 w-4" />
             {t("ledger.newCategory")}
           </Button>
@@ -147,22 +162,18 @@ export function LedgerCategoryTreeManager({ categories }: LedgerCategoryTreeMana
       </Card>
 
       <LedgerCategoryDialog
-        open={dialogOpen || !!editingCategory}
+        open={dialogState !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setDialogOpen(false)
-            setEditingCategory(null)
+            setDialogState(null)
           }
         }}
         category={dialogCategory}
-        categories={dialogCategories}
+        categories={categories}
+        initialParentId={dialogState?.mode === "create" ? dialogState.parentId : undefined}
         onSubmit={(data) => {
-          if (editingCategory && editingCategory.id) {
+          if (dialogState?.mode === "edit") {
             handleUpdate(data)
-            return
-          }
-          if (editingCategory && editingCategory.id === "") {
-            handleCreate({ ...data, parentId: editingCategory.parentId })
             return
           }
           handleCreate(data)

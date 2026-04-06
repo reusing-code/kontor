@@ -34,6 +34,7 @@ interface LedgerCategoryDialogProps {
   onOpenChange: (open: boolean) => void
   category?: LedgerCategory | null
   categories: LedgerCategory[]
+  initialParentId?: string
   onSubmit: (data: LedgerCategoryInput) => void
 }
 
@@ -42,6 +43,7 @@ export function LedgerCategoryDialog({
   onOpenChange,
   category,
   categories,
+  initialParentId,
   onSubmit,
 }: LedgerCategoryDialogProps) {
   return (
@@ -51,6 +53,7 @@ export function LedgerCategoryDialog({
           key={category?.id ?? "new"}
           category={category}
           categories={categories}
+          initialParentId={initialParentId}
           onOpenChange={onOpenChange}
           onSubmit={onSubmit}
         />
@@ -62,6 +65,7 @@ export function LedgerCategoryDialog({
 interface LedgerCategoryDialogFormProps {
   category?: LedgerCategory | null
   categories: LedgerCategory[]
+  initialParentId?: string
   onOpenChange: (open: boolean) => void
   onSubmit: (data: LedgerCategoryInput) => void
 }
@@ -69,6 +73,7 @@ interface LedgerCategoryDialogFormProps {
 function LedgerCategoryDialogForm({
   category,
   categories,
+  initialParentId,
   onOpenChange,
   onSubmit,
 }: LedgerCategoryDialogFormProps) {
@@ -78,7 +83,7 @@ function LedgerCategoryDialogForm({
     resolver: standardSchemaResolver(ledgerCategoryInputSchema),
     defaultValues: {
       name: category?.name ?? "",
-      parentId: category?.parentId,
+      parentId: category?.parentId ?? initialParentId,
       matchWords: category?.matchWords ?? [],
     },
   })
