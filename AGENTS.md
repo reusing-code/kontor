@@ -17,6 +17,9 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 ## Commands (from repo root)
 
 - `task dev` — Start backend (Air) + frontend (Vite) concurrently
+- `task ci` — Run the local backend + frontend checks that must pass before committing
+- `task ci:backend` — Run backend test + lint checks
+- `task ci:frontend` — Run frontend lint + build checks
 - `task build` — Build Docker image
 - `task up` / `task down` — Docker Compose up/down
 
@@ -79,3 +82,5 @@ All development must be done on feature branches. Never commit directly to `main
 ## Dev workflow
 
 `task dev` from root starts both services. Vite dev server (port 5173) proxies `/api/*`, `/healthz`, `/readyz`, `/metrics` to the Go backend (port 8080). Open http://localhost:5173 in the browser.
+
+Before committing, run `task ci` from the repo root. If you only changed one side, you may additionally run the narrower `task ci:backend` or `task ci:frontend` while iterating, but the full root `task ci` is the required pre-commit check.

@@ -1,6 +1,26 @@
 version: "3"
 
 tasks:
+  ci:
+    desc: Run the same local checks expected by CI
+    deps:
+      - ci:backend
+      - ci:frontend
+
+  ci:backend:
+    desc: Run backend test and lint checks
+    dir: backend
+    cmds:
+      - task test
+      - task lint
+
+  ci:frontend:
+    desc: Run frontend lint and build checks
+    dir: frontend
+    cmds:
+      - bun run lint
+      - bun run build
+
   dev:
     desc: Run backend and frontend concurrently
     deps:

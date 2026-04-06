@@ -18,7 +18,7 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 - `task dev` — Start with Air (live reload), sets `CORS_ORIGIN` for frontend dev server
 - `task build` — Build the binary
 - `task test` — Run tests
-- `task lint` — Run golangci-lint
+- `task lint` — Run golangci-lint (use a recent binary compatible with the repo Go version)
 
 ## Architecture
 

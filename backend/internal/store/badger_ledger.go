@@ -62,10 +62,6 @@ func idxLedAccTxnKey(userID string, accountID uuid.UUID, bookingDate string, txn
 	return []byte(fmt.Sprintf("u/%s/idx/led_acc_txn/%s/%s/%s", userID, accountID, bookingDate, txnID))
 }
 
-func idxLedAccTxnPrefix(userID string, accountID uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/led_acc_txn/%s/", userID, accountID))
-}
-
 func idxLedTxnFPKey(userID string, fingerprint string) []byte {
 	return []byte(fmt.Sprintf("u/%s/idx/led_txn_fp/%s", userID, fingerprint))
 }
@@ -568,10 +564,6 @@ func syncLedgerReferences(txn *badger.Txn, userID string, transactionID uuid.UUI
 		}
 	}
 	return nil
-}
-
-func removeLedgerTransactionLinksFromTargets(txn *badger.Txn, userID string, transaction model.LedgerTransaction) error {
-	return syncLedgerReferences(txn, userID, transaction.ID, transaction.References, nil)
 }
 
 func removeLedgerTransactionLinks(txn *badger.Txn, userID string, transactionIDs []uuid.UUID, referenceType string, targetID uuid.UUID) error {
