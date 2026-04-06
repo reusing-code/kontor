@@ -25,7 +25,7 @@ export const autoIndexRoute = createRoute({
   component: AutoIndexPage,
 })
 
-function AutoIndexPage() {
+export function AutoIndexPage() {
   const { t } = useTranslation()
   usePageTitle(t("nav.auto"), t("app.title"))
   const navigate = useNavigate()

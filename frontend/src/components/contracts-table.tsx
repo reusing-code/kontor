@@ -1,4 +1,5 @@
 import { Fragment, useState } from "react"
+import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { format } from "date-fns"
 import { ChevronRight, ExternalLink, FileText, MoreVertical } from "lucide-react"
@@ -152,9 +153,17 @@ export function ContractsTable({ contracts, onEdit, onDelete, getRowClassName }:
                           )}
                         />
                       </TableCell>
-                      {tableColumns.map((col) => (
-                        <TableCell key={col.key}>{formatCellValue(contract, col.key, currency, t)}</TableCell>
-                      ))}
+                       {tableColumns.map((col) => (
+                         <TableCell key={col.key}>
+                           {col.key === "name" ? (
+                             <Link to="/contracts/$contractId" params={{ contractId: contract.id }} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
+                               {formatCellValue(contract, col.key, currency, t)}
+                             </Link>
+                           ) : (
+                             formatCellValue(contract, col.key, currency, t)
+                           )}
+                         </TableCell>
+                       ))}
                       <TableCell>
                         {contract.expired ? (
                           <Badge variant="secondary">{t("contract.expired")}</Badge>

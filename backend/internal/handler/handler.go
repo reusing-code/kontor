@@ -5,25 +5,29 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/tobi/contracts/backend/internal/email"
+	"github.com/tobi/contracts/backend/internal/ledgerimport"
 	"github.com/tobi/contracts/backend/internal/store"
 )
 
 type Handler struct {
-	store       store.Store
-	logger      *slog.Logger
-	jwtSecret   []byte
-	emailClient *email.Client
+	store        store.Store
+	logger       *slog.Logger
+	jwtSecret    []byte
+	emailClient  *email.Client
+	ledgerImport *ledgerimport.Service
 }
 
 func New(s store.Store, logger *slog.Logger, jwtSecret []byte, emailClient *email.Client) *Handler {
 	return &Handler{
-		store:       s,
-		logger:      logger,
-		jwtSecret:   jwtSecret,
-		emailClient: emailClient,
+		store:        s,
+		logger:       logger,
+		jwtSecret:    jwtSecret,
+		emailClient:  emailClient,
+		ledgerImport: ledgerimport.NewService(s, logger),
 	}
 }
 
@@ -51,10 +55,38 @@ func (h *Handler) handleStoreError(w http.ResponseWriter, err error) {
 		h.errorResponse(w, http.StatusNotFound, "not found")
 		return
 	}
+	if errors.Is(err, store.ErrConflict) || errors.Is(err, store.ErrLedgerFileImported) {
+		h.errorResponse(w, http.StatusConflict, err.Error())
+		return
+	}
+	if errors.Is(err, store.ErrLedgerCategoryHasChild) || errors.Is(err, store.ErrLedgerCategoryHasCycle) {
+		h.errorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if errors.Is(err, store.ErrLedgerTransferInvalid) {
+		h.errorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err != nil && err.Error() == "links must contain valid absolute URLs" {
+		h.errorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err != nil && err.Error() == "references contain an invalid type" {
+		h.errorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if errors.Is(err, store.ErrLedgerPreviewExpired) {
+		h.errorResponse(w, http.StatusGone, err.Error())
+		return
+	}
 	h.logger.Error("store error", "error", err)
 	h.errorResponse(w, http.StatusInternalServerError, "internal error")
 }
 
 func parseUUID(s string) (uuid.UUID, error) {
 	return uuid.Parse(s)
+}
+
+func parseInt(s string) (int, error) {
+	return strconv.Atoi(s)
 }

@@ -1,3 +1,4 @@
+import { Suspense, useEffect, useState } from "react"
 import { createRootRoute, Outlet, Link, useMatchRoute } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { LanguageSwitcher } from "@/components/language-switcher"
@@ -5,7 +6,6 @@ import { Sidebar } from "@/components/sidebar"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { LogOut } from "lucide-react"
-import { useEffect, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 
 export const rootRoute = createRootRoute({
@@ -51,7 +51,9 @@ function RootLayout() {
       <div className="flex flex-1">
         <Sidebar />
         <main className="flex-1 px-6 py-6">
-          <Outlet />
+          <Suspense fallback={<div className="text-sm text-muted-foreground">{t("common.loading")}</div>}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
       <VersionIndicator />

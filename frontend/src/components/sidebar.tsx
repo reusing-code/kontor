@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Link, useMatchRoute } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { useCategories } from "@/hooks/use-categories"
+import { useLedgerAccounts } from "@/hooks/use-ledger"
 import { useVehicles } from "@/hooks/use-vehicles"
 import { cn } from "@/lib/utils"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -60,6 +61,7 @@ export function Sidebar() {
   const { t } = useTranslation()
   const { data: contractCategories = [] } = useCategories("contracts")
   const { data: purchaseCategories = [] } = useCategories("purchases")
+  const { data: ledgerAccounts = [] } = useLedgerAccounts()
   const { data: vehicles = [] } = useVehicles()
   const matchRoute = useMatchRoute()
 
@@ -126,6 +128,50 @@ export function Sidebar() {
                 )}
               >
                 {category.nameKey ? t(category.nameKey) : category.name}
+              </Link>
+            )
+          })}
+        </SidebarSection>
+
+        <SidebarSection
+          title={t("nav.ledger")}
+          to="/ledger"
+          isActive={!!matchRoute({ to: "/ledger", fuzzy: true })}
+        >
+          <Link
+            to="/ledger/review"
+            className={cn(
+              "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
+              matchRoute({ to: "/ledger/review" }) && "bg-accent font-medium",
+            )}
+          >
+            {t("ledger.reviewQueue")}
+          </Link>
+          <Link
+            to="/ledger/categories"
+            className={cn(
+              "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
+              matchRoute({ to: "/ledger/categories" }) && "bg-accent font-medium",
+            )}
+          >
+            {t("ledger.categories")}
+          </Link>
+          {ledgerAccounts.map((account) => {
+            const active = matchRoute({
+              to: "/ledger/accounts/$accountId",
+              params: { accountId: account.id },
+            })
+            return (
+              <Link
+                key={account.id}
+                to="/ledger/accounts/$accountId"
+                params={{ accountId: account.id }}
+                className={cn(
+                  "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
+                  active && "bg-accent font-medium",
+                )}
+              >
+                {account.name}
               </Link>
             )
           })}

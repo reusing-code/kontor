@@ -96,6 +96,26 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("PUT /api/v1/settings", h.UpdateSettings)
 	apiMux.HandleFunc("PUT /api/v1/settings/password", h.ChangePassword)
 
+	// Ledger routes
+	apiMux.HandleFunc("POST /api/v1/ledger/imports/preview", h.LedgerImportPreview)
+	apiMux.HandleFunc("POST /api/v1/ledger/imports/{previewId}/commit", h.LedgerImportCommit)
+	apiMux.HandleFunc("GET /api/v1/ledger/categories", h.ListLedgerCategories)
+	apiMux.HandleFunc("POST /api/v1/ledger/categories", h.CreateLedgerCategory)
+	apiMux.HandleFunc("GET /api/v1/ledger/categories/{id}", h.GetLedgerCategory)
+	apiMux.HandleFunc("PUT /api/v1/ledger/categories/{id}", h.UpdateLedgerCategory)
+	apiMux.HandleFunc("DELETE /api/v1/ledger/categories/{id}", h.DeleteLedgerCategory)
+	apiMux.HandleFunc("GET /api/v1/ledger/accounts", h.ListLedgerAccounts)
+	apiMux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}", h.GetLedgerAccount)
+	apiMux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}/transactions", h.ListLedgerTransactions)
+	apiMux.HandleFunc("GET /api/v1/ledger/imports", h.ListLedgerImports)
+	apiMux.HandleFunc("GET /api/v1/ledger/transactions", h.ListLedgerTransactionsReviewQueue)
+	apiMux.HandleFunc("GET /api/v1/ledger/transactions/{transactionId}", h.GetLedgerTransaction)
+	apiMux.HandleFunc("PUT /api/v1/ledger/transactions/{transactionId}", h.UpdateLedgerTransactionDetails)
+	apiMux.HandleFunc("GET /api/v1/ledger/transactions/{transactionId}/transfer-candidates", h.ListLedgerTransferCandidates)
+	apiMux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/transfer-link", h.LinkLedgerTransfer)
+	apiMux.HandleFunc("DELETE /api/v1/ledger/transactions/{transactionId}/transfer-link", h.UnlinkLedgerTransfer)
+	apiMux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/review", h.ReviewLedgerTransaction)
+
 	protectedAPI := middleware.Auth(jwtSecret)(apiMux)
 
 	mux := http.NewServeMux()

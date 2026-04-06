@@ -21,7 +21,9 @@ import { CostEntryDialog } from "@/components/cost-entry-dialog"
 import { VehicleDashboard } from "@/components/vehicle-dashboard"
 import { VehicleDialog } from "@/components/vehicle-dialog"
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
+import { LinkedTransactionsList } from "@/components/linked-transactions-list"
 import { Separator } from "@/components/ui/separator"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export const autoVehicleDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -93,6 +95,15 @@ function AutoVehicleDetailPage() {
       </div>
 
       {summary && <VehicleDashboard summary={summary} />}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("ledger.linkedTransactions")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <LinkedTransactionsList transactionIds={vehicle?.linkedTransactionIds ?? []} />
+        </CardContent>
+      </Card>
 
       <Separator />
 

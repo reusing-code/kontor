@@ -17,7 +17,7 @@ export const settingsRoute = createRoute({
   component: SettingsPage,
 })
 
-function SettingsPage() {
+export function SettingsPage() {
   const { t } = useTranslation()
   usePageTitle(t("nav.settings"), t("app.title"))
   const { data: settings } = useSettings()

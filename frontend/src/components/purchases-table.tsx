@@ -1,4 +1,5 @@
 import { Fragment, useState } from "react"
+import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { format } from "date-fns"
 import { ChevronRight, ExternalLink, FileText, BookOpen, MoreVertical } from "lucide-react"
@@ -138,9 +139,17 @@ export function PurchasesTable({ purchases, onEdit, onDelete }: PurchasesTablePr
                           )}
                         />
                       </TableCell>
-                      {tableColumns.map((col) => (
-                        <TableCell key={col.key}>{formatCellValue(purchase, col.key, currency)}</TableCell>
-                      ))}
+                       {tableColumns.map((col) => (
+                         <TableCell key={col.key}>
+                           {col.key === "itemName" ? (
+                             <Link to="/purchases/$purchaseId" params={{ purchaseId: purchase.id }} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
+                               {formatCellValue(purchase, col.key, currency)}
+                             </Link>
+                           ) : (
+                             formatCellValue(purchase, col.key, currency)
+                           )}
+                         </TableCell>
+                       ))}
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-1">
                           {purchase.descriptionUrl && (
