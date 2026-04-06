@@ -8,23 +8,24 @@ import (
 )
 
 type Vehicle struct {
-	ID                uuid.UUID `json:"id"`
-	Name              string    `json:"name"`
-	Make              string    `json:"make,omitempty"`
-	Model             string    `json:"model,omitempty"`
-	Year              *int      `json:"year,omitempty"`
-	LicensePlate      string    `json:"licensePlate,omitempty"`
-	PurchaseDate      string    `json:"purchaseDate,omitempty"`
-	PurchasePrice     *float64  `json:"purchasePrice,omitempty"`
-	PurchaseMileage   *float64  `json:"purchaseMileage,omitempty"`
-	TargetMileage     *float64  `json:"targetMileage,omitempty"`
-	TargetMonths      *int      `json:"targetMonths,omitempty"`
-	AnnualInsurance   *float64  `json:"annualInsurance,omitempty"`
-	AnnualTax         *float64  `json:"annualTax,omitempty"`
-	MaintenanceFactor *float64  `json:"maintenanceFactor,omitempty"`
-	Comments          string    `json:"comments,omitempty"`
-	CreatedAt         time.Time `json:"createdAt"`
-	UpdatedAt         time.Time `json:"updatedAt"`
+	ID                   uuid.UUID   `json:"id"`
+	LinkedTransactionIDs []uuid.UUID `json:"linkedTransactionIds,omitempty"`
+	Name                 string      `json:"name"`
+	Make                 string      `json:"make,omitempty"`
+	Model                string      `json:"model,omitempty"`
+	Year                 *int        `json:"year,omitempty"`
+	LicensePlate         string      `json:"licensePlate,omitempty"`
+	PurchaseDate         string      `json:"purchaseDate,omitempty"`
+	PurchasePrice        *float64    `json:"purchasePrice,omitempty"`
+	PurchaseMileage      *float64    `json:"purchaseMileage,omitempty"`
+	TargetMileage        *float64    `json:"targetMileage,omitempty"`
+	TargetMonths         *int        `json:"targetMonths,omitempty"`
+	AnnualInsurance      *float64    `json:"annualInsurance,omitempty"`
+	AnnualTax            *float64    `json:"annualTax,omitempty"`
+	MaintenanceFactor    *float64    `json:"maintenanceFactor,omitempty"`
+	Comments             string      `json:"comments,omitempty"`
+	CreatedAt            time.Time   `json:"createdAt"`
+	UpdatedAt            time.Time   `json:"updatedAt"`
 }
 
 type VehicleInput struct {

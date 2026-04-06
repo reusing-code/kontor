@@ -12,6 +12,7 @@ import {
   getLedgerTransactions,
   previewLedgerImport,
   reviewLedgerTransaction,
+  updateLedgerTransactionDetails,
   updateLedgerCategory,
 } from "@/lib/ledger-repository"
 import type {
@@ -19,6 +20,7 @@ import type {
   LedgerCommitRequest,
   LedgerReviewInput,
   LedgerSourceType,
+  LedgerTransactionDetailsInput,
 } from "@/types/ledger"
 
 export const ledgerAccountsKey = ["ledger", "accounts"] as const
@@ -140,6 +142,20 @@ export function useReviewLedgerTransaction() {
       qc.invalidateQueries({ queryKey: ["ledger", "review"] })
       qc.invalidateQueries({ queryKey: ledgerTransactionKey(result.transaction.id) })
       qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.transaction.accountId, "transactions"] })
+    },
+  })
+}
+
+export function useUpdateLedgerTransactionDetails() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: LedgerTransactionDetailsInput }) => updateLedgerTransactionDetails(id, data),
+    onSuccess: (transaction) => {
+      qc.invalidateQueries({ queryKey: ledgerTransactionKey(transaction.id) })
+      qc.invalidateQueries({ queryKey: ["ledger", "accounts", transaction.accountId, "transactions"] })
+      qc.invalidateQueries({ queryKey: ["contracts"] })
+      qc.invalidateQueries({ queryKey: ["purchases"] })
+      qc.invalidateQueries({ queryKey: ["vehicles"] })
     },
   })
 }

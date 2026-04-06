@@ -17,6 +17,7 @@ const (
 type Contract struct {
 	ID                      uuid.UUID       `json:"id"`
 	CategoryID              uuid.UUID       `json:"categoryId"`
+	LinkedTransactionIDs    []uuid.UUID     `json:"linkedTransactionIds,omitempty"`
 	Name                    string          `json:"name"`
 	ProductName             string          `json:"productName,omitempty"`
 	Company                 string          `json:"company,omitempty"`

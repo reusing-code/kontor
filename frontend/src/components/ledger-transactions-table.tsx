@@ -1,5 +1,7 @@
+import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import type { LedgerCategory, LedgerTransaction } from "@/types/ledger"
+import { transactionPath } from "@/lib/module-links"
 import { formatAmountMinor, formatLedgerCategorizationSource, formatLedgerDate, formatLedgerReviewStatus, formatSourceType } from "@/lib/ledger-utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -51,7 +53,11 @@ export function LedgerTransactionsTable({ transactions, categories = [], nextCur
             ) : (
               transactions.map((txn) => (
                 <TableRow key={txn.id}>
-                  <TableCell>{formatLedgerDate(txn.bookingDate)}</TableCell>
+                  <TableCell>
+                    <Link to={transactionPath(txn.id)} className="text-primary hover:underline">
+                      {formatLedgerDate(txn.bookingDate)}
+                    </Link>
+                  </TableCell>
                   <TableCell>{formatLedgerDate(txn.valueDate)}</TableCell>
                   <TableCell className={txn.amountMinor < 0 ? "text-destructive" : "text-emerald-600"}>
                     {formatAmountMinor(txn.amountMinor, txn.currency, i18n.language)}

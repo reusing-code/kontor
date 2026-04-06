@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
+  getAllContracts,
+  getContractById,
   getContractsByCategory,
   getUpcomingRenewals,
   createContract,
@@ -15,6 +17,20 @@ export function useCategoryContracts(categoryId: string) {
   return useQuery({
     queryKey: contractsKey(categoryId),
     queryFn: () => getContractsByCategory(categoryId),
+  })
+}
+
+export function useContracts() {
+  return useQuery({
+    queryKey: ["contracts"],
+    queryFn: getAllContracts,
+  })
+}
+
+export function useContract(id: string) {
+  return useQuery({
+    queryKey: ["contracts", id],
+    queryFn: () => getContractById(id),
   })
 }
 
@@ -42,7 +58,21 @@ export function useUpdateContract(categoryId: string) {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: ContractFormData }) => updateContract(id, data),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contracts"] })
       qc.invalidateQueries({ queryKey: contractsKey(categoryId) })
+      qc.invalidateQueries({ queryKey: ["categories", "contracts"] })
+      qc.invalidateQueries({ queryKey: ["summary"] })
+    },
+  })
+}
+
+export function useUpdateContractById() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: ContractFormData }) => updateContract(id, data),
+    onSuccess: (contract) => {
+      qc.invalidateQueries({ queryKey: ["contracts"] })
+      qc.invalidateQueries({ queryKey: ["contracts", contract.id] })
       qc.invalidateQueries({ queryKey: ["categories", "contracts"] })
       qc.invalidateQueries({ queryKey: ["summary"] })
     },
@@ -54,6 +84,7 @@ export function useDeleteContract(categoryId: string) {
   return useMutation({
     mutationFn: (id: string) => deleteContract(id),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contracts"] })
       qc.invalidateQueries({ queryKey: contractsKey(categoryId) })
       qc.invalidateQueries({ queryKey: ["categories", "contracts"] })
       qc.invalidateQueries({ queryKey: ["summary"] })

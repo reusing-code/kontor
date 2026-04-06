@@ -92,6 +92,7 @@ type Store interface {
 	ListLedgerTransactionsPage(ctx context.Context, userID string, accountID uuid.UUID, limit int, cursor string) (LedgerTransactionPage, error)
 	ListLedgerTransactionsFiltered(ctx context.Context, userID string, options LedgerTransactionListOptions) (LedgerTransactionPage, error)
 	GetLedgerTransaction(ctx context.Context, userID string, id uuid.UUID) (model.LedgerTransaction, error)
+	UpdateLedgerTransactionDetails(ctx context.Context, userID string, id uuid.UUID, input model.LedgerTransactionDetailsInput) (model.LedgerTransaction, error)
 	ReviewLedgerTransaction(ctx context.Context, userID string, id uuid.UUID, input model.LedgerTransactionReviewInput) (LedgerReviewResult, error)
 
 	Close() error

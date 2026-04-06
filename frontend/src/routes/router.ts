@@ -3,7 +3,9 @@ import { createRoute, createRouter } from "@tanstack/react-router"
 import { rootRoute } from "./__root"
 import { indexRoute } from "."
 import { contractsCategoryRoute } from "./contracts.categories.$categoryId"
+import { contractDetailRoute } from "./contracts.$contractId"
 import { contractsUpcomingRenewalsRoute } from "./contracts.upcoming-renewals"
+import { purchaseDetailRoute } from "./purchases.$purchaseId"
 import { purchasesCategoryRoute } from "./purchases.categories.$categoryId"
 import { autoVehicleDetailRoute } from "./auto.vehicles.$vehicleId"
 import { loginRoute } from "./login"
@@ -15,6 +17,7 @@ const LedgerIndexPage = lazy(() => import("./ledger.index").then((module) => ({ 
 const LedgerAccountPage = lazy(() => import("./ledger.accounts.$accountId").then((module) => ({ default: module.LedgerAccountPage })))
 const LedgerCategoriesPage = lazy(() => import("./ledger.categories").then((module) => ({ default: module.LedgerCategoriesPage })))
 const LedgerReviewPage = lazy(() => import("./ledger.review").then((module) => ({ default: module.LedgerReviewPage })))
+const LedgerTransactionPage = lazy(() => import("./ledger.transactions.$transactionId").then((module) => ({ default: module.LedgerTransactionPage })))
 const SettingsPage = lazy(() => import("./settings").then((module) => ({ default: module.SettingsPage })))
 
 export const contractsIndexRoute = createRoute({
@@ -59,6 +62,12 @@ export const ledgerReviewRoute = createRoute({
   component: LedgerReviewPage,
 })
 
+export const ledgerTransactionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/ledger/transactions/$transactionId",
+  component: LedgerTransactionPage,
+})
+
 export const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings",
@@ -68,9 +77,11 @@ export const settingsRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   contractsIndexRoute,
+  contractDetailRoute,
   contractsCategoryRoute,
   contractsUpcomingRenewalsRoute,
   purchasesIndexRoute,
+  purchaseDetailRoute,
   purchasesCategoryRoute,
   autoIndexRoute,
   autoVehicleDetailRoute,
@@ -78,6 +89,7 @@ const routeTree = rootRoute.addChildren([
   ledgerAccountRoute,
   ledgerCategoriesRoute,
   ledgerReviewRoute,
+  ledgerTransactionRoute,
   loginRoute,
   settingsRoute,
 ])

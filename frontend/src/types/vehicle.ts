@@ -15,6 +15,7 @@ export type CostType = z.infer<typeof costTypeSchema>
 
 export const vehicleSchema = z.object({
   id: z.string().uuid(),
+  linkedTransactionIds: z.array(z.string().uuid()).optional(),
   name: z.string().min(1),
   make: z.string().optional(),
   model: z.string().optional(),

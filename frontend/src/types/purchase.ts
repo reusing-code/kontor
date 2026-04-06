@@ -3,6 +3,7 @@ import { z } from "zod/v4"
 export const purchaseSchema = z.object({
   id: z.string().uuid(),
   categoryId: z.string().uuid(),
+  linkedTransactionIds: z.array(z.string().uuid()).optional(),
   type: z.string().optional(),
   itemName: z.string().min(1),
   brand: z.string().optional(),

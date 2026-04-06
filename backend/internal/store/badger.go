@@ -495,6 +495,9 @@ func (s *BadgerStore) ListContracts(_ context.Context, userID string) ([]model.C
 	if contracts == nil {
 		contracts = []model.Contract{}
 	}
+	for i := range contracts {
+		contracts[i] = normalizeContract(contracts[i])
+	}
 	return contracts, nil
 }
 
@@ -540,6 +543,9 @@ func (s *BadgerStore) ListContractsByCategory(_ context.Context, userID string, 
 	if contracts == nil {
 		contracts = []model.Contract{}
 	}
+	for i := range contracts {
+		contracts[i] = normalizeContract(contracts[i])
+	}
 	return contracts, nil
 }
 
@@ -557,16 +563,13 @@ func (s *BadgerStore) GetContract(_ context.Context, userID string, id uuid.UUID
 	if errors.Is(err, badger.ErrKeyNotFound) {
 		return con, ErrNotFound
 	}
-	return con, err
+	return normalizeContract(con), err
 }
 
 func (s *BadgerStore) CreateContract(_ context.Context, userID string, c model.Contract) error {
-	data, err := json.Marshal(c)
-	if err != nil {
-		return err
-	}
+	c = normalizeContract(c)
 	return s.db.Update(func(txn *badger.Txn) error {
-		if err := txn.Set(conKey(userID, c.ID), data); err != nil {
+		if err := storeContract(txn, userID, c); err != nil {
 			return err
 		}
 		return txn.Set(idxCatConKey(userID, c.CategoryID, c.ID), []byte{})
@@ -574,10 +577,7 @@ func (s *BadgerStore) CreateContract(_ context.Context, userID string, c model.C
 }
 
 func (s *BadgerStore) UpdateContract(_ context.Context, userID string, c model.Contract) error {
-	data, err := json.Marshal(c)
-	if err != nil {
-		return err
-	}
+	c = normalizeContract(c)
 	return s.db.Update(func(txn *badger.Txn) error {
 		item, err := txn.Get(conKey(userID, c.ID))
 		if err != nil {
@@ -594,7 +594,7 @@ func (s *BadgerStore) UpdateContract(_ context.Context, userID string, c model.C
 			return err
 		}
 
-		if err := txn.Set(conKey(userID, c.ID), data); err != nil {
+		if err := storeContract(txn, userID, c); err != nil {
 			return err
 		}
 
@@ -625,6 +625,10 @@ func (s *BadgerStore) DeleteContract(_ context.Context, userID string, id uuid.U
 		if err := item.Value(func(val []byte) error {
 			return json.Unmarshal(val, &con)
 		}); err != nil {
+			return err
+		}
+		con = normalizeContract(con)
+		if err := removeLedgerTransactionLinks(txn, userID, con.LinkedTransactionIDs, model.LedgerReferenceContract, id); err != nil {
 			return err
 		}
 
@@ -661,6 +665,9 @@ func (s *BadgerStore) ListPurchases(_ context.Context, userID string) ([]model.P
 	}
 	if purchases == nil {
 		purchases = []model.Purchase{}
+	}
+	for i := range purchases {
+		purchases[i] = normalizePurchase(purchases[i])
 	}
 	return purchases, nil
 }
@@ -707,6 +714,9 @@ func (s *BadgerStore) ListPurchasesByCategory(_ context.Context, userID string, 
 	if purchases == nil {
 		purchases = []model.Purchase{}
 	}
+	for i := range purchases {
+		purchases[i] = normalizePurchase(purchases[i])
+	}
 	return purchases, nil
 }
 
@@ -724,16 +734,13 @@ func (s *BadgerStore) GetPurchase(_ context.Context, userID string, id uuid.UUID
 	if errors.Is(err, badger.ErrKeyNotFound) {
 		return p, ErrNotFound
 	}
-	return p, err
+	return normalizePurchase(p), err
 }
 
 func (s *BadgerStore) CreatePurchase(_ context.Context, userID string, p model.Purchase) error {
-	data, err := json.Marshal(p)
-	if err != nil {
-		return err
-	}
+	p = normalizePurchase(p)
 	return s.db.Update(func(txn *badger.Txn) error {
-		if err := txn.Set(purKey(userID, p.ID), data); err != nil {
+		if err := storePurchase(txn, userID, p); err != nil {
 			return err
 		}
 		return txn.Set(idxCatPurKey(userID, p.CategoryID, p.ID), []byte{})
@@ -741,10 +748,7 @@ func (s *BadgerStore) CreatePurchase(_ context.Context, userID string, p model.P
 }
 
 func (s *BadgerStore) UpdatePurchase(_ context.Context, userID string, p model.Purchase) error {
-	data, err := json.Marshal(p)
-	if err != nil {
-		return err
-	}
+	p = normalizePurchase(p)
 	return s.db.Update(func(txn *badger.Txn) error {
 		item, err := txn.Get(purKey(userID, p.ID))
 		if err != nil {
@@ -761,7 +765,7 @@ func (s *BadgerStore) UpdatePurchase(_ context.Context, userID string, p model.P
 			return err
 		}
 
-		if err := txn.Set(purKey(userID, p.ID), data); err != nil {
+		if err := storePurchase(txn, userID, p); err != nil {
 			return err
 		}
 
@@ -792,6 +796,10 @@ func (s *BadgerStore) DeletePurchase(_ context.Context, userID string, id uuid.U
 		if err := item.Value(func(val []byte) error {
 			return json.Unmarshal(val, &p)
 		}); err != nil {
+			return err
+		}
+		p = normalizePurchase(p)
+		if err := removeLedgerTransactionLinks(txn, userID, p.LinkedTransactionIDs, model.LedgerReferencePurchase, id); err != nil {
 			return err
 		}
 
@@ -856,6 +864,9 @@ func (s *BadgerStore) ListVehicles(_ context.Context, userID string) ([]model.Ve
 	if vehicles == nil {
 		vehicles = []model.Vehicle{}
 	}
+	for i := range vehicles {
+		vehicles[i] = normalizeVehicle(vehicles[i])
+	}
 	return vehicles, nil
 }
 
@@ -873,24 +884,18 @@ func (s *BadgerStore) GetVehicle(_ context.Context, userID string, id uuid.UUID)
 	if errors.Is(err, badger.ErrKeyNotFound) {
 		return v, ErrNotFound
 	}
-	return v, err
+	return normalizeVehicle(v), err
 }
 
 func (s *BadgerStore) CreateVehicle(_ context.Context, userID string, v model.Vehicle) error {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
+	v = normalizeVehicle(v)
 	return s.db.Update(func(txn *badger.Txn) error {
-		return txn.Set(vehKey(userID, v.ID), data)
+		return storeVehicle(txn, userID, v)
 	})
 }
 
 func (s *BadgerStore) UpdateVehicle(_ context.Context, userID string, v model.Vehicle) error {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
+	v = normalizeVehicle(v)
 	return s.db.Update(func(txn *badger.Txn) error {
 		if _, err := txn.Get(vehKey(userID, v.ID)); err != nil {
 			if errors.Is(err, badger.ErrKeyNotFound) {
@@ -898,16 +903,28 @@ func (s *BadgerStore) UpdateVehicle(_ context.Context, userID string, v model.Ve
 			}
 			return err
 		}
-		return txn.Set(vehKey(userID, v.ID), data)
+		return storeVehicle(txn, userID, v)
 	})
 }
 
 func (s *BadgerStore) DeleteVehicle(_ context.Context, userID string, id uuid.UUID) error {
 	return s.db.Update(func(txn *badger.Txn) error {
-		if _, err := txn.Get(vehKey(userID, id)); err != nil {
+		item, err := txn.Get(vehKey(userID, id))
+		if err != nil {
 			if errors.Is(err, badger.ErrKeyNotFound) {
 				return ErrNotFound
 			}
+			return err
+		}
+
+		var vehicle model.Vehicle
+		if err := item.Value(func(val []byte) error {
+			return json.Unmarshal(val, &vehicle)
+		}); err != nil {
+			return err
+		}
+		vehicle = normalizeVehicle(vehicle)
+		if err := removeLedgerTransactionLinks(txn, userID, vehicle.LinkedTransactionIDs, model.LedgerReferenceVehicle, id); err != nil {
 			return err
 		}
 

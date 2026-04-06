@@ -6,6 +6,7 @@ export type BillingInterval = z.infer<typeof billingIntervalSchema>
 export const contractSchema = z.object({
   id: z.string().uuid(),
   categoryId: z.string().uuid(),
+  linkedTransactionIds: z.array(z.string().uuid()).optional(),
   name: z.string().min(1),
   productName: z.string().optional(),
   company: z.string().optional(),

@@ -281,3 +281,128 @@ func TestLedgerCategory_DeleteUncategorizesTransactions(t *testing.T) {
 		t.Fatalf("CategorizationSource = %q, want %q", updated.CategorizationSource, model.LedgerCategorizationNone)
 	}
 }
+
+func TestUpdateLedgerTransactionDetails_SyncsBidirectionalReferences(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	userID := "user-1"
+	accountID := uuid.New()
+	purchaseID := uuid.New()
+	contractID := uuid.New()
+	now := time.Now().UTC()
+
+	if err := s.CreateLedgerAccount(ctx, userID, model.LedgerAccount{ID: accountID, Name: "Main", Bank: "DKB", Currency: "EUR", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateLedgerAccount: %v", err)
+	}
+	if err := s.CreatePurchase(ctx, userID, model.Purchase{ID: purchaseID, CategoryID: uuid.New(), ItemName: "Monitor", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreatePurchase: %v", err)
+	}
+	if err := s.CreateContract(ctx, userID, model.Contract{ID: contractID, CategoryID: uuid.New(), Name: "Internet", BillingInterval: model.BillingMonthly, StartDate: "2026-01-01", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateContract: %v", err)
+	}
+
+	txnID := uuid.New()
+	batch := model.LedgerImportBatch{ID: uuid.New(), AccountID: accountID, SourceType: "dkb.csv", ParserVersion: "1", Filename: "test.csv", FileSHA256: "hash-details", Status: model.ImportStatusCommitted, CreatedAt: now, UpdatedAt: now}
+	if _, err := s.CommitLedgerImport(ctx, userID, batch, []model.LedgerTransaction{{
+		ID: txnID, AccountID: accountID, BookingDate: "2026-04-02", Currency: "EUR", Fingerprint: "fp-details-sync", ImportBatchID: batch.ID, CreatedAt: now, UpdatedAt: now,
+	}}); err != nil {
+		t.Fatalf("CommitLedgerImport: %v", err)
+	}
+
+	updated, err := s.UpdateLedgerTransactionDetails(ctx, userID, txnID, model.LedgerTransactionDetailsInput{
+		Note:  "invoice and subscription",
+		Links: []string{"https://example.com/doc.pdf"},
+		References: []model.LedgerTransactionReference{
+			{Type: model.LedgerReferencePurchase, TargetID: purchaseID},
+			{Type: model.LedgerReferenceContract, TargetID: contractID},
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateLedgerTransactionDetails: %v", err)
+	}
+	if len(updated.References) != 2 {
+		t.Fatalf("len(references) = %d, want 2", len(updated.References))
+	}
+
+	purchase, err := s.GetPurchase(ctx, userID, purchaseID)
+	if err != nil {
+		t.Fatalf("GetPurchase: %v", err)
+	}
+	if len(purchase.LinkedTransactionIDs) != 1 || purchase.LinkedTransactionIDs[0] != txnID {
+		t.Fatalf("purchase linkedTransactionIds = %#v", purchase.LinkedTransactionIDs)
+	}
+
+	contract, err := s.GetContract(ctx, userID, contractID)
+	if err != nil {
+		t.Fatalf("GetContract: %v", err)
+	}
+	if len(contract.LinkedTransactionIDs) != 1 || contract.LinkedTransactionIDs[0] != txnID {
+		t.Fatalf("contract linkedTransactionIds = %#v", contract.LinkedTransactionIDs)
+	}
+
+	updated, err = s.UpdateLedgerTransactionDetails(ctx, userID, txnID, model.LedgerTransactionDetailsInput{
+		References: []model.LedgerTransactionReference{{Type: model.LedgerReferencePurchase, TargetID: purchaseID}},
+	})
+	if err != nil {
+		t.Fatalf("UpdateLedgerTransactionDetails second: %v", err)
+	}
+	if len(updated.References) != 1 || updated.References[0].Type != model.LedgerReferencePurchase {
+		t.Fatalf("updated references = %#v", updated.References)
+	}
+
+	contract, err = s.GetContract(ctx, userID, contractID)
+	if err != nil {
+		t.Fatalf("GetContract after unlink: %v", err)
+	}
+	if len(contract.LinkedTransactionIDs) != 0 {
+		t.Fatalf("contract linkedTransactionIds after unlink = %#v", contract.LinkedTransactionIDs)
+	}
+}
+
+func TestDeletePurchase_RemovesLedgerReference(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	userID := "user-1"
+	accountID := uuid.New()
+	purchaseID := uuid.New()
+	now := time.Now().UTC()
+
+	if err := s.CreateLedgerAccount(ctx, userID, model.LedgerAccount{ID: accountID, Name: "Main", Bank: "DKB", Currency: "EUR", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateLedgerAccount: %v", err)
+	}
+	if err := s.CreatePurchase(ctx, userID, model.Purchase{ID: purchaseID, CategoryID: uuid.New(), ItemName: "Chair", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreatePurchase: %v", err)
+	}
+	txnID := uuid.New()
+	batch := model.LedgerImportBatch{ID: uuid.New(), AccountID: accountID, SourceType: "dkb.csv", ParserVersion: "1", Filename: "test.csv", FileSHA256: "hash-delete-purchase-link", Status: model.ImportStatusCommitted, CreatedAt: now, UpdatedAt: now}
+	if _, err := s.CommitLedgerImport(ctx, userID, batch, []model.LedgerTransaction{{
+		ID:            txnID,
+		AccountID:     accountID,
+		BookingDate:   "2026-04-02",
+		Currency:      "EUR",
+		References:    []model.LedgerTransactionReference{{Type: model.LedgerReferencePurchase, TargetID: purchaseID}},
+		Fingerprint:   "fp-delete-purchase-link",
+		ImportBatchID: batch.ID,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}}); err != nil {
+		t.Fatalf("CommitLedgerImport: %v", err)
+	}
+	if _, err := s.UpdateLedgerTransactionDetails(ctx, userID, txnID, model.LedgerTransactionDetailsInput{
+		References: []model.LedgerTransactionReference{{Type: model.LedgerReferencePurchase, TargetID: purchaseID}},
+	}); err != nil {
+		t.Fatalf("UpdateLedgerTransactionDetails: %v", err)
+	}
+
+	if err := s.DeletePurchase(ctx, userID, purchaseID); err != nil {
+		t.Fatalf("DeletePurchase: %v", err)
+	}
+
+	txn, err := s.GetLedgerTransaction(ctx, userID, txnID)
+	if err != nil {
+		t.Fatalf("GetLedgerTransaction: %v", err)
+	}
+	if len(txn.References) != 0 {
+		t.Fatalf("references after delete = %#v", txn.References)
+	}
+}

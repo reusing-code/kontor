@@ -110,6 +110,7 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("GET /api/v1/ledger/imports", h.ListLedgerImports)
 	apiMux.HandleFunc("GET /api/v1/ledger/transactions", h.ListLedgerTransactionsReviewQueue)
 	apiMux.HandleFunc("GET /api/v1/ledger/transactions/{transactionId}", h.GetLedgerTransaction)
+	apiMux.HandleFunc("PUT /api/v1/ledger/transactions/{transactionId}", h.UpdateLedgerTransactionDetails)
 	apiMux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/review", h.ReviewLedgerTransaction)
 
 	protectedAPI := middleware.Auth(jwtSecret)(apiMux)

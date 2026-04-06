@@ -63,6 +63,14 @@ func (h *Handler) handleStoreError(w http.ResponseWriter, err error) {
 		h.errorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err != nil && err.Error() == "links must contain valid absolute URLs" {
+		h.errorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err != nil && err.Error() == "references contain an invalid type" {
+		h.errorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if errors.Is(err, store.ErrLedgerPreviewExpired) {
 		h.errorResponse(w, http.StatusGone, err.Error())
 		return

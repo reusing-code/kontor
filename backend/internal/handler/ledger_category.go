@@ -144,6 +144,29 @@ func (h *Handler) GetLedgerTransaction(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, ledgerTxn)
 }
 
+func (h *Handler) UpdateLedgerTransactionDetails(w http.ResponseWriter, r *http.Request) {
+	id, err := parseUUID(r.PathValue("transactionId"))
+	if err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "invalid transactionId")
+		return
+	}
+	var input model.LedgerTransactionDetailsInput
+	if err := h.readJSON(r, &input); err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := input.Validate(); err != nil {
+		h.errorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	ledgerTxn, err := h.store.UpdateLedgerTransactionDetails(r.Context(), middleware.GetUserID(r.Context()), id, input)
+	if err != nil {
+		h.handleStoreError(w, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, ledgerTxn)
+}
+
 func (h *Handler) ReviewLedgerTransaction(w http.ResponseWriter, r *http.Request) {
 	id, err := parseUUID(r.PathValue("transactionId"))
 	if err != nil {

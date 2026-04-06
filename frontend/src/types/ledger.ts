@@ -46,6 +46,12 @@ export const ledgerTransactionSchema = z.object({
   transactionType: z.string().optional(),
   reviewStatus: z.string(),
   categorizationSource: z.string(),
+  note: z.string().optional(),
+  links: z.array(z.string().url()).optional(),
+  references: z.array(z.object({
+    type: z.enum(["purchase", "contract", "vehicle"]),
+    targetId: z.string().uuid(),
+  })).optional(),
   sourceType: z.string(),
   importBatchId: z.string().uuid(),
   fingerprint: z.string(),
@@ -54,6 +60,21 @@ export const ledgerTransactionSchema = z.object({
 })
 
 export type LedgerTransaction = z.infer<typeof ledgerTransactionSchema>
+
+export const ledgerTransactionReferenceSchema = z.object({
+  type: z.enum(["purchase", "contract", "vehicle"]),
+  targetId: z.string().uuid(),
+})
+
+export type LedgerTransactionReference = z.infer<typeof ledgerTransactionReferenceSchema>
+
+export const ledgerTransactionDetailsInputSchema = z.object({
+  note: z.string().optional(),
+  links: z.array(z.string().url()).default([]),
+  references: z.array(ledgerTransactionReferenceSchema).default([]),
+})
+
+export type LedgerTransactionDetailsInput = z.infer<typeof ledgerTransactionDetailsInputSchema>
 
 export const ledgerImportBatchSchema = z.object({
   id: z.string().uuid(),

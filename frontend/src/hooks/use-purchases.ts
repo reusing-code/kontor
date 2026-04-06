@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
+  getAllPurchases,
+  getPurchaseById,
   getPurchasesByCategory,
   createPurchase,
   updatePurchase,
@@ -13,6 +15,20 @@ export function useCategoryPurchases(categoryId: string) {
   return useQuery({
     queryKey: purchasesKey(categoryId),
     queryFn: () => getPurchasesByCategory(categoryId),
+  })
+}
+
+export function usePurchases() {
+  return useQuery({
+    queryKey: ["purchases"],
+    queryFn: getAllPurchases,
+  })
+}
+
+export function usePurchase(id: string) {
+  return useQuery({
+    queryKey: ["purchases", id],
+    queryFn: () => getPurchaseById(id),
   })
 }
 
@@ -33,7 +49,21 @@ export function useUpdatePurchase(categoryId: string) {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: PurchaseFormData }) => updatePurchase(id, data),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["purchases"] })
       qc.invalidateQueries({ queryKey: purchasesKey(categoryId) })
+      qc.invalidateQueries({ queryKey: ["categories", "purchases"] })
+      qc.invalidateQueries({ queryKey: ["purchases-summary"] })
+    },
+  })
+}
+
+export function useUpdatePurchaseById() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: PurchaseFormData }) => updatePurchase(id, data),
+    onSuccess: (purchase) => {
+      qc.invalidateQueries({ queryKey: ["purchases"] })
+      qc.invalidateQueries({ queryKey: ["purchases", purchase.id] })
       qc.invalidateQueries({ queryKey: ["categories", "purchases"] })
       qc.invalidateQueries({ queryKey: ["purchases-summary"] })
     },
@@ -45,6 +75,7 @@ export function useDeletePurchase(categoryId: string) {
   return useMutation({
     mutationFn: (id: string) => deletePurchase(id),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["purchases"] })
       qc.invalidateQueries({ queryKey: purchasesKey(categoryId) })
       qc.invalidateQueries({ queryKey: ["categories", "purchases"] })
       qc.invalidateQueries({ queryKey: ["purchases-summary"] })

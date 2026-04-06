@@ -92,6 +92,8 @@ func normalizeLedgerTransaction(t model.LedgerTransaction) model.LedgerTransacti
 	if t.CategorizationSource == "" {
 		t.CategorizationSource = model.LedgerCategorizationNone
 	}
+	t.Links = model.NormalizeLedgerTransactionLinks(t.Links)
+	t.References = model.NormalizeLedgerTransactionReferences(t.References)
 	return t
 }
 
@@ -250,6 +252,242 @@ func sortLedgerTransactions(txns []model.LedgerTransaction) {
 		}
 		return txns[i].BookingDate > txns[j].BookingDate
 	})
+}
+
+func normalizePurchase(p model.Purchase) model.Purchase {
+	p.LinkedTransactionIDs = model.NormalizeLinkedTransactionIDs(p.LinkedTransactionIDs)
+	return p
+}
+
+func normalizeContract(c model.Contract) model.Contract {
+	c.LinkedTransactionIDs = model.NormalizeLinkedTransactionIDs(c.LinkedTransactionIDs)
+	return c
+}
+
+func normalizeVehicle(v model.Vehicle) model.Vehicle {
+	v.LinkedTransactionIDs = model.NormalizeLinkedTransactionIDs(v.LinkedTransactionIDs)
+	return v
+}
+
+func containsUUID(ids []uuid.UUID, target uuid.UUID) bool {
+	for _, id := range ids {
+		if id == target {
+			return true
+		}
+	}
+	return false
+}
+
+func withoutUUID(ids []uuid.UUID, target uuid.UUID) []uuid.UUID {
+	filtered := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		if id == target {
+			continue
+		}
+		filtered = append(filtered, id)
+	}
+	return model.NormalizeLinkedTransactionIDs(filtered)
+}
+
+func storePurchase(txn *badger.Txn, userID string, purchase model.Purchase) error {
+	purchase = normalizePurchase(purchase)
+	data, err := json.Marshal(purchase)
+	if err != nil {
+		return err
+	}
+	return txn.Set(purKey(userID, purchase.ID), data)
+}
+
+func storeContract(txn *badger.Txn, userID string, contract model.Contract) error {
+	contract = normalizeContract(contract)
+	data, err := json.Marshal(contract)
+	if err != nil {
+		return err
+	}
+	return txn.Set(conKey(userID, contract.ID), data)
+}
+
+func storeVehicle(txn *badger.Txn, userID string, vehicle model.Vehicle) error {
+	vehicle = normalizeVehicle(vehicle)
+	data, err := json.Marshal(vehicle)
+	if err != nil {
+		return err
+	}
+	return txn.Set(vehKey(userID, vehicle.ID), data)
+}
+
+func syncLedgerReferences(txn *badger.Txn, userID string, transactionID uuid.UUID, oldReferences, newReferences []model.LedgerTransactionReference) error {
+	remove := make(map[string]model.LedgerTransactionReference, len(oldReferences))
+	for _, reference := range oldReferences {
+		remove[reference.Type+":"+reference.TargetID.String()] = reference
+	}
+	add := make(map[string]model.LedgerTransactionReference, len(newReferences))
+	for _, reference := range newReferences {
+		key := reference.Type + ":" + reference.TargetID.String()
+		add[key] = reference
+		delete(remove, key)
+	}
+	for key := range add {
+		if _, existed := remove[key]; existed {
+			delete(remove, key)
+			delete(add, key)
+		}
+	}
+	for _, reference := range remove {
+		switch reference.Type {
+		case model.LedgerReferencePurchase:
+			item, err := txn.Get(purKey(userID, reference.TargetID))
+			if err != nil {
+				if errors.Is(err, badger.ErrKeyNotFound) {
+					continue
+				}
+				return err
+			}
+			var purchase model.Purchase
+			if err := item.Value(func(val []byte) error { return json.Unmarshal(val, &purchase) }); err != nil {
+				return err
+			}
+			purchase = normalizePurchase(purchase)
+			purchase.LinkedTransactionIDs = withoutUUID(purchase.LinkedTransactionIDs, transactionID)
+			if err := storePurchase(txn, userID, purchase); err != nil {
+				return err
+			}
+		case model.LedgerReferenceContract:
+			item, err := txn.Get(conKey(userID, reference.TargetID))
+			if err != nil {
+				if errors.Is(err, badger.ErrKeyNotFound) {
+					continue
+				}
+				return err
+			}
+			var contract model.Contract
+			if err := item.Value(func(val []byte) error { return json.Unmarshal(val, &contract) }); err != nil {
+				return err
+			}
+			contract = normalizeContract(contract)
+			contract.LinkedTransactionIDs = withoutUUID(contract.LinkedTransactionIDs, transactionID)
+			if err := storeContract(txn, userID, contract); err != nil {
+				return err
+			}
+		case model.LedgerReferenceVehicle:
+			item, err := txn.Get(vehKey(userID, reference.TargetID))
+			if err != nil {
+				if errors.Is(err, badger.ErrKeyNotFound) {
+					continue
+				}
+				return err
+			}
+			var vehicle model.Vehicle
+			if err := item.Value(func(val []byte) error { return json.Unmarshal(val, &vehicle) }); err != nil {
+				return err
+			}
+			vehicle = normalizeVehicle(vehicle)
+			vehicle.LinkedTransactionIDs = withoutUUID(vehicle.LinkedTransactionIDs, transactionID)
+			if err := storeVehicle(txn, userID, vehicle); err != nil {
+				return err
+			}
+		}
+	}
+	for _, reference := range add {
+		switch reference.Type {
+		case model.LedgerReferencePurchase:
+			item, err := txn.Get(purKey(userID, reference.TargetID))
+			if err != nil {
+				if errors.Is(err, badger.ErrKeyNotFound) {
+					return ErrNotFound
+				}
+				return err
+			}
+			var purchase model.Purchase
+			if err := item.Value(func(val []byte) error { return json.Unmarshal(val, &purchase) }); err != nil {
+				return err
+			}
+			purchase = normalizePurchase(purchase)
+			if !containsUUID(purchase.LinkedTransactionIDs, transactionID) {
+				purchase.LinkedTransactionIDs = append(purchase.LinkedTransactionIDs, transactionID)
+			}
+			purchase.LinkedTransactionIDs = model.NormalizeLinkedTransactionIDs(purchase.LinkedTransactionIDs)
+			if err := storePurchase(txn, userID, purchase); err != nil {
+				return err
+			}
+		case model.LedgerReferenceContract:
+			item, err := txn.Get(conKey(userID, reference.TargetID))
+			if err != nil {
+				if errors.Is(err, badger.ErrKeyNotFound) {
+					return ErrNotFound
+				}
+				return err
+			}
+			var contract model.Contract
+			if err := item.Value(func(val []byte) error { return json.Unmarshal(val, &contract) }); err != nil {
+				return err
+			}
+			contract = normalizeContract(contract)
+			if !containsUUID(contract.LinkedTransactionIDs, transactionID) {
+				contract.LinkedTransactionIDs = append(contract.LinkedTransactionIDs, transactionID)
+			}
+			contract.LinkedTransactionIDs = model.NormalizeLinkedTransactionIDs(contract.LinkedTransactionIDs)
+			if err := storeContract(txn, userID, contract); err != nil {
+				return err
+			}
+		case model.LedgerReferenceVehicle:
+			item, err := txn.Get(vehKey(userID, reference.TargetID))
+			if err != nil {
+				if errors.Is(err, badger.ErrKeyNotFound) {
+					return ErrNotFound
+				}
+				return err
+			}
+			var vehicle model.Vehicle
+			if err := item.Value(func(val []byte) error { return json.Unmarshal(val, &vehicle) }); err != nil {
+				return err
+			}
+			vehicle = normalizeVehicle(vehicle)
+			if !containsUUID(vehicle.LinkedTransactionIDs, transactionID) {
+				vehicle.LinkedTransactionIDs = append(vehicle.LinkedTransactionIDs, transactionID)
+			}
+			vehicle.LinkedTransactionIDs = model.NormalizeLinkedTransactionIDs(vehicle.LinkedTransactionIDs)
+			if err := storeVehicle(txn, userID, vehicle); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func removeLedgerTransactionLinksFromTargets(txn *badger.Txn, userID string, transaction model.LedgerTransaction) error {
+	return syncLedgerReferences(txn, userID, transaction.ID, transaction.References, nil)
+}
+
+func removeLedgerTransactionLinks(txn *badger.Txn, userID string, transactionIDs []uuid.UUID, referenceType string, targetID uuid.UUID) error {
+	for _, transactionID := range model.NormalizeLinkedTransactionIDs(transactionIDs) {
+		ledgerTxn, err := loadLedgerTransaction(txn, userID, transactionID)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				continue
+			}
+			return err
+		}
+		nextReferences := make([]model.LedgerTransactionReference, 0, len(ledgerTxn.References))
+		for _, reference := range ledgerTxn.References {
+			if reference.Type == referenceType && reference.TargetID == targetID {
+				continue
+			}
+			nextReferences = append(nextReferences, reference)
+		}
+		if len(nextReferences) == len(ledgerTxn.References) {
+			continue
+		}
+		if err := syncLedgerReferences(txn, userID, ledgerTxn.ID, ledgerTxn.References, nextReferences); err != nil {
+			return err
+		}
+		ledgerTxn.References = nextReferences
+		ledgerTxn.UpdatedAt = time.Now().UTC()
+		if err := storeLedgerTransaction(txn, userID, ledgerTxn); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func paginateLedgerTransactions(txns []model.LedgerTransaction, limit int, cursor string) LedgerTransactionPage {
@@ -675,6 +913,33 @@ func (s *BadgerStore) GetLedgerTransaction(_ context.Context, userID string, id 
 		return err
 	})
 	return ledgerTxn, err
+}
+
+func (s *BadgerStore) UpdateLedgerTransactionDetails(_ context.Context, userID string, id uuid.UUID, input model.LedgerTransactionDetailsInput) (model.LedgerTransaction, error) {
+	updatedAt := time.Now().UTC()
+	var updated model.LedgerTransaction
+	err := s.db.Update(func(txn *badger.Txn) error {
+		ledgerTxn, err := loadLedgerTransaction(txn, userID, id)
+		if err != nil {
+			return err
+		}
+		if err := syncLedgerReferences(txn, userID, ledgerTxn.ID, ledgerTxn.References, input.References); err != nil {
+			return err
+		}
+		ledgerTxn.Note = input.Note
+		ledgerTxn.Links = input.Links
+		ledgerTxn.References = input.References
+		ledgerTxn.UpdatedAt = updatedAt
+		if err := storeLedgerTransaction(txn, userID, ledgerTxn); err != nil {
+			return err
+		}
+		updated = ledgerTxn
+		return nil
+	})
+	if err != nil {
+		return model.LedgerTransaction{}, err
+	}
+	return updated, nil
 }
 
 func (s *BadgerStore) ReviewLedgerTransaction(_ context.Context, userID string, id uuid.UUID, input model.LedgerTransactionReviewInput) (LedgerReviewResult, error) {

@@ -11,6 +11,7 @@ import type {
   LedgerReviewResult,
   LedgerSourceType,
   LedgerTransaction,
+  LedgerTransactionDetailsInput,
   LedgerTransactionsPage,
 } from "@/types/ledger"
 import { del, get, post, postForm, put } from "./api"
@@ -45,6 +46,10 @@ export async function getLedgerReviewQueue(limit: number = 100, cursor?: string)
 
 export async function getLedgerTransactionById(id: string): Promise<LedgerTransaction> {
   return get<LedgerTransaction>(`/ledger/transactions/${id}`)
+}
+
+export async function updateLedgerTransactionDetails(id: string, data: LedgerTransactionDetailsInput): Promise<LedgerTransaction> {
+  return put<LedgerTransaction>(`/ledger/transactions/${id}`, data)
 }
 
 export async function getLedgerCategories(): Promise<LedgerCategory[]> {

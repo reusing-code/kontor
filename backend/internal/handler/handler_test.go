@@ -23,6 +23,8 @@ import (
 type mockStore struct {
 	categories         map[string]map[uuid.UUID]model.Category // keyed by module, then ID
 	contracts          map[uuid.UUID]model.Contract
+	purchases          map[uuid.UUID]model.Purchase
+	vehicles           map[uuid.UUID]model.Vehicle
 	users              map[string]model.User // keyed by email
 	usersById          map[string]model.User // keyed by ID
 	settings           map[string]model.UserSettings
@@ -36,6 +38,8 @@ func newMockStore() *mockStore {
 	return &mockStore{
 		categories:         make(map[string]map[uuid.UUID]model.Category),
 		contracts:          make(map[uuid.UUID]model.Contract),
+		purchases:          make(map[uuid.UUID]model.Purchase),
+		vehicles:           make(map[uuid.UUID]model.Vehicle),
 		users:              make(map[string]model.User),
 		usersById:          make(map[string]model.User),
 		settings:           make(map[string]model.UserSettings),
@@ -206,27 +210,82 @@ func (m *mockStore) ListUsers(_ context.Context) ([]model.User, error) {
 func (m *mockStore) Close() error { return nil }
 
 func (m *mockStore) ListPurchases(_ context.Context, _ string) ([]model.Purchase, error) {
-	return nil, nil
+	out := make([]model.Purchase, 0, len(m.purchases))
+	for _, purchase := range m.purchases {
+		out = append(out, purchase)
+	}
+	return out, nil
 }
-func (m *mockStore) ListPurchasesByCategory(_ context.Context, _ string, _ uuid.UUID) ([]model.Purchase, error) {
-	return nil, nil
+func (m *mockStore) ListPurchasesByCategory(_ context.Context, _ string, categoryID uuid.UUID) ([]model.Purchase, error) {
+	var out []model.Purchase
+	for _, purchase := range m.purchases {
+		if purchase.CategoryID == categoryID {
+			out = append(out, purchase)
+		}
+	}
+	if out == nil {
+		out = []model.Purchase{}
+	}
+	return out, nil
 }
-func (m *mockStore) GetPurchase(_ context.Context, _ string, _ uuid.UUID) (model.Purchase, error) {
-	return model.Purchase{}, store.ErrNotFound
+func (m *mockStore) GetPurchase(_ context.Context, _ string, id uuid.UUID) (model.Purchase, error) {
+	purchase, ok := m.purchases[id]
+	if !ok {
+		return model.Purchase{}, store.ErrNotFound
+	}
+	return purchase, nil
 }
-func (m *mockStore) CreatePurchase(_ context.Context, _ string, _ model.Purchase) error { return nil }
-func (m *mockStore) UpdatePurchase(_ context.Context, _ string, _ model.Purchase) error { return nil }
-func (m *mockStore) DeletePurchase(_ context.Context, _ string, _ uuid.UUID) error      { return nil }
+func (m *mockStore) CreatePurchase(_ context.Context, _ string, purchase model.Purchase) error {
+	m.purchases[purchase.ID] = purchase
+	return nil
+}
+func (m *mockStore) UpdatePurchase(_ context.Context, _ string, purchase model.Purchase) error {
+	if _, ok := m.purchases[purchase.ID]; !ok {
+		return store.ErrNotFound
+	}
+	m.purchases[purchase.ID] = purchase
+	return nil
+}
+func (m *mockStore) DeletePurchase(_ context.Context, _ string, id uuid.UUID) error {
+	if _, ok := m.purchases[id]; !ok {
+		return store.ErrNotFound
+	}
+	delete(m.purchases, id)
+	return nil
+}
 
 func (m *mockStore) ListVehicles(_ context.Context, _ string) ([]model.Vehicle, error) {
-	return nil, nil
+	out := make([]model.Vehicle, 0, len(m.vehicles))
+	for _, vehicle := range m.vehicles {
+		out = append(out, vehicle)
+	}
+	return out, nil
 }
-func (m *mockStore) GetVehicle(_ context.Context, _ string, _ uuid.UUID) (model.Vehicle, error) {
-	return model.Vehicle{}, store.ErrNotFound
+func (m *mockStore) GetVehicle(_ context.Context, _ string, id uuid.UUID) (model.Vehicle, error) {
+	vehicle, ok := m.vehicles[id]
+	if !ok {
+		return model.Vehicle{}, store.ErrNotFound
+	}
+	return vehicle, nil
 }
-func (m *mockStore) CreateVehicle(_ context.Context, _ string, _ model.Vehicle) error { return nil }
-func (m *mockStore) UpdateVehicle(_ context.Context, _ string, _ model.Vehicle) error { return nil }
-func (m *mockStore) DeleteVehicle(_ context.Context, _ string, _ uuid.UUID) error     { return nil }
+func (m *mockStore) CreateVehicle(_ context.Context, _ string, vehicle model.Vehicle) error {
+	m.vehicles[vehicle.ID] = vehicle
+	return nil
+}
+func (m *mockStore) UpdateVehicle(_ context.Context, _ string, vehicle model.Vehicle) error {
+	if _, ok := m.vehicles[vehicle.ID]; !ok {
+		return store.ErrNotFound
+	}
+	m.vehicles[vehicle.ID] = vehicle
+	return nil
+}
+func (m *mockStore) DeleteVehicle(_ context.Context, _ string, id uuid.UUID) error {
+	if _, ok := m.vehicles[id]; !ok {
+		return store.ErrNotFound
+	}
+	delete(m.vehicles, id)
+	return nil
+}
 
 func (m *mockStore) ListCostEntries(_ context.Context, _ string, _ uuid.UUID) ([]model.CostEntry, error) {
 	return nil, nil
@@ -385,6 +444,21 @@ func (m *mockStore) GetLedgerTransaction(_ context.Context, _ string, id uuid.UU
 	}
 	return model.LedgerTransaction{}, store.ErrNotFound
 }
+func (m *mockStore) UpdateLedgerTransactionDetails(_ context.Context, _ string, id uuid.UUID, input model.LedgerTransactionDetailsInput) (model.LedgerTransaction, error) {
+	for accountID, txns := range m.ledgerTransactions {
+		for i, txn := range txns {
+			if txn.ID != id {
+				continue
+			}
+			txn.Note = input.Note
+			txn.Links = append([]string(nil), input.Links...)
+			txn.References = append([]model.LedgerTransactionReference(nil), input.References...)
+			m.ledgerTransactions[accountID][i] = txn
+			return txn, nil
+		}
+	}
+	return model.LedgerTransaction{}, store.ErrNotFound
+}
 func (m *mockStore) ReviewLedgerTransaction(_ context.Context, _ string, id uuid.UUID, input model.LedgerTransactionReviewInput) (store.LedgerReviewResult, error) {
 	for accountID, txns := range m.ledgerTransactions {
 		for i, txn := range txns {
@@ -450,6 +524,7 @@ func newMux(h *Handler) http.Handler {
 	mux.HandleFunc("GET /api/v1/ledger/imports", h.ListLedgerImports)
 	mux.HandleFunc("GET /api/v1/ledger/transactions", h.ListLedgerTransactionsReviewQueue)
 	mux.HandleFunc("GET /api/v1/ledger/transactions/{transactionId}", h.GetLedgerTransaction)
+	mux.HandleFunc("PUT /api/v1/ledger/transactions/{transactionId}", h.UpdateLedgerTransactionDetails)
 	mux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/review", h.ReviewLedgerTransaction)
 	// Inject test user into context for all requests
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1292,6 +1367,65 @@ func TestReviewLedgerTransaction_Success(t *testing.T) {
 	}
 	if response.Transaction.CategoryID == nil || *response.Transaction.CategoryID != categoryID {
 		t.Fatalf("categoryId = %#v", response.Transaction.CategoryID)
+	}
+}
+
+func TestUpdateLedgerTransactionDetails_Success(t *testing.T) {
+	h, ms := newTestHandler()
+	mux := newMux(h)
+
+	accountID := uuid.New()
+	transactionID := uuid.New()
+	purchaseID := uuid.New()
+	ms.ledgerTransactions[accountID] = []model.LedgerTransaction{{
+		ID:            transactionID,
+		AccountID:     accountID,
+		BookingDate:   "2026-04-01",
+		Currency:      "EUR",
+		Fingerprint:   "fp-details",
+		ImportBatchID: uuid.New(),
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
+	}}
+	ms.purchases[purchaseID] = model.Purchase{ID: purchaseID, CategoryID: uuid.New(), ItemName: "Desk", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("PUT", "/api/v1/ledger/transactions/"+transactionID.String(), jsonBody(map[string]any{
+		"note":       "linked invoice",
+		"links":      []string{"https://example.com/invoice.pdf"},
+		"references": []map[string]string{{"type": model.LedgerReferencePurchase, "targetId": purchaseID.String()}},
+	}))
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var response model.LedgerTransaction
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response.Note != "linked invoice" {
+		t.Fatalf("note = %q", response.Note)
+	}
+	if len(response.Links) != 1 || response.Links[0] != "https://example.com/invoice.pdf" {
+		t.Fatalf("links = %#v", response.Links)
+	}
+	if len(response.References) != 1 || response.References[0].TargetID != purchaseID {
+		t.Fatalf("references = %#v", response.References)
+	}
+}
+
+func TestUpdateLedgerTransactionDetails_InvalidURL(t *testing.T) {
+	h, _ := newTestHandler()
+	mux := newMux(h)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("PUT", "/api/v1/ledger/transactions/"+uuid.New().String(), jsonBody(map[string]any{
+		"links": []string{"notaurl"},
+	}))
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
 	}
 }
 
