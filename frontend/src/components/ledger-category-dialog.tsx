@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useForm } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
@@ -44,110 +44,134 @@ export function LedgerCategoryDialog({
   categories,
   onSubmit,
 }: LedgerCategoryDialogProps) {
-  const { t } = useTranslation()
-  const form = useForm<LedgerCategoryInput>({
-    resolver: standardSchemaResolver(ledgerCategoryInputSchema),
-    defaultValues: { name: "", parentId: undefined, matchWords: [] },
-  })
-
-  useEffect(() => {
-    if (open) {
-      form.reset({
-        name: category?.name ?? "",
-        parentId: category?.parentId,
-        matchWords: category?.matchWords ?? [],
-      })
-    }
-  }, [category, form, open])
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{category ? t("ledger.editCategory") : t("ledger.createCategory")}</DialogTitle>
-        </DialogHeader>
-        <Form {...form}>
-          <form
-            className="space-y-4"
-            onSubmit={form.handleSubmit((data) => {
-              const matchWords = data.matchWords
-                .flatMap((word) => word.split(","))
-                .map((word) => word.trim())
-                .filter(Boolean)
-              onSubmit({
-                name: data.name,
-                parentId: data.parentId,
-                matchWords,
-              })
-            })}
-          >
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("category.name")}</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder={t("ledger.categoryNamePlaceholder")} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="parentId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("ledger.parentCategory")}</FormLabel>
-                  <Select value={field.value ?? "none"} onValueChange={(value) => field.onChange(value === "none" ? undefined : value)}>
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder={t("ledger.noParentCategory")} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="none">{t("ledger.noParentCategory")}</SelectItem>
-                      {categories
-                        .filter((item) => item.id !== category?.id)
-                        .map((item) => (
-                          <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="matchWords"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("ledger.matchWords")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      value={field.value.join(", ")}
-                      onChange={(event) => field.onChange(event.target.value.split(","))}
-                      placeholder={t("ledger.matchWordsPlaceholder")}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                {t("common.cancel")}
-              </Button>
-              <Button type="submit">{t("common.save")}</Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
+      {open ? (
+        <LedgerCategoryDialogForm
+          key={category?.id ?? "new"}
+          category={category}
+          categories={categories}
+          onOpenChange={onOpenChange}
+          onSubmit={onSubmit}
+        />
+      ) : null}
     </Dialog>
+  )
+}
+
+interface LedgerCategoryDialogFormProps {
+  category?: LedgerCategory | null
+  categories: LedgerCategory[]
+  onOpenChange: (open: boolean) => void
+  onSubmit: (data: LedgerCategoryInput) => void
+}
+
+function LedgerCategoryDialogForm({
+  category,
+  categories,
+  onOpenChange,
+  onSubmit,
+}: LedgerCategoryDialogFormProps) {
+  const { t } = useTranslation()
+  const [matchWordsInput, setMatchWordsInput] = useState((category?.matchWords ?? []).join(", "))
+  const form = useForm<LedgerCategoryInput>({
+    resolver: standardSchemaResolver(ledgerCategoryInputSchema),
+    defaultValues: {
+      name: category?.name ?? "",
+      parentId: category?.parentId,
+      matchWords: category?.matchWords ?? [],
+    },
+  })
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>{category ? t("ledger.editCategory") : t("ledger.createCategory")}</DialogTitle>
+      </DialogHeader>
+      <Form {...form}>
+        <form
+          className="space-y-4"
+          onSubmit={form.handleSubmit((data) => {
+            const matchWords = matchWordsInput
+              .split(",")
+              .map((word) => word.trim())
+              .filter(Boolean)
+            onSubmit({
+              name: data.name,
+              parentId: data.parentId,
+              matchWords,
+            })
+          })}
+        >
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("category.name")}</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder={t("ledger.categoryNamePlaceholder")} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="parentId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("ledger.parentCategory")}</FormLabel>
+                <Select value={field.value ?? "none"} onValueChange={(value) => field.onChange(value === "none" ? undefined : value)}>
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={t("ledger.noParentCategory")} />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="none">{t("ledger.noParentCategory")}</SelectItem>
+                    {categories
+                      .filter((item) => item.id !== category?.id)
+                      .map((item) => (
+                        <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="matchWords"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("ledger.matchWords")}</FormLabel>
+                <FormControl>
+                  <Input
+                    value={matchWordsInput}
+                    onChange={(event) => {
+                      setMatchWordsInput(event.target.value)
+                      field.onChange(event.target.value.split(","))
+                    }}
+                    placeholder={t("ledger.matchWordsPlaceholder")}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit">{t("common.save")}</Button>
+          </DialogFooter>
+        </form>
+      </Form>
+    </DialogContent>
   )
 }

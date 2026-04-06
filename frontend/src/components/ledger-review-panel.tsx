@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import type { LedgerCategory, LedgerReviewInput, LedgerTransaction } from "@/types/ledger"
 import { useReviewLedgerTransaction } from "@/hooks/use-ledger"
-import { formatAmountMinor, formatLedgerDate } from "@/lib/ledger-utils"
+import { formatAmountMinor, formatLedgerDate, tokenizeLedgerMatchWords } from "@/lib/ledger-utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -38,10 +38,7 @@ function LedgerReviewPanelInner({
   const [matchWords, setMatchWords] = useState("")
 
   const suggestedWords = useMemo(() => {
-    return [transaction.counterpartyName, transaction.purpose]
-      .filter((value): value is string => Boolean(value))
-      .map((value) => value.trim())
-      .filter(Boolean)
+    return tokenizeLedgerMatchWords(transaction.counterpartyName, transaction.purpose)
   }, [transaction.counterpartyName, transaction.purpose])
 
   const activeSelectedCategoryId = selectedCategoryId ?? transaction.categoryId ?? ""

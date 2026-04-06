@@ -57,3 +57,24 @@ export function formatLedgerSpecialCategory(specialCategory?: string): string {
       return specialCategory ?? ""
   }
 }
+
+export function tokenizeLedgerMatchWords(...values: Array<string | undefined>): string[] {
+  const seen = new Set<string>()
+  const tokens: string[] = []
+
+	for (const value of values) {
+		if (!value) {
+			continue
+		}
+		for (const part of value.split(/\s+/u)) {
+			const token = part.trim().toLowerCase()
+			if (!token || seen.has(token)) {
+				continue
+      }
+      seen.add(token)
+      tokens.push(token)
+    }
+  }
+
+  return tokens
+}
