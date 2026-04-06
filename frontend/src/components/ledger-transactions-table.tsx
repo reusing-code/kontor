@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import type { LedgerCategory, LedgerTransaction } from "@/types/ledger"
 import { transactionPath } from "@/lib/module-links"
-import { formatAmountMinor, formatLedgerCategorizationSource, formatLedgerDate, formatLedgerReviewStatus, formatSourceType } from "@/lib/ledger-utils"
+import { formatAmountMinor, formatLedgerCategorizationSource, formatLedgerDate, formatLedgerReviewStatus, formatLedgerSpecialCategory, formatSourceType } from "@/lib/ledger-utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -68,6 +68,9 @@ export function LedgerTransactionsTable({ transactions, categories = [], nextCur
                   <TableCell>{txn.transactionType || "-"}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-2">
+                      {txn.specialCategory ? (
+                        <Badge variant="secondary">{formatLedgerSpecialCategory(txn.specialCategory)}</Badge>
+                      ) : null}
                       <Badge variant={txn.reviewStatus === "confirmed" ? "secondary" : "default"}>
                         {formatLedgerReviewStatus(txn.reviewStatus)}
                       </Badge>

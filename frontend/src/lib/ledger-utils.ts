@@ -48,3 +48,12 @@ export function formatLedgerCategorizationSource(source: string): string {
       return source
   }
 }
+
+export function formatLedgerSpecialCategory(specialCategory?: string): string {
+  switch (specialCategory) {
+    case "internalTransfer":
+      return "Internal transfer"
+    default:
+      return specialCategory ?? ""
+  }
+}

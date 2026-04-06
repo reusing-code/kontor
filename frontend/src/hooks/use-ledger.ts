@@ -9,9 +9,12 @@ import {
   getLedgerImports,
   getLedgerReviewQueue,
   getLedgerTransactionById,
+  getLedgerTransferCandidates,
   getLedgerTransactions,
+  linkLedgerTransfer,
   previewLedgerImport,
   reviewLedgerTransaction,
+  unlinkLedgerTransfer,
   updateLedgerTransactionDetails,
   updateLedgerCategory,
 } from "@/lib/ledger-repository"
@@ -20,6 +23,7 @@ import type {
   LedgerCommitRequest,
   LedgerReviewInput,
   LedgerSourceType,
+  LedgerTransferLinkInput,
   LedgerTransactionDetailsInput,
 } from "@/types/ledger"
 
@@ -29,6 +33,7 @@ export const ledgerCategoriesKey = ["ledger", "categories"] as const
 export const ledgerReviewQueueKey = (limit: number, cursor?: string) => ["ledger", "review", { limit, cursor: cursor ?? "" }] as const
 const ledgerAccountKey = (accountId: string) => ["ledger", "accounts", accountId] as const
 const ledgerTransactionKey = (transactionId: string) => ["ledger", "transactions", transactionId] as const
+const ledgerTransferCandidatesKey = (transactionId: string) => ["ledger", "transactions", transactionId, "transfer-candidates"] as const
 const ledgerTransactionsKey = (accountId: string, limit: number, cursor?: string) => ["ledger", "accounts", accountId, "transactions", { limit, cursor: cursor ?? "" }] as const
 
 export function useLedgerAccounts() {
@@ -77,6 +82,14 @@ export function useLedgerTransaction(transactionId: string) {
   return useQuery({
     queryKey: ledgerTransactionKey(transactionId),
     queryFn: () => getLedgerTransactionById(transactionId),
+    enabled: Boolean(transactionId),
+  })
+}
+
+export function useLedgerTransferCandidates(transactionId: string) {
+  return useQuery({
+    queryKey: ledgerTransferCandidatesKey(transactionId),
+    queryFn: () => getLedgerTransferCandidates(transactionId),
   })
 }
 
@@ -152,10 +165,45 @@ export function useUpdateLedgerTransactionDetails() {
     mutationFn: ({ id, data }: { id: string; data: LedgerTransactionDetailsInput }) => updateLedgerTransactionDetails(id, data),
     onSuccess: (transaction) => {
       qc.invalidateQueries({ queryKey: ledgerTransactionKey(transaction.id) })
+      qc.invalidateQueries({ queryKey: ledgerTransferCandidatesKey(transaction.id) })
       qc.invalidateQueries({ queryKey: ["ledger", "accounts", transaction.accountId, "transactions"] })
       qc.invalidateQueries({ queryKey: ["contracts"] })
       qc.invalidateQueries({ queryKey: ["purchases"] })
       qc.invalidateQueries({ queryKey: ["vehicles"] })
+    },
+  })
+}
+
+export function useLinkLedgerTransfer() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: LedgerTransferLinkInput }) => linkLedgerTransfer(id, data),
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ledgerTransactionKey(result.transaction.id) })
+      qc.invalidateQueries({ queryKey: ledgerTransferCandidatesKey(result.transaction.id) })
+      qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.transaction.accountId, "transactions"] })
+      if (result.pairedTransaction) {
+        qc.invalidateQueries({ queryKey: ledgerTransactionKey(result.pairedTransaction.id) })
+        qc.invalidateQueries({ queryKey: ledgerTransferCandidatesKey(result.pairedTransaction.id) })
+        qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.pairedTransaction.accountId, "transactions"] })
+      }
+    },
+  })
+}
+
+export function useUnlinkLedgerTransfer() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => unlinkLedgerTransfer(id),
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ledgerTransactionKey(result.transaction.id) })
+      qc.invalidateQueries({ queryKey: ledgerTransferCandidatesKey(result.transaction.id) })
+      qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.transaction.accountId, "transactions"] })
+      if (result.pairedTransaction) {
+        qc.invalidateQueries({ queryKey: ledgerTransactionKey(result.pairedTransaction.id) })
+        qc.invalidateQueries({ queryKey: ledgerTransferCandidatesKey(result.pairedTransaction.id) })
+        qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.pairedTransaction.accountId, "transactions"] })
+      }
     },
   })
 }

@@ -63,6 +63,10 @@ func (h *Handler) handleStoreError(w http.ResponseWriter, err error) {
 		h.errorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if errors.Is(err, store.ErrLedgerTransferInvalid) {
+		h.errorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err != nil && err.Error() == "links must contain valid absolute URLs" {
 		h.errorResponse(w, http.StatusBadRequest, err.Error())
 		return

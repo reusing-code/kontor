@@ -19,7 +19,10 @@ var (
 	ErrLedgerFileImported     = errors.New("ledger file already imported")
 	ErrLedgerCategoryHasChild = errors.New("ledger category has children")
 	ErrLedgerCategoryHasCycle = errors.New("ledger category cycle")
+	ErrLedgerTransferInvalid  = errors.New("invalid transfer pair")
 )
+
+const ledgerTransferMatchWindowDays = 3
 
 // Ledger account key helpers
 
@@ -94,7 +97,119 @@ func normalizeLedgerTransaction(t model.LedgerTransaction) model.LedgerTransacti
 	}
 	t.Links = model.NormalizeLedgerTransactionLinks(t.Links)
 	t.References = model.NormalizeLedgerTransactionReferences(t.References)
+	if t.SpecialCategory == model.LedgerSpecialCategoryInternalTransfer && t.CategorizationSource == model.LedgerCategorizationNone {
+		t.CategorizationSource = model.LedgerCategorizationManual
+	}
 	return t
+}
+
+func collectLedgerAccounts(txn *badger.Txn, userID string) ([]model.LedgerAccount, error) {
+	var accounts []model.LedgerAccount
+	prefix := ledAccPrefix(userID)
+	it := txn.NewIterator(badger.DefaultIteratorOptions)
+	defer it.Close()
+	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+		var account model.LedgerAccount
+		if err := it.Item().Value(func(val []byte) error {
+			return json.Unmarshal(val, &account)
+		}); err != nil {
+			return nil, err
+		}
+		accounts = append(accounts, account)
+	}
+	if accounts == nil {
+		accounts = []model.LedgerAccount{}
+	}
+	return accounts, nil
+}
+
+func ledgerDateForMatch(t model.LedgerTransaction) string {
+	if t.ValueDate != "" {
+		return t.ValueDate
+	}
+	return t.BookingDate
+}
+
+func ledgerDateDeltaDays(left, right string) int {
+	leftDate, leftErr := time.Parse("2006-01-02", left)
+	rightDate, rightErr := time.Parse("2006-01-02", right)
+	if leftErr != nil || rightErr != nil {
+		return 999
+	}
+	delta := int(leftDate.Sub(rightDate).Hours() / 24)
+	if delta < 0 {
+		return -delta
+	}
+	return delta
+}
+
+func isPotentialLedgerTransferMatch(source, candidate model.LedgerTransaction) bool {
+	if source.ID == candidate.ID {
+		return false
+	}
+	if source.AccountID == candidate.AccountID {
+		return false
+	}
+	if source.Currency != candidate.Currency {
+		return false
+	}
+	if source.AmountMinor != -candidate.AmountMinor {
+		return false
+	}
+	if candidate.TransferPairTransactionID != nil && *candidate.TransferPairTransactionID != source.ID {
+		return false
+	}
+	return ledgerDateDeltaDays(ledgerDateForMatch(source), ledgerDateForMatch(candidate)) <= ledgerTransferMatchWindowDays
+}
+
+func applyLedgerTransferState(left *model.LedgerTransaction, rightID uuid.UUID) {
+	left.CategoryID = nil
+	left.TransferPairTransactionID = &rightID
+	left.SpecialCategory = model.LedgerSpecialCategoryInternalTransfer
+	left.ReviewStatus = model.LedgerTransactionReviewConfirmed
+	left.CategorizationSource = model.LedgerCategorizationManual
+	left.UpdatedAt = time.Now().UTC()
+}
+
+func clearLedgerTransferState(t *model.LedgerTransaction) {
+	t.TransferPairTransactionID = nil
+	if t.SpecialCategory == model.LedgerSpecialCategoryInternalTransfer {
+		t.SpecialCategory = ""
+	}
+	if t.CategoryID == nil {
+		t.ReviewStatus = model.LedgerTransactionReviewNeedsReview
+		t.CategorizationSource = model.LedgerCategorizationNone
+	}
+	t.UpdatedAt = time.Now().UTC()
+}
+
+func unlinkLedgerTransferTxn(txn *badger.Txn, userID string, id uuid.UUID) (LedgerTransferLinkResult, error) {
+	result := LedgerTransferLinkResult{}
+	ledgerTxn, err := loadLedgerTransaction(txn, userID, id)
+	if err != nil {
+		return result, err
+	}
+	if ledgerTxn.TransferPairTransactionID == nil {
+		result.Transaction = ledgerTxn
+		return result, nil
+	}
+	paired, err := loadLedgerTransaction(txn, userID, *ledgerTxn.TransferPairTransactionID)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return result, err
+	}
+	clearLedgerTransferState(&ledgerTxn)
+	if err := storeLedgerTransaction(txn, userID, ledgerTxn); err != nil {
+		return result, err
+	}
+	result.Transaction = ledgerTxn
+	if err == nil {
+		clearLedgerTransferState(&paired)
+		if err := storeLedgerTransaction(txn, userID, paired); err != nil {
+			return result, err
+		}
+		result.PairedTransaction = &paired
+	}
+	return result, nil
 }
 
 func normalizeLedgerCategory(c model.LedgerCategory) model.LedgerCategory {
@@ -704,6 +819,15 @@ func (s *BadgerStore) DeleteLedgerCategory(_ context.Context, userID string, id 
 			if ledgerTxn.CategoryID == nil || *ledgerTxn.CategoryID != id {
 				continue
 			}
+			if ledgerTxn.TransferPairTransactionID != nil {
+				if _, err := unlinkLedgerTransferTxn(txn, userID, ledgerTxn.ID); err != nil {
+					return err
+				}
+				ledgerTxn, err = loadLedgerTransaction(txn, userID, ledgerTxn.ID)
+				if err != nil {
+					return err
+				}
+			}
 			ledgerTxn.CategoryID = nil
 			ledgerTxn.ReviewStatus = model.LedgerTransactionReviewNeedsReview
 			ledgerTxn.CategorizationSource = model.LedgerCategorizationNone
@@ -915,6 +1039,116 @@ func (s *BadgerStore) GetLedgerTransaction(_ context.Context, userID string, id 
 	return ledgerTxn, err
 }
 
+func (s *BadgerStore) ListLedgerTransferCandidates(_ context.Context, userID string, id uuid.UUID) (LedgerTransferCandidatesResult, error) {
+	result := LedgerTransferCandidatesResult{Items: []model.LedgerTransferCandidate{}}
+	err := s.db.View(func(txn *badger.Txn) error {
+		source, err := loadLedgerTransaction(txn, userID, id)
+		if err != nil {
+			return err
+		}
+		accounts, err := collectLedgerAccounts(txn, userID)
+		if err != nil {
+			return err
+		}
+		accountNameByID := make(map[uuid.UUID]string, len(accounts))
+		accountIBANByID := make(map[uuid.UUID]string, len(accounts))
+		for _, account := range accounts {
+			accountNameByID[account.ID] = account.Name
+			accountIBANByID[account.ID] = account.IBAN
+		}
+		transactions, err := collectLedgerTransactions(txn, userID)
+		if err != nil {
+			return err
+		}
+		for _, candidate := range transactions {
+			if !isPotentialLedgerTransferMatch(source, candidate) {
+				continue
+			}
+			ibanMatch := false
+			if accountIBANByID[candidate.AccountID] != "" && source.CounterpartyIBAN != "" && accountIBANByID[candidate.AccountID] == source.CounterpartyIBAN {
+				ibanMatch = true
+			}
+			if accountIBANByID[source.AccountID] != "" && candidate.CounterpartyIBAN != "" && accountIBANByID[source.AccountID] == candidate.CounterpartyIBAN {
+				ibanMatch = true
+			}
+			result.Items = append(result.Items, model.LedgerTransferCandidate{
+				Transaction:   candidate,
+				AccountName:   accountNameByID[candidate.AccountID],
+				DateDeltaDays: ledgerDateDeltaDays(ledgerDateForMatch(source), ledgerDateForMatch(candidate)),
+				IBANMatch:     ibanMatch,
+			})
+		}
+		sort.Slice(result.Items, func(i, j int) bool {
+			if result.Items[i].IBANMatch != result.Items[j].IBANMatch {
+				return result.Items[i].IBANMatch
+			}
+			if result.Items[i].DateDeltaDays != result.Items[j].DateDeltaDays {
+				return result.Items[i].DateDeltaDays < result.Items[j].DateDeltaDays
+			}
+			return result.Items[i].Transaction.BookingDate > result.Items[j].Transaction.BookingDate
+		})
+		return nil
+	})
+	return result, err
+}
+
+func (s *BadgerStore) LinkLedgerTransfer(_ context.Context, userID string, id uuid.UUID, input model.LedgerTransferLinkInput) (model.LedgerTransferLinkResult, error) {
+	result := model.LedgerTransferLinkResult{}
+	err := s.db.Update(func(txn *badger.Txn) error {
+		left, err := loadLedgerTransaction(txn, userID, id)
+		if err != nil {
+			return err
+		}
+		right, err := loadLedgerTransaction(txn, userID, input.PairedTransactionID)
+		if err != nil {
+			return err
+		}
+		if !isPotentialLedgerTransferMatch(left, right) {
+			return ErrLedgerTransferInvalid
+		}
+		if left.TransferPairTransactionID != nil && *left.TransferPairTransactionID != right.ID {
+			paired, err := loadLedgerTransaction(txn, userID, *left.TransferPairTransactionID)
+			if err == nil {
+				clearLedgerTransferState(&paired)
+				if err := storeLedgerTransaction(txn, userID, paired); err != nil {
+					return err
+				}
+			}
+		}
+		if right.TransferPairTransactionID != nil && *right.TransferPairTransactionID != left.ID {
+			paired, err := loadLedgerTransaction(txn, userID, *right.TransferPairTransactionID)
+			if err == nil {
+				clearLedgerTransferState(&paired)
+				if err := storeLedgerTransaction(txn, userID, paired); err != nil {
+					return err
+				}
+			}
+		}
+		applyLedgerTransferState(&left, right.ID)
+		applyLedgerTransferState(&right, left.ID)
+		if err := storeLedgerTransaction(txn, userID, left); err != nil {
+			return err
+		}
+		if err := storeLedgerTransaction(txn, userID, right); err != nil {
+			return err
+		}
+		result.Transaction = left
+		result.PairedTransaction = right
+		return nil
+	})
+	return result, err
+}
+
+func (s *BadgerStore) UnlinkLedgerTransfer(_ context.Context, userID string, id uuid.UUID) (LedgerTransferLinkResult, error) {
+	result := LedgerTransferLinkResult{}
+	err := s.db.Update(func(txn *badger.Txn) error {
+		var err error
+		result, err = unlinkLedgerTransferTxn(txn, userID, id)
+		return err
+	})
+	return result, err
+}
+
 func (s *BadgerStore) UpdateLedgerTransactionDetails(_ context.Context, userID string, id uuid.UUID, input model.LedgerTransactionDetailsInput) (model.LedgerTransaction, error) {
 	updatedAt := time.Now().UTC()
 	var updated model.LedgerTransaction
@@ -922,6 +1156,15 @@ func (s *BadgerStore) UpdateLedgerTransactionDetails(_ context.Context, userID s
 		ledgerTxn, err := loadLedgerTransaction(txn, userID, id)
 		if err != nil {
 			return err
+		}
+		if ledgerTxn.TransferPairTransactionID != nil {
+			if _, err := unlinkLedgerTransferTxn(txn, userID, id); err != nil {
+				return err
+			}
+			ledgerTxn, err = loadLedgerTransaction(txn, userID, id)
+			if err != nil {
+				return err
+			}
 		}
 		if err := syncLedgerReferences(txn, userID, ledgerTxn.ID, ledgerTxn.References, input.References); err != nil {
 			return err
@@ -1001,8 +1244,18 @@ func (s *BadgerStore) ReviewLedgerTransaction(_ context.Context, userID string, 
 		}
 
 		if selectedCategory != nil {
+			if ledgerTxn.TransferPairTransactionID != nil {
+				if _, err := unlinkLedgerTransferTxn(txn, userID, id); err != nil {
+					return err
+				}
+				ledgerTxn, err = loadLedgerTransaction(txn, userID, id)
+				if err != nil {
+					return err
+				}
+			}
 			categoryID := selectedCategory.ID
 			ledgerTxn.CategoryID = &categoryID
+			ledgerTxn.SpecialCategory = ""
 			ledgerTxn.CategorizationSource = model.LedgerCategorizationManual
 		}
 		ledgerTxn.ReviewStatus = model.LedgerTransactionReviewConfirmed

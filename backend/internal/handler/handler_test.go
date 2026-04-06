@@ -444,6 +444,89 @@ func (m *mockStore) GetLedgerTransaction(_ context.Context, _ string, id uuid.UU
 	}
 	return model.LedgerTransaction{}, store.ErrNotFound
 }
+func (m *mockStore) ListLedgerTransferCandidates(_ context.Context, _ string, id uuid.UUID) (store.LedgerTransferCandidatesResult, error) {
+	source, err := m.GetLedgerTransaction(context.Background(), "", id)
+	if err != nil {
+		return store.LedgerTransferCandidatesResult{}, err
+	}
+	accountNameByID := make(map[uuid.UUID]string, len(m.ledgerAccounts))
+	for _, account := range m.ledgerAccounts {
+		accountNameByID[account.ID] = account.Name
+	}
+	var items []model.LedgerTransferCandidate
+	for _, txns := range m.ledgerTransactions {
+		for _, txn := range txns {
+			if txn.ID == source.ID || txn.AccountID == source.AccountID {
+				continue
+			}
+			if txn.Currency != source.Currency || txn.AmountMinor != -source.AmountMinor {
+				continue
+			}
+			items = append(items, model.LedgerTransferCandidate{Transaction: txn, AccountName: accountNameByID[txn.AccountID]})
+		}
+	}
+	return store.LedgerTransferCandidatesResult{Items: items}, nil
+}
+func (m *mockStore) LinkLedgerTransfer(_ context.Context, _ string, id uuid.UUID, input model.LedgerTransferLinkInput) (model.LedgerTransferLinkResult, error) {
+	var result model.LedgerTransferLinkResult
+	var leftFound bool
+	var rightFound bool
+	for accountID, txns := range m.ledgerTransactions {
+		for i, txn := range txns {
+			switch txn.ID {
+			case id:
+				pairID := input.PairedTransactionID
+				txn.TransferPairTransactionID = &pairID
+				txn.SpecialCategory = model.LedgerSpecialCategoryInternalTransfer
+				m.ledgerTransactions[accountID][i] = txn
+				result.Transaction = txn
+				leftFound = true
+			case input.PairedTransactionID:
+				pairID := id
+				txn.TransferPairTransactionID = &pairID
+				txn.SpecialCategory = model.LedgerSpecialCategoryInternalTransfer
+				m.ledgerTransactions[accountID][i] = txn
+				result.PairedTransaction = txn
+				rightFound = true
+			}
+		}
+	}
+	if !leftFound || !rightFound {
+		return model.LedgerTransferLinkResult{}, store.ErrNotFound
+	}
+	return result, nil
+}
+func (m *mockStore) UnlinkLedgerTransfer(_ context.Context, _ string, id uuid.UUID) (store.LedgerTransferLinkResult, error) {
+	var result store.LedgerTransferLinkResult
+	var pairID *uuid.UUID
+	for accountID, txns := range m.ledgerTransactions {
+		for i, txn := range txns {
+			if txn.ID != id {
+				continue
+			}
+			pairID = txn.TransferPairTransactionID
+			txn.TransferPairTransactionID = nil
+			txn.SpecialCategory = ""
+			m.ledgerTransactions[accountID][i] = txn
+			result.Transaction = txn
+		}
+	}
+	if pairID != nil {
+		for accountID, txns := range m.ledgerTransactions {
+			for i, txn := range txns {
+				if txn.ID != *pairID {
+					continue
+				}
+				txn.TransferPairTransactionID = nil
+				txn.SpecialCategory = ""
+				m.ledgerTransactions[accountID][i] = txn
+				copyTxn := txn
+				result.PairedTransaction = &copyTxn
+			}
+		}
+	}
+	return result, nil
+}
 func (m *mockStore) UpdateLedgerTransactionDetails(_ context.Context, _ string, id uuid.UUID, input model.LedgerTransactionDetailsInput) (model.LedgerTransaction, error) {
 	for accountID, txns := range m.ledgerTransactions {
 		for i, txn := range txns {
@@ -525,6 +608,9 @@ func newMux(h *Handler) http.Handler {
 	mux.HandleFunc("GET /api/v1/ledger/transactions", h.ListLedgerTransactionsReviewQueue)
 	mux.HandleFunc("GET /api/v1/ledger/transactions/{transactionId}", h.GetLedgerTransaction)
 	mux.HandleFunc("PUT /api/v1/ledger/transactions/{transactionId}", h.UpdateLedgerTransactionDetails)
+	mux.HandleFunc("GET /api/v1/ledger/transactions/{transactionId}/transfer-candidates", h.ListLedgerTransferCandidates)
+	mux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/transfer-link", h.LinkLedgerTransfer)
+	mux.HandleFunc("DELETE /api/v1/ledger/transactions/{transactionId}/transfer-link", h.UnlinkLedgerTransfer)
 	mux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/review", h.ReviewLedgerTransaction)
 	// Inject test user into context for all requests
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1426,6 +1512,48 @@ func TestUpdateLedgerTransactionDetails_InvalidURL(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestLinkLedgerTransfer_Success(t *testing.T) {
+	h, ms := newTestHandler()
+	mux := newMux(h)
+
+	accountA := uuid.New()
+	accountB := uuid.New()
+	leftID := uuid.New()
+	rightID := uuid.New()
+	ms.ledgerAccounts[accountA] = model.LedgerAccount{ID: accountA, Name: "Checking"}
+	ms.ledgerAccounts[accountB] = model.LedgerAccount{ID: accountB, Name: "Savings"}
+	ms.ledgerTransactions[accountA] = []model.LedgerTransaction{{ID: leftID, AccountID: accountA, BookingDate: "2026-04-01", AmountMinor: -1000, Currency: "EUR"}}
+	ms.ledgerTransactions[accountB] = []model.LedgerTransaction{{ID: rightID, AccountID: accountB, BookingDate: "2026-04-02", AmountMinor: 1000, Currency: "EUR"}}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/ledger/transactions/"+leftID.String()+"/transfer-link", jsonBody(map[string]string{"pairedTransactionId": rightID.String()}))
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+}
+
+func TestListLedgerTransferCandidates_Success(t *testing.T) {
+	h, ms := newTestHandler()
+	mux := newMux(h)
+
+	accountA := uuid.New()
+	accountB := uuid.New()
+	sourceID := uuid.New()
+	candidateID := uuid.New()
+	ms.ledgerAccounts[accountA] = model.LedgerAccount{ID: accountA, Name: "Checking"}
+	ms.ledgerAccounts[accountB] = model.LedgerAccount{ID: accountB, Name: "Savings"}
+	ms.ledgerTransactions[accountA] = []model.LedgerTransaction{{ID: sourceID, AccountID: accountA, BookingDate: "2026-04-01", AmountMinor: -1000, Currency: "EUR"}}
+	ms.ledgerTransactions[accountB] = []model.LedgerTransaction{{ID: candidateID, AccountID: accountB, BookingDate: "2026-04-02", AmountMinor: 1000, Currency: "EUR"}}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/v1/ledger/transactions/"+sourceID.String()+"/transfer-candidates", nil)
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
 }
 

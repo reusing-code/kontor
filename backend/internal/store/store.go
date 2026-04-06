@@ -25,6 +25,15 @@ type LedgerReviewResult struct {
 	Category    *model.LedgerCategory
 }
 
+type LedgerTransferCandidatesResult struct {
+	Items []model.LedgerTransferCandidate
+}
+
+type LedgerTransferLinkResult struct {
+	Transaction       model.LedgerTransaction
+	PairedTransaction *model.LedgerTransaction
+}
+
 type LedgerImportCommitResult struct {
 	ImportedRows  int
 	DuplicateRows int
@@ -92,6 +101,9 @@ type Store interface {
 	ListLedgerTransactionsPage(ctx context.Context, userID string, accountID uuid.UUID, limit int, cursor string) (LedgerTransactionPage, error)
 	ListLedgerTransactionsFiltered(ctx context.Context, userID string, options LedgerTransactionListOptions) (LedgerTransactionPage, error)
 	GetLedgerTransaction(ctx context.Context, userID string, id uuid.UUID) (model.LedgerTransaction, error)
+	ListLedgerTransferCandidates(ctx context.Context, userID string, id uuid.UUID) (LedgerTransferCandidatesResult, error)
+	LinkLedgerTransfer(ctx context.Context, userID string, id uuid.UUID, input model.LedgerTransferLinkInput) (model.LedgerTransferLinkResult, error)
+	UnlinkLedgerTransfer(ctx context.Context, userID string, id uuid.UUID) (LedgerTransferLinkResult, error)
 	UpdateLedgerTransactionDetails(ctx context.Context, userID string, id uuid.UUID, input model.LedgerTransactionDetailsInput) (model.LedgerTransaction, error)
 	ReviewLedgerTransaction(ctx context.Context, userID string, id uuid.UUID, input model.LedgerTransactionReviewInput) (LedgerReviewResult, error)
 

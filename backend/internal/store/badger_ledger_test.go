@@ -406,3 +406,90 @@ func TestDeletePurchase_RemovesLedgerReference(t *testing.T) {
 		t.Fatalf("references after delete = %#v", txn.References)
 	}
 }
+
+func TestListLedgerTransferCandidates_MatchesOppositeAmountWithinDateWindow(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	userID := "user-1"
+	accountA := uuid.New()
+	accountB := uuid.New()
+	now := time.Now().UTC()
+
+	if err := s.CreateLedgerAccount(ctx, userID, model.LedgerAccount{ID: accountA, Name: "Checking", IBAN: "DE111", Bank: "DKB", Currency: "EUR", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateLedgerAccount A: %v", err)
+	}
+	if err := s.CreateLedgerAccount(ctx, userID, model.LedgerAccount{ID: accountB, Name: "Savings", IBAN: "DE222", Bank: "DKB", Currency: "EUR", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateLedgerAccount B: %v", err)
+	}
+	sourceID := uuid.New()
+	candidateID := uuid.New()
+	batch := model.LedgerImportBatch{ID: uuid.New(), AccountID: accountA, SourceType: "dkb.csv", ParserVersion: "1", Filename: "test.csv", FileSHA256: "hash-transfer-candidates", Status: model.ImportStatusCommitted, CreatedAt: now, UpdatedAt: now}
+	_, err := s.CommitLedgerImport(ctx, userID, batch, []model.LedgerTransaction{
+		{ID: sourceID, AccountID: accountA, BookingDate: "2026-04-02", AmountMinor: -12500, Currency: "EUR", CounterpartyIBAN: "DE222", Fingerprint: "fp-transfer-source", ImportBatchID: batch.ID, CreatedAt: now, UpdatedAt: now},
+		{ID: candidateID, AccountID: accountB, BookingDate: "2026-04-03", AmountMinor: 12500, Currency: "EUR", CounterpartyIBAN: "DE111", Fingerprint: "fp-transfer-candidate", ImportBatchID: batch.ID, CreatedAt: now, UpdatedAt: now},
+	})
+	if err != nil {
+		t.Fatalf("CommitLedgerImport: %v", err)
+	}
+
+	result, err := s.ListLedgerTransferCandidates(ctx, userID, sourceID)
+	if err != nil {
+		t.Fatalf("ListLedgerTransferCandidates: %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("len(candidates) = %d, want 1", len(result.Items))
+	}
+	if result.Items[0].Transaction.ID != candidateID {
+		t.Fatalf("candidate id = %s", result.Items[0].Transaction.ID)
+	}
+	if !result.Items[0].IBANMatch {
+		t.Fatal("expected IBAN match")
+	}
+}
+
+func TestLinkAndUnlinkLedgerTransfer_SetsSpecialCategoryOnBothSides(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	userID := "user-1"
+	accountA := uuid.New()
+	accountB := uuid.New()
+	now := time.Now().UTC()
+
+	if err := s.CreateLedgerAccount(ctx, userID, model.LedgerAccount{ID: accountA, Name: "Checking", Bank: "DKB", Currency: "EUR", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateLedgerAccount A: %v", err)
+	}
+	if err := s.CreateLedgerAccount(ctx, userID, model.LedgerAccount{ID: accountB, Name: "Savings", Bank: "DKB", Currency: "EUR", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateLedgerAccount B: %v", err)
+	}
+	leftID := uuid.New()
+	rightID := uuid.New()
+	batch := model.LedgerImportBatch{ID: uuid.New(), AccountID: accountA, SourceType: "dkb.csv", ParserVersion: "1", Filename: "test.csv", FileSHA256: "hash-transfer-link", Status: model.ImportStatusCommitted, CreatedAt: now, UpdatedAt: now}
+	if _, err := s.CommitLedgerImport(ctx, userID, batch, []model.LedgerTransaction{
+		{ID: leftID, AccountID: accountA, BookingDate: "2026-04-02", AmountMinor: -8000, Currency: "EUR", Fingerprint: "fp-transfer-left", ImportBatchID: batch.ID, CreatedAt: now, UpdatedAt: now},
+		{ID: rightID, AccountID: accountB, BookingDate: "2026-04-04", AmountMinor: 8000, Currency: "EUR", Fingerprint: "fp-transfer-right", ImportBatchID: batch.ID, CreatedAt: now, UpdatedAt: now},
+	}); err != nil {
+		t.Fatalf("CommitLedgerImport: %v", err)
+	}
+
+	result, err := s.LinkLedgerTransfer(ctx, userID, leftID, model.LedgerTransferLinkInput{PairedTransactionID: rightID})
+	if err != nil {
+		t.Fatalf("LinkLedgerTransfer: %v", err)
+	}
+	if result.Transaction.SpecialCategory != model.LedgerSpecialCategoryInternalTransfer {
+		t.Fatalf("special category = %q", result.Transaction.SpecialCategory)
+	}
+	if result.PairedTransaction.SpecialCategory != model.LedgerSpecialCategoryInternalTransfer {
+		t.Fatalf("paired special category = %q", result.PairedTransaction.SpecialCategory)
+	}
+
+	unlinked, err := s.UnlinkLedgerTransfer(ctx, userID, leftID)
+	if err != nil {
+		t.Fatalf("UnlinkLedgerTransfer: %v", err)
+	}
+	if unlinked.Transaction.TransferPairTransactionID != nil {
+		t.Fatal("expected source transfer pair to be cleared")
+	}
+	if unlinked.PairedTransaction == nil || unlinked.PairedTransaction.TransferPairTransactionID != nil {
+		t.Fatal("expected paired transfer pair to be cleared")
+	}
+}

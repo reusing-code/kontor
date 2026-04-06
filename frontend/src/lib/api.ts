@@ -70,6 +70,10 @@ export function del(path: string): Promise<void> {
   return request<void>("DELETE", path)
 }
 
+export function delJson<T>(path: string): Promise<T> {
+  return request<T>("DELETE", path)
+}
+
 export async function postForm<T>(path: string, body: FormData): Promise<T> {
   const headers: Record<string, string> = {}
   const token = getToken()

@@ -5,11 +5,11 @@ import { toast } from "sonner"
 import { Copy, ExternalLink, Link2, Save } from "lucide-react"
 import { useCategories } from "@/hooks/use-categories"
 import { useContracts, useCreateContractByCategory } from "@/hooks/use-contracts"
-import { useLedgerCategories, useUpdateLedgerTransactionDetails } from "@/hooks/use-ledger"
+import { useLedgerCategories, useLedgerTransferCandidates, useLedgerTransaction, useLinkLedgerTransfer, useUnlinkLedgerTransfer, useUpdateLedgerTransactionDetails } from "@/hooks/use-ledger"
 import { useCreatePurchaseByCategory, usePurchases } from "@/hooks/use-purchases"
 import { useCreateVehicle, useVehicles } from "@/hooks/use-vehicles"
-import { moduleReferenceToPath } from "@/lib/module-links"
-import { formatAmountMinor, formatLedgerDate, formatLedgerReviewStatus } from "@/lib/ledger-utils"
+import { moduleReferenceToPath, transactionPath } from "@/lib/module-links"
+import { formatAmountMinor, formatLedgerDate, formatLedgerReviewStatus, formatLedgerSpecialCategory } from "@/lib/ledger-utils"
 import type { ContractFormData } from "@/types/contract"
 import type { LedgerTransaction, LedgerTransactionReference } from "@/types/ledger"
 import type { PurchaseFormData } from "@/types/purchase"
@@ -67,7 +67,12 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
   const { data: purchases = [] } = usePurchases()
   const { data: contracts = [] } = useContracts()
   const { data: vehicles = [] } = useVehicles()
+  const { data: transferCandidates } = useLedgerTransferCandidates(transaction.id)
+  const pairedTransactionId = transaction.transferPairTransactionId
+  const { data: pairedTransaction } = useLedgerTransaction(pairedTransactionId ?? "")
   const updateDetails = useUpdateLedgerTransactionDetails()
+  const linkTransfer = useLinkLedgerTransfer()
+  const unlinkTransfer = useUnlinkLedgerTransfer()
   const createPurchase = useCreatePurchaseByCategory()
   const createContract = useCreateContractByCategory()
   const createVehicle = useCreateVehicle()
@@ -215,9 +220,60 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
             <div className="text-xs text-muted-foreground">{t("ledger.category")}</div>
             <div>{categoryName ?? t("ledger.noCategory")}</div>
           </div>
+          <div>
+            <div className="text-xs text-muted-foreground">{t("ledger.specialCategory")}</div>
+            <div>{transaction.specialCategory ? formatLedgerSpecialCategory(transaction.specialCategory) : "-"}</div>
+          </div>
           <div className="md:col-span-2">
             <div className="text-xs text-muted-foreground">{t("ledger.purpose")}</div>
             <div className="whitespace-pre-wrap">{transaction.purpose || "-"}</div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("ledger.internalTransfer")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {pairedTransaction ? (
+            <div className="rounded-md border p-3 text-sm">
+              <div className="font-medium">{t("ledger.transferLinked")}</div>
+              <Link to={transactionPath(pairedTransaction.id)} className="mt-1 block text-primary hover:underline">
+                {formatLedgerDate(pairedTransaction.bookingDate)} • {formatAmountMinor(pairedTransaction.amountMinor, pairedTransaction.currency, i18n.language)}
+              </Link>
+              <div className="text-muted-foreground">{pairedTransaction.counterpartyName || pairedTransaction.purpose || "-"}</div>
+              <div className="mt-3">
+                <Button type="button" variant="outline" onClick={() => unlinkTransfer.mutate(transaction.id, { onSuccess: () => toast.success(t("ledger.transferUnlinked")), onError: (error) => toast.error(error.message) })}>
+                  {t("ledger.unlinkTransfer")}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">{t("ledger.noTransferLinked")}</p>
+          )}
+
+          <div className="space-y-2">
+            <div className="text-sm font-medium">{t("ledger.transferCandidates")}</div>
+            {transferCandidates?.items.length ? (
+              transferCandidates.items.map((candidate) => (
+                <div key={candidate.transaction.id} className="flex items-center gap-3 rounded-md border p-3 text-sm">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium">{candidate.accountName}</div>
+                    <div>{formatLedgerDate(candidate.transaction.bookingDate)} • {formatAmountMinor(candidate.transaction.amountMinor, candidate.transaction.currency, i18n.language)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {candidate.dateDeltaDays === 0 ? t("ledger.sameDay") : t("ledger.daysApart", { count: candidate.dateDeltaDays })}
+                      {candidate.ibanMatch ? ` • ${t("ledger.ibanMatched")}` : ""}
+                    </div>
+                  </div>
+                  <Button type="button" variant="outline" onClick={() => linkTransfer.mutate({ id: transaction.id, data: { pairedTransactionId: candidate.transaction.id } }, { onSuccess: () => toast.success(t("ledger.transferLinkedSuccess")), onError: (error) => toast.error(error.message) })}>
+                    {t("ledger.linkTransfer")}
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">{t("ledger.noTransferCandidates")}</p>
+            )}
           </div>
         </CardContent>
       </Card>

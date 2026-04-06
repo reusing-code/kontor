@@ -35,6 +35,8 @@ export const ledgerTransactionSchema = z.object({
   id: z.string().uuid(),
   accountId: z.string().uuid(),
   categoryId: z.string().uuid().optional(),
+  specialCategory: z.string().optional(),
+  transferPairTransactionId: z.string().uuid().optional(),
   bookingDate: z.string(),
   valueDate: z.string().optional(),
   amountMinor: z.int(),
@@ -60,6 +62,34 @@ export const ledgerTransactionSchema = z.object({
 })
 
 export type LedgerTransaction = z.infer<typeof ledgerTransactionSchema>
+
+export const ledgerTransferCandidateSchema = z.object({
+  transaction: ledgerTransactionSchema,
+  accountName: z.string(),
+  dateDeltaDays: z.number().int(),
+  ibanMatch: z.boolean(),
+})
+
+export type LedgerTransferCandidate = z.infer<typeof ledgerTransferCandidateSchema>
+
+export const ledgerTransferCandidatesResultSchema = z.object({
+  items: z.array(ledgerTransferCandidateSchema),
+})
+
+export type LedgerTransferCandidatesResult = z.infer<typeof ledgerTransferCandidatesResultSchema>
+
+export const ledgerTransferLinkInputSchema = z.object({
+  pairedTransactionId: z.string().uuid(),
+})
+
+export type LedgerTransferLinkInput = z.infer<typeof ledgerTransferLinkInputSchema>
+
+export const ledgerTransferLinkResultSchema = z.object({
+  transaction: ledgerTransactionSchema,
+  pairedTransaction: ledgerTransactionSchema.optional(),
+})
+
+export type LedgerTransferLinkResult = z.infer<typeof ledgerTransferLinkResultSchema>
 
 export const ledgerTransactionReferenceSchema = z.object({
   type: z.enum(["purchase", "contract", "vehicle"]),

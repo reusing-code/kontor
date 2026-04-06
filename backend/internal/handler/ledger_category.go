@@ -108,6 +108,15 @@ type ledgerReviewResponse struct {
 	Category    *model.LedgerCategory   `json:"category,omitempty"`
 }
 
+type ledgerTransferCandidatesResponse struct {
+	Items []model.LedgerTransferCandidate `json:"items"`
+}
+
+type ledgerTransferLinkResponse struct {
+	Transaction       model.LedgerTransaction  `json:"transaction"`
+	PairedTransaction *model.LedgerTransaction `json:"pairedTransaction,omitempty"`
+}
+
 func (h *Handler) ListLedgerTransactionsReviewQueue(w http.ResponseWriter, r *http.Request) {
 	limit := 100
 	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
@@ -165,6 +174,57 @@ func (h *Handler) UpdateLedgerTransactionDetails(w http.ResponseWriter, r *http.
 		return
 	}
 	h.writeJSON(w, http.StatusOK, ledgerTxn)
+}
+
+func (h *Handler) ListLedgerTransferCandidates(w http.ResponseWriter, r *http.Request) {
+	id, err := parseUUID(r.PathValue("transactionId"))
+	if err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "invalid transactionId")
+		return
+	}
+	result, err := h.store.ListLedgerTransferCandidates(r.Context(), middleware.GetUserID(r.Context()), id)
+	if err != nil {
+		h.handleStoreError(w, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, ledgerTransferCandidatesResponse{Items: result.Items})
+}
+
+func (h *Handler) LinkLedgerTransfer(w http.ResponseWriter, r *http.Request) {
+	id, err := parseUUID(r.PathValue("transactionId"))
+	if err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "invalid transactionId")
+		return
+	}
+	var input model.LedgerTransferLinkInput
+	if err := h.readJSON(r, &input); err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := input.Validate(); err != nil {
+		h.errorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	result, err := h.store.LinkLedgerTransfer(r.Context(), middleware.GetUserID(r.Context()), id, input)
+	if err != nil {
+		h.handleStoreError(w, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, ledgerTransferLinkResponse{Transaction: result.Transaction, PairedTransaction: &result.PairedTransaction})
+}
+
+func (h *Handler) UnlinkLedgerTransfer(w http.ResponseWriter, r *http.Request) {
+	id, err := parseUUID(r.PathValue("transactionId"))
+	if err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "invalid transactionId")
+		return
+	}
+	result, err := h.store.UnlinkLedgerTransfer(r.Context(), middleware.GetUserID(r.Context()), id)
+	if err != nil {
+		h.handleStoreError(w, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, ledgerTransferLinkResponse{Transaction: result.Transaction, PairedTransaction: result.PairedTransaction})
 }
 
 func (h *Handler) ReviewLedgerTransaction(w http.ResponseWriter, r *http.Request) {

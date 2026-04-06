@@ -10,11 +10,14 @@ import type {
   LedgerReviewInput,
   LedgerReviewResult,
   LedgerSourceType,
+  LedgerTransferCandidatesResult,
+  LedgerTransferLinkInput,
+  LedgerTransferLinkResult,
   LedgerTransaction,
   LedgerTransactionDetailsInput,
   LedgerTransactionsPage,
 } from "@/types/ledger"
-import { del, get, post, postForm, put } from "./api"
+import { del, delJson, get, post, postForm, put } from "./api"
 
 export async function getLedgerAccounts(): Promise<LedgerAccount[]> {
   return get<LedgerAccount[]>("/ledger/accounts")
@@ -50,6 +53,18 @@ export async function getLedgerTransactionById(id: string): Promise<LedgerTransa
 
 export async function updateLedgerTransactionDetails(id: string, data: LedgerTransactionDetailsInput): Promise<LedgerTransaction> {
   return put<LedgerTransaction>(`/ledger/transactions/${id}`, data)
+}
+
+export async function getLedgerTransferCandidates(id: string): Promise<LedgerTransferCandidatesResult> {
+  return get<LedgerTransferCandidatesResult>(`/ledger/transactions/${id}/transfer-candidates`)
+}
+
+export async function linkLedgerTransfer(id: string, data: LedgerTransferLinkInput): Promise<LedgerTransferLinkResult> {
+  return post<LedgerTransferLinkResult>(`/ledger/transactions/${id}/transfer-link`, data)
+}
+
+export async function unlinkLedgerTransfer(id: string): Promise<LedgerTransferLinkResult> {
+  return delJson<LedgerTransferLinkResult>(`/ledger/transactions/${id}/transfer-link`)
 }
 
 export async function getLedgerCategories(): Promise<LedgerCategory[]> {
