@@ -1,14 +1,19 @@
 import type {
   LedgerAccount,
   LedgerAccountInput,
+  LedgerCategory,
+  LedgerCategoryInput,
   LedgerCommitRequest,
   LedgerCommitResult,
   LedgerImportBatch,
   LedgerPreviewResult,
+  LedgerReviewInput,
+  LedgerReviewResult,
   LedgerSourceType,
+  LedgerTransaction,
   LedgerTransactionsPage,
 } from "@/types/ledger"
-import { get, post, postForm } from "./api"
+import { del, get, post, postForm, put } from "./api"
 
 export async function getLedgerAccounts(): Promise<LedgerAccount[]> {
   return get<LedgerAccount[]>("/ledger/accounts")
@@ -28,6 +33,38 @@ export async function getLedgerTransactions(accountId: string, limit: number = 1
     search.set("cursor", cursor)
   }
   return get<LedgerTransactionsPage>(`/ledger/accounts/${accountId}/transactions?${search.toString()}`)
+}
+
+export async function getLedgerReviewQueue(limit: number = 100, cursor?: string): Promise<LedgerTransactionsPage> {
+  const search = new URLSearchParams({ limit: String(limit) })
+  if (cursor) {
+    search.set("cursor", cursor)
+  }
+  return get<LedgerTransactionsPage>(`/ledger/transactions?${search.toString()}`)
+}
+
+export async function getLedgerTransactionById(id: string): Promise<LedgerTransaction> {
+  return get<LedgerTransaction>(`/ledger/transactions/${id}`)
+}
+
+export async function getLedgerCategories(): Promise<LedgerCategory[]> {
+  return get<LedgerCategory[]>("/ledger/categories")
+}
+
+export async function createLedgerCategory(data: LedgerCategoryInput): Promise<LedgerCategory> {
+  return post<LedgerCategory>("/ledger/categories", data)
+}
+
+export async function updateLedgerCategory(id: string, data: LedgerCategoryInput): Promise<LedgerCategory> {
+  return put<LedgerCategory>(`/ledger/categories/${id}`, data)
+}
+
+export async function deleteLedgerCategory(id: string): Promise<void> {
+  return del(`/ledger/categories/${id}`)
+}
+
+export async function reviewLedgerTransaction(id: string, data: LedgerReviewInput): Promise<LedgerReviewResult> {
+  return post<LedgerReviewResult>(`/ledger/transactions/${id}/review`, data)
 }
 
 export async function previewLedgerImport(input: {

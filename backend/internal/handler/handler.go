@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/tobi/contracts/backend/internal/email"
@@ -58,6 +59,10 @@ func (h *Handler) handleStoreError(w http.ResponseWriter, err error) {
 		h.errorResponse(w, http.StatusConflict, err.Error())
 		return
 	}
+	if errors.Is(err, store.ErrLedgerCategoryHasChild) || errors.Is(err, store.ErrLedgerCategoryHasCycle) {
+		h.errorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if errors.Is(err, store.ErrLedgerPreviewExpired) {
 		h.errorResponse(w, http.StatusGone, err.Error())
 		return
@@ -68,4 +73,8 @@ func (h *Handler) handleStoreError(w http.ResponseWriter, err error) {
 
 func parseUUID(s string) (uuid.UUID, error) {
 	return uuid.Parse(s)
+}
+
+func parseInt(s string) (int, error) {
+	return strconv.Atoi(s)
 }

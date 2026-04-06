@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { rootRoute } from "./__root"
 import { getSummary } from "@/lib/contract-repository"
 import { getPurchaseSummary } from "@/lib/purchase-repository"
-import { useLedgerAccounts, useLedgerImports } from "@/hooks/use-ledger"
+import { useLedgerAccounts, useLedgerImports, useLedgerReviewQueue } from "@/hooks/use-ledger"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { FileText, ShoppingBag, ArrowRight, CalendarClock, Landmark } from "lucide-react"
 
@@ -31,6 +31,7 @@ function HomePage() {
 
   const { data: ledgerAccounts = [] } = useLedgerAccounts()
   const { data: ledgerImports = [] } = useLedgerImports()
+  const { data: ledgerReviewPage } = useLedgerReviewQueue(10)
 
   return (
     <div className="space-y-8">
@@ -119,6 +120,10 @@ function HomePage() {
                 <div>
                   <p className="text-2xl font-bold">{ledgerImports.length}</p>
                   <p className="text-sm text-muted-foreground">{t("ledger.importHistory")}</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{ledgerReviewPage?.items.length ?? 0}</p>
+                  <p className="text-sm text-muted-foreground">{t("ledger.reviewQueue")}</p>
                 </div>
               </div>
             </CardContent>

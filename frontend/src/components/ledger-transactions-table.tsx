@@ -1,7 +1,8 @@
 import { useTranslation } from "react-i18next"
-import type { LedgerTransaction } from "@/types/ledger"
-import { formatAmountMinor, formatLedgerDate, formatSourceType } from "@/lib/ledger-utils"
+import type { LedgerCategory, LedgerTransaction } from "@/types/ledger"
+import { formatAmountMinor, formatLedgerCategorizationSource, formatLedgerDate, formatLedgerReviewStatus, formatSourceType } from "@/lib/ledger-utils"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -13,13 +14,15 @@ import {
 
 interface LedgerTransactionsTableProps {
   transactions: LedgerTransaction[]
+  categories?: LedgerCategory[]
   nextCursor?: string
   onLoadMore?: () => void
   loadingMore?: boolean
 }
 
-export function LedgerTransactionsTable({ transactions, nextCursor, onLoadMore, loadingMore = false }: LedgerTransactionsTableProps) {
+export function LedgerTransactionsTable({ transactions, categories = [], nextCursor, onLoadMore, loadingMore = false }: LedgerTransactionsTableProps) {
   const { t, i18n } = useTranslation()
+  const categoryNameById = new Map(categories.map((category) => [category.id, category.name]))
 
   return (
     <div className="space-y-4">
@@ -32,14 +35,16 @@ export function LedgerTransactionsTable({ transactions, nextCursor, onLoadMore, 
               <TableHead>{t("ledger.amount")}</TableHead>
               <TableHead>{t("ledger.counterparty")}</TableHead>
               <TableHead>{t("ledger.purpose")}</TableHead>
+              <TableHead>{t("ledger.category")}</TableHead>
               <TableHead>{t("ledger.type")}</TableHead>
+              <TableHead>{t("ledger.reviewState")}</TableHead>
               <TableHead>{t("ledger.source")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {transactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                   {t("ledger.noTransactions")}
                 </TableCell>
               </TableRow>
@@ -53,7 +58,16 @@ export function LedgerTransactionsTable({ transactions, nextCursor, onLoadMore, 
                   </TableCell>
                   <TableCell>{txn.counterpartyName || "-"}</TableCell>
                   <TableCell className="max-w-[24rem] truncate">{txn.purpose || "-"}</TableCell>
+                  <TableCell>{txn.categoryId ? categoryNameById.get(txn.categoryId) ?? txn.categoryId : t("ledger.noCategory")}</TableCell>
                   <TableCell>{txn.transactionType || "-"}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant={txn.reviewStatus === "confirmed" ? "secondary" : "default"}>
+                        {formatLedgerReviewStatus(txn.reviewStatus)}
+                      </Badge>
+                      <Badge variant="outline">{formatLedgerCategorizationSource(txn.categorizationSource)}</Badge>
+                    </div>
+                  </TableCell>
                   <TableCell>{formatSourceType(txn.sourceType)}</TableCell>
                 </TableRow>
               ))

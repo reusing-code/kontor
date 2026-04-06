@@ -31,9 +31,13 @@ type ParseResult struct {
 }
 
 type PreviewTransaction struct {
-	Row         ParsedRow `json:"row"`
-	Fingerprint string    `json:"fingerprint"`
-	IsDuplicate bool      `json:"isDuplicate"`
+	Row                   ParsedRow `json:"row"`
+	Fingerprint           string    `json:"fingerprint"`
+	IsDuplicate           bool      `json:"isDuplicate"`
+	SuggestedCategoryID   string    `json:"suggestedCategoryId,omitempty"`
+	SuggestedCategoryName string    `json:"suggestedCategoryName,omitempty"`
+	ReviewStatus          string    `json:"reviewStatus"`
+	CategorizationSource  string    `json:"categorizationSource"`
 }
 
 type PreviewResult struct {

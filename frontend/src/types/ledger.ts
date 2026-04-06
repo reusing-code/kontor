@@ -12,9 +12,29 @@ export const ledgerAccountSchema = z.object({
 
 export type LedgerAccount = z.infer<typeof ledgerAccountSchema>
 
+export const ledgerCategorySchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  parentId: z.string().uuid().optional(),
+  matchWords: z.array(z.string()),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+})
+
+export type LedgerCategory = z.infer<typeof ledgerCategorySchema>
+
+export const ledgerCategoryInputSchema = z.object({
+  name: z.string().min(1),
+  parentId: z.string().uuid().optional(),
+  matchWords: z.array(z.string()).default([]),
+})
+
+export type LedgerCategoryInput = z.infer<typeof ledgerCategoryInputSchema>
+
 export const ledgerTransactionSchema = z.object({
   id: z.string().uuid(),
   accountId: z.string().uuid(),
+  categoryId: z.string().uuid().optional(),
   bookingDate: z.string(),
   valueDate: z.string().optional(),
   amountMinor: z.int(),
@@ -24,6 +44,8 @@ export const ledgerTransactionSchema = z.object({
   purpose: z.string().optional(),
   bankReference: z.string().optional(),
   transactionType: z.string().optional(),
+  reviewStatus: z.string(),
+  categorizationSource: z.string(),
   sourceType: z.string(),
   importBatchId: z.string().uuid(),
   fingerprint: z.string(),
@@ -70,6 +92,10 @@ export const ledgerPreviewTransactionSchema = z.object({
   row: ledgerPreviewRowSchema,
   fingerprint: z.string(),
   isDuplicate: z.boolean(),
+  suggestedCategoryId: z.string().uuid().optional(),
+  suggestedCategoryName: z.string().optional(),
+  reviewStatus: z.string(),
+  categorizationSource: z.string(),
 })
 
 export type LedgerPreviewTransaction = z.infer<typeof ledgerPreviewTransactionSchema>
@@ -108,6 +134,23 @@ export const ledgerTransactionsPageSchema = z.object({
 
 export type LedgerTransactionsPage = z.infer<typeof ledgerTransactionsPageSchema>
 
+export const ledgerReviewResultSchema = z.object({
+  transaction: ledgerTransactionSchema,
+  category: ledgerCategorySchema.optional(),
+})
+
+export type LedgerReviewResult = z.infer<typeof ledgerReviewResultSchema>
+
+export const ledgerReviewInputSchema = z.object({
+  categoryId: z.string().uuid().optional(),
+  newCategory: ledgerCategoryInputSchema.optional(),
+  addMatchWords: z.array(z.string()).default([]),
+}).refine((value) => !(value.categoryId && value.newCategory), {
+  message: "categoryId and newCategory are mutually exclusive",
+})
+
+export type LedgerReviewInput = z.infer<typeof ledgerReviewInputSchema>
+
 export const ledgerAccountInputSchema = z.object({
   name: z.string().min(1),
   bank: z.string().min(1),
@@ -127,3 +170,6 @@ export const ledgerCommitRequestSchema = z.object({
 export type LedgerCommitRequest = z.infer<typeof ledgerCommitRequestSchema>
 
 export type LedgerSourceType = "dkb.csv" | "comdirect.csv"
+
+export type LedgerReviewStatus = "needsReview" | "confirmed"
+export type LedgerCategorizationSource = "none" | "keyword" | "manual"

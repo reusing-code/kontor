@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/tobi/contracts/backend/internal/ledgercategorization"
 	"github.com/tobi/contracts/backend/internal/model"
 	"github.com/tobi/contracts/backend/internal/store"
 )
@@ -80,9 +81,14 @@ func (svc *Service) Preview(ctx context.Context, req PreviewRequest) (*PreviewRe
 	var txns []PreviewTransaction
 	newCount := 0
 	dupCount := 0
+	categories, err := svc.store.ListLedgerCategories(ctx, req.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("listing ledger categories: %w", err)
+	}
 
 	for _, row := range parsed.Rows {
 		fp := Fingerprint(accountID, row)
+		match := ledgercategorization.MatchFields(categories, row.CounterpartyName, row.Purpose)
 
 		isDup := false
 		if accountID != "" {
@@ -100,10 +106,17 @@ func (svc *Service) Preview(ctx context.Context, req PreviewRequest) (*PreviewRe
 		}
 
 		txns = append(txns, PreviewTransaction{
-			Row:         row,
-			Fingerprint: fp,
-			IsDuplicate: isDup,
+			Row:                  row,
+			Fingerprint:          fp,
+			IsDuplicate:          isDup,
+			ReviewStatus:         model.LedgerTransactionReviewNeedsReview,
+			CategorizationSource: model.LedgerCategorizationNone,
 		})
+		if match.Category != nil {
+			txns[len(txns)-1].SuggestedCategoryID = match.Category.ID.String()
+			txns[len(txns)-1].SuggestedCategoryName = match.Category.Name
+			txns[len(txns)-1].CategorizationSource = model.LedgerCategorizationKeyword
+		}
 	}
 
 	previewID := uuid.New().String()
@@ -209,26 +222,41 @@ func (svc *Service) Commit(ctx context.Context, req CommitRequest) (*CommitResul
 	now := time.Now().UTC()
 	batchID := uuid.New()
 	var txns []model.LedgerTransaction
+	categories, err := svc.store.ListLedgerCategories(ctx, req.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("listing ledger categories: %w", err)
+	}
 	for _, pt := range preview.Transactions {
 		fp := Fingerprint(accountID.String(), pt.Row)
+		match := ledgercategorization.MatchFields(categories, pt.Row.CounterpartyName, pt.Row.Purpose)
+		var categoryID *uuid.UUID
+		categorizationSource := model.LedgerCategorizationNone
+		if match.Category != nil {
+			id := match.Category.ID
+			categoryID = &id
+			categorizationSource = model.LedgerCategorizationKeyword
+		}
 
 		txns = append(txns, model.LedgerTransaction{
-			ID:               uuid.New(),
-			AccountID:        accountID,
-			BookingDate:      pt.Row.BookingDate,
-			ValueDate:        pt.Row.ValueDate,
-			AmountMinor:      pt.Row.AmountMinor,
-			Currency:         pt.Row.Currency,
-			CounterpartyName: pt.Row.CounterpartyName,
-			CounterpartyIBAN: pt.Row.CounterpartyIBAN,
-			Purpose:          pt.Row.Purpose,
-			BankReference:    pt.Row.BankReference,
-			TransactionType:  pt.Row.TransactionType,
-			SourceType:       string(preview.SourceType),
-			ImportBatchID:    batchID,
-			Fingerprint:      fp,
-			CreatedAt:        now,
-			UpdatedAt:        now,
+			ID:                   uuid.New(),
+			AccountID:            accountID,
+			CategoryID:           categoryID,
+			BookingDate:          pt.Row.BookingDate,
+			ValueDate:            pt.Row.ValueDate,
+			AmountMinor:          pt.Row.AmountMinor,
+			Currency:             pt.Row.Currency,
+			CounterpartyName:     pt.Row.CounterpartyName,
+			CounterpartyIBAN:     pt.Row.CounterpartyIBAN,
+			Purpose:              pt.Row.Purpose,
+			BankReference:        pt.Row.BankReference,
+			TransactionType:      pt.Row.TransactionType,
+			ReviewStatus:         model.LedgerTransactionReviewNeedsReview,
+			CategorizationSource: categorizationSource,
+			SourceType:           string(preview.SourceType),
+			ImportBatchID:        batchID,
+			Fingerprint:          fp,
+			CreatedAt:            now,
+			UpdatedAt:            now,
 		})
 	}
 

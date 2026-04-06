@@ -14,6 +14,7 @@ import (
 
 type mockStore struct {
 	accounts     map[string]model.LedgerAccount // keyed by id
+	categories   map[string]model.LedgerCategory
 	ibanIndex    map[string]model.LedgerAccount // keyed by iban
 	batches      map[string]model.LedgerImportBatch
 	fileHashes   map[string]model.LedgerImportBatch
@@ -24,6 +25,7 @@ type mockStore struct {
 func newMockStore() *mockStore {
 	return &mockStore{
 		accounts:     make(map[string]model.LedgerAccount),
+		categories:   make(map[string]model.LedgerCategory),
 		ibanIndex:    make(map[string]model.LedgerAccount),
 		batches:      make(map[string]model.LedgerImportBatch),
 		fileHashes:   make(map[string]model.LedgerImportBatch),
@@ -60,6 +62,32 @@ func (m *mockStore) CreateLedgerAccount(_ context.Context, _ string, a model.Led
 	if a.IBAN != "" {
 		m.ibanIndex[a.IBAN] = a
 	}
+	return nil
+}
+func (m *mockStore) ListLedgerCategories(_ context.Context, _ string) ([]model.LedgerCategory, error) {
+	out := make([]model.LedgerCategory, 0, len(m.categories))
+	for _, category := range m.categories {
+		out = append(out, category)
+	}
+	return out, nil
+}
+func (m *mockStore) GetLedgerCategory(_ context.Context, _ string, id uuid.UUID) (model.LedgerCategory, error) {
+	category, ok := m.categories[id.String()]
+	if !ok {
+		return model.LedgerCategory{}, store.ErrNotFound
+	}
+	return category, nil
+}
+func (m *mockStore) CreateLedgerCategory(_ context.Context, _ string, c model.LedgerCategory) error {
+	m.categories[c.ID.String()] = c
+	return nil
+}
+func (m *mockStore) UpdateLedgerCategory(_ context.Context, _ string, c model.LedgerCategory) error {
+	m.categories[c.ID.String()] = c
+	return nil
+}
+func (m *mockStore) DeleteLedgerCategory(_ context.Context, _ string, id uuid.UUID) error {
+	delete(m.categories, id.String())
 	return nil
 }
 
@@ -128,6 +156,58 @@ func (m *mockStore) ListLedgerTransactionsPage(_ context.Context, _ string, _ uu
 		page.NextCursor = items[end-1].ID.String()
 	}
 	return page, nil
+}
+func (m *mockStore) ListLedgerTransactionsFiltered(_ context.Context, _ string, options store.LedgerTransactionListOptions) (store.LedgerTransactionPage, error) {
+	items := append([]model.LedgerTransaction(nil), m.transactions...)
+	filtered := make([]model.LedgerTransaction, 0, len(items))
+	for _, txn := range items {
+		if options.ReviewStatus != "" && txn.ReviewStatus != options.ReviewStatus {
+			continue
+		}
+		filtered = append(filtered, txn)
+	}
+	if options.Limit <= 0 || options.Limit > len(filtered) {
+		options.Limit = len(filtered)
+	}
+	if options.Limit < 0 {
+		options.Limit = 0
+	}
+	page := store.LedgerTransactionPage{Items: filtered}
+	if len(filtered) > options.Limit {
+		page.Items = filtered[:options.Limit]
+		page.NextCursor = filtered[options.Limit-1].ID.String()
+	}
+	return page, nil
+}
+func (m *mockStore) GetLedgerTransaction(_ context.Context, _ string, id uuid.UUID) (model.LedgerTransaction, error) {
+	for _, txn := range m.transactions {
+		if txn.ID == id {
+			return txn, nil
+		}
+	}
+	return model.LedgerTransaction{}, store.ErrNotFound
+}
+func (m *mockStore) ReviewLedgerTransaction(_ context.Context, _ string, id uuid.UUID, input model.LedgerTransactionReviewInput) (store.LedgerReviewResult, error) {
+	for i, txn := range m.transactions {
+		if txn.ID != id {
+			continue
+		}
+		if input.CategoryID != nil {
+			categoryID := *input.CategoryID
+			txn.CategoryID = &categoryID
+		}
+		txn.ReviewStatus = model.LedgerTransactionReviewConfirmed
+		txn.CategorizationSource = model.LedgerCategorizationManual
+		m.transactions[i] = txn
+		result := store.LedgerReviewResult{Transaction: txn}
+		if txn.CategoryID != nil {
+			if category, ok := m.categories[txn.CategoryID.String()]; ok {
+				result.Category = &category
+			}
+		}
+		return result, nil
+	}
+	return store.LedgerReviewResult{}, store.ErrNotFound
 }
 
 // Stub all other store.Store methods

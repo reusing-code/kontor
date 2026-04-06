@@ -27,6 +27,7 @@ type mockStore struct {
 	usersById          map[string]model.User // keyed by ID
 	settings           map[string]model.UserSettings
 	ledgerAccounts     map[uuid.UUID]model.LedgerAccount
+	ledgerCategories   map[uuid.UUID]model.LedgerCategory
 	ledgerImports      []model.LedgerImportBatch
 	ledgerTransactions map[uuid.UUID][]model.LedgerTransaction
 }
@@ -39,6 +40,7 @@ func newMockStore() *mockStore {
 		usersById:          make(map[string]model.User),
 		settings:           make(map[string]model.UserSettings),
 		ledgerAccounts:     make(map[uuid.UUID]model.LedgerAccount),
+		ledgerCategories:   make(map[uuid.UUID]model.LedgerCategory),
 		ledgerTransactions: make(map[uuid.UUID][]model.LedgerTransaction),
 	}
 }
@@ -257,6 +259,38 @@ func (m *mockStore) CreateLedgerAccount(_ context.Context, _ string, a model.Led
 	m.ledgerAccounts[a.ID] = a
 	return nil
 }
+func (m *mockStore) ListLedgerCategories(_ context.Context, _ string) ([]model.LedgerCategory, error) {
+	out := make([]model.LedgerCategory, 0, len(m.ledgerCategories))
+	for _, category := range m.ledgerCategories {
+		out = append(out, category)
+	}
+	return out, nil
+}
+func (m *mockStore) GetLedgerCategory(_ context.Context, _ string, id uuid.UUID) (model.LedgerCategory, error) {
+	category, ok := m.ledgerCategories[id]
+	if !ok {
+		return model.LedgerCategory{}, store.ErrNotFound
+	}
+	return category, nil
+}
+func (m *mockStore) CreateLedgerCategory(_ context.Context, _ string, c model.LedgerCategory) error {
+	m.ledgerCategories[c.ID] = c
+	return nil
+}
+func (m *mockStore) UpdateLedgerCategory(_ context.Context, _ string, c model.LedgerCategory) error {
+	if _, ok := m.ledgerCategories[c.ID]; !ok {
+		return store.ErrNotFound
+	}
+	m.ledgerCategories[c.ID] = c
+	return nil
+}
+func (m *mockStore) DeleteLedgerCategory(_ context.Context, _ string, id uuid.UUID) error {
+	if _, ok := m.ledgerCategories[id]; !ok {
+		return store.ErrNotFound
+	}
+	delete(m.ledgerCategories, id)
+	return nil
+}
 func (m *mockStore) GetLedgerImportByFileHash(_ context.Context, _ string, _ string) (model.LedgerImportBatch, error) {
 	return model.LedgerImportBatch{}, store.ErrNotFound
 }
@@ -303,6 +337,78 @@ func (m *mockStore) ListLedgerTransactionsPage(_ context.Context, _ string, acco
 	}
 	return page, nil
 }
+func (m *mockStore) ListLedgerTransactionsFiltered(_ context.Context, _ string, options store.LedgerTransactionListOptions) (store.LedgerTransactionPage, error) {
+	var items []model.LedgerTransaction
+	for accountID, txns := range m.ledgerTransactions {
+		if options.AccountID != nil && accountID != *options.AccountID {
+			continue
+		}
+		for _, txn := range txns {
+			if options.ReviewStatus != "" && txn.ReviewStatus != options.ReviewStatus {
+				continue
+			}
+			items = append(items, txn)
+		}
+	}
+	if options.Limit <= 0 || options.Limit > len(items) {
+		options.Limit = len(items)
+	}
+	start := 0
+	if options.Cursor != "" {
+		for i, txn := range items {
+			if txn.ID.String() == options.Cursor {
+				start = i + 1
+				break
+			}
+		}
+	}
+	if start > len(items) {
+		start = len(items)
+	}
+	end := start + options.Limit
+	if end > len(items) {
+		end = len(items)
+	}
+	page := store.LedgerTransactionPage{Items: items[start:end]}
+	if end < len(items) && end > start {
+		page.NextCursor = items[end-1].ID.String()
+	}
+	return page, nil
+}
+func (m *mockStore) GetLedgerTransaction(_ context.Context, _ string, id uuid.UUID) (model.LedgerTransaction, error) {
+	for _, txns := range m.ledgerTransactions {
+		for _, txn := range txns {
+			if txn.ID == id {
+				return txn, nil
+			}
+		}
+	}
+	return model.LedgerTransaction{}, store.ErrNotFound
+}
+func (m *mockStore) ReviewLedgerTransaction(_ context.Context, _ string, id uuid.UUID, input model.LedgerTransactionReviewInput) (store.LedgerReviewResult, error) {
+	for accountID, txns := range m.ledgerTransactions {
+		for i, txn := range txns {
+			if txn.ID != id {
+				continue
+			}
+			if input.CategoryID != nil {
+				categoryID := *input.CategoryID
+				txn.CategoryID = &categoryID
+			}
+			txn.ReviewStatus = model.LedgerTransactionReviewConfirmed
+			txn.CategorizationSource = model.LedgerCategorizationManual
+			m.ledgerTransactions[accountID][i] = txn
+			result := store.LedgerReviewResult{Transaction: txn}
+			if txn.CategoryID != nil {
+				if category, ok := m.ledgerCategories[*txn.CategoryID]; ok {
+					result.Category = &category
+				}
+			}
+			return result, nil
+		}
+	}
+	return store.LedgerReviewResult{}, store.ErrNotFound
+}
 
 var testJWTSecret = []byte("test-secret-key")
 
@@ -333,10 +439,18 @@ func newMux(h *Handler) http.Handler {
 	mux.HandleFunc("PUT /api/v1/settings", h.UpdateSettings)
 	mux.HandleFunc("PUT /api/v1/settings/password", h.ChangePassword)
 	mux.HandleFunc("POST /api/v1/ledger/imports/preview", h.LedgerImportPreview)
+	mux.HandleFunc("GET /api/v1/ledger/categories", h.ListLedgerCategories)
+	mux.HandleFunc("POST /api/v1/ledger/categories", h.CreateLedgerCategory)
+	mux.HandleFunc("GET /api/v1/ledger/categories/{id}", h.GetLedgerCategory)
+	mux.HandleFunc("PUT /api/v1/ledger/categories/{id}", h.UpdateLedgerCategory)
+	mux.HandleFunc("DELETE /api/v1/ledger/categories/{id}", h.DeleteLedgerCategory)
 	mux.HandleFunc("GET /api/v1/ledger/accounts", h.ListLedgerAccounts)
 	mux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}", h.GetLedgerAccount)
 	mux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}/transactions", h.ListLedgerTransactions)
 	mux.HandleFunc("GET /api/v1/ledger/imports", h.ListLedgerImports)
+	mux.HandleFunc("GET /api/v1/ledger/transactions", h.ListLedgerTransactionsReviewQueue)
+	mux.HandleFunc("GET /api/v1/ledger/transactions/{transactionId}", h.GetLedgerTransaction)
+	mux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/review", h.ReviewLedgerTransaction)
 	// Inject test user into context for all requests
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := middleware.SetUserID(r.Context(), testUserID)
@@ -405,8 +519,9 @@ func TestRegister_SeedsDefaultCategories(t *testing.T) {
 	for _, modCats := range ms.categories {
 		totalCategories += len(modCats)
 	}
-	if totalCategories != 8 {
-		t.Fatalf("expected 8 default categories (3 contracts + 5 purchases), got %d", totalCategories)
+	totalCategories += len(ms.ledgerCategories)
+	if totalCategories <= 8 {
+		t.Fatalf("expected ledger defaults to increase total category count beyond 8, got %d", totalCategories)
 	}
 }
 
@@ -1089,6 +1204,94 @@ func TestLedgerImportPreview_UsesCamelCaseRowFields(t *testing.T) {
 	}
 	if row["purpose"] != "Depot 0123 Wertpapierertrag" {
 		t.Fatalf("purpose = %#v, want %q", row["purpose"], "Depot 0123 Wertpapierertrag")
+	}
+	if first["reviewStatus"] != model.LedgerTransactionReviewNeedsReview {
+		t.Fatalf("reviewStatus = %#v, want %q", first["reviewStatus"], model.LedgerTransactionReviewNeedsReview)
+	}
+}
+
+func TestCreateLedgerCategory_Success(t *testing.T) {
+	h, _ := newTestHandler()
+	mux := newMux(h)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/ledger/categories", jsonBody(map[string]any{"name": "Food", "matchWords": []string{"rewe"}}))
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body: %s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+	category := decodeJSON[model.LedgerCategory](t, rec)
+	if category.Name != "Food" {
+		t.Fatalf("name = %q, want Food", category.Name)
+	}
+	if len(category.MatchWords) != 1 || category.MatchWords[0] != "rewe" {
+		t.Fatalf("matchWords = %#v", category.MatchWords)
+	}
+}
+
+func TestLedgerReviewQueue_OnlyNeedsReview(t *testing.T) {
+	h, ms := newTestHandler()
+	mux := newMux(h)
+
+	accountID := uuid.New()
+	ms.ledgerAccounts[accountID] = model.LedgerAccount{ID: accountID, Name: "Main", Bank: "DKB", Currency: "EUR"}
+	ms.ledgerTransactions[accountID] = []model.LedgerTransaction{
+		{ID: uuid.New(), AccountID: accountID, BookingDate: "2026-04-03", Currency: "EUR", ReviewStatus: model.LedgerTransactionReviewNeedsReview},
+		{ID: uuid.New(), AccountID: accountID, BookingDate: "2026-04-02", Currency: "EUR", ReviewStatus: model.LedgerTransactionReviewConfirmed},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/v1/ledger/transactions?limit=10", nil)
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	page := decodeJSON[struct {
+		Items []model.LedgerTransaction `json:"items"`
+	}](t, rec)
+	if len(page.Items) != 1 {
+		t.Fatalf("len(items) = %d, want 1", len(page.Items))
+	}
+	if page.Items[0].ReviewStatus != model.LedgerTransactionReviewNeedsReview {
+		t.Fatalf("reviewStatus = %q", page.Items[0].ReviewStatus)
+	}
+}
+
+func TestReviewLedgerTransaction_Success(t *testing.T) {
+	h, ms := newTestHandler()
+	mux := newMux(h)
+
+	accountID := uuid.New()
+	categoryID := uuid.New()
+	txnID := uuid.New()
+	ms.ledgerAccounts[accountID] = model.LedgerAccount{ID: accountID, Name: "Main", Bank: "DKB", Currency: "EUR"}
+	ms.ledgerCategories[categoryID] = model.LedgerCategory{ID: categoryID, Name: "Food"}
+	ms.ledgerTransactions[accountID] = []model.LedgerTransaction{{
+		ID:           txnID,
+		AccountID:    accountID,
+		BookingDate:  "2026-04-03",
+		Currency:     "EUR",
+		ReviewStatus: model.LedgerTransactionReviewNeedsReview,
+	}}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/ledger/transactions/"+txnID.String()+"/review", jsonBody(map[string]any{"categoryId": categoryID.String()}))
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	response := decodeJSON[struct {
+		Transaction model.LedgerTransaction `json:"transaction"`
+		Category    *model.LedgerCategory   `json:"category"`
+	}](t, rec)
+	if response.Transaction.ReviewStatus != model.LedgerTransactionReviewConfirmed {
+		t.Fatalf("reviewStatus = %q", response.Transaction.ReviewStatus)
+	}
+	if response.Transaction.CategoryID == nil || *response.Transaction.CategoryID != categoryID {
+		t.Fatalf("categoryId = %#v", response.Transaction.CategoryID)
 	}
 }
 

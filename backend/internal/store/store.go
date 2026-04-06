@@ -12,6 +12,19 @@ type LedgerTransactionPage struct {
 	NextCursor string
 }
 
+type LedgerTransactionListOptions struct {
+	AccountID    *uuid.UUID
+	CategoryID   *uuid.UUID
+	ReviewStatus string
+	Limit        int
+	Cursor       string
+}
+
+type LedgerReviewResult struct {
+	Transaction model.LedgerTransaction
+	Category    *model.LedgerCategory
+}
+
 type LedgerImportCommitResult struct {
 	ImportedRows  int
 	DuplicateRows int
@@ -64,6 +77,12 @@ type Store interface {
 	FindLedgerAccountByIBAN(ctx context.Context, userID string, iban string) (model.LedgerAccount, error)
 	CreateLedgerAccount(ctx context.Context, userID string, a model.LedgerAccount) error
 
+	ListLedgerCategories(ctx context.Context, userID string) ([]model.LedgerCategory, error)
+	GetLedgerCategory(ctx context.Context, userID string, id uuid.UUID) (model.LedgerCategory, error)
+	CreateLedgerCategory(ctx context.Context, userID string, c model.LedgerCategory) error
+	UpdateLedgerCategory(ctx context.Context, userID string, c model.LedgerCategory) error
+	DeleteLedgerCategory(ctx context.Context, userID string, id uuid.UUID) error
+
 	GetLedgerImportByFileHash(ctx context.Context, userID string, sha256 string) (model.LedgerImportBatch, error)
 	LedgerTransactionFingerprintExists(ctx context.Context, userID string, fingerprint string) (bool, error)
 	CommitLedgerImport(ctx context.Context, userID string, batch model.LedgerImportBatch, txns []model.LedgerTransaction) (LedgerImportCommitResult, error)
@@ -71,6 +90,9 @@ type Store interface {
 
 	ListLedgerTransactions(ctx context.Context, userID string, accountID uuid.UUID) ([]model.LedgerTransaction, error)
 	ListLedgerTransactionsPage(ctx context.Context, userID string, accountID uuid.UUID, limit int, cursor string) (LedgerTransactionPage, error)
+	ListLedgerTransactionsFiltered(ctx context.Context, userID string, options LedgerTransactionListOptions) (LedgerTransactionPage, error)
+	GetLedgerTransaction(ctx context.Context, userID string, id uuid.UUID) (model.LedgerTransaction, error)
+	ReviewLedgerTransaction(ctx context.Context, userID string, id uuid.UUID, input model.LedgerTransactionReviewInput) (LedgerReviewResult, error)
 
 	Close() error
 }

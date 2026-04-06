@@ -10,6 +10,8 @@ import { autoIndexRoute } from "./auto.index"
 import { autoVehicleDetailRoute } from "./auto.vehicles.$vehicleId"
 import { ledgerIndexRoute } from "./ledger.index"
 import { ledgerAccountRoute } from "./ledger.accounts.$accountId"
+import { ledgerCategoriesRoute } from "./ledger.categories"
+import { ledgerReviewRoute } from "./ledger.review"
 import { loginRoute } from "./login"
 import { settingsRoute } from "./settings"
 
@@ -24,6 +26,8 @@ const routeTree = rootRoute.addChildren([
   autoVehicleDetailRoute,
   ledgerIndexRoute,
   ledgerAccountRoute,
+  ledgerCategoriesRoute,
+  ledgerReviewRoute,
   loginRoute,
   settingsRoute,
 ])

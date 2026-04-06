@@ -112,6 +112,21 @@ func (m *mockStore) FindLedgerAccountByIBAN(_ context.Context, _ string, _ strin
 func (m *mockStore) CreateLedgerAccount(_ context.Context, _ string, _ model.LedgerAccount) error {
 	return nil
 }
+func (m *mockStore) ListLedgerCategories(_ context.Context, _ string) ([]model.LedgerCategory, error) {
+	return nil, nil
+}
+func (m *mockStore) GetLedgerCategory(_ context.Context, _ string, _ uuid.UUID) (model.LedgerCategory, error) {
+	return model.LedgerCategory{}, store.ErrNotFound
+}
+func (m *mockStore) CreateLedgerCategory(_ context.Context, _ string, _ model.LedgerCategory) error {
+	return nil
+}
+func (m *mockStore) UpdateLedgerCategory(_ context.Context, _ string, _ model.LedgerCategory) error {
+	return nil
+}
+func (m *mockStore) DeleteLedgerCategory(_ context.Context, _ string, _ uuid.UUID) error {
+	return nil
+}
 func (m *mockStore) GetLedgerImportByFileHash(_ context.Context, _ string, _ string) (model.LedgerImportBatch, error) {
 	return model.LedgerImportBatch{}, store.ErrNotFound
 }
@@ -129,6 +144,15 @@ func (m *mockStore) ListLedgerTransactions(_ context.Context, _ string, _ uuid.U
 }
 func (m *mockStore) ListLedgerTransactionsPage(_ context.Context, _ string, _ uuid.UUID, _ int, _ string) (store.LedgerTransactionPage, error) {
 	return store.LedgerTransactionPage{}, nil
+}
+func (m *mockStore) ListLedgerTransactionsFiltered(_ context.Context, _ string, _ store.LedgerTransactionListOptions) (store.LedgerTransactionPage, error) {
+	return store.LedgerTransactionPage{}, nil
+}
+func (m *mockStore) GetLedgerTransaction(_ context.Context, _ string, _ uuid.UUID) (model.LedgerTransaction, error) {
+	return model.LedgerTransaction{}, store.ErrNotFound
+}
+func (m *mockStore) ReviewLedgerTransaction(_ context.Context, _ string, _ uuid.UUID, _ model.LedgerTransactionReviewInput) (store.LedgerReviewResult, error) {
+	return store.LedgerReviewResult{}, store.ErrNotFound
 }
 
 func (m *mockStore) Close() error { return nil }

@@ -163,3 +163,121 @@ func TestLedgerCommitImport_PersistsImportedRowCounts(t *testing.T) {
 		t.Fatalf("persisted DuplicateRows = %d, want 0", imports[0].DuplicateRows)
 	}
 }
+
+func TestLedgerCategory_DeleteBlockedWhenHasChildren(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	userID := "user-1"
+	now := time.Now().UTC()
+
+	parentID := uuid.New()
+	childID := uuid.New()
+	parent := model.LedgerCategory{ID: parentID, Name: "Living expenses", CreatedAt: now, UpdatedAt: now}
+	child := model.LedgerCategory{ID: childID, Name: "Food", ParentID: &parentID, CreatedAt: now, UpdatedAt: now}
+
+	if err := s.CreateLedgerCategory(ctx, userID, parent); err != nil {
+		t.Fatalf("CreateLedgerCategory parent: %v", err)
+	}
+	if err := s.CreateLedgerCategory(ctx, userID, child); err != nil {
+		t.Fatalf("CreateLedgerCategory child: %v", err)
+	}
+
+	if err := s.DeleteLedgerCategory(ctx, userID, parentID); !errors.Is(err, ErrLedgerCategoryHasChild) {
+		t.Fatalf("expected ErrLedgerCategoryHasChild, got %v", err)
+	}
+
+	if _, err := s.GetLedgerCategory(ctx, userID, parentID); err != nil {
+		t.Fatalf("parent category should still exist: %v", err)
+	}
+}
+
+func TestLedgerCategory_UpdateRejectsCycle(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	userID := "user-1"
+	now := time.Now().UTC()
+
+	rootID := uuid.New()
+	childID := uuid.New()
+	root := model.LedgerCategory{ID: rootID, Name: "Root", CreatedAt: now, UpdatedAt: now}
+	child := model.LedgerCategory{ID: childID, Name: "Child", ParentID: &rootID, CreatedAt: now, UpdatedAt: now}
+
+	if err := s.CreateLedgerCategory(ctx, userID, root); err != nil {
+		t.Fatalf("CreateLedgerCategory root: %v", err)
+	}
+	if err := s.CreateLedgerCategory(ctx, userID, child); err != nil {
+		t.Fatalf("CreateLedgerCategory child: %v", err)
+	}
+
+	root.ParentID = &childID
+	root.UpdatedAt = now.Add(time.Minute)
+	if err := s.UpdateLedgerCategory(ctx, userID, root); !errors.Is(err, ErrLedgerCategoryHasCycle) {
+		t.Fatalf("expected ErrLedgerCategoryHasCycle, got %v", err)
+	}
+}
+
+func TestLedgerCategory_DeleteUncategorizesTransactions(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	userID := "user-1"
+	accountID := uuid.New()
+	categoryID := uuid.New()
+	now := time.Now().UTC()
+
+	if err := s.CreateLedgerAccount(ctx, userID, model.LedgerAccount{ID: accountID, Name: "Main", Bank: "DKB", Currency: "EUR", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateLedgerAccount: %v", err)
+	}
+	if err := s.CreateLedgerCategory(ctx, userID, model.LedgerCategory{ID: categoryID, Name: "Food", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateLedgerCategory: %v", err)
+	}
+
+	txns := []model.LedgerTransaction{
+		{
+			ID:                   uuid.New(),
+			AccountID:            accountID,
+			CategoryID:           &categoryID,
+			BookingDate:          "2026-04-02",
+			Currency:             "EUR",
+			ReviewStatus:         model.LedgerTransactionReviewConfirmed,
+			CategorizationSource: model.LedgerCategorizationManual,
+			Fingerprint:          "fp-ledger-cat-delete",
+			ImportBatchID:        uuid.New(),
+			CreatedAt:            now,
+			UpdatedAt:            now,
+		},
+		{
+			ID:                   uuid.New(),
+			AccountID:            accountID,
+			BookingDate:          "2026-04-01",
+			Currency:             "EUR",
+			ReviewStatus:         model.LedgerTransactionReviewNeedsReview,
+			CategorizationSource: model.LedgerCategorizationNone,
+			Fingerprint:          "fp-ledger-cat-delete-2",
+			ImportBatchID:        uuid.New(),
+			CreatedAt:            now,
+			UpdatedAt:            now,
+		},
+	}
+	batch := model.LedgerImportBatch{ID: uuid.New(), AccountID: accountID, SourceType: "dkb.csv", ParserVersion: "1", Filename: "test.csv", FileSHA256: "hash-ledger-cat-delete", Status: model.ImportStatusCommitted, CreatedAt: now, UpdatedAt: now}
+	if _, err := s.CommitLedgerImport(ctx, userID, batch, txns); err != nil {
+		t.Fatalf("CommitLedgerImport: %v", err)
+	}
+
+	if err := s.DeleteLedgerCategory(ctx, userID, categoryID); err != nil {
+		t.Fatalf("DeleteLedgerCategory: %v", err)
+	}
+
+	updated, err := s.GetLedgerTransaction(ctx, userID, txns[0].ID)
+	if err != nil {
+		t.Fatalf("GetLedgerTransaction: %v", err)
+	}
+	if updated.CategoryID != nil {
+		t.Fatalf("CategoryID = %v, want nil", *updated.CategoryID)
+	}
+	if updated.ReviewStatus != model.LedgerTransactionReviewNeedsReview {
+		t.Fatalf("ReviewStatus = %q, want %q", updated.ReviewStatus, model.LedgerTransactionReviewNeedsReview)
+	}
+	if updated.CategorizationSource != model.LedgerCategorizationNone {
+		t.Fatalf("CategorizationSource = %q, want %q", updated.CategorizationSource, model.LedgerCategorizationNone)
+	}
+}

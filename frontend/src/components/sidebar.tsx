@@ -138,6 +138,24 @@ export function Sidebar() {
           to="/ledger"
           isActive={!!matchRoute({ to: "/ledger", fuzzy: true })}
         >
+          <Link
+            to="/ledger/review"
+            className={cn(
+              "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
+              matchRoute({ to: "/ledger/review" }) && "bg-accent font-medium",
+            )}
+          >
+            {t("ledger.reviewQueue")}
+          </Link>
+          <Link
+            to="/ledger/categories"
+            className={cn(
+              "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
+              matchRoute({ to: "/ledger/categories" }) && "bg-accent font-medium",
+            )}
+          >
+            {t("ledger.categories")}
+          </Link>
           {ledgerAccounts.map((account) => {
             const active = matchRoute({
               to: "/ledger/accounts/$accountId",

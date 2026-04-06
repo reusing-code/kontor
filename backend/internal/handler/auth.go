@@ -59,6 +59,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	h.seedDefaultCategoriesIfEmpty(r.Context(), user.ID.String(), "contracts", defaultContractCategories)
 	h.seedDefaultCategoriesIfEmpty(r.Context(), user.ID.String(), "purchases", defaultPurchaseCategories)
+	h.seedDefaultLedgerCategoriesIfEmpty(r.Context(), user.ID.String())
 
 	if h.emailClient != nil {
 		go h.sendWelcomeEmail(user.Email)
@@ -103,6 +104,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	h.seedDefaultCategoriesIfEmpty(r.Context(), user.ID.String(), "contracts", defaultContractCategories)
 	h.seedDefaultCategoriesIfEmpty(r.Context(), user.ID.String(), "purchases", defaultPurchaseCategories)
+	h.seedDefaultLedgerCategoriesIfEmpty(r.Context(), user.ID.String())
 
 	token, err := h.issueToken(user.ID.String())
 	if err != nil {

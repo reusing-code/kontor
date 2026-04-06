@@ -24,3 +24,27 @@ export function formatSourceType(sourceType: string): string {
       return sourceType
   }
 }
+
+export function formatLedgerReviewStatus(reviewStatus: string): string {
+  switch (reviewStatus) {
+    case "needsReview":
+      return "Needs review"
+    case "confirmed":
+      return "Confirmed"
+    default:
+      return reviewStatus
+  }
+}
+
+export function formatLedgerCategorizationSource(source: string): string {
+  switch (source) {
+    case "keyword":
+      return "Keyword"
+    case "manual":
+      return "Manual"
+    case "none":
+      return "Uncategorized"
+    default:
+      return source
+  }
+}

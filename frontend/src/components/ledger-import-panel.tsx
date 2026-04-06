@@ -329,6 +329,7 @@ export function LedgerImportPanel({ accounts }: LedgerImportPanelProps) {
                     <TableHead>{t("ledger.amount")}</TableHead>
                     <TableHead>{t("ledger.counterparty")}</TableHead>
                     <TableHead>{t("ledger.purpose")}</TableHead>
+                    <TableHead>{t("ledger.category")}</TableHead>
                     <TableHead>{t("ledger.status")}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -342,10 +343,14 @@ export function LedgerImportPanel({ accounts }: LedgerImportPanelProps) {
                       </TableCell>
                       <TableCell>{txn.row.counterpartyName || "-"}</TableCell>
                       <TableCell className="max-w-[24rem] truncate">{txn.row.purpose || "-"}</TableCell>
+                      <TableCell>{txn.suggestedCategoryName || t("ledger.noCategory")}</TableCell>
                       <TableCell>
-                        <Badge variant={txn.isDuplicate ? "secondary" : "default"}>
-                          {txn.isDuplicate ? t("ledger.duplicate") : t("ledger.new")}
-                        </Badge>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant={txn.isDuplicate ? "secondary" : "default"}>
+                            {txn.isDuplicate ? t("ledger.duplicate") : t("ledger.new")}
+                          </Badge>
+                          <Badge variant="outline">{t(`ledger.categorizationSource.${txn.categorizationSource}`)}</Badge>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

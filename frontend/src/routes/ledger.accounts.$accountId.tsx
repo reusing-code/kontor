@@ -2,7 +2,7 @@ import { useState } from "react"
 import { createRoute } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
-import { useLedgerAccount, useLedgerTransactions } from "@/hooks/use-ledger"
+import { useLedgerAccount, useLedgerCategories, useLedgerTransactions } from "@/hooks/use-ledger"
 import { formatLedgerDate } from "@/lib/ledger-utils"
 import { LedgerTransactionsTable } from "@/components/ledger-transactions-table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,6 +18,7 @@ function LedgerAccountPage() {
   const { t } = useTranslation()
   const { accountId } = ledgerAccountRoute.useParams()
   const { data: account } = useLedgerAccount(accountId)
+  const { data: categories = [] } = useLedgerCategories()
   const [cursorStack, setCursorStack] = useState<string[]>([])
   const cursor = cursorStack.length > 0 ? cursorStack[cursorStack.length - 1] : undefined
   const { data: page, isFetching } = useLedgerTransactions(accountId, 100, cursor)
@@ -59,6 +60,7 @@ function LedgerAccountPage() {
         <h2 className="text-xl font-semibold">{t("ledger.transactions")}</h2>
         <LedgerTransactionsTable
           transactions={page?.items ?? []}
+          categories={categories}
           nextCursor={page?.nextCursor}
           loadingMore={isFetching}
           onLoadMore={page?.nextCursor ? () => setCursorStack((prev) => [...prev, page.nextCursor as string]) : undefined}

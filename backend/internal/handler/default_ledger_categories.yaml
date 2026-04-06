@@ -1,0 +1,62 @@
+- name: Living expenses
+  matchWords: []
+  children:
+    - name: Food
+      matchWords:
+        - rewe
+        - edeka
+        - lidl
+        - aldi
+      children:
+        - name: Groceries
+          matchWords:
+            - supermarket
+            - biomarkt
+        - name: Dining out
+          matchWords:
+            - restaurant
+            - cafe
+            - lieferando
+    - name: Rent
+      matchWords:
+        - miete
+        - landlord
+        - vermieter
+    - name: Utilities
+      matchWords:
+        - strom
+        - electricity
+        - gas
+        - wasser
+- name: Mobility
+  matchWords:
+    - bahn
+    - db
+    - hvv
+    - tankstelle
+  children:
+    - name: Fuel
+      matchWords:
+        - shell
+        - aral
+        - total
+    - name: Public transport
+      matchWords:
+        - deutschlandticket
+        - vrs
+- name: Income
+  matchWords:
+    - gehalt
+    - salary
+    - payroll
+    - lohn
+- name: Transfers
+  matchWords:
+    - transfer
+    - umbuchen
+    - uebertrag
+- name: Shopping
+  matchWords:
+    - amazon
+    - paypal
+    - ebay
