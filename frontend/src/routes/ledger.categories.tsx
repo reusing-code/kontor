@@ -11,7 +11,7 @@ export const ledgerCategoriesRoute = createRoute({
   component: LedgerCategoriesPage,
 })
 
-function LedgerCategoriesPage() {
+export function LedgerCategoriesPage() {
   const { t } = useTranslation()
   usePageTitle(t("ledger.categories"), t("app.title"))
   const { data: categories = [] } = useLedgerCategories()

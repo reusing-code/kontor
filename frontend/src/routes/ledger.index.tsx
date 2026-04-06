@@ -15,7 +15,7 @@ export const ledgerIndexRoute = createRoute({
   component: LedgerIndexPage,
 })
 
-function LedgerIndexPage() {
+export function LedgerIndexPage() {
   const { t } = useTranslation()
   usePageTitle(t("nav.ledger"), t("app.title"))
 

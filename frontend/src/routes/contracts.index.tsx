@@ -27,7 +27,7 @@ export const contractsIndexRoute = createRoute({
   component: ContractsDashboardPage,
 })
 
-function ContractsDashboardPage() {
+export function ContractsDashboardPage() {
   const { t } = useTranslation()
   usePageTitle(t("nav.contracts"), t("app.title"))
   const { data: categories = [] } = useCategories("contracts")

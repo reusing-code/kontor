@@ -13,7 +13,7 @@ export const ledgerReviewRoute = createRoute({
   component: LedgerReviewPage,
 })
 
-function LedgerReviewPage() {
+export function LedgerReviewPage() {
   const { t } = useTranslation()
   usePageTitle(t("ledger.reviewQueue"), t("app.title"))
   const { data: categories = [] } = useLedgerCategories()

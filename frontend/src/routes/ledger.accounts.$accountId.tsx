@@ -14,7 +14,7 @@ export const ledgerAccountRoute = createRoute({
   component: LedgerAccountPage,
 })
 
-function LedgerAccountPage() {
+export function LedgerAccountPage() {
   const { t } = useTranslation()
   const { accountId } = ledgerAccountRoute.useParams()
   const { data: account } = useLedgerAccount(accountId)

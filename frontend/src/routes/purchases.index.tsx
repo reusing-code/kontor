@@ -20,7 +20,7 @@ export const purchasesIndexRoute = createRoute({
   component: PurchasesDashboardPage,
 })
 
-function PurchasesDashboardPage() {
+export function PurchasesDashboardPage() {
   const { t } = useTranslation()
   usePageTitle(t("nav.purchases"), t("app.title"))
   const { data: categories = [] } = useCategories("purchases")
