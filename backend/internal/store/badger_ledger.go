@@ -229,24 +229,12 @@ func (s *BadgerStore) LedgerTransactionFingerprintExists(_ context.Context, user
 }
 
 func (s *BadgerStore) CommitLedgerImport(_ context.Context, userID string, batch model.LedgerImportBatch, txns []model.LedgerTransaction) (LedgerImportCommitResult, error) {
-	batchData, err := json.Marshal(batch)
-	if err != nil {
-		return LedgerImportCommitResult{}, err
-	}
-
 	result := LedgerImportCommitResult{}
 
-	err = s.db.Update(func(txn *badger.Txn) error {
+	err := s.db.Update(func(txn *badger.Txn) error {
 		if _, err := txn.Get(idxLedFileHashKey(userID, batch.FileSHA256)); err == nil {
 			return ErrLedgerFileImported
 		} else if !errors.Is(err, badger.ErrKeyNotFound) {
-			return err
-		}
-
-		if err := txn.Set(ledImpKey(userID, batch.ID), batchData); err != nil {
-			return err
-		}
-		if err := txn.Set(idxLedFileHashKey(userID, batch.FileSHA256), []byte(batch.ID.String())); err != nil {
 			return err
 		}
 
@@ -277,6 +265,20 @@ func (s *BadgerStore) CommitLedgerImport(_ context.Context, userID string, batch
 			}
 			result.ImportedRows++
 		}
+
+		batch.ImportedRows = result.ImportedRows
+		batch.DuplicateRows = result.DuplicateRows
+		batchData, err := json.Marshal(batch)
+		if err != nil {
+			return err
+		}
+		if err := txn.Set(ledImpKey(userID, batch.ID), batchData); err != nil {
+			return err
+		}
+		if err := txn.Set(idxLedFileHashKey(userID, batch.FileSHA256), []byte(batch.ID.String())); err != nil {
+			return err
+		}
+
 		return nil
 	})
 	if err != nil {

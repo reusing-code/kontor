@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -331,6 +332,7 @@ func newMux(h *Handler) http.Handler {
 	mux.HandleFunc("GET /api/v1/settings", h.GetSettings)
 	mux.HandleFunc("PUT /api/v1/settings", h.UpdateSettings)
 	mux.HandleFunc("PUT /api/v1/settings/password", h.ChangePassword)
+	mux.HandleFunc("POST /api/v1/ledger/imports/preview", h.LedgerImportPreview)
 	mux.HandleFunc("GET /api/v1/ledger/accounts", h.ListLedgerAccounts)
 	mux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}", h.GetLedgerAccount)
 	mux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}/transactions", h.ListLedgerTransactions)
@@ -345,6 +347,29 @@ func newMux(h *Handler) http.Handler {
 func jsonBody(v any) *bytes.Buffer {
 	b, _ := json.Marshal(v)
 	return bytes.NewBuffer(b)
+}
+
+func multipartBody(t *testing.T, fields map[string]string, fileField string, filename string, content []byte) (*bytes.Buffer, string) {
+	t.Helper()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	for key, value := range fields {
+		if err := writer.WriteField(key, value); err != nil {
+			t.Fatalf("write field %s: %v", key, err)
+		}
+	}
+	part, err := writer.CreateFormFile(fileField, filename)
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := part.Write(content); err != nil {
+		t.Fatalf("write form file: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+	return body, writer.FormDataContentType()
 }
 
 func decodeJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
@@ -1014,6 +1039,56 @@ func TestGetLedgerAccount_Success(t *testing.T) {
 	got := decodeJSON[model.LedgerAccount](t, rec)
 	if got.ID != account.ID {
 		t.Fatalf("ID = %s, want %s", got.ID, account.ID)
+	}
+}
+
+func TestLedgerImportPreview_UsesCamelCaseRowFields(t *testing.T) {
+	h, _ := newTestHandler()
+	mux := newMux(h)
+
+	csv := []byte("\xEF\xBB\xBF\"Girokonto\";\"DE12345678901234567890\"\n\"\"\n\"Kontostand vom DD.MM.YYYY:\";\"111.111,11 €\"\n\"\"\n\"Buchungsdatum\";\"Wertstellung\";\"Status\";\"Zahlungspflichtige*r\";\"Zahlungsempfänger*in\";\"Verwendungszweck\";\"Umsatztyp\";\"IBAN\";\"Betrag (€)\";\"Gläubiger-ID\";\"Mandatsreferenz\";\"Kundenreferenz\"\n\"07.04.26\";\"02.04.26\";\"Gebucht\";\"DKB AG\";\"Mustermann,Fred\";\"Depot 0123 Wertpapierertrag\";\"Eingang\";\"0000000000\";\"800,23\";\"\";\"\";\"\"\n")
+	body, contentType := multipartBody(t, map[string]string{"sourceType": "dkb.csv"}, "file", "dkb.csv", csv)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/ledger/imports/preview", body)
+	req.Header.Set("Content-Type", contentType)
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var raw map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&raw); err != nil {
+		t.Fatalf("decode preview response: %v", err)
+	}
+	transactions, ok := raw["transactions"].([]any)
+	if !ok || len(transactions) != 1 {
+		t.Fatalf("transactions malformed: %#v", raw["transactions"])
+	}
+	first, ok := transactions[0].(map[string]any)
+	if !ok {
+		t.Fatalf("transaction malformed: %#v", transactions[0])
+	}
+	row, ok := first["row"].(map[string]any)
+	if !ok {
+		t.Fatalf("row malformed: %#v", first["row"])
+	}
+
+	if row["bookingDate"] != "2026-04-07" {
+		t.Fatalf("bookingDate = %#v, want %q", row["bookingDate"], "2026-04-07")
+	}
+	if row["valueDate"] != "2026-04-02" {
+		t.Fatalf("valueDate = %#v, want %q", row["valueDate"], "2026-04-02")
+	}
+	if row["amountMinor"] != float64(80023) {
+		t.Fatalf("amountMinor = %#v, want %v", row["amountMinor"], float64(80023))
+	}
+	if row["counterpartyName"] != "Mustermann,Fred" {
+		t.Fatalf("counterpartyName = %#v, want %q", row["counterpartyName"], "Mustermann,Fred")
+	}
+	if row["purpose"] != "Depot 0123 Wertpapierertrag" {
+		t.Fatalf("purpose = %#v, want %q", row["purpose"], "Depot 0123 Wertpapierertrag")
 	}
 }
 

@@ -123,3 +123,43 @@ func TestLedgerCommitImport_RejectsDuplicateFile(t *testing.T) {
 		t.Fatalf("expected ErrLedgerFileImported, got %v", err)
 	}
 }
+
+func TestLedgerCommitImport_PersistsImportedRowCounts(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	userID := "user-1"
+	accountID := uuid.New()
+	now := time.Now().UTC()
+
+	if err := s.CreateLedgerAccount(ctx, userID, model.LedgerAccount{ID: accountID, Name: "Main", Bank: "DKB", Currency: "EUR", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateLedgerAccount: %v", err)
+	}
+
+	batch := model.LedgerImportBatch{ID: uuid.New(), AccountID: accountID, SourceType: "dkb.csv", ParserVersion: "1", Filename: "counts.csv", FileSHA256: "hash-counts", Status: model.ImportStatusCommitted, TotalRows: 2, CreatedAt: now, UpdatedAt: now}
+	txns := []model.LedgerTransaction{
+		{ID: uuid.New(), AccountID: accountID, BookingDate: "2026-04-01", Currency: "EUR", Fingerprint: "fp-counts-1", ImportBatchID: batch.ID, CreatedAt: now, UpdatedAt: now},
+		{ID: uuid.New(), AccountID: accountID, BookingDate: "2026-04-02", Currency: "EUR", Fingerprint: "fp-counts-2", ImportBatchID: batch.ID, CreatedAt: now, UpdatedAt: now},
+	}
+
+	result, err := s.CommitLedgerImport(ctx, userID, batch, txns)
+	if err != nil {
+		t.Fatalf("CommitLedgerImport: %v", err)
+	}
+	if result.ImportedRows != 2 {
+		t.Fatalf("ImportedRows = %d, want 2", result.ImportedRows)
+	}
+
+	imports, err := s.ListLedgerImports(ctx, userID)
+	if err != nil {
+		t.Fatalf("ListLedgerImports: %v", err)
+	}
+	if len(imports) != 1 {
+		t.Fatalf("len(imports) = %d, want 1", len(imports))
+	}
+	if imports[0].ImportedRows != 2 {
+		t.Fatalf("persisted ImportedRows = %d, want 2", imports[0].ImportedRows)
+	}
+	if imports[0].DuplicateRows != 0 {
+		t.Fatalf("persisted DuplicateRows = %d, want 0", imports[0].DuplicateRows)
+	}
+}

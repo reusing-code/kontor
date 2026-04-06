@@ -58,7 +58,7 @@ export const ledgerPreviewRowSchema = z.object({
   amountMinor: z.int(),
   currency: z.string(),
   counterpartyName: z.string().optional(),
-  counterpartyIBAN: z.string().optional(),
+  counterpartyIban: z.string().optional(),
   purpose: z.string().optional(),
   bankReference: z.string().optional(),
   transactionType: z.string().optional(),

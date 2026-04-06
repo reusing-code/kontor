@@ -80,3 +80,36 @@ func TestParseComdirectCSV_NoHeader(t *testing.T) {
 		t.Fatal("expected error for CSV without header")
 	}
 }
+
+func TestParseComdirectCSV_SkipsPendingRows(t *testing.T) {
+	raw := `;
+"Umsätze Girokonto";"Zeitraum: 30 Tage";
+"Neuer Kontostand";"111.111,11 EUR";
+
+"Buchungstag";"Wertstellung (Valuta)";"Vorgang";"Buchungstext";"Umsatz in EUR";
+"offen";"offen";"Lastschrift";"Empfänger: Pending Merchant Buchungstext: Reservierung Ref. PEND123";"-10,00";
+"02.04.2026";"02.04.2026";"Kartenverfügung";" Buchungstext: AMAZON* , LUXEMBOURG LU Karte Nr. XXXX Ref. ABC123";"-123,34";
+
+"Alter Kontostand";"222.222,22 EUR";
+`
+	encoded := encodeWindows1252(raw)
+
+	p := &ComdirectCSVProvider{}
+	result, err := p.Parse(strings.NewReader(encoded))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(result.Rows) != 1 {
+		t.Fatalf("got %d rows, want 1", len(result.Rows))
+	}
+	if len(result.Warnings) != 1 {
+		t.Fatalf("got %d warnings, want 1", len(result.Warnings))
+	}
+	if result.Warnings[0] != "row 1: skipped pending transaction" {
+		t.Fatalf("warning = %q, want %q", result.Warnings[0], "row 1: skipped pending transaction")
+	}
+	if result.Rows[0].BookingDate != "2026-04-02" {
+		t.Fatalf("BookingDate = %q, want 2026-04-02", result.Rows[0].BookingDate)
+	}
+}

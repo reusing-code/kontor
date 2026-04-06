@@ -71,6 +71,11 @@ func (p *ComdirectCSVProvider) Parse(r io.Reader) (ParseResult, error) {
 	result.BankName = "comdirect"
 
 	for i, rec := range records[1:] {
+		if warning, skip := comdirectPendingRowWarning(colIdx, rec, i+1); skip {
+			result.Warnings = append(result.Warnings, warning)
+			continue
+		}
+
 		row, warns, err := parseComdirectRow(colIdx, rec, i+1)
 		if err != nil {
 			result.Warnings = append(result.Warnings, fmt.Sprintf("row %d: %v", i+1, err))
@@ -83,14 +88,19 @@ func (p *ComdirectCSVProvider) Parse(r io.Reader) (ParseResult, error) {
 	return result, nil
 }
 
-func parseComdirectRow(colIdx map[string]int, rec []string, rowNum int) (ParsedRow, []string, error) {
-	get := func(name string) string {
-		idx, ok := colIdx[name]
-		if !ok || idx >= len(rec) {
-			return ""
-		}
-		return strings.TrimSpace(rec[idx])
+func comdirectPendingRowWarning(colIdx map[string]int, rec []string, rowNum int) (string, bool) {
+	bookingRaw := comdirectField(colIdx, rec, "Buchungstag")
+	valueRaw := comdirectField(colIdx, rec, "Wertstellung (Valuta)")
+
+	if isComdirectPendingValue(bookingRaw) || isComdirectPendingValue(valueRaw) {
+		return fmt.Sprintf("row %d: skipped pending transaction", rowNum), true
 	}
+
+	return "", false
+}
+
+func parseComdirectRow(colIdx map[string]int, rec []string, rowNum int) (ParsedRow, []string, error) {
+	get := func(name string) string { return comdirectField(colIdx, rec, name) }
 
 	bookingRaw := get("Buchungstag")
 	if bookingRaw == "" {
@@ -136,6 +146,18 @@ func parseComdirectRow(colIdx map[string]int, rec []string, rowNum int) (ParsedR
 		BankReference:    ref,
 		TransactionType:  txnType,
 	}, warnings, nil
+}
+
+func comdirectField(colIdx map[string]int, rec []string, name string) string {
+	idx, ok := colIdx[name]
+	if !ok || idx >= len(rec) {
+		return ""
+	}
+	return strings.TrimSpace(rec[idx])
+}
+
+func isComdirectPendingValue(value string) bool {
+	return strings.EqualFold(strings.TrimSpace(value), "offen")
 }
 
 // parseComdirectBuchungstext extracts counterparty, purpose, and reference from the

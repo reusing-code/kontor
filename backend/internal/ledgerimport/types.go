@@ -12,15 +12,15 @@ const (
 )
 
 type ParsedRow struct {
-	BookingDate      string
-	ValueDate        string
-	AmountMinor      int64
-	Currency         string
-	CounterpartyName string
-	CounterpartyIBAN string
-	Purpose          string
-	BankReference    string
-	TransactionType  string
+	BookingDate      string `json:"bookingDate"`
+	ValueDate        string `json:"valueDate,omitempty"`
+	AmountMinor      int64  `json:"amountMinor"`
+	Currency         string `json:"currency"`
+	CounterpartyName string `json:"counterpartyName,omitempty"`
+	CounterpartyIBAN string `json:"counterpartyIban,omitempty"`
+	Purpose          string `json:"purpose,omitempty"`
+	BankReference    string `json:"bankReference,omitempty"`
+	TransactionType  string `json:"transactionType,omitempty"`
 }
 
 type ParseResult struct {
