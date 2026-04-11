@@ -20,6 +20,7 @@ var (
 	ErrLedgerCategoryHasChild = errors.New("ledger category has children")
 	ErrLedgerCategoryHasCycle = errors.New("ledger category cycle")
 	ErrLedgerTransferInvalid  = errors.New("invalid transfer pair")
+	ErrLedgerTransferLinked   = errors.New("linked internal transfers must be unlinked explicitly before assigning a category")
 )
 
 const ledgerTransferMatchWindowDays = 3
@@ -1149,15 +1150,6 @@ func (s *BadgerStore) UpdateLedgerTransactionDetails(_ context.Context, userID s
 		if err != nil {
 			return err
 		}
-		if ledgerTxn.TransferPairTransactionID != nil {
-			if _, err := unlinkLedgerTransferTxn(txn, userID, id); err != nil {
-				return err
-			}
-			ledgerTxn, err = loadLedgerTransaction(txn, userID, id)
-			if err != nil {
-				return err
-			}
-		}
 		if err := syncLedgerReferences(txn, userID, ledgerTxn.ID, ledgerTxn.References, input.References); err != nil {
 			return err
 		}
@@ -1237,13 +1229,7 @@ func (s *BadgerStore) ReviewLedgerTransaction(_ context.Context, userID string, 
 
 		if selectedCategory != nil {
 			if ledgerTxn.TransferPairTransactionID != nil {
-				if _, err := unlinkLedgerTransferTxn(txn, userID, id); err != nil {
-					return err
-				}
-				ledgerTxn, err = loadLedgerTransaction(txn, userID, id)
-				if err != nil {
-					return err
-				}
+				return ErrLedgerTransferLinked
 			}
 			categoryID := selectedCategory.ID
 			ledgerTxn.CategoryID = &categoryID

@@ -4,6 +4,7 @@ import { toast } from "sonner"
 import type { LedgerCategory, LedgerReviewInput, LedgerTransaction } from "@/types/ledger"
 import { useReviewLedgerTransaction } from "@/hooks/use-ledger"
 import { formatAmountMinor, formatLedgerDate, tokenizeLedgerMatchWords } from "@/lib/ledger-utils"
+import { LedgerTransferManager } from "@/components/ledger-transfer-manager"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -33,6 +34,7 @@ function LedgerReviewPanelInner({
 }) {
   const { t, i18n } = useTranslation()
   const reviewMutation = useReviewLedgerTransaction()
+  const isLinkedTransfer = Boolean(transaction.transferPairTransactionId)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(transaction.categoryId)
   const [newCategoryName, setNewCategoryName] = useState("")
   const [matchWords, setMatchWords] = useState("")
@@ -124,19 +126,32 @@ function LedgerReviewPanelInner({
           {transaction.categoryId && (
             <Badge variant="outline">{t("ledger.suggestedCategory")}</Badge>
           )}
+          {isLinkedTransfer && (
+            <Badge variant="outline">{t("ledger.transferLinked")}</Badge>
+          )}
           <Badge variant={transaction.categorizationSource === "keyword" ? "default" : "secondary"}>
             {t(`ledger.categorizationSource.${transaction.categorizationSource}`)}
           </Badge>
         </div>
 
+        {isLinkedTransfer ? (
+          <div className="space-y-3 rounded-md border p-4">
+            <div>
+              <div className="text-sm font-medium">{t("ledger.internalTransfer")}</div>
+              <p className="text-sm text-muted-foreground">{t("ledger.transferReviewProtection")}</p>
+            </div>
+            <LedgerTransferManager transaction={transaction} compact />
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             onClick={() => submitReview({
-              categoryId: activeSelectedCategoryId || transaction.categoryId,
-              addMatchWords: matchWords.split(",").map((word) => word.trim()).filter(Boolean),
-            })}
-            disabled={reviewMutation.isPending}
+                categoryId: activeSelectedCategoryId || transaction.categoryId,
+                addMatchWords: matchWords.split(",").map((word) => word.trim()).filter(Boolean),
+              })}
+            disabled={reviewMutation.isPending || isLinkedTransfer}
           >
             {t("ledger.confirmCategory")}
           </Button>
@@ -144,11 +159,11 @@ function LedgerReviewPanelInner({
             type="button"
             variant="outline"
             onClick={() => submitReview({
-              newCategory: newCategoryName ? { name: newCategoryName, matchWords: [], parentId: undefined } : undefined,
-              categoryId: newCategoryName ? undefined : activeSelectedCategoryId || undefined,
-              addMatchWords: matchWords.split(",").map((word) => word.trim()).filter(Boolean),
-            })}
-            disabled={reviewMutation.isPending || (!newCategoryName && !activeSelectedCategoryId)}
+                newCategory: newCategoryName ? { name: newCategoryName, matchWords: [], parentId: undefined } : undefined,
+                categoryId: newCategoryName ? undefined : activeSelectedCategoryId || undefined,
+                addMatchWords: matchWords.split(",").map((word) => word.trim()).filter(Boolean),
+              })}
+            disabled={reviewMutation.isPending || isLinkedTransfer || (!newCategoryName && !activeSelectedCategoryId)}
           >
             {t("ledger.assignCategory")}
           </Button>
