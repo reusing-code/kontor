@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -234,40 +235,65 @@ func (h *Handler) ScanLedgerEmailAccount(w http.ResponseWriter, r *http.Request)
 		h.handleStoreError(w, err)
 		return
 	}
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		h.errorResponse(w, http.StatusBadRequest, "invalid multipart form")
-		return
-	}
-	files := r.MultipartForm.File["files"]
-	if len(files) == 0 {
-		h.errorResponse(w, http.StatusBadRequest, "missing files field")
-		return
-	}
-	uploads := make([]ledgeremail.UploadedMessage, 0, len(files))
-	for _, header := range files {
-		file, err := header.Open()
-		if err != nil {
-			h.errorResponse(w, http.StatusBadRequest, "could not open uploaded file")
+	userID := middleware.GetUserID(r.Context())
+	var result model.LedgerEmailScanResult
+	contentType := strings.TrimSpace(r.Header.Get("Content-Type"))
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			h.errorResponse(w, http.StatusBadRequest, "invalid multipart form")
 			return
 		}
-		data, err := io.ReadAll(file)
-		file.Close()
-		if err != nil {
-			h.errorResponse(w, http.StatusBadRequest, "could not read uploaded file")
+		files := r.MultipartForm.File["files"]
+		if len(files) == 0 {
+			h.errorResponse(w, http.StatusBadRequest, "missing files field")
 			return
 		}
-		uploads = append(uploads, ledgeremail.UploadedMessage{Filename: header.Filename, Reader: bytes.NewReader(data)})
+		uploads := make([]ledgeremail.UploadedMessage, 0, len(files))
+		for _, header := range files {
+			file, err := header.Open()
+			if err != nil {
+				h.errorResponse(w, http.StatusBadRequest, "could not open uploaded file")
+				return
+			}
+			data, err := io.ReadAll(file)
+			file.Close()
+			if err != nil {
+				h.errorResponse(w, http.StatusBadRequest, "could not read uploaded file")
+				return
+			}
+			uploads = append(uploads, ledgeremail.UploadedMessage{Filename: header.Filename, Reader: bytes.NewReader(data)})
+		}
+		result, err = h.ledgerEmail.ScanUploadedMessages(r.Context(), userID, account, uploads)
+	} else {
+		if len(h.emailEncryptionKey) == 0 {
+			h.errorResponse(w, http.StatusInternalServerError, "EMAIL_ENCRYPTION_KEY is not configured")
+			return
+		}
+		password, err := cryptoutil.DecryptString(account.EncryptedPassword, h.emailEncryptionKey)
+		if err != nil {
+			h.errorResponse(w, http.StatusInternalServerError, "could not decrypt stored email password")
+			return
+		}
+		mailboxResult, scanErr := h.ledgerEmail.ScanMailbox(r.Context(), userID, account, password)
+		if scanErr != nil {
+			h.handleStoreError(w, scanErr)
+			return
+		}
+		result = mailboxResult
 	}
-	result, err := h.ledgerEmail.ScanUploadedMessages(r.Context(), middleware.GetUserID(r.Context()), account, uploads)
 	if err != nil {
 		h.handleStoreError(w, err)
 		return
 	}
 	now := time.Now().UTC()
 	account.LastScanAt = &now
-	account.LastScanStatusMessage = "Processed uploaded email messages"
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		account.LastScanStatusMessage = "Processed uploaded email messages"
+	} else {
+		account.LastScanStatusMessage = "Scanned inbox via IMAP"
+	}
 	account.UpdatedAt = now
-	if err := h.store.UpdateLedgerEmailAccount(r.Context(), middleware.GetUserID(r.Context()), account); err != nil {
+	if err := h.store.UpdateLedgerEmailAccount(r.Context(), userID, account); err != nil {
 		h.handleStoreError(w, err)
 		return
 	}

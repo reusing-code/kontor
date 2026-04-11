@@ -32,6 +32,7 @@ export function LedgerEmailAccountsPanel() {
       </CardHeader>
       <CardContent className="space-y-4">
         {accounts.length === 0 ? <p className="text-sm text-muted-foreground">{t("ledger.email.noAccounts")}</p> : null}
+        <p className="text-sm text-muted-foreground">{t("ledger.email.scanHint")}</p>
         <div className="grid gap-4 md:grid-cols-2">
           {accounts.map((account) => (
             <div key={account.id} className="rounded-lg border p-4 space-y-3">
@@ -41,6 +42,16 @@ export function LedgerEmailAccountsPanel() {
                 <div className="text-xs text-muted-foreground">{t("ledger.email.lastScan")}: {account.lastScanAt ?? "-"}</div>
               </div>
               <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => scanAccount.mutate({ id: account.id, files: [] }, {
+                    onSuccess: (result) => toast.success(t("ledger.email.scanSuccess", { count: result.ordersNew })),
+                    onError: (error) => toast.error(error.message),
+                  })}
+                >
+                  <Play className="mr-2 h-4 w-4" />{t("ledger.email.scanNow")}
+                </Button>
                 <label className="inline-flex">
                   <Input
                     type="file"
@@ -60,7 +71,7 @@ export function LedgerEmailAccountsPanel() {
                     }}
                   />
                   <Button type="button" variant="outline" asChild>
-                    <span><Play className="mr-2 h-4 w-4" />{t("ledger.email.scanUpload")}</span>
+                    <span>{t("ledger.email.scanUpload")}</span>
                   </Button>
                 </label>
                 <Button type="button" variant="outline" onClick={() => { setSelectedAccount(account); setDialogOpen(true) }}><Pencil className="mr-2 h-4 w-4" />{t("common.edit")}</Button>

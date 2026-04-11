@@ -39,7 +39,7 @@ The app is a multi-module personal finance manager. Currently four modules exist
 - **Contracts** — Recurring subscriptions with renewal tracking, notice periods, and email reminders
 - **Purchases** — One-time purchases with item details, dealer info, and document links
 - **Auto** — Vehicle management with cost tracking (service, fuel, insurance, tax, inspection, tires, mileage, misc) and total cost of ownership projections
-- **Ledger** — Bank account and transaction tracking with CSV import, review queue, category matching, cross references, explicit internal transfer linking between tracked accounts, and email-order enrichment from uploaded `.eml` messages
+- **Ledger** — Bank account and transaction tracking with CSV import, review queue, category matching, cross references, explicit internal transfer linking between tracked accounts, and email-order enrichment from IMAP inbox scans or uploaded `.eml` messages
 
 Each module has its own categories stored under separate DB key prefixes. Categories are module-scoped via the API route (`/api/v1/modules/{module}/categories`), not via a field on the Category model. The Auto module uses its own vehicle/cost key structure instead of categories. The Ledger module has its own account, category, transaction, and import-batch keys.
 
@@ -79,11 +79,6 @@ Each module has its own categories stored under separate DB key prefixes. Catego
 | `/` | Homepage with overview cards for all modules |
 | `/login` | Login / registration |
 | `/settings` | User settings |
-| `/ledger` | Ledger dashboard with accounts, imports, categories, and review queue |
-| `/ledger/review` | Ledger review queue |
-| `/ledger/categories` | Ledger category management |
-| `/ledger/accounts/$accountId` | Ledger account detail with transactions |
-| `/ledger/transactions/$transactionId` | Ledger transaction detail with notes, references, and transfer linking |
 | `/contracts` | Contracts dashboard |
 | `/contracts/categories/$categoryId` | Contract category detail |
 | `/contracts/upcoming-renewals` | Upcoming renewals |
@@ -91,11 +86,11 @@ Each module has its own categories stored under separate DB key prefixes. Catego
 | `/purchases/categories/$categoryId` | Purchase category detail |
 | `/auto` | Auto / vehicles dashboard |
 | `/auto/vehicles/$vehicleId` | Vehicle detail with cost entries and summary |
-| `/ledger` | Ledger dashboard |
-| `/ledger/accounts/$accountId` | Ledger account transactions |
+| `/ledger` | Ledger dashboard with accounts, imports, categories, and review queue |
+| `/ledger/accounts/$accountId` | Ledger account detail with transactions |
 | `/ledger/categories` | Ledger category tree manager |
 | `/ledger/review` | Ledger review queue |
-| `/ledger/transactions/$transactionId` | Ledger transaction detail |
+| `/ledger/transactions/$transactionId` | Ledger transaction detail with notes, references, and transfer linking |
 | `/ledger/email-accounts` | Ledger email account management |
 | `/ledger/email-orders` | Parsed email orders and matching status |
 

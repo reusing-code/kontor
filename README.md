@@ -9,7 +9,7 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 - **Purchase tracking** — Track one-time purchases with item details, pricing, dealer info, and document links
 - **Vehicle cost tracking** — Manage vehicles with cost entries (service, fuel, insurance, tax, inspection, tires, mileage, misc) and total cost of ownership projections
 - **Ledger module** — Import bank CSVs into tracked accounts, review transactions, manage categories, add notes/links/references, mark internal transfers, and enrich transactions with parsed email order data
-- **Email order enrichment** — Configure email accounts and upload `.eml` messages for supported importers like Amazon.de and PayPal.de to auto-link parsed orders to ledger transactions
+- **Email order enrichment** — Configure IMAP email accounts for supported importers like Amazon.de and PayPal.de to scan inbox messages and auto-link parsed orders to ledger transactions; `.eml` upload remains available as a fallback
 - **Category organization** — Per-module categories (e.g. insurance/telecom for contracts, PC hardware/tools for purchases)
 - **Homepage overview** — Dashboard at `/` with summary cards and stats across all modules
 - **Renewal monitoring** — Upcoming renewals with color-coded urgency indicators
