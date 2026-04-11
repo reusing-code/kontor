@@ -37,6 +37,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: backend/go.mod
+          check-latest: true
       - run: go test ./...
       - uses: golangci/golangci-lint-action@v9
         with:

@@ -46,7 +46,7 @@ func (s *Server) Run() error {
 		s.logger.Info("SMTP not configured, reminder scheduler disabled")
 	}
 
-	h := handler.New(s.store, s.logger, jwtSecret, emailClient)
+	h := handler.New(s.store, s.logger, jwtSecret, emailClient, s.cfg.EmailEncryptionKey)
 
 	// Protected API routes (require auth)
 	apiMux := http.NewServeMux()
@@ -107,6 +107,17 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("GET /api/v1/ledger/accounts", h.ListLedgerAccounts)
 	apiMux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}", h.GetLedgerAccount)
 	apiMux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}/transactions", h.ListLedgerTransactions)
+	apiMux.HandleFunc("GET /api/v1/ledger/email-accounts", h.ListLedgerEmailAccounts)
+	apiMux.HandleFunc("POST /api/v1/ledger/email-accounts", h.CreateLedgerEmailAccount)
+	apiMux.HandleFunc("GET /api/v1/ledger/email-accounts/{emailAccountId}", h.GetLedgerEmailAccount)
+	apiMux.HandleFunc("PUT /api/v1/ledger/email-accounts/{emailAccountId}", h.UpdateLedgerEmailAccount)
+	apiMux.HandleFunc("DELETE /api/v1/ledger/email-accounts/{emailAccountId}", h.DeleteLedgerEmailAccount)
+	apiMux.HandleFunc("POST /api/v1/ledger/email-accounts/{emailAccountId}/scan", h.ScanLedgerEmailAccount)
+	apiMux.HandleFunc("GET /api/v1/ledger/email-orders", h.ListLedgerEmailOrders)
+	apiMux.HandleFunc("GET /api/v1/ledger/email-orders/{emailOrderId}", h.GetLedgerEmailOrder)
+	apiMux.HandleFunc("POST /api/v1/ledger/email-orders/{emailOrderId}/link", h.LinkLedgerEmailOrder)
+	apiMux.HandleFunc("POST /api/v1/ledger/email-orders/{emailOrderId}/reject", h.RejectLedgerEmailOrder)
+	apiMux.HandleFunc("GET /api/v1/ledger/email-importers", h.ListLedgerEmailImporters)
 	apiMux.HandleFunc("GET /api/v1/ledger/imports", h.ListLedgerImports)
 	apiMux.HandleFunc("GET /api/v1/ledger/transactions", h.ListLedgerTransactionsReviewQueue)
 	apiMux.HandleFunc("GET /api/v1/ledger/transactions/{transactionId}", h.GetLedgerTransaction)

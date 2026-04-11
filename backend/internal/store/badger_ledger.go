@@ -85,6 +85,32 @@ func idxLedFileHashKey(userID string, sha256 string) []byte {
 	return []byte(fmt.Sprintf("u/%s/idx/led_file_hash/%s", userID, sha256))
 }
 
+// Ledger email key helpers
+
+func ledEmailAccKey(userID string, id uuid.UUID) []byte {
+	return []byte(fmt.Sprintf("u/%s/led/emailacc/%s", userID, id))
+}
+
+func ledEmailAccPrefix(userID string) []byte {
+	return []byte(fmt.Sprintf("u/%s/led/emailacc/", userID))
+}
+
+func ledEmailOrderKey(userID string, id uuid.UUID) []byte {
+	return []byte(fmt.Sprintf("u/%s/led/eord/%s", userID, id))
+}
+
+func ledEmailOrderPrefix(userID string) []byte {
+	return []byte(fmt.Sprintf("u/%s/led/eord/", userID))
+}
+
+func idxLedEmailAccOrderKey(userID string, accountID uuid.UUID, orderID uuid.UUID) []byte {
+	return []byte(fmt.Sprintf("u/%s/idx/led_emailacc_eord/%s/%s", userID, accountID, orderID))
+}
+
+func idxLedEmailMsgIDKey(userID string, messageID string) []byte {
+	return []byte(fmt.Sprintf("u/%s/idx/led_eord_msgid/%s", userID, messageID))
+}
+
 func normalizeLedgerTransaction(t model.LedgerTransaction) model.LedgerTransaction {
 	if t.ReviewStatus == "" {
 		t.ReviewStatus = model.LedgerTransactionReviewNeedsReview
@@ -94,10 +120,72 @@ func normalizeLedgerTransaction(t model.LedgerTransaction) model.LedgerTransacti
 	}
 	t.Links = model.NormalizeLedgerTransactionLinks(t.Links)
 	t.References = model.NormalizeLedgerTransactionReferences(t.References)
+	t.EmailOrderIDs = model.NormalizeLinkedTransactionIDs(t.EmailOrderIDs)
 	if t.SpecialCategory == model.LedgerSpecialCategoryInternalTransfer && t.CategorizationSource == model.LedgerCategorizationNone {
 		t.CategorizationSource = model.LedgerCategorizationManual
 	}
 	return t
+}
+
+func loadLedgerEmailAccount(txn *badger.Txn, userID string, id uuid.UUID) (model.LedgerEmailAccount, error) {
+	var account model.LedgerEmailAccount
+	item, err := txn.Get(ledEmailAccKey(userID, id))
+	if err != nil {
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return account, ErrNotFound
+		}
+		return account, err
+	}
+	err = item.Value(func(val []byte) error {
+		return json.Unmarshal(val, &account)
+	})
+	return account, err
+}
+
+func storeLedgerEmailAccount(txn *badger.Txn, userID string, account model.LedgerEmailAccount) error {
+	data, err := json.Marshal(account)
+	if err != nil {
+		return err
+	}
+	return txn.Set(ledEmailAccKey(userID, account.ID), data)
+}
+
+func loadLedgerEmailOrder(txn *badger.Txn, userID string, id uuid.UUID) (model.LedgerEmailOrder, error) {
+	var order model.LedgerEmailOrder
+	item, err := txn.Get(ledEmailOrderKey(userID, id))
+	if err != nil {
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return order, ErrNotFound
+		}
+		return order, err
+	}
+	err = item.Value(func(val []byte) error {
+		return json.Unmarshal(val, &order)
+	})
+	if err != nil {
+		return order, err
+	}
+	return model.NormalizeLedgerEmailOrder(order), nil
+}
+
+func storeLedgerEmailOrder(txn *badger.Txn, userID string, order model.LedgerEmailOrder) error {
+	order = model.NormalizeLedgerEmailOrder(order)
+	data, err := json.Marshal(order)
+	if err != nil {
+		return err
+	}
+	if err := txn.Set(ledEmailOrderKey(userID, order.ID), data); err != nil {
+		return err
+	}
+	if err := txn.Set(idxLedEmailAccOrderKey(userID, order.EmailAccountID, order.ID), nil); err != nil {
+		return err
+	}
+	if strings.TrimSpace(order.EmailMessageID) != "" {
+		if err := txn.Set(idxLedEmailMsgIDKey(userID, order.EmailMessageID), []byte(order.ID.String())); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func collectLedgerAccounts(txn *badger.Txn, userID string) ([]model.LedgerAccount, error) {
@@ -1253,4 +1341,304 @@ func (s *BadgerStore) ReviewLedgerTransaction(_ context.Context, userID string, 
 		return LedgerReviewResult{}, err
 	}
 	return result, nil
+}
+
+// Ledger Email Accounts
+
+func (s *BadgerStore) ListLedgerEmailAccounts(_ context.Context, userID string) ([]model.LedgerEmailAccount, error) {
+	items := []model.LedgerEmailAccount{}
+	err := s.db.View(func(txn *badger.Txn) error {
+		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		defer it.Close()
+		prefix := ledEmailAccPrefix(userID)
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			var item model.LedgerEmailAccount
+			if err := it.Item().Value(func(val []byte) error { return json.Unmarshal(val, &item) }); err != nil {
+				return err
+			}
+			items = append(items, item)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if strings.EqualFold(items[i].Name, items[j].Name) {
+			return items[i].CreatedAt.Before(items[j].CreatedAt)
+		}
+		return strings.ToLower(items[i].Name) < strings.ToLower(items[j].Name)
+	})
+	return items, nil
+}
+
+func (s *BadgerStore) GetLedgerEmailAccount(_ context.Context, userID string, id uuid.UUID) (model.LedgerEmailAccount, error) {
+	var account model.LedgerEmailAccount
+	err := s.db.View(func(txn *badger.Txn) error {
+		var err error
+		account, err = loadLedgerEmailAccount(txn, userID, id)
+		return err
+	})
+	return account, err
+}
+
+func (s *BadgerStore) CreateLedgerEmailAccount(_ context.Context, userID string, account model.LedgerEmailAccount) error {
+	return s.db.Update(func(txn *badger.Txn) error {
+		if _, err := txn.Get(ledEmailAccKey(userID, account.ID)); err == nil {
+			return ErrConflict
+		} else if !errors.Is(err, badger.ErrKeyNotFound) {
+			return err
+		}
+		return storeLedgerEmailAccount(txn, userID, account)
+	})
+}
+
+func (s *BadgerStore) UpdateLedgerEmailAccount(_ context.Context, userID string, account model.LedgerEmailAccount) error {
+	return s.db.Update(func(txn *badger.Txn) error {
+		if _, err := txn.Get(ledEmailAccKey(userID, account.ID)); err != nil {
+			if errors.Is(err, badger.ErrKeyNotFound) {
+				return ErrNotFound
+			}
+			return err
+		}
+		return storeLedgerEmailAccount(txn, userID, account)
+	})
+}
+
+func (s *BadgerStore) DeleteLedgerEmailAccount(_ context.Context, userID string, id uuid.UUID) error {
+	return s.db.Update(func(txn *badger.Txn) error {
+		account, err := loadLedgerEmailAccount(txn, userID, id)
+		if err != nil {
+			return err
+		}
+		orders, err := collectLedgerEmailOrdersByAccount(txn, userID, account.ID)
+		if err != nil {
+			return err
+		}
+		for _, order := range orders {
+			if err := unlinkLedgerEmailOrderTxn(txn, userID, order.ID); err != nil {
+				return err
+			}
+			if err := txn.Delete(ledEmailOrderKey(userID, order.ID)); err != nil {
+				return err
+			}
+			if err := txn.Delete(idxLedEmailAccOrderKey(userID, order.EmailAccountID, order.ID)); err != nil && !errors.Is(err, badger.ErrKeyNotFound) {
+				return err
+			}
+			if strings.TrimSpace(order.EmailMessageID) != "" {
+				if err := txn.Delete(idxLedEmailMsgIDKey(userID, order.EmailMessageID)); err != nil && !errors.Is(err, badger.ErrKeyNotFound) {
+					return err
+				}
+			}
+		}
+		return txn.Delete(ledEmailAccKey(userID, id))
+	})
+}
+
+func collectLedgerEmailOrders(txn *badger.Txn, userID string) ([]model.LedgerEmailOrder, error) {
+	items := []model.LedgerEmailOrder{}
+	it := txn.NewIterator(badger.DefaultIteratorOptions)
+	defer it.Close()
+	prefix := ledEmailOrderPrefix(userID)
+	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+		var item model.LedgerEmailOrder
+		if err := it.Item().Value(func(val []byte) error { return json.Unmarshal(val, &item) }); err != nil {
+			return nil, err
+		}
+		items = append(items, model.NormalizeLedgerEmailOrder(item))
+	}
+	return items, nil
+}
+
+func collectLedgerEmailOrdersByAccount(txn *badger.Txn, userID string, accountID uuid.UUID) ([]model.LedgerEmailOrder, error) {
+	all, err := collectLedgerEmailOrders(txn, userID)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]model.LedgerEmailOrder, 0)
+	for _, item := range all {
+		if item.EmailAccountID == accountID {
+			items = append(items, item)
+		}
+	}
+	return items, nil
+}
+
+func (s *BadgerStore) ListLedgerEmailOrders(_ context.Context, userID string) ([]model.LedgerEmailOrder, error) {
+	items := []model.LedgerEmailOrder{}
+	err := s.db.View(func(txn *badger.Txn) error {
+		var err error
+		items, err = collectLedgerEmailOrders(txn, userID)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].OrderDate == items[j].OrderDate {
+			return items[i].CreatedAt.After(items[j].CreatedAt)
+		}
+		return items[i].OrderDate > items[j].OrderDate
+	})
+	return items, nil
+}
+
+func (s *BadgerStore) ListLedgerEmailOrdersByAccount(_ context.Context, userID string, accountID uuid.UUID) ([]model.LedgerEmailOrder, error) {
+	items := []model.LedgerEmailOrder{}
+	err := s.db.View(func(txn *badger.Txn) error {
+		var err error
+		items, err = collectLedgerEmailOrdersByAccount(txn, userID, accountID)
+		return err
+	})
+	return items, err
+}
+
+func (s *BadgerStore) ListLedgerEmailOrdersByTransaction(_ context.Context, userID string, transactionID uuid.UUID) ([]model.LedgerEmailOrder, error) {
+	items, err := s.ListLedgerEmailOrders(context.Background(), userID)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]model.LedgerEmailOrder, 0)
+	for _, item := range items {
+		if containsUUID(item.LinkedTransactionIDs, transactionID) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered, nil
+}
+
+func (s *BadgerStore) GetLedgerEmailOrder(_ context.Context, userID string, id uuid.UUID) (model.LedgerEmailOrder, error) {
+	var order model.LedgerEmailOrder
+	err := s.db.View(func(txn *badger.Txn) error {
+		var err error
+		order, err = loadLedgerEmailOrder(txn, userID, id)
+		return err
+	})
+	return order, err
+}
+
+func (s *BadgerStore) GetLedgerEmailOrderByMessageID(_ context.Context, userID string, messageID string) (model.LedgerEmailOrder, error) {
+	var order model.LedgerEmailOrder
+	err := s.db.View(func(txn *badger.Txn) error {
+		item, err := txn.Get(idxLedEmailMsgIDKey(userID, messageID))
+		if err != nil {
+			if errors.Is(err, badger.ErrKeyNotFound) {
+				return ErrNotFound
+			}
+			return err
+		}
+		var idStr string
+		if err := item.Value(func(val []byte) error { idStr = string(val); return nil }); err != nil {
+			return err
+		}
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			return err
+		}
+		order, err = loadLedgerEmailOrder(txn, userID, id)
+		return err
+	})
+	return order, err
+}
+
+func (s *BadgerStore) CreateLedgerEmailOrder(_ context.Context, userID string, order model.LedgerEmailOrder) error {
+	return s.db.Update(func(txn *badger.Txn) error {
+		if _, err := txn.Get(ledEmailOrderKey(userID, order.ID)); err == nil {
+			return ErrConflict
+		} else if !errors.Is(err, badger.ErrKeyNotFound) {
+			return err
+		}
+		return storeLedgerEmailOrder(txn, userID, order)
+	})
+}
+
+func unlinkLedgerEmailOrderTxn(txn *badger.Txn, userID string, orderID uuid.UUID) error {
+	order, err := loadLedgerEmailOrder(txn, userID, orderID)
+	if err != nil {
+		return err
+	}
+	for _, transactionID := range order.LinkedTransactionIDs {
+		ledgerTxn, err := loadLedgerTransaction(txn, userID, transactionID)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				continue
+			}
+			return err
+		}
+		ledgerTxn.EmailOrderIDs = withoutUUID(ledgerTxn.EmailOrderIDs, order.ID)
+		ledgerTxn.UpdatedAt = time.Now().UTC()
+		if err := storeLedgerTransaction(txn, userID, ledgerTxn); err != nil {
+			return err
+		}
+	}
+	order.LinkedTransactionIDs = []uuid.UUID{}
+	order.MatchStatus = model.LedgerEmailOrderStatusUnmatched
+	order.UpdatedAt = time.Now().UTC()
+	return storeLedgerEmailOrder(txn, userID, order)
+}
+
+func (s *BadgerStore) LinkLedgerEmailOrder(_ context.Context, userID string, id uuid.UUID, input model.LedgerEmailOrderLinkInput) (model.LedgerEmailOrder, error) {
+	updated := model.LedgerEmailOrder{}
+	err := s.db.Update(func(txn *badger.Txn) error {
+		order, err := loadLedgerEmailOrder(txn, userID, id)
+		if err != nil {
+			return err
+		}
+		for _, existingTxnID := range order.LinkedTransactionIDs {
+			ledgerTxn, err := loadLedgerTransaction(txn, userID, existingTxnID)
+			if err == nil {
+				ledgerTxn.EmailOrderIDs = withoutUUID(ledgerTxn.EmailOrderIDs, order.ID)
+				ledgerTxn.UpdatedAt = time.Now().UTC()
+				if err := storeLedgerTransaction(txn, userID, ledgerTxn); err != nil {
+					return err
+				}
+			} else if !errors.Is(err, ErrNotFound) {
+				return err
+			}
+		}
+		order.LinkedTransactionIDs = model.NormalizeLinkedTransactionIDs(input.TransactionIDs)
+		order.MatchStatus = model.LedgerEmailOrderStatusMatched
+		order.UpdatedAt = time.Now().UTC()
+		for _, transactionID := range order.LinkedTransactionIDs {
+			ledgerTxn, err := loadLedgerTransaction(txn, userID, transactionID)
+			if err != nil {
+				return err
+			}
+			if !containsUUID(ledgerTxn.EmailOrderIDs, order.ID) {
+				ledgerTxn.EmailOrderIDs = append(ledgerTxn.EmailOrderIDs, order.ID)
+			}
+			ledgerTxn.EmailOrderIDs = model.NormalizeLinkedTransactionIDs(ledgerTxn.EmailOrderIDs)
+			ledgerTxn.UpdatedAt = time.Now().UTC()
+			if err := storeLedgerTransaction(txn, userID, ledgerTxn); err != nil {
+				return err
+			}
+		}
+		if err := storeLedgerEmailOrder(txn, userID, order); err != nil {
+			return err
+		}
+		updated = order
+		return nil
+	})
+	return updated, err
+}
+
+func (s *BadgerStore) RejectLedgerEmailOrder(_ context.Context, userID string, id uuid.UUID) (model.LedgerEmailOrder, error) {
+	updated := model.LedgerEmailOrder{}
+	err := s.db.Update(func(txn *badger.Txn) error {
+		if err := unlinkLedgerEmailOrderTxn(txn, userID, id); err != nil {
+			return err
+		}
+		order, err := loadLedgerEmailOrder(txn, userID, id)
+		if err != nil {
+			return err
+		}
+		order.MatchStatus = model.LedgerEmailOrderStatusRejected
+		order.UpdatedAt = time.Now().UTC()
+		if err := storeLedgerEmailOrder(txn, userID, order); err != nil {
+			return err
+		}
+		updated = order
+		return nil
+	})
+	return updated, err
 }

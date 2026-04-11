@@ -44,10 +44,10 @@ Browse available components at [ui.shadcn.com](https://ui.shadcn.com).
 
 ```
 src/
-  routes/        Route definitions (homepage, ledger/*, contracts/*, purchases/*, auto/*)
+  routes/        Route definitions (homepage, contracts/*, purchases/*, auto/*, ledger/*)
   components/    React components (ui/ for shadcn)
   lib/           Utilities, API client, per-module repositories
-  hooks/         Custom React hooks (ledger, categories, contracts, purchases, vehicles)
+  hooks/         Custom React hooks (categories, contracts, purchases, vehicles, ledger)
   types/         Shared TypeScript types
   config/        Field configurations for forms/tables
   i18n/          Internationalization (en.json, de.json)

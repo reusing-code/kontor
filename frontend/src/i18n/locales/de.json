@@ -380,6 +380,43 @@
       "none": "Unkategorisiert",
       "keyword": "Schlüsselwort-Treffer",
       "manual": "Manuell"
+    },
+    "email": {
+      "description": "Postfächer für das Parsen hochgeladener .eml-Dateien konfigurieren und erkannte Bestellungen mit Ledger-Transaktionen verknüpfen.",
+      "accounts": "E-Mail-Konten",
+      "orders": "E-Mail-Bestellungen",
+      "manage": "E-Mail-Konten verwalten",
+      "addAccount": "Konto hinzufügen",
+      "createAccount": "E-Mail-Konto erstellen",
+      "editAccount": "E-Mail-Konto bearbeiten",
+      "accountName": "Kontoname",
+      "imapHost": "IMAP-Host",
+      "imapPort": "IMAP-Port",
+      "username": "Benutzername",
+      "password": "Passwort",
+      "passwordOptional": "Passwort (leer lassen zum Beibehalten)",
+      "scanSince": "Scannen ab",
+      "lastScan": "Letzter Scan",
+      "scanUpload": ".eml-Dateien hochladen",
+      "scanSuccess": "E-Mails verarbeitet und {{count}} Bestellung(en) erstellt.",
+      "accountCreated": "E-Mail-Konto erstellt.",
+      "accountUpdated": "E-Mail-Konto aktualisiert.",
+      "accountDeleted": "E-Mail-Konto gelöscht.",
+      "noAccounts": "Noch keine E-Mail-Konten konfiguriert.",
+      "noOrders": "Noch keine geparsten E-Mail-Bestellungen.",
+      "ordersDescription": "Geparste Bestellungen prüfen und kontrollieren, wie sie mit Transaktionen verknüpft wurden.",
+      "ordersCount_one": "{{count}} geparste Bestellung verfügbar.",
+      "ordersCount_other": "{{count}} geparste Bestellungen verfügbar.",
+      "status": {
+        "unmatched": "Nicht zugeordnet",
+        "matched": "Zugeordnet",
+        "rejected": "Verworfen"
+      },
+      "reject": "Verwerfen",
+      "orderRejected": "E-Mail-Bestellung verworfen.",
+      "orderLinked": "E-Mail-Bestellung verknüpft.",
+      "quickLink": "Schnell verknüpfen",
+      "noLinkedOrders": "Keine verknüpften E-Mail-Bestellungen."
     }
   },
   "common": {

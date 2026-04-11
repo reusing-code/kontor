@@ -156,6 +156,24 @@ export function Sidebar() {
           >
             {t("ledger.categories")}
           </Link>
+          <Link
+            to="/ledger/email-accounts"
+            className={cn(
+              "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
+              matchRoute({ to: "/ledger/email-accounts" }) && "bg-accent font-medium",
+            )}
+          >
+            {t("ledger.email.accounts")}
+          </Link>
+          <Link
+            to="/ledger/email-orders"
+            className={cn(
+              "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
+              matchRoute({ to: "/ledger/email-orders" }) && "bg-accent font-medium",
+            )}
+          >
+            {t("ledger.email.orders")}
+          </Link>
           {ledgerAccounts.map((account) => {
             const active = matchRoute({
               to: "/ledger/accounts/$accountId",

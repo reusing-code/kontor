@@ -16,6 +16,8 @@ const AutoIndexPage = lazy(() => import("./auto.index").then((module) => ({ defa
 const LedgerIndexPage = lazy(() => import("./ledger.index").then((module) => ({ default: module.LedgerIndexPage })))
 const LedgerAccountPage = lazy(() => import("./ledger.accounts.$accountId").then((module) => ({ default: module.LedgerAccountPage })))
 const LedgerCategoriesPage = lazy(() => import("./ledger.categories").then((module) => ({ default: module.LedgerCategoriesPage })))
+const LedgerEmailAccountsPage = lazy(() => import("./ledger.email-accounts").then((module) => ({ default: module.LedgerEmailAccountsPage })))
+const LedgerEmailOrdersPage = lazy(() => import("./ledger.email-orders").then((module) => ({ default: module.LedgerEmailOrdersPage })))
 const LedgerReviewPage = lazy(() => import("./ledger.review").then((module) => ({ default: module.LedgerReviewPage })))
 const LedgerTransactionPage = lazy(() => import("./ledger.transactions.$transactionId").then((module) => ({ default: module.LedgerTransactionPage })))
 const SettingsPage = lazy(() => import("./settings").then((module) => ({ default: module.SettingsPage })))
@@ -56,6 +58,18 @@ export const ledgerCategoriesRoute = createRoute({
   component: LedgerCategoriesPage,
 })
 
+export const ledgerEmailAccountsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/ledger/email-accounts",
+  component: LedgerEmailAccountsPage,
+})
+
+export const ledgerEmailOrdersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/ledger/email-orders",
+  component: LedgerEmailOrdersPage,
+})
+
 export const ledgerReviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/ledger/review",
@@ -88,6 +102,8 @@ const routeTree = rootRoute.addChildren([
   ledgerIndexRoute,
   ledgerAccountRoute,
   ledgerCategoriesRoute,
+  ledgerEmailAccountsRoute,
+  ledgerEmailOrdersRoute,
   ledgerReviewRoute,
   ledgerTransactionRoute,
   loginRoute,

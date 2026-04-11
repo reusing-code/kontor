@@ -221,6 +221,45 @@ func (m *mockStore) ReviewLedgerTransaction(_ context.Context, _ string, id uuid
 	}
 	return store.LedgerReviewResult{}, store.ErrNotFound
 }
+func (m *mockStore) ListLedgerEmailAccounts(_ context.Context, _ string) ([]model.LedgerEmailAccount, error) {
+	return nil, nil
+}
+func (m *mockStore) GetLedgerEmailAccount(_ context.Context, _ string, _ uuid.UUID) (model.LedgerEmailAccount, error) {
+	return model.LedgerEmailAccount{}, store.ErrNotFound
+}
+func (m *mockStore) CreateLedgerEmailAccount(_ context.Context, _ string, _ model.LedgerEmailAccount) error {
+	return nil
+}
+func (m *mockStore) UpdateLedgerEmailAccount(_ context.Context, _ string, _ model.LedgerEmailAccount) error {
+	return nil
+}
+func (m *mockStore) DeleteLedgerEmailAccount(_ context.Context, _ string, _ uuid.UUID) error {
+	return nil
+}
+func (m *mockStore) ListLedgerEmailOrders(_ context.Context, _ string) ([]model.LedgerEmailOrder, error) {
+	return nil, nil
+}
+func (m *mockStore) ListLedgerEmailOrdersByAccount(_ context.Context, _ string, _ uuid.UUID) ([]model.LedgerEmailOrder, error) {
+	return nil, nil
+}
+func (m *mockStore) ListLedgerEmailOrdersByTransaction(_ context.Context, _ string, _ uuid.UUID) ([]model.LedgerEmailOrder, error) {
+	return nil, nil
+}
+func (m *mockStore) GetLedgerEmailOrder(_ context.Context, _ string, _ uuid.UUID) (model.LedgerEmailOrder, error) {
+	return model.LedgerEmailOrder{}, store.ErrNotFound
+}
+func (m *mockStore) GetLedgerEmailOrderByMessageID(_ context.Context, _ string, _ string) (model.LedgerEmailOrder, error) {
+	return model.LedgerEmailOrder{}, store.ErrNotFound
+}
+func (m *mockStore) CreateLedgerEmailOrder(_ context.Context, _ string, _ model.LedgerEmailOrder) error {
+	return nil
+}
+func (m *mockStore) LinkLedgerEmailOrder(_ context.Context, _ string, _ uuid.UUID, _ model.LedgerEmailOrderLinkInput) (model.LedgerEmailOrder, error) {
+	return model.LedgerEmailOrder{}, store.ErrNotFound
+}
+func (m *mockStore) RejectLedgerEmailOrder(_ context.Context, _ string, _ uuid.UUID) (model.LedgerEmailOrder, error) {
+	return model.LedgerEmailOrder{}, store.ErrNotFound
+}
 
 // Stub all other store.Store methods
 func (m *mockStore) CreateUser(_ context.Context, _ model.User) error { return nil }

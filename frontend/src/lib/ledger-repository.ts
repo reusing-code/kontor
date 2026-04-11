@@ -3,6 +3,12 @@ import type {
   LedgerAccountInput,
   LedgerCategory,
   LedgerCategoryInput,
+  LedgerEmailAccount,
+  LedgerEmailAccountInput,
+  LedgerEmailImporterInfo,
+  LedgerEmailOrder,
+  LedgerEmailOrderLinkInput,
+  LedgerEmailScanResult,
   LedgerCommitRequest,
   LedgerCommitResult,
   LedgerImportBatch,
@@ -25,6 +31,58 @@ export async function getLedgerAccounts(): Promise<LedgerAccount[]> {
 
 export async function getLedgerAccountById(id: string): Promise<LedgerAccount> {
   return get<LedgerAccount>(`/ledger/accounts/${id}`)
+}
+
+export async function getLedgerEmailAccounts(): Promise<LedgerEmailAccount[]> {
+  return get<LedgerEmailAccount[]>("/ledger/email-accounts")
+}
+
+export async function createLedgerEmailAccount(data: LedgerEmailAccountInput): Promise<LedgerEmailAccount> {
+  return post<LedgerEmailAccount>("/ledger/email-accounts", data)
+}
+
+export async function updateLedgerEmailAccount(id: string, data: LedgerEmailAccountInput): Promise<LedgerEmailAccount> {
+  return put<LedgerEmailAccount>(`/ledger/email-accounts/${id}`, data)
+}
+
+export async function deleteLedgerEmailAccount(id: string): Promise<void> {
+  return del(`/ledger/email-accounts/${id}`)
+}
+
+export async function getLedgerEmailOrders(emailAccountId?: string, status?: string): Promise<LedgerEmailOrder[]> {
+  const params = new URLSearchParams()
+  if (emailAccountId) {
+    params.set("emailAccountId", emailAccountId)
+  }
+  if (status) {
+    params.set("status", status)
+  }
+  const query = params.toString()
+  return get<LedgerEmailOrder[]>(`/ledger/email-orders${query ? `?${query}` : ""}`)
+}
+
+export async function getLedgerEmailOrderById(id: string): Promise<LedgerEmailOrder> {
+  return get<LedgerEmailOrder>(`/ledger/email-orders/${id}`)
+}
+
+export async function getLedgerEmailImporters(): Promise<LedgerEmailImporterInfo[]> {
+  return get<LedgerEmailImporterInfo[]>("/ledger/email-importers")
+}
+
+export async function linkLedgerEmailOrder(id: string, data: LedgerEmailOrderLinkInput): Promise<LedgerEmailOrder> {
+  return post<LedgerEmailOrder>(`/ledger/email-orders/${id}/link`, data)
+}
+
+export async function rejectLedgerEmailOrder(id: string): Promise<LedgerEmailOrder> {
+  return post<LedgerEmailOrder>(`/ledger/email-orders/${id}/reject`, {})
+}
+
+export async function scanLedgerEmailAccount(id: string, files: File[]): Promise<LedgerEmailScanResult> {
+  const form = new FormData()
+  for (const file of files) {
+    form.append("files", file)
+  }
+  return postForm<LedgerEmailScanResult>(`/ledger/email-accounts/${id}/scan`, form)
 }
 
 export async function getLedgerImports(): Promise<LedgerImportBatch[]> {

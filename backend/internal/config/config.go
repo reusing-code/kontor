@@ -24,6 +24,8 @@ type Config struct {
 	SMTPUser     string `env:"SMTP_USER"`
 	SMTPPassword string `env:"SMTP_PASSWORD"`
 	SMTPFrom     string `env:"SMTP_FROM"`
+
+	EmailEncryptionKey string `env:"EMAIL_ENCRYPTION_KEY"`
 }
 
 func Load() (Config, error) {

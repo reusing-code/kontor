@@ -380,6 +380,43 @@
       "none": "Uncategorized",
       "keyword": "Keyword match",
       "manual": "Manual"
+    },
+    "email": {
+      "description": "Configure inboxes for uploaded .eml parsing and link parsed orders to ledger transactions.",
+      "accounts": "Email accounts",
+      "orders": "Email orders",
+      "manage": "Manage email accounts",
+      "addAccount": "Add account",
+      "createAccount": "Create email account",
+      "editAccount": "Edit email account",
+      "accountName": "Account label",
+      "imapHost": "IMAP host",
+      "imapPort": "IMAP port",
+      "username": "Username",
+      "password": "Password",
+      "passwordOptional": "Password (leave empty to keep)",
+      "scanSince": "Scan since",
+      "lastScan": "Last scan",
+      "scanUpload": "Upload .eml files",
+      "scanSuccess": "Processed emails and created {{count}} order(s).",
+      "accountCreated": "Email account created.",
+      "accountUpdated": "Email account updated.",
+      "accountDeleted": "Email account deleted.",
+      "noAccounts": "No email accounts configured yet.",
+      "noOrders": "No parsed email orders yet.",
+      "ordersDescription": "Review parsed orders and verify how they were linked to transactions.",
+      "ordersCount_one": "{{count}} parsed order available.",
+      "ordersCount_other": "{{count}} parsed orders available.",
+      "status": {
+        "unmatched": "Unmatched",
+        "matched": "Matched",
+        "rejected": "Rejected"
+      },
+      "reject": "Reject",
+      "orderRejected": "Email order rejected.",
+      "orderLinked": "Email order linked.",
+      "quickLink": "Quick link",
+      "noLinkedOrders": "No linked email orders."
     }
   },
   "common": {
