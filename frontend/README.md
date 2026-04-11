@@ -1,6 +1,6 @@
 # Contracts — Frontend
 
-React SPA for the Contracts application — a multi-module personal finance manager.
+React SPA for the Contracts application — a multi-module personal finance manager covering contracts, purchases, vehicles, and ledger transactions.
 
 ## Tech Stack
 
@@ -44,13 +44,15 @@ Browse available components at [ui.shadcn.com](https://ui.shadcn.com).
 
 ```
 src/
-  routes/        Route definitions (homepage, contracts/*, purchases/*)
+  routes/        Route definitions (homepage, ledger/*, contracts/*, purchases/*, auto/*)
   components/    React components (ui/ for shadcn)
   lib/           Utilities, API client, per-module repositories
-  hooks/         Custom React hooks (categories, contracts, purchases)
+  hooks/         Custom React hooks (ledger, categories, contracts, purchases, vehicles)
   types/         Shared TypeScript types
   config/        Field configurations for forms/tables
   i18n/          Internationalization (en.json, de.json)
 ```
 
 The `@/` import alias maps to `src/`.
+
+Ledger transactions can be reviewed from `/ledger/review`, linked to other modules via references, and explicitly linked/unlinked as internal transfers on the review and detail screens.

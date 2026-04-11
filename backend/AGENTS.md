@@ -38,6 +38,15 @@ Go 1.25+ stdlib `net/http` with method+pattern routing. Single binary that optio
 - Vehicles: `u/{userId}/veh/{vehicleId}`
 - Cost entries: `u/{userId}/cost/{costEntryId}`
 - Vehicle cost index: `u/{userId}/idx/veh_cost/{vehicleId}/{costEntryId}`
+- Ledger accounts: `u/{userId}/led/acc/{accountId}`
+- Ledger account IBAN index: `u/{userId}/idx/led_acc_iban/{iban}`
+- Ledger categories: `u/{userId}/led/cat/{categoryId}`
+- Ledger transactions: `u/{userId}/led/txn/{transactionId}`
+- Ledger account transaction index: `u/{userId}/idx/led_acc_txn/{accountId}/{bookingDate}/{transactionId}`
+- Ledger transaction fingerprint index: `u/{userId}/idx/led_txn_fp/{fingerprint}`
+- Ledger imports: `u/{userId}/led/imp/{batchId}`
+- Ledger import transaction index: `u/{userId}/idx/led_imp_txn/{batchId}/{transactionId}`
+- Ledger file hash index: `u/{userId}/idx/led_file_hash/{sha256}`
 - Schema version: `_meta/schema_version` (current: 2)
 
 **Migrations:** Version-based schema migrations in `internal/store/migration/`. V1 renamed `pricePerMonth` → `price`. V2 moved category keys from `u/{userId}/cat/{id}` to module-scoped `u/{userId}/mod/{module}/cat/{id}`.
@@ -59,7 +68,7 @@ Go 1.25+ stdlib `net/http` with method+pattern routing. Single binary that optio
 - `internal/model/` — Category, Contract, Purchase, Vehicle, and CostEntry types (JSON tags match frontend Zod schemas)
 - `internal/store/` — Store interface + BadgerDB implementation
 - `internal/store/migration/` — Schema migration registry and versioned migrations
-- `internal/handler/` — HTTP handlers (auth, category CRUD, contract CRUD, purchase CRUD, vehicle CRUD, cost entry CRUD, summaries, import)
+- `internal/handler/` — HTTP handlers (auth, category CRUD, contract CRUD, purchase CRUD, vehicle CRUD, cost entry CRUD, ledger accounts/categories/transactions/import, summaries)
 - `internal/middleware/` — Request ID, recovery, metrics, logging, CORS, auth
 - `internal/server/` — Mux setup, middleware wiring, graceful shutdown, SPA serving
 - `internal/reminder/` — Email reminder scheduler for contract renewals
@@ -90,9 +99,26 @@ All endpoints under `/api/v1/`. JSON request/response with camelCase field names
 - `GET /api/v1/vehicles/{id}/costs` — List cost entries for vehicle
 - `POST /api/v1/vehicles/{id}/costs` — Create cost entry for vehicle
 - `GET|PUT|DELETE /api/v1/costs/{id}` — Get/update/delete cost entry
+- `GET /api/v1/ledger/accounts` — List ledger accounts
+- `GET /api/v1/ledger/accounts/{accountId}` — Get ledger account
+- `GET /api/v1/ledger/accounts/{accountId}/transactions` — List ledger account transactions
+- `GET /api/v1/ledger/imports` — List ledger import batches
+- `POST /api/v1/ledger/imports/preview` — Preview ledger import
+- `POST /api/v1/ledger/imports/{previewId}/commit` — Commit ledger import preview
+- `GET|POST /api/v1/ledger/categories` — List/create ledger categories
+- `GET|PUT|DELETE /api/v1/ledger/categories/{id}` — Get/update/delete ledger category
+- `GET /api/v1/ledger/transactions` — Ledger review queue
+- `GET /api/v1/ledger/transactions/{transactionId}` — Get ledger transaction
+- `PUT /api/v1/ledger/transactions/{transactionId}` — Update ledger transaction note, links, and references
+- `GET /api/v1/ledger/transactions/{transactionId}/transfer-candidates` — List internal transfer candidates
+- `POST /api/v1/ledger/transactions/{transactionId}/transfer-link` — Link internal transfer pair
+- `DELETE /api/v1/ledger/transactions/{transactionId}/transfer-link` — Unlink internal transfer pair
+- `POST /api/v1/ledger/transactions/{transactionId}/review` — Review/categorize transaction
 - `GET /api/v1/settings` — Get renewal preferences
 - `PUT /api/v1/settings` — Update renewal preferences
 - `PUT /api/v1/settings/password` — Change password
 - `GET /healthz` — Liveness probe
 - `GET /readyz` — Readiness probe (checks DB)
 - `GET /metrics` — Prometheus metrics
+
+Linked internal transfers are intentionally protected from normal category assignment until the user explicitly unlinks them.

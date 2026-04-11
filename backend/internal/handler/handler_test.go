@@ -548,6 +548,9 @@ func (m *mockStore) ReviewLedgerTransaction(_ context.Context, _ string, id uuid
 			if txn.ID != id {
 				continue
 			}
+			if input.CategoryID != nil && txn.TransferPairTransactionID != nil {
+				return store.LedgerReviewResult{}, store.ErrLedgerTransferLinked
+			}
 			if input.CategoryID != nil {
 				categoryID := *input.CategoryID
 				txn.CategoryID = &categoryID
@@ -1512,6 +1515,29 @@ func TestUpdateLedgerTransactionDetails_InvalidURL(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestReviewLedgerTransaction_LinkedTransferRequiresExplicitUnlink(t *testing.T) {
+	h, ms := newTestHandler()
+	mux := newMux(h)
+
+	accountA := uuid.New()
+	accountB := uuid.New()
+	leftID := uuid.New()
+	rightID := uuid.New()
+	categoryID := uuid.New()
+	ms.ledgerAccounts[accountA] = model.LedgerAccount{ID: accountA, Name: "Checking"}
+	ms.ledgerAccounts[accountB] = model.LedgerAccount{ID: accountB, Name: "Savings"}
+	ms.ledgerCategories[categoryID] = model.LedgerCategory{ID: categoryID, Name: "Household"}
+	ms.ledgerTransactions[accountA] = []model.LedgerTransaction{{ID: leftID, AccountID: accountA, BookingDate: "2026-04-01", AmountMinor: -1000, Currency: "EUR", TransferPairTransactionID: &rightID, SpecialCategory: model.LedgerSpecialCategoryInternalTransfer}}
+	ms.ledgerTransactions[accountB] = []model.LedgerTransaction{{ID: rightID, AccountID: accountB, BookingDate: "2026-04-02", AmountMinor: 1000, Currency: "EUR", TransferPairTransactionID: &leftID, SpecialCategory: model.LedgerSpecialCategoryInternalTransfer}}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/ledger/transactions/"+leftID.String()+"/review", jsonBody(map[string]string{"categoryId": categoryID.String()}))
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusConflict, rec.Body.String())
 	}
 }
 

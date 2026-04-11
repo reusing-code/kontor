@@ -1,6 +1,6 @@
 # Contracts
 
-A self-hosted personal finance manager for tracking contracts, subscriptions, purchases, and vehicle costs. Built with a Go backend and React frontend.
+A self-hosted personal finance manager for tracking contracts, subscriptions, purchases, vehicles, and bank ledger transactions. Built with a Go backend and React frontend.
 
 ## Features
 
@@ -8,6 +8,7 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 - **Contract tracking** — Store contract details including dates, pricing, notice periods, and renewal terms
 - **Purchase tracking** — Track one-time purchases with item details, pricing, dealer info, and document links
 - **Vehicle cost tracking** — Manage vehicles with cost entries (service, fuel, insurance, tax, inspection, tires, mileage, misc) and total cost of ownership projections
+- **Ledger tracking** — Import bank transactions into tracked accounts, review uncategorized items, add notes/links/references, and mark internal transfers between your own accounts
 - **Category organization** — Per-module categories (e.g. insurance/telecom for contracts, PC hardware/tools for purchases)
 - **Homepage overview** — Dashboard at `/` with summary cards and stats across all modules
 - **Renewal monitoring** — Upcoming renewals with color-coded urgency indicators
@@ -68,6 +69,21 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 |--------|------|-------------|
 | POST | `/auth/register` | Register user |
 | POST | `/auth/login` | Login (returns JWT) |
+| GET | `/ledger/accounts` | List tracked ledger accounts |
+| GET | `/ledger/accounts/{id}` | Get ledger account details |
+| GET | `/ledger/accounts/{id}/transactions` | List transactions for an account |
+| GET | `/ledger/transactions` | Review queue for ledger transactions |
+| GET | `/ledger/transactions/{id}` | Get ledger transaction details |
+| PUT | `/ledger/transactions/{id}` | Update note, links, and cross references |
+| GET | `/ledger/transactions/{id}/transfer-candidates` | List matching internal transfer candidates |
+| POST | `/ledger/transactions/{id}/transfer-link` | Link two transactions as an internal transfer |
+| DELETE | `/ledger/transactions/{id}/transfer-link` | Explicitly unlink an internal transfer |
+| POST | `/ledger/transactions/{id}/review` | Confirm or categorize a ledger transaction |
+| GET/POST | `/ledger/categories` | List / create ledger categories |
+| GET/PUT/DELETE | `/ledger/categories/{id}` | Ledger category CRUD |
+| GET | `/ledger/imports` | List ledger import batches |
+| POST | `/ledger/imports/preview` | Preview a ledger import file |
+| POST | `/ledger/imports/{previewId}/commit` | Commit a previewed ledger import |
 | GET/POST | `/modules/{module}/categories` | List / create categories (module: `contracts` or `purchases`) |
 | GET/PUT/DELETE | `/modules/{module}/categories/{id}` | Category CRUD (cascade deletes items) |
 | GET/POST | `/categories/{id}/contracts` | Contracts in category |
@@ -89,6 +105,8 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | GET | `/summary` | Contract dashboard stats |
 
 Health (`/healthz`), readiness (`/readyz`), and Prometheus metrics (`/metrics`) are available at the root.
+
+Internal transfers are protected from accidental category assignment. To recategorize a linked transfer as a normal transaction, unlink it first.
 
 ## AI Disclaimer
 
