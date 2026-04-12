@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"log/slog"
 	"mime"
 	"mime/multipart"
+	"mime/quotedprintable"
 	"net"
 	"net/mail"
 	"regexp"
@@ -21,6 +23,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tobi/contracts/backend/internal/model"
 	"github.com/tobi/contracts/backend/internal/store"
+	"golang.org/x/net/html/charset"
 )
 
 type Importer interface {
@@ -420,10 +423,18 @@ func parseMessage(r io.Reader) (ParsedEmail, error) {
 	if err != nil {
 		return ParsedEmail{}, fmt.Errorf("reading message: %w", err)
 	}
+	subject := strings.TrimSpace(msg.Header.Get("Subject"))
+	if decodedSubject, err := decodeHeader(subject); err == nil && decodedSubject != "" {
+		subject = decodedSubject
+	}
+	from := strings.TrimSpace(msg.Header.Get("From"))
+	if decodedFrom, err := decodeHeader(from); err == nil && decodedFrom != "" {
+		from = decodedFrom
+	}
 	parsed := ParsedEmail{
 		MessageID: strings.TrimSpace(msg.Header.Get("Message-Id")),
-		From:      strings.TrimSpace(msg.Header.Get("From")),
-		Subject:   strings.TrimSpace(msg.Header.Get("Subject")),
+		From:      from,
+		Subject:   subject,
 	}
 	if dateHeader := strings.TrimSpace(msg.Header.Get("Date")); dateHeader != "" {
 		if parsedDate, err := mail.ParseDate(dateHeader); err == nil {
@@ -445,7 +456,7 @@ func parseMessage(r io.Reader) (ParsedEmail, error) {
 			if err != nil {
 				return ParsedEmail{}, fmt.Errorf("reading multipart body: %w", err)
 			}
-			partBytes, err := io.ReadAll(part)
+			partBytes, err := readMessagePart(part)
 			if err != nil {
 				return ParsedEmail{}, fmt.Errorf("reading part body: %w", err)
 			}
@@ -458,14 +469,58 @@ func parseMessage(r io.Reader) (ParsedEmail, error) {
 			}
 		}
 	} else if mediaType == "text/html" {
-		parsed.HTMLBody = string(bodyBytes)
+		decodedBody, err := decodeBody(bodyBytes, msg.Header.Get("Content-Transfer-Encoding"))
+		if err != nil {
+			return ParsedEmail{}, fmt.Errorf("decoding html body: %w", err)
+		}
+		parsed.HTMLBody = string(decodedBody)
 	} else {
-		parsed.TextBody = string(bodyBytes)
+		decodedBody, err := decodeBody(bodyBytes, msg.Header.Get("Content-Transfer-Encoding"))
+		if err != nil {
+			return ParsedEmail{}, fmt.Errorf("decoding text body: %w", err)
+		}
+		parsed.TextBody = string(decodedBody)
 	}
 	if parsed.TextBody == "" && parsed.HTMLBody != "" {
 		parsed.TextBody = stripHTML(parsed.HTMLBody)
 	}
 	return parsed, nil
+}
+
+func readMessagePart(part *multipart.Part) ([]byte, error) {
+	partBytes, err := io.ReadAll(part)
+	if err != nil {
+		return nil, err
+	}
+	return decodeBody(partBytes, part.Header.Get("Content-Transfer-Encoding"))
+}
+
+func decodeBody(body []byte, transferEncoding string) ([]byte, error) {
+	switch strings.ToLower(strings.TrimSpace(transferEncoding)) {
+	case "quoted-printable":
+		reader := quotedprintable.NewReader(bytes.NewReader(body))
+		return io.ReadAll(reader)
+	case "base64":
+		cleaned := bytes.ReplaceAll(body, []byte("\r"), nil)
+		cleaned = bytes.ReplaceAll(cleaned, []byte("\n"), nil)
+		decoded := make([]byte, base64.StdEncoding.DecodedLen(len(cleaned)))
+		n, err := base64.StdEncoding.Decode(decoded, cleaned)
+		if err != nil {
+			return nil, err
+		}
+		return decoded[:n], nil
+	default:
+		return body, nil
+	}
+}
+
+func decodeHeader(value string) (string, error) {
+	decoder := &mime.WordDecoder{CharsetReader: charset.NewReaderLabel}
+	decoded, err := decoder.DecodeHeader(value)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(decoded), nil
 }
 
 func stripHTML(input string) string {
