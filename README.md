@@ -103,6 +103,7 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | GET/PUT/DELETE | `/costs/{id}` | Cost entry CRUD |
 | GET/POST | `/ledger/email-accounts` | List / create ledger email accounts |
 | GET/PUT/DELETE | `/ledger/email-accounts/{emailAccountId}` | Ledger email account CRUD |
+| POST | `/ledger/email-accounts/{emailAccountId}/test` | Test the configured IMAP connection |
 | POST | `/ledger/email-accounts/{emailAccountId}/scan` | Parse uploaded `.eml` files and match resulting orders to ledger transactions |
 | GET | `/ledger/email-orders` | List parsed email orders |
 | GET | `/ledger/email-orders/{emailOrderId}` | Get parsed email order details |

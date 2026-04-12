@@ -23,6 +23,7 @@ import {
   rejectLedgerEmailOrder,
   reviewLedgerTransaction,
   scanLedgerEmailAccount,
+  testLedgerEmailAccount,
   unlinkLedgerTransfer,
   updateLedgerTransactionDetails,
   updateLedgerCategory,
@@ -294,6 +295,12 @@ export function useScanLedgerEmailAccount() {
       qc.invalidateQueries({ queryKey: ["ledger", "transactions"] })
       qc.invalidateQueries({ queryKey: ["ledger", "accounts"] })
     },
+  })
+}
+
+export function useTestLedgerEmailAccount() {
+  return useMutation({
+    mutationFn: (id: string) => testLedgerEmailAccount(id),
   })
 }
 

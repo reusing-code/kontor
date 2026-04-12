@@ -49,6 +49,10 @@ export async function deleteLedgerEmailAccount(id: string): Promise<void> {
   return del(`/ledger/email-accounts/${id}`)
 }
 
+export async function testLedgerEmailAccount(id: string): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>(`/ledger/email-accounts/${id}/test`, {})
+}
+
 export async function getLedgerEmailOrders(emailAccountId?: string, status?: string): Promise<LedgerEmailOrder[]> {
   const params = new URLSearchParams()
   if (emailAccountId) {

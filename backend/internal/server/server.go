@@ -112,6 +112,7 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("GET /api/v1/ledger/email-accounts/{emailAccountId}", h.GetLedgerEmailAccount)
 	apiMux.HandleFunc("PUT /api/v1/ledger/email-accounts/{emailAccountId}", h.UpdateLedgerEmailAccount)
 	apiMux.HandleFunc("DELETE /api/v1/ledger/email-accounts/{emailAccountId}", h.DeleteLedgerEmailAccount)
+	apiMux.HandleFunc("POST /api/v1/ledger/email-accounts/{emailAccountId}/test", h.TestLedgerEmailAccount)
 	apiMux.HandleFunc("POST /api/v1/ledger/email-accounts/{emailAccountId}/scan", h.ScanLedgerEmailAccount)
 	apiMux.HandleFunc("GET /api/v1/ledger/email-orders", h.ListLedgerEmailOrders)
 	apiMux.HandleFunc("GET /api/v1/ledger/email-orders/{emailOrderId}", h.GetLedgerEmailOrder)

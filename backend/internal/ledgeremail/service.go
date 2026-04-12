@@ -225,6 +225,22 @@ func (s *Service) ScanMailbox(ctx context.Context, userID string, account model.
 	return result, nil
 }
 
+func (s *Service) TestConnection(account model.LedgerEmailAccount, password string) error {
+	client, err := newIMAPClient(account.IMAPHost, account.IMAPPort, account.UseTLS)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	if err := client.Login(account.Username, password); err != nil {
+		return err
+	}
+	defer client.Logout()
+	if err := client.SelectInbox(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *Service) processParsedEmail(ctx context.Context, userID string, account model.LedgerEmailAccount, parsed ParsedEmail, sourceLabel string) (model.LedgerEmailScanResult, error) {
 	result := model.LedgerEmailScanResult{Warnings: []string{}, Orders: []model.LedgerEmailOrder{}}
 	importer := s.matchImporter(parsed.From, parsed.Subject)

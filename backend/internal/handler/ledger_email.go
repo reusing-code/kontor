@@ -135,6 +135,33 @@ func (h *Handler) DeleteLedgerEmailAccount(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) TestLedgerEmailAccount(w http.ResponseWriter, r *http.Request) {
+	id, err := parseUUID(r.PathValue("emailAccountId"))
+	if err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "invalid emailAccountId")
+		return
+	}
+	if len(h.emailEncryptionKey) == 0 {
+		h.errorResponse(w, http.StatusInternalServerError, "EMAIL_ENCRYPTION_KEY is not configured")
+		return
+	}
+	account, err := h.store.GetLedgerEmailAccount(r.Context(), middleware.GetUserID(r.Context()), id)
+	if err != nil {
+		h.handleStoreError(w, err)
+		return
+	}
+	password, err := cryptoutil.DecryptString(account.EncryptedPassword, h.emailEncryptionKey)
+	if err != nil {
+		h.errorResponse(w, http.StatusInternalServerError, "could not decrypt stored email password")
+		return
+	}
+	if err := h.ledgerEmail.TestConnection(account, password); err != nil {
+		h.errorResponse(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
 func (h *Handler) ListLedgerEmailImporters(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, h.ledgerEmail.ListImporters())
 }

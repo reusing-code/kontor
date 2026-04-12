@@ -1,8 +1,8 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { Pencil, Play, Plus, Trash2 } from "lucide-react"
-import { useCreateLedgerEmailAccount, useDeleteLedgerEmailAccount, useLedgerEmailAccounts, useScanLedgerEmailAccount, useUpdateLedgerEmailAccount } from "@/hooks/use-ledger"
+import { Pencil, Play, Plus, Trash2, Wifi } from "lucide-react"
+import { useCreateLedgerEmailAccount, useDeleteLedgerEmailAccount, useLedgerEmailAccounts, useScanLedgerEmailAccount, useTestLedgerEmailAccount, useUpdateLedgerEmailAccount } from "@/hooks/use-ledger"
 import type { LedgerEmailAccount } from "@/types/ledger"
 import { LedgerEmailAccountDialog } from "@/components/ledger-email-account-dialog"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,7 @@ export function LedgerEmailAccountsPanel() {
   const updateAccount = useUpdateLedgerEmailAccount()
   const deleteAccount = useDeleteLedgerEmailAccount()
   const scanAccount = useScanLedgerEmailAccount()
+  const testAccount = useTestLedgerEmailAccount()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState<LedgerEmailAccount | null>(null)
 
@@ -42,6 +43,16 @@ export function LedgerEmailAccountsPanel() {
                 <div className="text-xs text-muted-foreground">{t("ledger.email.lastScan")}: {account.lastScanAt ?? "-"}</div>
               </div>
               <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => testAccount.mutate(account.id, {
+                    onSuccess: () => toast.success(t("ledger.email.testSuccess")),
+                    onError: (error) => toast.error(error.message),
+                  })}
+                >
+                  <Wifi className="mr-2 h-4 w-4" />{t("ledger.email.testConnection")}
+                </Button>
                 <Button
                   type="button"
                   variant="outline"

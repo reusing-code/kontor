@@ -121,6 +121,7 @@ All endpoints under `/api/v1/`. JSON request/response with camelCase field names
 - `POST /api/v1/ledger/transactions/{transactionId}/review` — Review/categorize transaction
 - `GET|POST /api/v1/ledger/email-accounts` — List/create ledger email accounts
 - `GET|PUT|DELETE /api/v1/ledger/email-accounts/{emailAccountId}` — Get/update/delete ledger email account
+- `POST /api/v1/ledger/email-accounts/{emailAccountId}/test` — Test the configured IMAP connection using stored credentials
 - `POST /api/v1/ledger/email-accounts/{emailAccountId}/scan` — Scan the configured IMAP inbox for matching email importers and auto-link orders; multipart `.eml` upload is also supported as a fallback
 - `GET /api/v1/ledger/email-orders` — List parsed ledger email orders
 - `GET /api/v1/ledger/email-orders/{emailOrderId}` — Get parsed ledger email order
