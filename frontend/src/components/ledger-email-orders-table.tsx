@@ -1,9 +1,11 @@
+import { useState } from "react"
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useLedgerAccounts, useLedgerTransactions, useLinkLedgerEmailOrder, useRejectLedgerEmailOrder } from "@/hooks/use-ledger"
 import { formatAmountMinor, formatLedgerDate } from "@/lib/ledger-utils"
 import type { LedgerEmailOrder } from "@/types/ledger"
+import { LedgerEmailOrderLinkDialog } from "@/components/ledger-email-order-link-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +15,9 @@ export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] 
   const { data: accounts = [] } = useLedgerAccounts()
   const linkOrder = useLinkLedgerEmailOrder()
   const rejectOrder = useRejectLedgerEmailOrder()
+  const [selectedOrder, setSelectedOrder] = useState<LedgerEmailOrder | null>(null)
+  const selectedAccount = accounts.find((account) => account.id === selectedOrder?.emailAccountId)
+  const { data: selectedAccountTransactions } = useLedgerTransactions(selectedAccount?.id ?? "", 100)
 
   return (
     <Card>
@@ -49,12 +54,31 @@ export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] 
                 {order.matchStatus !== "rejected" ? (
                   <Button type="button" variant="outline" onClick={() => rejectOrder.mutate(order.id, { onSuccess: () => toast.success(t("ledger.email.orderRejected")), onError: (error) => toast.error(error.message) })}>{t("ledger.email.reject")}</Button>
                 ) : null}
+                {order.linkedTransactionIds?.length ? null : <Button type="button" variant="outline" onClick={() => setSelectedOrder(order)}>{t("ledger.email.review")}</Button>}
                 {order.linkedTransactionIds?.length ? null : account ? <QuickLinkButton orderId={order.id} accountId={account.id} onLink={(transactionId) => linkOrder.mutate({ id: order.id, data: { transactionIds: [transactionId] } }, { onSuccess: () => toast.success(t("ledger.email.orderLinked")), onError: (error) => toast.error(error.message) })} /> : null}
               </div>
             </div>
           )
         })}
       </CardContent>
+      <LedgerEmailOrderLinkDialog
+        open={selectedOrder !== null}
+        onOpenChange={(open) => { if (!open) setSelectedOrder(null) }}
+        order={selectedOrder}
+        transactions={selectedAccountTransactions?.items ?? []}
+        onConfirm={(transactionIds) => {
+          if (!selectedOrder) {
+            return
+          }
+          linkOrder.mutate({ id: selectedOrder.id, data: { transactionIds } }, {
+            onSuccess: () => {
+              toast.success(t("ledger.email.orderLinked"))
+              setSelectedOrder(null)
+            },
+            onError: (error) => toast.error(error.message),
+          })
+        }}
+      />
     </Card>
   )
 }

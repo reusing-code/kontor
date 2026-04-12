@@ -416,6 +416,12 @@
         "matched": "Zugeordnet",
         "rejected": "Verworfen"
       },
+      "review": "Zuordnung prüfen",
+      "reviewMatch": "E-Mail-Bestellung prüfen",
+      "reviewMatchDescription": "Wähle die Ledger-Transaktion oder Split-Zahlungs-Kombination aus, die zu dieser geparsten E-Mail-Bestellung gehört.",
+      "noCandidates": "Noch keine passenden Transaktionskandidaten gefunden.",
+      "linkSelected": "Auswahl verknüpfen",
+      "matchScore": "Score {{score}}",
       "reject": "Verwerfen",
       "orderRejected": "E-Mail-Bestellung verworfen.",
       "orderLinked": "E-Mail-Bestellung verknüpft.",

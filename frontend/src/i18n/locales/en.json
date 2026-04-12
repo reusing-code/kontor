@@ -416,6 +416,12 @@
         "matched": "Matched",
         "rejected": "Rejected"
       },
+      "review": "Review match",
+      "reviewMatch": "Review email order match",
+      "reviewMatchDescription": "Pick the ledger transaction or split-payment combination that belongs to this parsed email order.",
+      "noCandidates": "No transaction candidates found yet.",
+      "linkSelected": "Link selected",
+      "matchScore": "Score {{score}}",
       "reject": "Reject",
       "orderRejected": "Email order rejected.",
       "orderLinked": "Email order linked.",
