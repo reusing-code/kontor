@@ -48,6 +48,18 @@ func (s *Server) Run() error {
 		s.logger.Info("SMTP not configured, reminder scheduler disabled")
 	}
 
+	if s.cfg.BackupDir == "" {
+		s.logger.Info("backup scheduler disabled", "reason", "BACKUP_DIR is not set")
+	} else if bs, ok := s.store.(*store.BadgerStore); !ok {
+		s.logger.Info("backup scheduler disabled", "reason", "store does not support backups")
+	} else {
+		bs.StartBackups(shutdownCtx, store.BackupConfig{
+			Dir:      s.cfg.BackupDir,
+			Interval: s.cfg.BackupInterval,
+			Keep:     s.cfg.BackupKeep,
+		})
+	}
+
 	if s.cfg.LedgerEmailScanInterval <= 0 {
 		s.logger.Info("ledger email scan scheduler disabled", "reason", "LEDGER_EMAIL_SCAN_INTERVAL is 0")
 	} else if encryptionKey, err := cryptoutil.NormalizeEncryptionKey(s.cfg.EmailEncryptionKey); err != nil {
@@ -101,6 +113,9 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("GET /api/v1/costs/{id}", h.GetCostEntry)
 	apiMux.HandleFunc("PUT /api/v1/costs/{id}", h.UpdateCostEntry)
 	apiMux.HandleFunc("DELETE /api/v1/costs/{id}", h.DeleteCostEntry)
+
+	// Data export
+	apiMux.HandleFunc("GET /api/v1/export", h.Export)
 
 	// Settings routes
 	apiMux.HandleFunc("GET /api/v1/settings", h.GetSettings)

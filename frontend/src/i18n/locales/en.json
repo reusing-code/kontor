@@ -232,7 +232,12 @@
     "currentPassword": "Current Password",
     "newPassword": "New Password",
     "passwordChanged": "Password changed successfully.",
-    "passwordChangeFailed": "Failed to change password."
+    "passwordChangeFailed": "Failed to change password.",
+    "dataExport": "Data Export",
+    "dataExportDescription": "Download all your data as a JSON file.",
+    "exportButton": "Export data",
+    "exporting": "Exporting…",
+    "exportFailed": "Export failed."
   },
   "import": {
     "button": "Import",
