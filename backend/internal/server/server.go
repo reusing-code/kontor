@@ -14,8 +14,10 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tobi/contracts/backend/internal/config"
+	"github.com/tobi/contracts/backend/internal/cryptoutil"
 	"github.com/tobi/contracts/backend/internal/email"
 	"github.com/tobi/contracts/backend/internal/handler"
+	"github.com/tobi/contracts/backend/internal/ledgeremail"
 	"github.com/tobi/contracts/backend/internal/middleware"
 	"github.com/tobi/contracts/backend/internal/reminder"
 	"github.com/tobi/contracts/backend/internal/store"
@@ -44,6 +46,15 @@ func (s *Server) Run() error {
 		sched.Start(shutdownCtx)
 	} else {
 		s.logger.Info("SMTP not configured, reminder scheduler disabled")
+	}
+
+	if s.cfg.LedgerEmailScanInterval <= 0 {
+		s.logger.Info("ledger email scan scheduler disabled", "reason", "LEDGER_EMAIL_SCAN_INTERVAL is 0")
+	} else if encryptionKey, err := cryptoutil.NormalizeEncryptionKey(s.cfg.EmailEncryptionKey); err != nil {
+		s.logger.Info("ledger email scan scheduler disabled", "reason", err.Error())
+	} else {
+		sched := ledgeremail.NewScheduler(s.store, ledgeremail.NewService(s.store, s.logger), encryptionKey, s.cfg.LedgerEmailScanInterval, s.logger)
+		sched.Start(shutdownCtx)
 	}
 
 	h := handler.New(s.store, s.logger, jwtSecret, emailClient, s.cfg.EmailEncryptionKey)

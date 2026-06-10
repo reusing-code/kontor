@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 )
@@ -26,6 +27,9 @@ type Config struct {
 	SMTPFrom     string `env:"SMTP_FROM"`
 
 	EmailEncryptionKey string `env:"EMAIL_ENCRYPTION_KEY"`
+
+	// Interval between background IMAP scans of ledger email accounts. 0 disables.
+	LedgerEmailScanInterval time.Duration `env:"LEDGER_EMAIL_SCAN_INTERVAL" envDefault:"6h"`
 }
 
 func Load() (Config, error) {

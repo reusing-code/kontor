@@ -535,6 +535,11 @@ func stripHTML(input string) string {
 	return strings.TrimSpace(cleaned)
 }
 
+const (
+	imapDialTimeout = 15 * time.Second
+	imapIOTimeout   = 60 * time.Second
+)
+
 type imapClient struct {
 	conn   net.Conn
 	r      *bufio.Reader
@@ -544,14 +549,15 @@ type imapClient struct {
 
 func newIMAPClient(host string, port int, useTLS bool) (*imapClient, error) {
 	address := net.JoinHostPort(host, strconv.Itoa(port))
+	dialer := &net.Dialer{Timeout: imapDialTimeout}
 	var (
 		conn net.Conn
 		err  error
 	)
 	if useTLS {
-		conn, err = tls.Dial("tcp", address, &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12})
+		conn, err = tls.DialWithDialer(dialer, "tcp", address, &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12})
 	} else {
-		conn, err = net.DialTimeout("tcp", address, 15*time.Second)
+		conn, err = dialer.Dial("tcp", address)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("connecting to imap: %w", err)
@@ -625,10 +631,7 @@ func (c *imapClient) SearchSince(scanSince string) ([]uint32, error) {
 
 func (c *imapClient) FetchMessage(uid uint32) ([]byte, error) {
 	tag := c.nextTag()
-	if _, err := c.w.WriteString(fmt.Sprintf("%s UID FETCH %d (BODY.PEEK[])\r\n", tag, uid)); err != nil {
-		return nil, err
-	}
-	if err := c.w.Flush(); err != nil {
+	if err := c.writeLine(fmt.Sprintf("%s UID FETCH %d (BODY.PEEK[])", tag, uid)); err != nil {
 		return nil, err
 	}
 	var body []byte
@@ -647,6 +650,7 @@ func (c *imapClient) FetchMessage(uid uint32) ([]byte, error) {
 		literalSize, ok := parseIMAPLiteralSize(line)
 		if ok {
 			body = make([]byte, literalSize)
+			c.extendDeadline()
 			if _, err := io.ReadFull(c.r, body); err != nil {
 				return nil, fmt.Errorf("reading message literal: %w", err)
 			}
@@ -660,10 +664,7 @@ func (c *imapClient) FetchMessage(uid uint32) ([]byte, error) {
 
 func (c *imapClient) command(command string) ([]string, error) {
 	tag := c.nextTag()
-	if _, err := c.w.WriteString(fmt.Sprintf("%s %s\r\n", tag, command)); err != nil {
-		return nil, err
-	}
-	if err := c.w.Flush(); err != nil {
+	if err := c.writeLine(fmt.Sprintf("%s %s", tag, command)); err != nil {
 		return nil, err
 	}
 	lines := make([]string, 0)
@@ -681,6 +682,7 @@ func (c *imapClient) command(command string) ([]string, error) {
 			return lines, nil
 		}
 		if literalSize, ok := parseIMAPLiteralSize(line); ok {
+			c.extendDeadline()
 			if _, err := io.CopyN(io.Discard, c.r, int64(literalSize)); err != nil {
 				return nil, err
 			}
@@ -693,7 +695,22 @@ func (c *imapClient) nextTag() string {
 	return fmt.Sprintf("A%04d", c.tagNum)
 }
 
+// extendDeadline bounds the next read/write so a stalled IMAP server
+// cannot block the calling request indefinitely.
+func (c *imapClient) extendDeadline() {
+	_ = c.conn.SetDeadline(time.Now().Add(imapIOTimeout))
+}
+
+func (c *imapClient) writeLine(line string) error {
+	c.extendDeadline()
+	if _, err := c.w.WriteString(line + "\r\n"); err != nil {
+		return err
+	}
+	return c.w.Flush()
+}
+
 func (c *imapClient) readLine() (string, error) {
+	c.extendDeadline()
 	return c.r.ReadString('\n')
 }
 

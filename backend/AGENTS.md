@@ -73,7 +73,7 @@ Go 1.26+ stdlib `net/http` with method+pattern routing. Single binary that optio
 - `internal/store/` — Store interface + BadgerDB implementation
 - `internal/store/migration/` — Schema migration registry and versioned migrations
 - `internal/handler/` — HTTP handlers (auth, category CRUD, contract CRUD, purchase CRUD, vehicle CRUD, cost entry CRUD, ledger accounts/categories/transactions/import, summaries)
-- `internal/ledgeremail/` — Uploaded `.eml` parsing, importer registry, and auto-linking for ledger email orders
+- `internal/ledgeremail/` — IMAP client, uploaded `.eml` parsing, importer registry, auto-linking, and background scan scheduler for ledger email orders (interval via `LEDGER_EMAIL_SCAN_INTERVAL`, default `6h`, `0` disables)
 - `internal/middleware/` — Request ID, recovery, metrics, logging, CORS, auth
 - `internal/server/` — Mux setup, middleware wiring, graceful shutdown, SPA serving
 - `internal/reminder/` — Email reminder scheduler for contract renewals
