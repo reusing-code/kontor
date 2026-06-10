@@ -16,7 +16,7 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 - **Email reminders** — Configurable SMTP-based reminder emails for approaching renewals
 - **Batch import** — Import contracts from JSON via file upload or paste
 - **Multi-user** — JWT authentication with per-user data isolation
-- **Data export & backups** — Download all your data as JSON from the settings page; optional periodic BadgerDB snapshots with retention (`BACKUP_DIR`, `BACKUP_INTERVAL`, `BACKUP_KEEP`)
+- **Data export & backups** — Download all your data as JSON from the settings page and restore it into a fresh account; optional periodic BadgerDB snapshots with retention (`BACKUP_DIR`, `BACKUP_INTERVAL`, `BACKUP_KEEP`)
 - **Observability** — Prometheus metrics, structured logging, health/readiness probes
 
 ## Tech Stack
@@ -112,6 +112,7 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | POST | `/ledger/email-orders/{emailOrderId}/reject` | Reject a parsed email order |
 | GET | `/ledger/email-importers` | List supported email importers |
 | GET | `/export` | Download all user data as JSON |
+| POST | `/restore` | Restore an export into an empty account |
 | GET/PUT | `/settings` | Renewal preferences |
 | PUT | `/settings/password` | Change password |
 | GET | `/summary` | Contract dashboard stats |

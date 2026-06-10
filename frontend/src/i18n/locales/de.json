@@ -237,7 +237,12 @@
     "dataExportDescription": "Lade alle deine Daten als JSON-Datei herunter.",
     "exportButton": "Daten exportieren",
     "exporting": "Exportiere…",
-    "exportFailed": "Export fehlgeschlagen."
+    "exportFailed": "Export fehlgeschlagen.",
+    "restoreButton": "Aus Export wiederherstellen",
+    "restoring": "Stelle wieder her…",
+    "restoreSucceeded": "Daten erfolgreich wiederhergestellt.",
+    "restoreFailed": "Wiederherstellung fehlgeschlagen.",
+    "restoreHint": "Die Wiederherstellung erstellt alle Daten aus einer Export-Datei neu. Sie funktioniert nur mit einem Konto, das noch keine Daten enthält. E-Mail-Konto-Passwörter müssen danach neu eingegeben werden."
   },
   "import": {
     "button": "Importieren",

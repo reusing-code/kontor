@@ -55,7 +55,7 @@ Go 1.26+ stdlib `net/http` with method+pattern routing. Single binary that optio
 
 **Migrations:** Version-based schema migrations in `internal/store/migration/`. V1 renamed `pricePerMonth` → `price`. V2 moved category keys from `u/{userId}/cat/{id}` to module-scoped `u/{userId}/mod/{module}/cat/{id}`.
 
-**Backups:** Optional periodic full BadgerDB snapshots (`internal/store/backup.go`) to `BACKUP_DIR` every `BACKUP_INTERVAL` (default `24h`), keeping the `BACKUP_KEEP` newest files (default 7). Empty `BACKUP_DIR` disables. Restore with `badger.DB.Load`. Per-user JSON export available via `GET /api/v1/export`.
+**Backups:** Optional periodic full BadgerDB snapshots (`internal/store/backup.go`) to `BACKUP_DIR` every `BACKUP_INTERVAL` (default `24h`), keeping the `BACKUP_KEEP` newest files (default 7). Empty `BACKUP_DIR` disables. Restore snapshots with the `badger` CLI (`badger restore`) or `badger.DB.Load`. Per-user JSON export via `GET /api/v1/export`; restore into an empty account via `POST /api/v1/restore`.
 
 **Config:** Environment variables via `caarlos0/env` struct tags. See `.env.example` for all options.
 
@@ -131,6 +131,7 @@ All endpoints under `/api/v1/`. JSON request/response with camelCase field names
 - `POST /api/v1/ledger/email-orders/{emailOrderId}/reject` — Reject parsed email order
 - `GET /api/v1/ledger/email-importers` — List supported email importers
 - `GET /api/v1/export` — Download all user data as JSON
+- `POST /api/v1/restore` — Restore a JSON export into an account without data (preserves IDs; email passwords must be re-entered)
 - `GET /api/v1/settings` — Get renewal preferences
 - `PUT /api/v1/settings` — Update renewal preferences
 - `PUT /api/v1/settings/password` — Change password

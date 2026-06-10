@@ -237,7 +237,12 @@
     "dataExportDescription": "Download all your data as a JSON file.",
     "exportButton": "Export data",
     "exporting": "Exporting…",
-    "exportFailed": "Export failed."
+    "exportFailed": "Export failed.",
+    "restoreButton": "Restore from export",
+    "restoring": "Restoring…",
+    "restoreSucceeded": "Data restored successfully.",
+    "restoreFailed": "Restore failed.",
+    "restoreHint": "Restore recreates all data from an export file. It only works on an account that does not contain any data yet. Email account passwords must be re-entered afterwards."
   },
   "import": {
     "button": "Import",

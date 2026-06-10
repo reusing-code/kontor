@@ -1,11 +1,11 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { createRoute } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { toast } from "sonner"
 import { rootRoute } from "./__root"
 import { useSettings, useUpdateSettings, useChangePassword } from "@/hooks/use-settings"
-import { download } from "@/lib/api"
+import { download, post } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -31,6 +31,8 @@ export function SettingsPage() {
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [exporting, setExporting] = useState(false)
+  const [restoring, setRestoring] = useState(false)
+  const restoreInputRef = useRef<HTMLInputElement>(null)
 
   const displayDays = renewalDays ?? settings?.renewalDays ?? 90
   const displayFrequency = reminderFrequency ?? settings?.reminderFrequency ?? "disabled"
@@ -76,6 +78,25 @@ export function SettingsPage() {
       toast.error(err instanceof Error ? err.message : t("settings.exportFailed"))
     } finally {
       setExporting(false)
+    }
+  }
+
+  async function handleRestoreFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+    setRestoring(true)
+    try {
+      const payload: unknown = JSON.parse(await file.text())
+      const result = await post<{ warnings: string[] }>("/restore", payload)
+      toast.success(t("settings.restoreSucceeded"))
+      for (const warning of result.warnings ?? []) {
+        toast.warning(warning)
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("settings.restoreFailed"))
+    } finally {
+      setRestoring(false)
     }
   }
 
@@ -174,10 +195,27 @@ export function SettingsPage() {
           <CardTitle>{t("settings.dataExport")}</CardTitle>
           <CardDescription>{t("settings.dataExportDescription")}</CardDescription>
         </CardHeader>
-        <CardContent>
-          <Button onClick={handleExport} disabled={exporting} variant="outline">
-            {exporting ? t("settings.exporting") : t("settings.exportButton")}
-          </Button>
+        <CardContent className="space-y-4">
+          <div className="flex gap-3">
+            <Button onClick={handleExport} disabled={exporting} variant="outline">
+              {exporting ? t("settings.exporting") : t("settings.exportButton")}
+            </Button>
+            <Button
+              onClick={() => restoreInputRef.current?.click()}
+              disabled={restoring}
+              variant="outline"
+            >
+              {restoring ? t("settings.restoring") : t("settings.restoreButton")}
+            </Button>
+            <input
+              ref={restoreInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={handleRestoreFile}
+            />
+          </div>
+          <p className="text-sm text-muted-foreground">{t("settings.restoreHint")}</p>
         </CardContent>
       </Card>
     </div>

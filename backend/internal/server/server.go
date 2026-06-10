@@ -114,8 +114,9 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("PUT /api/v1/costs/{id}", h.UpdateCostEntry)
 	apiMux.HandleFunc("DELETE /api/v1/costs/{id}", h.DeleteCostEntry)
 
-	// Data export
+	// Data export / restore
 	apiMux.HandleFunc("GET /api/v1/export", h.Export)
+	apiMux.HandleFunc("POST /api/v1/restore", h.Restore)
 
 	// Settings routes
 	apiMux.HandleFunc("GET /api/v1/settings", h.GetSettings)
