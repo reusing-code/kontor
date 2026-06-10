@@ -8,26 +8,40 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
+	"github.com/tobi/contracts/backend/internal/cryptoutil"
 	"github.com/tobi/contracts/backend/internal/email"
+	"github.com/tobi/contracts/backend/internal/ledgeremail"
 	"github.com/tobi/contracts/backend/internal/ledgerimport"
 	"github.com/tobi/contracts/backend/internal/store"
 )
 
 type Handler struct {
-	store        store.Store
-	logger       *slog.Logger
-	jwtSecret    []byte
-	emailClient  *email.Client
-	ledgerImport *ledgerimport.Service
+	store              store.Store
+	logger             *slog.Logger
+	jwtSecret          []byte
+	emailClient        *email.Client
+	ledgerImport       *ledgerimport.Service
+	ledgerEmail        *ledgeremail.Service
+	emailEncryptionKey []byte
 }
 
-func New(s store.Store, logger *slog.Logger, jwtSecret []byte, emailClient *email.Client) *Handler {
+func New(s store.Store, logger *slog.Logger, jwtSecret []byte, emailClient *email.Client, rawEmailEncryptionKey ...string) *Handler {
+	key := ""
+	if len(rawEmailEncryptionKey) > 0 {
+		key = rawEmailEncryptionKey[0]
+	}
+	emailEncryptionKey, err := cryptoutil.NormalizeEncryptionKey(key)
+	if err != nil {
+		logger.Warn("ledger email encryption key unavailable", "error", err)
+	}
 	return &Handler{
-		store:        s,
-		logger:       logger,
-		jwtSecret:    jwtSecret,
-		emailClient:  emailClient,
-		ledgerImport: ledgerimport.NewService(s, logger),
+		store:              s,
+		logger:             logger,
+		jwtSecret:          jwtSecret,
+		emailClient:        emailClient,
+		ledgerImport:       ledgerimport.NewService(s, logger),
+		ledgerEmail:        ledgeremail.NewService(s, logger),
+		emailEncryptionKey: emailEncryptionKey,
 	}
 }
 
@@ -76,6 +90,10 @@ func (h *Handler) handleStoreError(w http.ResponseWriter, err error) {
 		return
 	}
 	if err != nil && err.Error() == "references contain an invalid type" {
+		h.errorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err != nil && (err.Error() == "scanSince must be in YYYY-MM-DD format" || err.Error() == "transactionIds must contain at least one id") {
 		h.errorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}

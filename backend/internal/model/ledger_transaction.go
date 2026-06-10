@@ -70,6 +70,7 @@ type LedgerTransaction struct {
 	Note                      string                       `json:"note,omitempty"`
 	Links                     []string                     `json:"links,omitempty"`
 	References                []LedgerTransactionReference `json:"references,omitempty"`
+	EmailOrderIDs             []uuid.UUID                  `json:"emailOrderIds,omitempty"`
 	SourceType                string                       `json:"sourceType"`
 	ImportBatchID             uuid.UUID                    `json:"importBatchId"`
 	Fingerprint               string                       `json:"fingerprint"`

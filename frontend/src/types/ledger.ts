@@ -12,6 +12,89 @@ export const ledgerAccountSchema = z.object({
 
 export type LedgerAccount = z.infer<typeof ledgerAccountSchema>
 
+export const ledgerEmailAccountSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  imapHost: z.string().min(1),
+  imapPort: z.number().int(),
+  username: z.string().min(1),
+  useTls: z.boolean(),
+  scanSince: z.string(),
+  lastScanAt: z.string().datetime().optional(),
+  lastScanStatusMessage: z.string().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+})
+
+export type LedgerEmailAccount = z.infer<typeof ledgerEmailAccountSchema>
+
+export const ledgerEmailAccountInputSchema = z.object({
+  name: z.string().min(1),
+  imapHost: z.string().min(1),
+  imapPort: z.number().int().positive().default(993),
+  username: z.string().min(1),
+  password: z.string().min(1).optional(),
+  useTls: z.boolean().default(true),
+  scanSince: z.string().min(1),
+})
+
+export type LedgerEmailAccountInput = z.infer<typeof ledgerEmailAccountInputSchema>
+
+export const ledgerEmailImporterInfoSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().min(1),
+  senders: z.array(z.string()),
+  subjects: z.array(z.string()),
+})
+
+export type LedgerEmailImporterInfo = z.infer<typeof ledgerEmailImporterInfoSchema>
+
+export const ledgerEmailOrderItemSchema = z.object({
+  name: z.string().min(1),
+  quantity: z.number().int(),
+  unitPriceMinor: z.int(),
+  totalPriceMinor: z.int(),
+})
+
+export type LedgerEmailOrderItem = z.infer<typeof ledgerEmailOrderItemSchema>
+
+export const ledgerEmailOrderSchema = z.object({
+  id: z.string().uuid(),
+  emailAccountId: z.string().uuid(),
+  importerId: z.string().min(1),
+  externalOrderId: z.string().optional(),
+  orderDate: z.string(),
+  totalMinor: z.int(),
+  currency: z.string().min(1),
+  items: z.array(ledgerEmailOrderItemSchema).optional(),
+  emailMessageId: z.string().optional(),
+  emailSubject: z.string().optional(),
+  matchStatus: z.enum(["unmatched", "matched", "rejected"]),
+  linkedTransactionIds: z.array(z.string().uuid()).optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+})
+
+export type LedgerEmailOrder = z.infer<typeof ledgerEmailOrderSchema>
+
+export const ledgerEmailOrderLinkInputSchema = z.object({
+  transactionIds: z.array(z.string().uuid()).min(1),
+})
+
+export type LedgerEmailOrderLinkInput = z.infer<typeof ledgerEmailOrderLinkInputSchema>
+
+export const ledgerEmailScanResultSchema = z.object({
+  emailsScanned: z.number().int(),
+  ordersFound: z.number().int(),
+  ordersNew: z.number().int(),
+  ordersLinked: z.number().int(),
+  warnings: z.array(z.string()).optional(),
+  orders: z.array(ledgerEmailOrderSchema).optional(),
+})
+
+export type LedgerEmailScanResult = z.infer<typeof ledgerEmailScanResultSchema>
+
 export const ledgerCategorySchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
@@ -54,6 +137,7 @@ export const ledgerTransactionSchema = z.object({
     type: z.enum(["purchase", "contract", "vehicle"]),
     targetId: z.string().uuid(),
   })).optional(),
+  emailOrderIds: z.array(z.string().uuid()).optional(),
   sourceType: z.string(),
   importBatchId: z.string().uuid(),
   fingerprint: z.string(),

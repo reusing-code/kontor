@@ -1,6 +1,6 @@
 # Contracts
 
-A self-hosted personal finance manager for tracking contracts, subscriptions, purchases, vehicles, and bank ledger transactions. Built with a Go backend and React frontend.
+A self-hosted personal finance manager for tracking contracts, subscriptions, purchases, vehicle costs, and ledger transactions. Built with a Go backend and React frontend.
 
 ## Features
 
@@ -8,7 +8,8 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 - **Contract tracking** — Store contract details including dates, pricing, notice periods, and renewal terms
 - **Purchase tracking** — Track one-time purchases with item details, pricing, dealer info, and document links
 - **Vehicle cost tracking** — Manage vehicles with cost entries (service, fuel, insurance, tax, inspection, tires, mileage, misc) and total cost of ownership projections
-- **Ledger tracking** — Import bank transactions into tracked accounts, review uncategorized items, add notes/links/references, and mark internal transfers between your own accounts
+- **Ledger module** — Import bank CSVs into tracked accounts, review transactions, manage categories, add notes/links/references, mark internal transfers, and enrich transactions with parsed email order data
+- **Email order enrichment** — Configure IMAP email accounts for supported importers like Amazon.de and PayPal.de to scan inbox messages and auto-link parsed orders to ledger transactions; accounts are also scanned automatically in the background (`LEDGER_EMAIL_SCAN_INTERVAL`, default every 6h), and `.eml` upload remains available as a fallback
 - **Category organization** — Per-module categories (e.g. insurance/telecom for contracts, PC hardware/tools for purchases)
 - **Homepage overview** — Dashboard at `/` with summary cards and stats across all modules
 - **Renewal monitoring** — Upcoming renewals with color-coded urgency indicators
@@ -29,7 +30,7 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 
 ### Prerequisites
 
-- [Go 1.25+](https://go.dev/dl/)
+- [Go 1.26+](https://go.dev/dl/)
 - [Bun](https://bun.sh)
 - [Task](https://taskfile.dev) — `go install github.com/go-task/task/v3/cmd/task@latest`
 - [Air](https://github.com/air-verse/air) — `go install github.com/air-verse/air@latest`
@@ -100,6 +101,15 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | GET | `/vehicles/{id}/summary` | Vehicle cost summary + projection |
 | GET/POST | `/vehicles/{id}/costs` | List / create cost entries |
 | GET/PUT/DELETE | `/costs/{id}` | Cost entry CRUD |
+| GET/POST | `/ledger/email-accounts` | List / create ledger email accounts |
+| GET/PUT/DELETE | `/ledger/email-accounts/{emailAccountId}` | Ledger email account CRUD |
+| POST | `/ledger/email-accounts/{emailAccountId}/test` | Test the configured IMAP connection |
+| POST | `/ledger/email-accounts/{emailAccountId}/scan` | Parse uploaded `.eml` files and match resulting orders to ledger transactions |
+| GET | `/ledger/email-orders` | List parsed email orders |
+| GET | `/ledger/email-orders/{emailOrderId}` | Get parsed email order details |
+| POST | `/ledger/email-orders/{emailOrderId}/link` | Manually link an email order to one or more ledger transactions |
+| POST | `/ledger/email-orders/{emailOrderId}/reject` | Reject a parsed email order |
+| GET | `/ledger/email-importers` | List supported email importers |
 | GET/PUT | `/settings` | Renewal preferences |
 | PUT | `/settings/password` | Change password |
 | GET | `/summary` | Contract dashboard stats |

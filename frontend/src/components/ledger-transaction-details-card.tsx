@@ -5,7 +5,7 @@ import { toast } from "sonner"
 import { Copy, ExternalLink, Link2, Save } from "lucide-react"
 import { useCategories } from "@/hooks/use-categories"
 import { useContracts, useCreateContractByCategory } from "@/hooks/use-contracts"
-import { useLedgerCategories, useUpdateLedgerTransactionDetails } from "@/hooks/use-ledger"
+import { useLedgerCategories, useLedgerEmailOrders, useUpdateLedgerTransactionDetails } from "@/hooks/use-ledger"
 import { useCreatePurchaseByCategory, usePurchases } from "@/hooks/use-purchases"
 import { useCreateVehicle, useVehicles } from "@/hooks/use-vehicles"
 import { moduleReferenceToPath } from "@/lib/module-links"
@@ -68,6 +68,7 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
   const { data: purchases = [] } = usePurchases()
   const { data: contracts = [] } = useContracts()
   const { data: vehicles = [] } = useVehicles()
+  const { data: emailOrders = [] } = useLedgerEmailOrders()
   const updateDetails = useUpdateLedgerTransactionDetails()
   const createPurchase = useCreatePurchaseByCategory()
   const createContract = useCreateContractByCategory()
@@ -92,6 +93,7 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
   const contractDetails = useMemo(() => new Map(contracts.map((contract) => [contract.id, [contract.company, contract.startDate].filter(Boolean).join(" • ")])), [contracts])
   const vehicleDetails = useMemo(() => new Map(vehicles.map((vehicle) => [vehicle.id, [vehicle.make, vehicle.model, vehicle.licensePlate].filter(Boolean).join(" • ")])), [vehicles])
   const lookups = { purchaseNames, contractNames, vehicleNames, purchaseDetails, contractDetails, vehicleDetails }
+  const linkedEmailOrders = emailOrders.filter((order) => (transaction.emailOrderIds ?? []).includes(order.id))
 
   const referenceOptions = useMemo(() => {
     switch (referenceType) {
@@ -241,6 +243,25 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
           <CardTitle>{t("ledger.additionalInformation")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <div className="text-sm font-medium">{t("ledger.email.orders")}</div>
+            {linkedEmailOrders.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t("ledger.email.noLinkedOrders")}</p>
+            ) : (
+              linkedEmailOrders.map((order) => (
+                <div key={order.id} className="rounded-md border p-3 text-sm">
+                  <div className="font-medium">{order.externalOrderId || order.emailSubject || order.importerId}</div>
+                  <div className="text-xs text-muted-foreground">{formatLedgerDate(order.orderDate)}</div>
+                  <div className="mt-2 space-y-1 text-muted-foreground">
+                    {(order.items ?? []).map((item, index) => (
+                      <div key={`${order.id}-${index}`}>{item.quantity}x {item.name}</div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
           <div className="space-y-2">
             <div className="text-sm font-medium">{t("ledger.note")}</div>
             <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={5} />

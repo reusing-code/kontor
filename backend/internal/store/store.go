@@ -107,5 +107,19 @@ type Store interface {
 	UpdateLedgerTransactionDetails(ctx context.Context, userID string, id uuid.UUID, input model.LedgerTransactionDetailsInput) (model.LedgerTransaction, error)
 	ReviewLedgerTransaction(ctx context.Context, userID string, id uuid.UUID, input model.LedgerTransactionReviewInput) (LedgerReviewResult, error)
 
+	ListLedgerEmailAccounts(ctx context.Context, userID string) ([]model.LedgerEmailAccount, error)
+	GetLedgerEmailAccount(ctx context.Context, userID string, id uuid.UUID) (model.LedgerEmailAccount, error)
+	CreateLedgerEmailAccount(ctx context.Context, userID string, account model.LedgerEmailAccount) error
+	UpdateLedgerEmailAccount(ctx context.Context, userID string, account model.LedgerEmailAccount) error
+	DeleteLedgerEmailAccount(ctx context.Context, userID string, id uuid.UUID) error
+	ListLedgerEmailOrders(ctx context.Context, userID string) ([]model.LedgerEmailOrder, error)
+	ListLedgerEmailOrdersByAccount(ctx context.Context, userID string, accountID uuid.UUID) ([]model.LedgerEmailOrder, error)
+	ListLedgerEmailOrdersByTransaction(ctx context.Context, userID string, transactionID uuid.UUID) ([]model.LedgerEmailOrder, error)
+	GetLedgerEmailOrder(ctx context.Context, userID string, id uuid.UUID) (model.LedgerEmailOrder, error)
+	GetLedgerEmailOrderByMessageID(ctx context.Context, userID string, messageID string) (model.LedgerEmailOrder, error)
+	CreateLedgerEmailOrder(ctx context.Context, userID string, order model.LedgerEmailOrder) error
+	LinkLedgerEmailOrder(ctx context.Context, userID string, id uuid.UUID, input model.LedgerEmailOrderLinkInput) (model.LedgerEmailOrder, error)
+	RejectLedgerEmailOrder(ctx context.Context, userID string, id uuid.UUID) (model.LedgerEmailOrder, error)
+
 	Close() error
 }

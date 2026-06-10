@@ -8,7 +8,7 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 
 ## Prerequisites
 
-- **Go 1.25+** — https://go.dev/dl/
+- **Go 1.26+** — https://go.dev/dl/
 - **Bun** — JavaScript runtime/package manager: https://bun.sh
 - **Task** — Task runner (taskfile.dev): `go install github.com/go-task/task/v3/cmd/task@latest` or `pacman -S go-task`
 - **Air** — Live reload for Go: `go install github.com/air-verse/air@latest`
@@ -39,7 +39,7 @@ The app is a multi-module personal finance manager. Currently four modules exist
 - **Contracts** — Recurring subscriptions with renewal tracking, notice periods, and email reminders
 - **Purchases** — One-time purchases with item details, dealer info, and document links
 - **Auto** — Vehicle management with cost tracking (service, fuel, insurance, tax, inspection, tires, mileage, misc) and total cost of ownership projections
-- **Ledger** — Bank account and transaction tracking with CSV import, review queue, category matching, cross references, and explicit internal transfer linking between tracked accounts
+- **Ledger** — Bank account and transaction tracking with CSV import, review queue, category matching, cross references, explicit internal transfer linking between tracked accounts, and email-order enrichment from IMAP inbox scans (manual or scheduled in the background) or uploaded `.eml` messages
 
 Each module has its own categories stored under separate DB key prefixes. Categories are module-scoped via the API route (`/api/v1/modules/{module}/categories`), not via a field on the Category model. The Auto module uses its own vehicle/cost key structure instead of categories. The Ledger module has its own account, category, transaction, and import-batch keys.
 
@@ -66,7 +66,11 @@ Each module has its own categories stored under separate DB key prefixes. Catego
 - Ledger imports: `u/{userId}/led/imp/{batchId}`
 - Ledger import transaction index: `u/{userId}/idx/led_imp_txn/{batchId}/{transactionId}`
 - Ledger file hash index: `u/{userId}/idx/led_file_hash/{sha256}`
-- Schema version: `_meta/schema_version` (current: 2)
+- Ledger email accounts: `u/{userId}/led/emailacc/{emailAccountId}`
+- Ledger email orders: `u/{userId}/led/eord/{emailOrderId}`
+- Ledger email account order index: `u/{userId}/idx/led_emailacc_eord/{emailAccountId}/{emailOrderId}`
+- Ledger email message index: `u/{userId}/idx/led_eord_msgid/{messageId}`
+- Schema version: `_meta/schema_version` (current: 4)
 
 ### Frontend routes
 
@@ -75,11 +79,6 @@ Each module has its own categories stored under separate DB key prefixes. Catego
 | `/` | Homepage with overview cards for all modules |
 | `/login` | Login / registration |
 | `/settings` | User settings |
-| `/ledger` | Ledger dashboard with accounts, imports, categories, and review queue |
-| `/ledger/review` | Ledger review queue |
-| `/ledger/categories` | Ledger category management |
-| `/ledger/accounts/$accountId` | Ledger account detail with transactions |
-| `/ledger/transactions/$transactionId` | Ledger transaction detail with notes, references, and transfer linking |
 | `/contracts` | Contracts dashboard |
 | `/contracts/categories/$categoryId` | Contract category detail |
 | `/contracts/upcoming-renewals` | Upcoming renewals |
@@ -87,6 +86,13 @@ Each module has its own categories stored under separate DB key prefixes. Catego
 | `/purchases/categories/$categoryId` | Purchase category detail |
 | `/auto` | Auto / vehicles dashboard |
 | `/auto/vehicles/$vehicleId` | Vehicle detail with cost entries and summary |
+| `/ledger` | Ledger dashboard with accounts, imports, categories, and review queue |
+| `/ledger/accounts/$accountId` | Ledger account detail with transactions |
+| `/ledger/categories` | Ledger category tree manager |
+| `/ledger/review` | Ledger review queue |
+| `/ledger/transactions/$transactionId` | Ledger transaction detail with notes, references, and transfer linking |
+| `/ledger/email-accounts` | Ledger email account management |
+| `/ledger/email-orders` | Parsed email orders and matching status |
 
 Routes use TanStack Router file-based conventions with dots for nesting (e.g. `contracts.index.tsx`, `contracts.categories.$categoryId.tsx`). All routes use `rootRoute` as parent with full paths (flat structure).
 

@@ -8,10 +8,10 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 
 ## Prerequisites
 
-- **Go 1.25+** — https://go.dev/dl/
+- **Go 1.26+** — https://go.dev/dl/
 - **Task** — Task runner (taskfile.dev): `go install github.com/go-task/task/v3/cmd/task@latest` or `pacman -S go-task`
 - **Air** — Live reload for Go: `go install github.com/air-verse/air@latest`
-- **golangci-lint** (optional) — Linter: `go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest` or `pacman -S golangci-lint`
+- **golangci-lint** (optional) — Linter: `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest` or `pacman -S golangci-lint`
 
 ## Commands
 
@@ -22,7 +22,7 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 
 ## Architecture
 
-Go 1.25+ stdlib `net/http` with method+pattern routing. Single binary that optionally serves the frontend SPA.
+Go 1.26+ stdlib `net/http` with method+pattern routing. Single binary that optionally serves the frontend SPA.
 
 **Storage:** BadgerDB (embedded LSM-tree KV store). Data stored as JSON documents with module-scoped key prefixes for multi-user namespacing:
 
@@ -47,7 +47,11 @@ Go 1.25+ stdlib `net/http` with method+pattern routing. Single binary that optio
 - Ledger imports: `u/{userId}/led/imp/{batchId}`
 - Ledger import transaction index: `u/{userId}/idx/led_imp_txn/{batchId}/{transactionId}`
 - Ledger file hash index: `u/{userId}/idx/led_file_hash/{sha256}`
-- Schema version: `_meta/schema_version` (current: 2)
+- Ledger email accounts: `u/{userId}/led/emailacc/{emailAccountId}`
+- Ledger email orders: `u/{userId}/led/eord/{emailOrderId}`
+- Ledger email account order index: `u/{userId}/idx/led_emailacc_eord/{emailAccountId}/{emailOrderId}`
+- Ledger email message index: `u/{userId}/idx/led_eord_msgid/{messageId}`
+- Schema version: `_meta/schema_version` (current: 4)
 
 **Migrations:** Version-based schema migrations in `internal/store/migration/`. V1 renamed `pricePerMonth` → `price`. V2 moved category keys from `u/{userId}/cat/{id}` to module-scoped `u/{userId}/mod/{module}/cat/{id}`.
 
@@ -69,6 +73,7 @@ Go 1.25+ stdlib `net/http` with method+pattern routing. Single binary that optio
 - `internal/store/` — Store interface + BadgerDB implementation
 - `internal/store/migration/` — Schema migration registry and versioned migrations
 - `internal/handler/` — HTTP handlers (auth, category CRUD, contract CRUD, purchase CRUD, vehicle CRUD, cost entry CRUD, ledger accounts/categories/transactions/import, summaries)
+- `internal/ledgeremail/` — IMAP client, uploaded `.eml` parsing, importer registry, auto-linking, and background scan scheduler for ledger email orders (interval via `LEDGER_EMAIL_SCAN_INTERVAL`, default `6h`, `0` disables)
 - `internal/middleware/` — Request ID, recovery, metrics, logging, CORS, auth
 - `internal/server/` — Mux setup, middleware wiring, graceful shutdown, SPA serving
 - `internal/reminder/` — Email reminder scheduler for contract renewals
@@ -114,6 +119,15 @@ All endpoints under `/api/v1/`. JSON request/response with camelCase field names
 - `POST /api/v1/ledger/transactions/{transactionId}/transfer-link` — Link internal transfer pair
 - `DELETE /api/v1/ledger/transactions/{transactionId}/transfer-link` — Unlink internal transfer pair
 - `POST /api/v1/ledger/transactions/{transactionId}/review` — Review/categorize transaction
+- `GET|POST /api/v1/ledger/email-accounts` — List/create ledger email accounts
+- `GET|PUT|DELETE /api/v1/ledger/email-accounts/{emailAccountId}` — Get/update/delete ledger email account
+- `POST /api/v1/ledger/email-accounts/{emailAccountId}/test` — Test the configured IMAP connection using stored credentials
+- `POST /api/v1/ledger/email-accounts/{emailAccountId}/scan` — Scan the configured IMAP inbox for matching email importers and auto-link orders; multipart `.eml` upload is also supported as a fallback
+- `GET /api/v1/ledger/email-orders` — List parsed ledger email orders
+- `GET /api/v1/ledger/email-orders/{emailOrderId}` — Get parsed ledger email order
+- `POST /api/v1/ledger/email-orders/{emailOrderId}/link` — Manually link parsed email order to ledger transactions
+- `POST /api/v1/ledger/email-orders/{emailOrderId}/reject` — Reject parsed email order
+- `GET /api/v1/ledger/email-importers` — List supported email importers
 - `GET /api/v1/settings` — Get renewal preferences
 - `PUT /api/v1/settings` — Update renewal preferences
 - `PUT /api/v1/settings/password` — Change password

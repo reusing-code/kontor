@@ -21,31 +21,35 @@ import (
 
 // mockStore implements store.Store in memory for handler tests.
 type mockStore struct {
-	categories         map[string]map[uuid.UUID]model.Category // keyed by module, then ID
-	contracts          map[uuid.UUID]model.Contract
-	purchases          map[uuid.UUID]model.Purchase
-	vehicles           map[uuid.UUID]model.Vehicle
-	users              map[string]model.User // keyed by email
-	usersById          map[string]model.User // keyed by ID
-	settings           map[string]model.UserSettings
-	ledgerAccounts     map[uuid.UUID]model.LedgerAccount
-	ledgerCategories   map[uuid.UUID]model.LedgerCategory
-	ledgerImports      []model.LedgerImportBatch
-	ledgerTransactions map[uuid.UUID][]model.LedgerTransaction
+	categories          map[string]map[uuid.UUID]model.Category // keyed by module, then ID
+	contracts           map[uuid.UUID]model.Contract
+	purchases           map[uuid.UUID]model.Purchase
+	vehicles            map[uuid.UUID]model.Vehicle
+	users               map[string]model.User // keyed by email
+	usersById           map[string]model.User // keyed by ID
+	settings            map[string]model.UserSettings
+	ledgerAccounts      map[uuid.UUID]model.LedgerAccount
+	ledgerEmailAccounts map[uuid.UUID]model.LedgerEmailAccount
+	ledgerCategories    map[uuid.UUID]model.LedgerCategory
+	ledgerImports       []model.LedgerImportBatch
+	ledgerTransactions  map[uuid.UUID][]model.LedgerTransaction
+	ledgerEmailOrders   map[uuid.UUID]model.LedgerEmailOrder
 }
 
 func newMockStore() *mockStore {
 	return &mockStore{
-		categories:         make(map[string]map[uuid.UUID]model.Category),
-		contracts:          make(map[uuid.UUID]model.Contract),
-		purchases:          make(map[uuid.UUID]model.Purchase),
-		vehicles:           make(map[uuid.UUID]model.Vehicle),
-		users:              make(map[string]model.User),
-		usersById:          make(map[string]model.User),
-		settings:           make(map[string]model.UserSettings),
-		ledgerAccounts:     make(map[uuid.UUID]model.LedgerAccount),
-		ledgerCategories:   make(map[uuid.UUID]model.LedgerCategory),
-		ledgerTransactions: make(map[uuid.UUID][]model.LedgerTransaction),
+		categories:          make(map[string]map[uuid.UUID]model.Category),
+		contracts:           make(map[uuid.UUID]model.Contract),
+		purchases:           make(map[uuid.UUID]model.Purchase),
+		vehicles:            make(map[uuid.UUID]model.Vehicle),
+		users:               make(map[string]model.User),
+		usersById:           make(map[string]model.User),
+		settings:            make(map[string]model.UserSettings),
+		ledgerAccounts:      make(map[uuid.UUID]model.LedgerAccount),
+		ledgerEmailAccounts: make(map[uuid.UUID]model.LedgerEmailAccount),
+		ledgerCategories:    make(map[uuid.UUID]model.LedgerCategory),
+		ledgerTransactions:  make(map[uuid.UUID][]model.LedgerTransaction),
+		ledgerEmailOrders:   make(map[uuid.UUID]model.LedgerEmailOrder),
 	}
 }
 
@@ -568,6 +572,112 @@ func (m *mockStore) ReviewLedgerTransaction(_ context.Context, _ string, id uuid
 		}
 	}
 	return store.LedgerReviewResult{}, store.ErrNotFound
+}
+
+func (m *mockStore) ListLedgerEmailAccounts(_ context.Context, _ string) ([]model.LedgerEmailAccount, error) {
+	out := make([]model.LedgerEmailAccount, 0, len(m.ledgerEmailAccounts))
+	for _, item := range m.ledgerEmailAccounts {
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (m *mockStore) GetLedgerEmailAccount(_ context.Context, _ string, id uuid.UUID) (model.LedgerEmailAccount, error) {
+	item, ok := m.ledgerEmailAccounts[id]
+	if !ok {
+		return model.LedgerEmailAccount{}, store.ErrNotFound
+	}
+	return item, nil
+}
+
+func (m *mockStore) CreateLedgerEmailAccount(_ context.Context, _ string, account model.LedgerEmailAccount) error {
+	m.ledgerEmailAccounts[account.ID] = account
+	return nil
+}
+
+func (m *mockStore) UpdateLedgerEmailAccount(_ context.Context, _ string, account model.LedgerEmailAccount) error {
+	m.ledgerEmailAccounts[account.ID] = account
+	return nil
+}
+
+func (m *mockStore) DeleteLedgerEmailAccount(_ context.Context, _ string, id uuid.UUID) error {
+	delete(m.ledgerEmailAccounts, id)
+	return nil
+}
+
+func (m *mockStore) ListLedgerEmailOrders(_ context.Context, _ string) ([]model.LedgerEmailOrder, error) {
+	out := make([]model.LedgerEmailOrder, 0, len(m.ledgerEmailOrders))
+	for _, item := range m.ledgerEmailOrders {
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (m *mockStore) ListLedgerEmailOrdersByAccount(_ context.Context, _ string, accountID uuid.UUID) ([]model.LedgerEmailOrder, error) {
+	out := make([]model.LedgerEmailOrder, 0)
+	for _, item := range m.ledgerEmailOrders {
+		if item.EmailAccountID == accountID {
+			out = append(out, item)
+		}
+	}
+	return out, nil
+}
+
+func (m *mockStore) ListLedgerEmailOrdersByTransaction(_ context.Context, _ string, transactionID uuid.UUID) ([]model.LedgerEmailOrder, error) {
+	out := make([]model.LedgerEmailOrder, 0)
+	for _, item := range m.ledgerEmailOrders {
+		for _, linkedID := range item.LinkedTransactionIDs {
+			if linkedID == transactionID {
+				out = append(out, item)
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+func (m *mockStore) GetLedgerEmailOrder(_ context.Context, _ string, id uuid.UUID) (model.LedgerEmailOrder, error) {
+	item, ok := m.ledgerEmailOrders[id]
+	if !ok {
+		return model.LedgerEmailOrder{}, store.ErrNotFound
+	}
+	return item, nil
+}
+
+func (m *mockStore) GetLedgerEmailOrderByMessageID(_ context.Context, _ string, messageID string) (model.LedgerEmailOrder, error) {
+	for _, item := range m.ledgerEmailOrders {
+		if item.EmailMessageID == messageID {
+			return item, nil
+		}
+	}
+	return model.LedgerEmailOrder{}, store.ErrNotFound
+}
+
+func (m *mockStore) CreateLedgerEmailOrder(_ context.Context, _ string, order model.LedgerEmailOrder) error {
+	m.ledgerEmailOrders[order.ID] = order
+	return nil
+}
+
+func (m *mockStore) LinkLedgerEmailOrder(_ context.Context, _ string, id uuid.UUID, input model.LedgerEmailOrderLinkInput) (model.LedgerEmailOrder, error) {
+	order, ok := m.ledgerEmailOrders[id]
+	if !ok {
+		return model.LedgerEmailOrder{}, store.ErrNotFound
+	}
+	order.LinkedTransactionIDs = append([]uuid.UUID(nil), input.TransactionIDs...)
+	order.MatchStatus = model.LedgerEmailOrderStatusMatched
+	m.ledgerEmailOrders[id] = order
+	return order, nil
+}
+
+func (m *mockStore) RejectLedgerEmailOrder(_ context.Context, _ string, id uuid.UUID) (model.LedgerEmailOrder, error) {
+	order, ok := m.ledgerEmailOrders[id]
+	if !ok {
+		return model.LedgerEmailOrder{}, store.ErrNotFound
+	}
+	order.MatchStatus = model.LedgerEmailOrderStatusRejected
+	order.LinkedTransactionIDs = nil
+	m.ledgerEmailOrders[id] = order
+	return order, nil
 }
 
 var testJWTSecret = []byte("test-secret-key")
