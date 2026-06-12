@@ -65,7 +65,7 @@ Go 1.26+ stdlib `net/http` with method+pattern routing. Single binary that optio
 
 **Middleware chain (outermost first):** RequestID → Recovery → Metrics → Logging → CORS → handler.
 
-**Auth:** JWT-based authentication. Registration and login seed default categories for both modules. The store interface accepts `userID` as a parameter; handlers extract it from auth context.
+**Auth:** JWT-based authentication. Registration and login seed default categories for both modules. The store interface accepts `userID` as a parameter; handlers extract it from auth context. Passwords must be at least 8 characters (register and change). `/auth/login` and `/auth/register` share a per-IP token-bucket rate limit (`internal/middleware/ratelimit.go`): `AUTH_RATE_LIMIT` requests (default 10) per `AUTH_RATE_WINDOW` (default `1m`), 0 disables; set `TRUST_PROXY=true` behind a reverse proxy so client IPs come from `X-Real-IP`/`X-Forwarded-For`.
 
 ## Key directories
 

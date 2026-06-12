@@ -12,6 +12,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const minPasswordLength = 8
+
 type authRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -30,6 +32,10 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Email == "" || req.Password == "" {
 		h.errorResponse(w, http.StatusBadRequest, "email and password are required")
+		return
+	}
+	if len(req.Password) < minPasswordLength {
+		h.errorResponse(w, http.StatusBadRequest, "password must be at least 8 characters")
 		return
 	}
 

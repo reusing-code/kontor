@@ -72,6 +72,11 @@ function LoginPage() {
     e.preventDefault()
     setError("")
 
+    if (isRegister && password.length < 8) {
+      setError(t("auth.passwordTooShort"))
+      return
+    }
+
     if (isRegister && password !== confirmPassword) {
       setError(t("auth.passwordMismatch"))
       return

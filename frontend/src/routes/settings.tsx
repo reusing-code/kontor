@@ -50,6 +50,10 @@ export function SettingsPage() {
 
   function handleChangePassword(e: React.FormEvent) {
     e.preventDefault()
+    if (newPassword.length < 8) {
+      toast.error(t("auth.passwordTooShort"))
+      return
+    }
     if (newPassword !== confirmPassword) {
       toast.error(t("auth.passwordMismatch"))
       return

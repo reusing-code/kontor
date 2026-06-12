@@ -783,7 +783,7 @@ func TestRegister_SeedsDefaultCategories(t *testing.T) {
 	mux := newAuthMux(h)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/api/v1/auth/register", jsonBody(map[string]string{"email": "seed@test.com", "password": "pass"}))
+	req := httptest.NewRequest("POST", "/api/v1/auth/register", jsonBody(map[string]string{"email": "seed@test.com", "password": "password1"}))
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("register: status = %d, want %d", rec.Code, http.StatusCreated)
@@ -842,7 +842,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 
 	// Register
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/api/v1/auth/register", jsonBody(map[string]string{"email": "a@b.com", "password": "correct"}))
+	req := httptest.NewRequest("POST", "/api/v1/auth/register", jsonBody(map[string]string{"email": "a@b.com", "password": "correct-horse"}))
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("register: status = %d, want %d", rec.Code, http.StatusCreated)
@@ -861,7 +861,7 @@ func TestRegister_DuplicateEmail(t *testing.T) {
 	h, _ := newTestHandler()
 	mux := newAuthMux(h)
 
-	creds := map[string]string{"email": "dup@test.com", "password": "pass"}
+	creds := map[string]string{"email": "dup@test.com", "password": "password1"}
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/api/v1/auth/register", jsonBody(creds))
@@ -875,6 +875,21 @@ func TestRegister_DuplicateEmail(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("duplicate register: status = %d, want %d", rec.Code, http.StatusConflict)
+	}
+}
+
+func TestRegister_ShortPassword(t *testing.T) {
+	h, ms := newTestHandler()
+	mux := newAuthMux(h)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/auth/register", jsonBody(map[string]string{"email": "short@test.com", "password": "1234567"}))
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+	if _, ok := ms.users["short@test.com"]; ok {
+		t.Error("user should not be created with a short password")
 	}
 }
 
@@ -1305,7 +1320,7 @@ func TestChangePassword_Success(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("PUT", "/api/v1/settings/password", jsonBody(map[string]string{
 		"currentPassword": "oldpass",
-		"newPassword":     "newpass",
+		"newPassword":     "newpass123",
 	}))
 	mux.ServeHTTP(rec, req)
 
@@ -1315,7 +1330,7 @@ func TestChangePassword_Success(t *testing.T) {
 
 	// Verify new password works
 	updated := ms.usersById[testUserID]
-	if err := bcrypt.CompareHashAndPassword([]byte(updated.PasswordHash), []byte("newpass")); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(updated.PasswordHash), []byte("newpass123")); err != nil {
 		t.Error("new password should be valid after change")
 	}
 }
@@ -1331,7 +1346,7 @@ func TestChangePassword_WrongCurrent(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("PUT", "/api/v1/settings/password", jsonBody(map[string]string{
 		"currentPassword": "wrong",
-		"newPassword":     "newpass",
+		"newPassword":     "newpass123",
 	}))
 	mux.ServeHTTP(rec, req)
 
@@ -1347,6 +1362,26 @@ func TestChangePassword_MissingFields(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("PUT", "/api/v1/settings/password", jsonBody(map[string]string{
 		"currentPassword": "old",
+	}))
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestChangePassword_ShortNewPassword(t *testing.T) {
+	h, ms := newTestHandler()
+	mux := newMux(h)
+
+	uid, _ := uuid.Parse(testUserID)
+	hash, _ := bcrypt.GenerateFromPassword([]byte("oldpass123"), bcrypt.DefaultCost)
+	ms.usersById[testUserID] = model.User{ID: uid, Email: "test@test.com", PasswordHash: string(hash)}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("PUT", "/api/v1/settings/password", jsonBody(map[string]string{
+		"currentPassword": "oldpass123",
+		"newPassword":     "1234567",
 	}))
 	mux.ServeHTTP(rec, req)
 

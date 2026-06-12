@@ -163,8 +163,12 @@ func (s *Server) Run() error {
 	mux.HandleFunc("GET /healthz", h.Healthz)
 	mux.HandleFunc("GET /readyz", h.Readyz)
 	mux.Handle("GET /metrics", promhttp.Handler())
-	mux.HandleFunc("POST /api/v1/auth/register", h.Register)
-	mux.HandleFunc("POST /api/v1/auth/login", h.Login)
+	authRateLimit := middleware.RateLimitPerIP(s.cfg.AuthRateLimit, s.cfg.AuthRateWindow, s.cfg.TrustProxy)
+	if s.cfg.AuthRateLimit <= 0 {
+		s.logger.Info("auth rate limiting disabled", "reason", "AUTH_RATE_LIMIT is 0")
+	}
+	mux.Handle("POST /api/v1/auth/register", authRateLimit(http.HandlerFunc(h.Register)))
+	mux.Handle("POST /api/v1/auth/login", authRateLimit(http.HandlerFunc(h.Login)))
 	mux.HandleFunc("GET /api/version", version.Handler)
 
 	// Mount protected API routes
