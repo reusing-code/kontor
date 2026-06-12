@@ -85,6 +85,10 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		h.errorResponse(w, http.StatusBadRequest, "currentPassword and newPassword are required")
 		return
 	}
+	if len(req.NewPassword) < minPasswordLength {
+		h.errorResponse(w, http.StatusBadRequest, "password must be at least 8 characters")
+		return
+	}
 
 	userID := middleware.GetUserID(r.Context())
 	user, err := h.store.GetUserByID(r.Context(), userID)

@@ -212,6 +212,7 @@
     "confirmPassword": "Confirm Password",
     "confirmPasswordPlaceholder": "Repeat your password",
     "passwordMismatch": "Passwords do not match",
+    "passwordTooShort": "Password must be at least 8 characters",
     "switchToRegister": "Don't have an account? Sign up",
     "switchToLogin": "Already have an account? Sign in",
     "logout": "Logout"

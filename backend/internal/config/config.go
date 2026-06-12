@@ -35,6 +35,13 @@ type Config struct {
 	BackupDir      string        `env:"BACKUP_DIR"`
 	BackupInterval time.Duration `env:"BACKUP_INTERVAL" envDefault:"24h"`
 	BackupKeep     int           `env:"BACKUP_KEEP"     envDefault:"7"`
+
+	// Per-IP request budget for /auth/login and /auth/register. 0 disables.
+	AuthRateLimit  int           `env:"AUTH_RATE_LIMIT"  envDefault:"10"`
+	AuthRateWindow time.Duration `env:"AUTH_RATE_WINDOW" envDefault:"1m"`
+	// Take client IPs from X-Real-IP / X-Forwarded-For; only enable behind a
+	// reverse proxy that sets these headers, as clients can spoof them otherwise.
+	TrustProxy bool `env:"TRUST_PROXY" envDefault:"false"`
 }
 
 func Load() (Config, error) {
