@@ -101,3 +101,33 @@ export async function postForm<T>(path: string, body: FormData): Promise<T> {
   if (res.status === 204) return undefined as T
   return res.json()
 }
+
+export async function download(path: string, fallbackFilename: string): Promise<void> {
+  const headers: Record<string, string> = {}
+  const token = getToken()
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`
+  }
+
+  const res = await fetch(`${BASE}${path}`, { headers })
+
+  if (res.status === 401) {
+    clearToken()
+    window.location.href = "/login"
+    throw new ApiError(401, "unauthorized")
+  }
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, data.error ?? res.statusText)
+  }
+
+  const disposition = res.headers.get("Content-Disposition") ?? ""
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? fallbackFilename
+  const url = URL.createObjectURL(await res.blob())
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}

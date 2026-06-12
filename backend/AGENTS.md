@@ -55,6 +55,8 @@ Go 1.26+ stdlib `net/http` with method+pattern routing. Single binary that optio
 
 **Migrations:** Version-based schema migrations in `internal/store/migration/`. V1 renamed `pricePerMonth` → `price`. V2 moved category keys from `u/{userId}/cat/{id}` to module-scoped `u/{userId}/mod/{module}/cat/{id}`.
 
+**Backups:** Optional periodic full BadgerDB snapshots (`internal/store/backup.go`) to `BACKUP_DIR` every `BACKUP_INTERVAL` (default `24h`), keeping the `BACKUP_KEEP` newest files (default 7). Empty `BACKUP_DIR` disables. Restore snapshots with the `badger` CLI (`badger restore`) or `badger.DB.Load`. Per-user JSON export via `GET /api/v1/export`; restore into an empty account via `POST /api/v1/restore`.
+
 **Config:** Environment variables via `caarlos0/env` struct tags. See `.env.example` for all options.
 
 **Logging:** `log/slog` — JSON handler in production, text in dev.
@@ -72,7 +74,7 @@ Go 1.26+ stdlib `net/http` with method+pattern routing. Single binary that optio
 - `internal/model/` — Category, Contract, Purchase, Vehicle, and CostEntry types (JSON tags match frontend Zod schemas)
 - `internal/store/` — Store interface + BadgerDB implementation
 - `internal/store/migration/` — Schema migration registry and versioned migrations
-- `internal/handler/` — HTTP handlers (auth, category CRUD, contract CRUD, purchase CRUD, vehicle CRUD, cost entry CRUD, ledger accounts/categories/transactions/import, summaries)
+- `internal/handler/` — HTTP handlers (auth, category CRUD, contract CRUD, purchase CRUD, vehicle CRUD, cost entry CRUD, ledger accounts/categories/transactions/import, summaries, data export)
 - `internal/ledgeremail/` — IMAP client, uploaded `.eml` parsing, importer registry, auto-linking, and background scan scheduler for ledger email orders (interval via `LEDGER_EMAIL_SCAN_INTERVAL`, default `6h`, `0` disables)
 - `internal/middleware/` — Request ID, recovery, metrics, logging, CORS, auth
 - `internal/server/` — Mux setup, middleware wiring, graceful shutdown, SPA serving
@@ -128,6 +130,8 @@ All endpoints under `/api/v1/`. JSON request/response with camelCase field names
 - `POST /api/v1/ledger/email-orders/{emailOrderId}/link` — Manually link parsed email order to ledger transactions
 - `POST /api/v1/ledger/email-orders/{emailOrderId}/reject` — Reject parsed email order
 - `GET /api/v1/ledger/email-importers` — List supported email importers
+- `GET /api/v1/export` — Download all user data as JSON
+- `POST /api/v1/restore` — Restore a JSON export into an account without data (preserves IDs; email passwords must be re-entered)
 - `GET /api/v1/settings` — Get renewal preferences
 - `PUT /api/v1/settings` — Update renewal preferences
 - `PUT /api/v1/settings/password` — Change password

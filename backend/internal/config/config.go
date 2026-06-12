@@ -30,6 +30,11 @@ type Config struct {
 
 	// Interval between background IMAP scans of ledger email accounts. 0 disables.
 	LedgerEmailScanInterval time.Duration `env:"LEDGER_EMAIL_SCAN_INTERVAL" envDefault:"6h"`
+
+	// Periodic Badger snapshots are written here; empty disables backups.
+	BackupDir      string        `env:"BACKUP_DIR"`
+	BackupInterval time.Duration `env:"BACKUP_INTERVAL" envDefault:"24h"`
+	BackupKeep     int           `env:"BACKUP_KEEP"     envDefault:"7"`
 }
 
 func Load() (Config, error) {
