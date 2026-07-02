@@ -4,7 +4,7 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 
 ## Features
 
-- **Modular design** — Separate modules for contracts, purchases, and auto/vehicles, each with independent dashboards
+- **Modular design** — First-class modules (contracts, purchases, auto, ledger) with independent dashboards; enable or disable modules per account (data is kept while disabled)
 - **Contract tracking** — Store contract details including dates, pricing, notice periods, and renewal terms
 - **Purchase tracking** — Track one-time purchases with item details, pricing, dealer info, and document links
 - **Vehicle cost tracking** — Manage vehicles with cost entries (service, fuel, insurance, tax, inspection, tires, mileage, misc) and total cost of ownership projections
@@ -16,7 +16,7 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 - **Email reminders** — Configurable SMTP-based reminder emails for approaching renewals
 - **Batch import** — Import contracts from JSON via file upload or paste
 - **Multi-user** — JWT authentication with per-user data isolation
-- **Data export & backups** — Download all your data as JSON from the settings page and restore it into a fresh account; optional periodic BadgerDB snapshots with retention (`BACKUP_DIR`, `BACKUP_INTERVAL`, `BACKUP_KEEP`)
+- **Data export & import** — Download all data or a single module as JSON (versioned envelope) and import it back per module or all at once; optional periodic BadgerDB snapshots with retention (`BACKUP_DIR`, `BACKUP_INTERVAL`, `BACKUP_KEEP`)
 - **Observability** — Prometheus metrics, structured logging, health/readiness probes
 
 ## Tech Stack
@@ -111,15 +111,20 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | POST | `/ledger/email-orders/{emailOrderId}/link` | Manually link an email order to one or more ledger transactions |
 | POST | `/ledger/email-orders/{emailOrderId}/reject` | Reject a parsed email order |
 | GET | `/ledger/email-importers` | List supported email importers |
-| GET | `/export` | Download all user data as JSON |
-| POST | `/restore` | Restore an export into an empty account |
-| GET/PUT | `/settings` | Renewal preferences |
+| GET | `/export` | Download all user data (v2 envelope) |
+| GET | `/modules/{module}/export` | Download a single module's data |
+| POST | `/import` | Import an export into empty, enabled modules |
+| POST | `/modules/{module}/import` | Import a single module's section |
+| GET | `/modules` | List modules and their enabled state |
+| GET/PUT | `/settings` | Settings incl. enabled modules |
 | PUT | `/settings/password` | Change password |
-| GET | `/summary` | Contract dashboard stats |
+| GET | `/contracts/summary` | Contract dashboard stats |
 
 Health (`/healthz`), readiness (`/readyz`), and Prometheus metrics (`/metrics`) are available at the root.
 
 Internal transfers are protected from accidental category assignment. To recategorize a linked transfer as a normal transaction, unlink it first.
+
+Routes of modules a user has disabled return `403` with code `module_disabled`; the data stays in the database and everything returns when the module is re-enabled.
 
 ## AI Disclaimer
 

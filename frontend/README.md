@@ -1,6 +1,6 @@
 # Kontor — Frontend
 
-React SPA for the Kontor application — a multi-module personal finance manager covering contracts, purchases, vehicles, and ledger transactions.
+React SPA for the Kontor application — a multi-module personal finance manager covering contracts, purchases, vehicles, and ledger transactions. Each module lives in `src/modules/{id}/` and is described by a module registry that drives routing, navigation, and the homepage; modules can be enabled/disabled per account in settings.
 
 ## Tech Stack
 
