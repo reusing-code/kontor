@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
-import { useLedgerTransaction } from "@/hooks/use-ledger"
-import { formatAmountMinor, formatLedgerDate } from "@/lib/ledger-utils"
-import { transactionPath } from "@/lib/module-links"
+import { useLedgerTransaction } from "@/modules/ledger/hooks/use-ledger"
+import { formatAmountMinor, formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
+import { transactionPath } from "@/modules/ledger/lib/module-links"
 
 interface LinkedTransactionsListProps {
   transactionIds: string[]
