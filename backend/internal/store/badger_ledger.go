@@ -460,16 +460,6 @@ func normalizePurchase(p model.Purchase) model.Purchase {
 	return p
 }
 
-func normalizeContract(c model.Contract) model.Contract {
-	c.LinkedTransactionIDs = model.NormalizeLinkedTransactionIDs(c.LinkedTransactionIDs)
-	return c
-}
-
-func normalizeVehicle(v model.Vehicle) model.Vehicle {
-	v.LinkedTransactionIDs = model.NormalizeLinkedTransactionIDs(v.LinkedTransactionIDs)
-	return v
-}
-
 func containsUUID(ids []uuid.UUID, target uuid.UUID) bool {
 	for _, id := range ids {
 		if id == target {
@@ -499,25 +489,7 @@ func storePurchase(txn *badger.Txn, userID string, purchase model.Purchase) erro
 	return txn.Set(purKey(userID, purchase.ID), data)
 }
 
-func storeContract(txn *badger.Txn, userID string, contract model.Contract) error {
-	contract = normalizeContract(contract)
-	data, err := json.Marshal(contract)
-	if err != nil {
-		return err
-	}
-	return txn.Set(conKey(userID, contract.ID), data)
-}
-
-func storeVehicle(txn *badger.Txn, userID string, vehicle model.Vehicle) error {
-	vehicle = normalizeVehicle(vehicle)
-	data, err := json.Marshal(vehicle)
-	if err != nil {
-		return err
-	}
-	return txn.Set(vehKey(userID, vehicle.ID), data)
-}
-
-func syncLedgerReferences(txn *badger.Txn, userID string, transactionID uuid.UUID, oldReferences, newReferences []model.LedgerTransactionReference) error {
+func (s *BadgerStore) syncLedgerReferences(txn *badger.Txn, userID string, transactionID uuid.UUID, oldReferences, newReferences []model.LedgerTransactionReference) error {
 	remove := make(map[string]model.LedgerTransactionReference, len(oldReferences))
 	for _, reference := range oldReferences {
 		remove[reference.Type+":"+reference.TargetID.String()] = reference
@@ -535,128 +507,29 @@ func syncLedgerReferences(txn *badger.Txn, userID string, transactionID uuid.UUI
 		}
 	}
 	for _, reference := range remove {
-		switch reference.Type {
-		case model.LedgerReferencePurchase:
-			item, err := txn.Get(purKey(userID, reference.TargetID))
-			if err != nil {
-				if errors.Is(err, badger.ErrKeyNotFound) {
-					continue
-				}
-				return err
-			}
-			var purchase model.Purchase
-			if err := item.Value(func(val []byte) error { return json.Unmarshal(val, &purchase) }); err != nil {
-				return err
-			}
-			purchase = normalizePurchase(purchase)
-			purchase.LinkedTransactionIDs = withoutUUID(purchase.LinkedTransactionIDs, transactionID)
-			if err := storePurchase(txn, userID, purchase); err != nil {
-				return err
-			}
-		case model.LedgerReferenceContract:
-			item, err := txn.Get(conKey(userID, reference.TargetID))
-			if err != nil {
-				if errors.Is(err, badger.ErrKeyNotFound) {
-					continue
-				}
-				return err
-			}
-			var contract model.Contract
-			if err := item.Value(func(val []byte) error { return json.Unmarshal(val, &contract) }); err != nil {
-				return err
-			}
-			contract = normalizeContract(contract)
-			contract.LinkedTransactionIDs = withoutUUID(contract.LinkedTransactionIDs, transactionID)
-			if err := storeContract(txn, userID, contract); err != nil {
-				return err
-			}
-		case model.LedgerReferenceVehicle:
-			item, err := txn.Get(vehKey(userID, reference.TargetID))
-			if err != nil {
-				if errors.Is(err, badger.ErrKeyNotFound) {
-					continue
-				}
-				return err
-			}
-			var vehicle model.Vehicle
-			if err := item.Value(func(val []byte) error { return json.Unmarshal(val, &vehicle) }); err != nil {
-				return err
-			}
-			vehicle = normalizeVehicle(vehicle)
-			vehicle.LinkedTransactionIDs = withoutUUID(vehicle.LinkedTransactionIDs, transactionID)
-			if err := storeVehicle(txn, userID, vehicle); err != nil {
-				return err
-			}
+		target, err := s.links.Target(reference.Type)
+		if err != nil {
+			return err
+		}
+		if err := target.RemoveLink(txn, userID, reference.TargetID, transactionID); err != nil {
+			return err
 		}
 	}
 	for _, reference := range add {
-		switch reference.Type {
-		case model.LedgerReferencePurchase:
-			item, err := txn.Get(purKey(userID, reference.TargetID))
-			if err != nil {
-				if errors.Is(err, badger.ErrKeyNotFound) {
-					return ErrNotFound
-				}
-				return err
-			}
-			var purchase model.Purchase
-			if err := item.Value(func(val []byte) error { return json.Unmarshal(val, &purchase) }); err != nil {
-				return err
-			}
-			purchase = normalizePurchase(purchase)
-			if !containsUUID(purchase.LinkedTransactionIDs, transactionID) {
-				purchase.LinkedTransactionIDs = append(purchase.LinkedTransactionIDs, transactionID)
-			}
-			purchase.LinkedTransactionIDs = model.NormalizeLinkedTransactionIDs(purchase.LinkedTransactionIDs)
-			if err := storePurchase(txn, userID, purchase); err != nil {
-				return err
-			}
-		case model.LedgerReferenceContract:
-			item, err := txn.Get(conKey(userID, reference.TargetID))
-			if err != nil {
-				if errors.Is(err, badger.ErrKeyNotFound) {
-					return ErrNotFound
-				}
-				return err
-			}
-			var contract model.Contract
-			if err := item.Value(func(val []byte) error { return json.Unmarshal(val, &contract) }); err != nil {
-				return err
-			}
-			contract = normalizeContract(contract)
-			if !containsUUID(contract.LinkedTransactionIDs, transactionID) {
-				contract.LinkedTransactionIDs = append(contract.LinkedTransactionIDs, transactionID)
-			}
-			contract.LinkedTransactionIDs = model.NormalizeLinkedTransactionIDs(contract.LinkedTransactionIDs)
-			if err := storeContract(txn, userID, contract); err != nil {
-				return err
-			}
-		case model.LedgerReferenceVehicle:
-			item, err := txn.Get(vehKey(userID, reference.TargetID))
-			if err != nil {
-				if errors.Is(err, badger.ErrKeyNotFound) {
-					return ErrNotFound
-				}
-				return err
-			}
-			var vehicle model.Vehicle
-			if err := item.Value(func(val []byte) error { return json.Unmarshal(val, &vehicle) }); err != nil {
-				return err
-			}
-			vehicle = normalizeVehicle(vehicle)
-			if !containsUUID(vehicle.LinkedTransactionIDs, transactionID) {
-				vehicle.LinkedTransactionIDs = append(vehicle.LinkedTransactionIDs, transactionID)
-			}
-			vehicle.LinkedTransactionIDs = model.NormalizeLinkedTransactionIDs(vehicle.LinkedTransactionIDs)
-			if err := storeVehicle(txn, userID, vehicle); err != nil {
-				return err
-			}
+		target, err := s.links.Target(reference.Type)
+		if err != nil {
+			return err
+		}
+		if err := target.AddLink(txn, userID, reference.TargetID, transactionID); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func removeLedgerTransactionLinks(txn *badger.Txn, userID string, transactionIDs []uuid.UUID, referenceType string, targetID uuid.UUID) error {
+// RemoveReferences implements link.TransactionSide: strips references to a
+// deleted item from the given transactions.
+func (s *BadgerStore) RemoveReferences(txn *badger.Txn, userID string, transactionIDs []uuid.UUID, referenceType string, targetID uuid.UUID) error {
 	for _, transactionID := range model.NormalizeLinkedTransactionIDs(transactionIDs) {
 		ledgerTxn, err := loadLedgerTransaction(txn, userID, transactionID)
 		if err != nil {
@@ -675,7 +548,7 @@ func removeLedgerTransactionLinks(txn *badger.Txn, userID string, transactionIDs
 		if len(nextReferences) == len(ledgerTxn.References) {
 			continue
 		}
-		if err := syncLedgerReferences(txn, userID, ledgerTxn.ID, ledgerTxn.References, nextReferences); err != nil {
+		if err := s.syncLedgerReferences(txn, userID, ledgerTxn.ID, ledgerTxn.References, nextReferences); err != nil {
 			return err
 		}
 		ledgerTxn.References = nextReferences
@@ -1239,7 +1112,7 @@ func (s *BadgerStore) UpdateLedgerTransactionDetails(_ context.Context, userID s
 		if err != nil {
 			return err
 		}
-		if err := syncLedgerReferences(txn, userID, ledgerTxn.ID, ledgerTxn.References, input.References); err != nil {
+		if err := s.syncLedgerReferences(txn, userID, ledgerTxn.ID, ledgerTxn.References, input.References); err != nil {
 			return err
 		}
 		ledgerTxn.Note = input.Note
@@ -1642,4 +1515,44 @@ func (s *BadgerStore) RejectLedgerEmailOrder(_ context.Context, userID string, i
 		return nil
 	})
 	return updated, err
+}
+
+// PurchaseLinkTarget implements link.Target for purchases until the
+// purchases module owns its store.
+type PurchaseLinkTarget struct{}
+
+func (PurchaseLinkTarget) AddLink(txn *badger.Txn, userID string, targetID, transactionID uuid.UUID) error {
+	item, err := txn.Get(purKey(userID, targetID))
+	if err != nil {
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+	var purchase model.Purchase
+	if err := item.Value(func(val []byte) error { return json.Unmarshal(val, &purchase) }); err != nil {
+		return err
+	}
+	purchase = normalizePurchase(purchase)
+	if !containsUUID(purchase.LinkedTransactionIDs, transactionID) {
+		purchase.LinkedTransactionIDs = append(purchase.LinkedTransactionIDs, transactionID)
+	}
+	return storePurchase(txn, userID, purchase)
+}
+
+func (PurchaseLinkTarget) RemoveLink(txn *badger.Txn, userID string, targetID, transactionID uuid.UUID) error {
+	item, err := txn.Get(purKey(userID, targetID))
+	if err != nil {
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return nil
+		}
+		return err
+	}
+	var purchase model.Purchase
+	if err := item.Value(func(val []byte) error { return json.Unmarshal(val, &purchase) }); err != nil {
+		return err
+	}
+	purchase = normalizePurchase(purchase)
+	purchase.LinkedTransactionIDs = withoutUUID(purchase.LinkedTransactionIDs, transactionID)
+	return storePurchase(txn, userID, purchase)
 }

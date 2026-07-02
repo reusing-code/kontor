@@ -12,8 +12,10 @@ import (
 	"github.com/dgraph-io/badger/v4"
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/model"
+	"github.com/reusing-code/kontor/backend/internal/modules/auto"
+	"github.com/reusing-code/kontor/backend/internal/modules/contracts"
 	"github.com/reusing-code/kontor/backend/internal/storage"
-	"github.com/reusing-code/kontor/backend/internal/storage/migration"
+	"github.com/reusing-code/kontor/backend/internal/storage/link"
 )
 
 var (
@@ -24,27 +26,29 @@ var (
 type BackupConfig = storage.BackupConfig
 
 type BadgerStore struct {
-	engine *storage.Engine
-	db     *badger.DB
-	logger *slog.Logger
+	engine    *storage.Engine
+	db        *badger.DB
+	logger    *slog.Logger
+	links     *link.Registry
+	contracts *contracts.Store
+	auto      *auto.Store
 }
 
-func NewBadgerStore(path string, logger *slog.Logger) (*BadgerStore, error) {
-	engine, err := storage.Open(path, logger)
-	if err != nil {
-		return nil, err
+// New assembles the transitional store facade over the shared engine and the
+// already-split module stores. It registers itself as the ledger transaction
+// side of the link registry.
+func New(engine *storage.Engine, links *link.Registry, contractsStore *contracts.Store, autoStore *auto.Store, logger *slog.Logger) *BadgerStore {
+	s := &BadgerStore{
+		engine:    engine,
+		db:        engine.DB(),
+		logger:    logger,
+		links:     links,
+		contracts: contractsStore,
+		auto:      autoStore,
 	}
-
-	if err := migration.RunAll(engine.DB(), logger, migration.All); err != nil {
-		engine.Close()
-		return nil, fmt.Errorf("running migrations: %w", err)
-	}
-
-	return &BadgerStore{
-		engine: engine,
-		db:     engine.DB(),
-		logger: logger,
-	}, nil
+	links.SetTransactionSide(s)
+	links.RegisterTarget(link.RefPurchase, PurchaseLinkTarget{})
+	return s
 }
 
 func (s *BadgerStore) Engine() *storage.Engine {
@@ -270,24 +274,6 @@ func modCatPrefix(userID, module string) []byte {
 	return []byte(fmt.Sprintf("u/%s/mod/%s/cat/", userID, module))
 }
 
-// Contract key helpers
-
-func conKey(userID string, id uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/con/%s", userID, id))
-}
-
-func conPrefix(userID string) []byte {
-	return []byte(fmt.Sprintf("u/%s/con/", userID))
-}
-
-func idxCatConKey(userID string, categoryID, contractID uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/cat_con/%s/%s", userID, categoryID, contractID))
-}
-
-func idxCatConPrefix(userID string, categoryID uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/cat_con/%s/", userID, categoryID))
-}
-
 // Purchase key helpers
 // Key format: u/{userID}/pur/{purchaseID}
 // Index: u/{userID}/idx/cat_pur/{categoryID}/{purchaseID}
@@ -396,40 +382,12 @@ func (s *BadgerStore) DeleteCategory(_ context.Context, userID string, module st
 
 		switch module {
 		case "contracts":
-			return ContractCategoryCascade(txn, userID, id)
+			return s.contracts.CategoryCascade(txn, userID, id)
 		case "purchases":
 			return PurchaseCategoryCascade(txn, userID, id)
 		}
 		return nil
 	})
-}
-
-// ContractCategoryCascade deletes all contracts in a category via the
-// contract index, inside the given transaction.
-func ContractCategoryCascade(txn *badger.Txn, userID string, categoryID uuid.UUID) error {
-	prefix := idxCatConPrefix(userID, categoryID)
-	it := txn.NewIterator(badger.DefaultIteratorOptions)
-
-	var contractIDs []uuid.UUID
-	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-		key := it.Item().Key()
-		conID, err := uuid.Parse(string(key[len(prefix):]))
-		if err != nil {
-			continue
-		}
-		contractIDs = append(contractIDs, conID)
-	}
-	it.Close()
-
-	for _, cID := range contractIDs {
-		if err := txn.Delete(conKey(userID, cID)); err != nil {
-			return err
-		}
-		if err := txn.Delete(idxCatConKey(userID, categoryID, cID)); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // PurchaseCategoryCascade deletes all purchases in a category via the
@@ -458,177 +416,6 @@ func PurchaseCategoryCascade(txn *badger.Txn, userID string, categoryID uuid.UUI
 		}
 	}
 	return nil
-}
-
-// Contracts
-
-func (s *BadgerStore) ListContracts(_ context.Context, userID string) ([]model.Contract, error) {
-	var contracts []model.Contract
-	prefix := conPrefix(userID)
-
-	err := s.db.View(func(txn *badger.Txn) error {
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
-		defer it.Close()
-
-		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-			var con model.Contract
-			if err := it.Item().Value(func(val []byte) error {
-				return json.Unmarshal(val, &con)
-			}); err != nil {
-				return err
-			}
-			contracts = append(contracts, con)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	if contracts == nil {
-		contracts = []model.Contract{}
-	}
-	for i := range contracts {
-		contracts[i] = normalizeContract(contracts[i])
-	}
-	return contracts, nil
-}
-
-func (s *BadgerStore) ListContractsByCategory(_ context.Context, userID string, categoryID uuid.UUID) ([]model.Contract, error) {
-	var contracts []model.Contract
-	prefix := idxCatConPrefix(userID, categoryID)
-
-	err := s.db.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchValues = false
-		it := txn.NewIterator(opts)
-		defer it.Close()
-
-		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-			key := it.Item().Key()
-			conIDStr := string(key[len(prefix):])
-			conID, err := uuid.Parse(conIDStr)
-			if err != nil {
-				continue
-			}
-
-			item, err := txn.Get(conKey(userID, conID))
-			if err != nil {
-				if errors.Is(err, badger.ErrKeyNotFound) {
-					continue
-				}
-				return err
-			}
-
-			var con model.Contract
-			if err := item.Value(func(val []byte) error {
-				return json.Unmarshal(val, &con)
-			}); err != nil {
-				return err
-			}
-			contracts = append(contracts, con)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	if contracts == nil {
-		contracts = []model.Contract{}
-	}
-	for i := range contracts {
-		contracts[i] = normalizeContract(contracts[i])
-	}
-	return contracts, nil
-}
-
-func (s *BadgerStore) GetContract(_ context.Context, userID string, id uuid.UUID) (model.Contract, error) {
-	var con model.Contract
-	err := s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(conKey(userID, id))
-		if err != nil {
-			return err
-		}
-		return item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &con)
-		})
-	})
-	if errors.Is(err, badger.ErrKeyNotFound) {
-		return con, ErrNotFound
-	}
-	return normalizeContract(con), err
-}
-
-func (s *BadgerStore) CreateContract(_ context.Context, userID string, c model.Contract) error {
-	c = normalizeContract(c)
-	return s.db.Update(func(txn *badger.Txn) error {
-		if err := storeContract(txn, userID, c); err != nil {
-			return err
-		}
-		return txn.Set(idxCatConKey(userID, c.CategoryID, c.ID), []byte{})
-	})
-}
-
-func (s *BadgerStore) UpdateContract(_ context.Context, userID string, c model.Contract) error {
-	c = normalizeContract(c)
-	return s.db.Update(func(txn *badger.Txn) error {
-		item, err := txn.Get(conKey(userID, c.ID))
-		if err != nil {
-			if errors.Is(err, badger.ErrKeyNotFound) {
-				return ErrNotFound
-			}
-			return err
-		}
-
-		var old model.Contract
-		if err := item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &old)
-		}); err != nil {
-			return err
-		}
-
-		if err := storeContract(txn, userID, c); err != nil {
-			return err
-		}
-
-		if old.CategoryID != c.CategoryID {
-			if err := txn.Delete(idxCatConKey(userID, old.CategoryID, c.ID)); err != nil {
-				return err
-			}
-			if err := txn.Set(idxCatConKey(userID, c.CategoryID, c.ID), []byte{}); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-}
-
-func (s *BadgerStore) DeleteContract(_ context.Context, userID string, id uuid.UUID) error {
-	return s.db.Update(func(txn *badger.Txn) error {
-		item, err := txn.Get(conKey(userID, id))
-		if err != nil {
-			if errors.Is(err, badger.ErrKeyNotFound) {
-				return ErrNotFound
-			}
-			return err
-		}
-
-		var con model.Contract
-		if err := item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &con)
-		}); err != nil {
-			return err
-		}
-		con = normalizeContract(con)
-		if err := removeLedgerTransactionLinks(txn, userID, con.LinkedTransactionIDs, model.LedgerReferenceContract, id); err != nil {
-			return err
-		}
-
-		if err := txn.Delete(conKey(userID, id)); err != nil {
-			return err
-		}
-		return txn.Delete(idxCatConKey(userID, con.CategoryID, id))
-	})
 }
 
 // Purchases
@@ -791,7 +578,7 @@ func (s *BadgerStore) DeletePurchase(_ context.Context, userID string, id uuid.U
 			return err
 		}
 		p = normalizePurchase(p)
-		if err := removeLedgerTransactionLinks(txn, userID, p.LinkedTransactionIDs, model.LedgerReferencePurchase, id); err != nil {
+		if err := s.RemoveReferences(txn, userID, p.LinkedTransactionIDs, model.LedgerReferencePurchase, id); err != nil {
 			return err
 		}
 
@@ -802,292 +589,70 @@ func (s *BadgerStore) DeletePurchase(_ context.Context, userID string, id uuid.U
 	})
 }
 
-// Vehicle key helpers
-// Key format: u/{userID}/veh/{vehicleID}
 
-func vehKey(userID string, id uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/veh/%s", userID, id))
+// Contract and vehicle methods delegate to the module stores until the
+// remaining god-interface users (export/restore) move as well.
+
+func (s *BadgerStore) ListContracts(ctx context.Context, userID string) ([]model.Contract, error) {
+	return s.contracts.List(ctx, userID)
 }
 
-func vehPrefix(userID string) []byte {
-	return []byte(fmt.Sprintf("u/%s/veh/", userID))
+func (s *BadgerStore) ListContractsByCategory(ctx context.Context, userID string, categoryID uuid.UUID) ([]model.Contract, error) {
+	return s.contracts.ListByCategory(ctx, userID, categoryID)
 }
 
-// Cost entry key helpers
-// Key format: u/{userID}/cost/{costEntryID}
-// Index: u/{userID}/idx/veh_cost/{vehicleID}/{costEntryID}
-
-func costKey(userID string, id uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/cost/%s", userID, id))
+func (s *BadgerStore) GetContract(ctx context.Context, userID string, id uuid.UUID) (model.Contract, error) {
+	return s.contracts.Get(ctx, userID, id)
 }
 
-func idxVehCostKey(userID string, vehicleID, costID uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/veh_cost/%s/%s", userID, vehicleID, costID))
+func (s *BadgerStore) CreateContract(ctx context.Context, userID string, c model.Contract) error {
+	return s.contracts.Create(ctx, userID, c)
 }
 
-func idxVehCostPrefix(userID string, vehicleID uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/veh_cost/%s/", userID, vehicleID))
+func (s *BadgerStore) UpdateContract(ctx context.Context, userID string, c model.Contract) error {
+	return s.contracts.Update(ctx, userID, c)
 }
 
-// Vehicles
-
-func (s *BadgerStore) ListVehicles(_ context.Context, userID string) ([]model.Vehicle, error) {
-	var vehicles []model.Vehicle
-	prefix := vehPrefix(userID)
-
-	err := s.db.View(func(txn *badger.Txn) error {
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
-		defer it.Close()
-
-		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-			var v model.Vehicle
-			if err := it.Item().Value(func(val []byte) error {
-				return json.Unmarshal(val, &v)
-			}); err != nil {
-				return err
-			}
-			vehicles = append(vehicles, v)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	if vehicles == nil {
-		vehicles = []model.Vehicle{}
-	}
-	for i := range vehicles {
-		vehicles[i] = normalizeVehicle(vehicles[i])
-	}
-	return vehicles, nil
+func (s *BadgerStore) DeleteContract(ctx context.Context, userID string, id uuid.UUID) error {
+	return s.contracts.Delete(ctx, userID, id)
 }
 
-func (s *BadgerStore) GetVehicle(_ context.Context, userID string, id uuid.UUID) (model.Vehicle, error) {
-	var v model.Vehicle
-	err := s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(vehKey(userID, id))
-		if err != nil {
-			return err
-		}
-		return item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &v)
-		})
-	})
-	if errors.Is(err, badger.ErrKeyNotFound) {
-		return v, ErrNotFound
-	}
-	return normalizeVehicle(v), err
+func (s *BadgerStore) ListVehicles(ctx context.Context, userID string) ([]model.Vehicle, error) {
+	return s.auto.ListVehicles(ctx, userID)
 }
 
-func (s *BadgerStore) CreateVehicle(_ context.Context, userID string, v model.Vehicle) error {
-	v = normalizeVehicle(v)
-	return s.db.Update(func(txn *badger.Txn) error {
-		return storeVehicle(txn, userID, v)
-	})
+func (s *BadgerStore) GetVehicle(ctx context.Context, userID string, id uuid.UUID) (model.Vehicle, error) {
+	return s.auto.GetVehicle(ctx, userID, id)
 }
 
-func (s *BadgerStore) UpdateVehicle(_ context.Context, userID string, v model.Vehicle) error {
-	v = normalizeVehicle(v)
-	return s.db.Update(func(txn *badger.Txn) error {
-		if _, err := txn.Get(vehKey(userID, v.ID)); err != nil {
-			if errors.Is(err, badger.ErrKeyNotFound) {
-				return ErrNotFound
-			}
-			return err
-		}
-		return storeVehicle(txn, userID, v)
-	})
+func (s *BadgerStore) CreateVehicle(ctx context.Context, userID string, v model.Vehicle) error {
+	return s.auto.CreateVehicle(ctx, userID, v)
 }
 
-func (s *BadgerStore) DeleteVehicle(_ context.Context, userID string, id uuid.UUID) error {
-	return s.db.Update(func(txn *badger.Txn) error {
-		item, err := txn.Get(vehKey(userID, id))
-		if err != nil {
-			if errors.Is(err, badger.ErrKeyNotFound) {
-				return ErrNotFound
-			}
-			return err
-		}
-
-		var vehicle model.Vehicle
-		if err := item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &vehicle)
-		}); err != nil {
-			return err
-		}
-		vehicle = normalizeVehicle(vehicle)
-		if err := removeLedgerTransactionLinks(txn, userID, vehicle.LinkedTransactionIDs, model.LedgerReferenceVehicle, id); err != nil {
-			return err
-		}
-
-		if err := txn.Delete(vehKey(userID, id)); err != nil {
-			return err
-		}
-
-		// Cascade delete all cost entries for this vehicle
-		idxPrefix := idxVehCostPrefix(userID, id)
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
-
-		var costIDs []uuid.UUID
-		for it.Seek(idxPrefix); it.ValidForPrefix(idxPrefix); it.Next() {
-			key := it.Item().Key()
-			cIDStr := string(key[len(idxPrefix):])
-			cID, err := uuid.Parse(cIDStr)
-			if err != nil {
-				continue
-			}
-			costIDs = append(costIDs, cID)
-		}
-		it.Close()
-
-		for _, cID := range costIDs {
-			if err := txn.Delete(costKey(userID, cID)); err != nil {
-				return err
-			}
-			if err := txn.Delete(idxVehCostKey(userID, id, cID)); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
+func (s *BadgerStore) UpdateVehicle(ctx context.Context, userID string, v model.Vehicle) error {
+	return s.auto.UpdateVehicle(ctx, userID, v)
 }
 
-// Cost Entries
-
-func (s *BadgerStore) ListCostEntries(_ context.Context, userID string, vehicleID uuid.UUID) ([]model.CostEntry, error) {
-	var entries []model.CostEntry
-	prefix := idxVehCostPrefix(userID, vehicleID)
-
-	err := s.db.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchValues = false
-		it := txn.NewIterator(opts)
-		defer it.Close()
-
-		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-			key := it.Item().Key()
-			cIDStr := string(key[len(prefix):])
-			cID, err := uuid.Parse(cIDStr)
-			if err != nil {
-				continue
-			}
-
-			item, err := txn.Get(costKey(userID, cID))
-			if err != nil {
-				if errors.Is(err, badger.ErrKeyNotFound) {
-					continue
-				}
-				return err
-			}
-
-			var c model.CostEntry
-			if err := item.Value(func(val []byte) error {
-				return json.Unmarshal(val, &c)
-			}); err != nil {
-				return err
-			}
-			entries = append(entries, c)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	if entries == nil {
-		entries = []model.CostEntry{}
-	}
-	return entries, nil
+func (s *BadgerStore) DeleteVehicle(ctx context.Context, userID string, id uuid.UUID) error {
+	return s.auto.DeleteVehicle(ctx, userID, id)
 }
 
-func (s *BadgerStore) GetCostEntry(_ context.Context, userID string, id uuid.UUID) (model.CostEntry, error) {
-	var c model.CostEntry
-	err := s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(costKey(userID, id))
-		if err != nil {
-			return err
-		}
-		return item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &c)
-		})
-	})
-	if errors.Is(err, badger.ErrKeyNotFound) {
-		return c, ErrNotFound
-	}
-	return c, err
+func (s *BadgerStore) ListCostEntries(ctx context.Context, userID string, vehicleID uuid.UUID) ([]model.CostEntry, error) {
+	return s.auto.ListCostEntries(ctx, userID, vehicleID)
 }
 
-func (s *BadgerStore) CreateCostEntry(_ context.Context, userID string, c model.CostEntry) error {
-	data, err := json.Marshal(c)
-	if err != nil {
-		return err
-	}
-	return s.db.Update(func(txn *badger.Txn) error {
-		if err := txn.Set(costKey(userID, c.ID), data); err != nil {
-			return err
-		}
-		return txn.Set(idxVehCostKey(userID, c.VehicleID, c.ID), []byte{})
-	})
+func (s *BadgerStore) GetCostEntry(ctx context.Context, userID string, id uuid.UUID) (model.CostEntry, error) {
+	return s.auto.GetCostEntry(ctx, userID, id)
 }
 
-func (s *BadgerStore) UpdateCostEntry(_ context.Context, userID string, c model.CostEntry) error {
-	data, err := json.Marshal(c)
-	if err != nil {
-		return err
-	}
-	return s.db.Update(func(txn *badger.Txn) error {
-		item, err := txn.Get(costKey(userID, c.ID))
-		if err != nil {
-			if errors.Is(err, badger.ErrKeyNotFound) {
-				return ErrNotFound
-			}
-			return err
-		}
-
-		var old model.CostEntry
-		if err := item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &old)
-		}); err != nil {
-			return err
-		}
-
-		if err := txn.Set(costKey(userID, c.ID), data); err != nil {
-			return err
-		}
-
-		if old.VehicleID != c.VehicleID {
-			if err := txn.Delete(idxVehCostKey(userID, old.VehicleID, c.ID)); err != nil {
-				return err
-			}
-			if err := txn.Set(idxVehCostKey(userID, c.VehicleID, c.ID), []byte{}); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
+func (s *BadgerStore) CreateCostEntry(ctx context.Context, userID string, c model.CostEntry) error {
+	return s.auto.CreateCostEntry(ctx, userID, c)
 }
 
-func (s *BadgerStore) DeleteCostEntry(_ context.Context, userID string, id uuid.UUID) error {
-	return s.db.Update(func(txn *badger.Txn) error {
-		item, err := txn.Get(costKey(userID, id))
-		if err != nil {
-			if errors.Is(err, badger.ErrKeyNotFound) {
-				return ErrNotFound
-			}
-			return err
-		}
+func (s *BadgerStore) UpdateCostEntry(ctx context.Context, userID string, c model.CostEntry) error {
+	return s.auto.UpdateCostEntry(ctx, userID, c)
+}
 
-		var c model.CostEntry
-		if err := item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &c)
-		}); err != nil {
-			return err
-		}
-
-		if err := txn.Delete(costKey(userID, id)); err != nil {
-			return err
-		}
-		return txn.Delete(idxVehCostKey(userID, c.VehicleID, id))
-	})
+func (s *BadgerStore) DeleteCostEntry(ctx context.Context, userID string, id uuid.UUID) error {
+	return s.auto.DeleteCostEntry(ctx, userID, id)
 }

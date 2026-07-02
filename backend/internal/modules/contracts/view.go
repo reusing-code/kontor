@@ -1,4 +1,4 @@
-package handler
+package contracts
 
 import (
 	"net/http"
@@ -6,17 +6,17 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
-	"github.com/reusing-code/kontor/backend/internal/model"
 )
 
 type contractView struct {
-	model.Contract
+	Contract
 	CancellationDate *string `json:"cancellationDate,omitempty"`
 	Expired          bool    `json:"expired"`
 }
 
-func newContractView(c model.Contract) contractView {
+func newContractView(c Contract) contractView {
 	return contractView{
 		Contract:         c,
 		CancellationDate: c.CancellationDate(),
@@ -24,7 +24,7 @@ func newContractView(c model.Contract) contractView {
 	}
 }
 
-func newContractViews(cs []model.Contract) []contractView {
+func newContractViews(cs []Contract) []contractView {
 	out := make([]contractView, len(cs))
 	for i, c := range cs {
 		out[i] = newContractView(c)
@@ -37,7 +37,7 @@ func (h *Handler) UpcomingRenewals(w http.ResponseWriter, r *http.Request) {
 	if v := r.URL.Query().Get("days"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil || n < 1 {
-			h.errorResponse(w, http.StatusBadRequest, "days must be a positive integer")
+			httputil.Error(h.logger, w, http.StatusBadRequest, "days must be a positive integer")
 			return
 		}
 		if n > 365 {
@@ -46,9 +46,9 @@ func (h *Handler) UpcomingRenewals(w http.ResponseWriter, r *http.Request) {
 		days = n
 	}
 
-	contracts, err := h.store.ListContracts(r.Context(), middleware.GetUserID(r.Context()))
+	contracts, err := h.store.List(r.Context(), middleware.GetUserID(r.Context()))
 	if err != nil {
-		h.handleStoreError(w, err)
+		httputil.StoreError(h.logger, w, err)
 		return
 	}
 
@@ -78,5 +78,5 @@ func (h *Handler) UpcomingRenewals(w http.ResponseWriter, r *http.Request) {
 		upcoming = []contractView{}
 	}
 
-	h.writeJSON(w, http.StatusOK, upcoming)
+	httputil.WriteJSON(h.logger, w, http.StatusOK, upcoming)
 }

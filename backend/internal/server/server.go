@@ -21,16 +21,14 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/handler"
 	"github.com/reusing-code/kontor/backend/internal/ledgeremail"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
-	"github.com/reusing-code/kontor/backend/internal/reminder"
+	"github.com/reusing-code/kontor/backend/internal/module"
+	"github.com/reusing-code/kontor/backend/internal/modules/auto"
+	"github.com/reusing-code/kontor/backend/internal/modules/contracts"
+	"github.com/reusing-code/kontor/backend/internal/storage"
+	"github.com/reusing-code/kontor/backend/internal/storage/link"
 	"github.com/reusing-code/kontor/backend/internal/store"
 	"github.com/reusing-code/kontor/backend/internal/version"
 )
-
-var defaultContractCategories = []categories.Default{
-	{Name: "Insurance", NameKey: "categoryNames.insurance"},
-	{Name: "Banking / Portfolios", NameKey: "categoryNames.banking"},
-	{Name: "Telecommunications", NameKey: "categoryNames.telecommunications"},
-}
 
 var defaultPurchaseCategories = []categories.Default{
 	{Name: "PC Hardware", NameKey: "categoryNames.pcHardware"},
@@ -43,11 +41,11 @@ var defaultPurchaseCategories = []categories.Default{
 type Server struct {
 	cfg    config.Config
 	logger *slog.Logger
-	store  store.Store
+	engine *storage.Engine
 }
 
-func New(cfg config.Config, logger *slog.Logger, s store.Store) *Server {
-	return &Server{cfg: cfg, logger: logger, store: s}
+func New(cfg config.Config, logger *slog.Logger, engine *storage.Engine) *Server {
+	return &Server{cfg: cfg, logger: logger, engine: engine}
 }
 
 func (s *Server) Run() error {
@@ -57,19 +55,25 @@ func (s *Server) Run() error {
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 	defer shutdownCancel()
 
-	if emailClient.IsConfigured() {
-		sched := reminder.New(s.store, emailClient, s.logger)
-		sched.Start(shutdownCtx)
-	} else {
-		s.logger.Info("SMTP not configured, reminder scheduler disabled")
-	}
+	engine := s.engine
+
+	links := link.NewRegistry()
+	catStore := categories.NewStore(engine)
+	catStore.RegisterCascade("purchases", store.PurchaseCategoryCascade)
+	catHandler := categories.NewHandler(catStore, s.logger)
+	coreStore := core.NewStore(engine)
+
+	contractsMod := contracts.New(engine, links, catStore, coreStore, emailClient, s.logger)
+	autoMod := auto.New(engine, links, s.logger)
+	registry := module.NewRegistry(contractsMod, autoMod)
+
+	st := store.New(engine, links, contractsMod.Store(), autoMod.Store(), s.logger)
+	h := handler.New(st, s.logger, jwtSecret, emailClient, s.cfg.EmailEncryptionKey)
 
 	if s.cfg.BackupDir == "" {
 		s.logger.Info("backup scheduler disabled", "reason", "BACKUP_DIR is not set")
-	} else if bs, ok := s.store.(*store.BadgerStore); !ok {
-		s.logger.Info("backup scheduler disabled", "reason", "store does not support backups")
 	} else {
-		bs.StartBackups(shutdownCtx, store.BackupConfig{
+		engine.StartBackups(shutdownCtx, storage.BackupConfig{
 			Dir:      s.cfg.BackupDir,
 			Interval: s.cfg.BackupInterval,
 			Keep:     s.cfg.BackupKeep,
@@ -81,28 +85,12 @@ func (s *Server) Run() error {
 	} else if encryptionKey, err := cryptoutil.NormalizeEncryptionKey(s.cfg.EmailEncryptionKey); err != nil {
 		s.logger.Info("ledger email scan scheduler disabled", "reason", err.Error())
 	} else {
-		sched := ledgeremail.NewScheduler(s.store, ledgeremail.NewService(s.store, s.logger), encryptionKey, s.cfg.LedgerEmailScanInterval, s.logger)
+		sched := ledgeremail.NewScheduler(st, ledgeremail.NewService(st, s.logger), encryptionKey, s.cfg.LedgerEmailScanInterval, s.logger)
 		sched.Start(shutdownCtx)
 	}
 
-	h := handler.New(s.store, s.logger, jwtSecret, emailClient, s.cfg.EmailEncryptionKey)
-
-	bs, isBadger := s.store.(*store.BadgerStore)
-	if !isBadger {
-		return fmt.Errorf("server requires a badger-backed store")
-	}
-	engine := bs.Engine()
-
-	catStore := categories.NewStore(engine)
-	catStore.RegisterCascade("contracts", store.ContractCategoryCascade)
-	catStore.RegisterCascade("purchases", store.PurchaseCategoryCascade)
-	catHandler := categories.NewHandler(catStore, s.logger)
-
-	coreStore := core.NewStore(engine)
 	seeds := []core.SeedFunc{
-		func(ctx context.Context, userID string) error {
-			return catStore.SeedDefaults(ctx, userID, "contracts", defaultContractCategories)
-		},
+		contractsMod.Seed,
 		func(ctx context.Context, userID string) error {
 			return catStore.SeedDefaults(ctx, userID, "purchases", defaultPurchaseCategories)
 		},
@@ -113,23 +101,18 @@ func (s *Server) Run() error {
 	// Protected API routes (require auth)
 	apiMux := http.NewServeMux()
 
+	// Module routes (gate is a passthrough until enablement lands)
+	for _, m := range registry.All() {
+		m.RegisterRoutes(module.NewRouter(apiMux, nil))
+		m.StartBackground(shutdownCtx)
+	}
+
 	// Module-scoped category routes
 	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories", catHandler.List)
 	apiMux.HandleFunc("POST /api/v1/modules/{module}/categories", catHandler.Create)
 	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", catHandler.Get)
 	apiMux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", catHandler.Update)
 	apiMux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", catHandler.Delete)
-
-	// Contract routes
-	apiMux.HandleFunc("GET /api/v1/categories/{id}/contracts", h.ListContractsByCategory)
-	apiMux.HandleFunc("POST /api/v1/categories/{id}/contracts", h.CreateContractInCategory)
-	apiMux.HandleFunc("POST /api/v1/contracts/import", h.ImportContracts)
-	apiMux.HandleFunc("GET /api/v1/contracts/upcoming-renewals", h.UpcomingRenewals)
-	apiMux.HandleFunc("GET /api/v1/contracts", h.ListContracts)
-	apiMux.HandleFunc("GET /api/v1/contracts/{id}", h.GetContract)
-	apiMux.HandleFunc("PUT /api/v1/contracts/{id}", h.UpdateContract)
-	apiMux.HandleFunc("DELETE /api/v1/contracts/{id}", h.DeleteContract)
-	apiMux.HandleFunc("GET /api/v1/summary", h.Summary)
 
 	// Purchase routes
 	apiMux.HandleFunc("GET /api/v1/categories/{id}/purchases", h.ListPurchasesByCategory)
@@ -139,19 +122,6 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("GET /api/v1/purchases/{id}", h.GetPurchase)
 	apiMux.HandleFunc("PUT /api/v1/purchases/{id}", h.UpdatePurchase)
 	apiMux.HandleFunc("DELETE /api/v1/purchases/{id}", h.DeletePurchase)
-
-	// Vehicle routes
-	apiMux.HandleFunc("GET /api/v1/vehicles", h.ListVehicles)
-	apiMux.HandleFunc("POST /api/v1/vehicles", h.CreateVehicle)
-	apiMux.HandleFunc("GET /api/v1/vehicles/{id}", h.GetVehicle)
-	apiMux.HandleFunc("PUT /api/v1/vehicles/{id}", h.UpdateVehicle)
-	apiMux.HandleFunc("DELETE /api/v1/vehicles/{id}", h.DeleteVehicle)
-	apiMux.HandleFunc("GET /api/v1/vehicles/{id}/summary", h.VehicleSummary)
-	apiMux.HandleFunc("GET /api/v1/vehicles/{id}/costs", h.ListCostEntries)
-	apiMux.HandleFunc("POST /api/v1/vehicles/{id}/costs", h.CreateCostEntry)
-	apiMux.HandleFunc("GET /api/v1/costs/{id}", h.GetCostEntry)
-	apiMux.HandleFunc("PUT /api/v1/costs/{id}", h.UpdateCostEntry)
-	apiMux.HandleFunc("DELETE /api/v1/costs/{id}", h.DeleteCostEntry)
 
 	// Data export / restore
 	apiMux.HandleFunc("GET /api/v1/export", h.Export)

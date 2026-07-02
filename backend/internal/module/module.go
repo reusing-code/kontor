@@ -1,0 +1,76 @@
+package module
+
+import (
+	"context"
+	"net/http"
+)
+
+// Module is implemented by each feature module (contracts, purchases, auto,
+// ledger). The server wires all registered modules at startup.
+type Module interface {
+	ID() string
+	// RegisterRoutes adds the module's routes; every handler passes through
+	// the Router's gate, so module routes cannot bypass enablement checks.
+	RegisterRoutes(r *Router)
+	// Seed initializes default data for a user. Must be idempotent.
+	Seed(ctx context.Context, userID string) error
+	// StartBackground launches the module's background services, if any.
+	// Each module checks its own configuration and may do nothing.
+	StartBackground(ctx context.Context)
+}
+
+// Base provides no-op defaults for optional Module methods.
+type Base struct{}
+
+func (Base) Seed(context.Context, string) error { return nil }
+
+func (Base) StartBackground(context.Context) {}
+
+// Registry holds the modules wired into this server instance, in
+// registration order.
+type Registry struct {
+	modules []Module
+	byID    map[string]Module
+}
+
+func NewRegistry(modules ...Module) *Registry {
+	r := &Registry{byID: make(map[string]Module, len(modules))}
+	for _, m := range modules {
+		r.modules = append(r.modules, m)
+		r.byID[m.ID()] = m
+	}
+	return r
+}
+
+func (r *Registry) All() []Module { return r.modules }
+
+func (r *Registry) Get(id string) (Module, bool) {
+	m, ok := r.byID[id]
+	return m, ok
+}
+
+func (r *Registry) IDs() []string {
+	ids := make([]string, 0, len(r.modules))
+	for _, m := range r.modules {
+		ids = append(ids, m.ID())
+	}
+	return ids
+}
+
+// Router registers module routes on the shared mux, wrapping every handler
+// with the module's gate middleware.
+type Router struct {
+	mux  *http.ServeMux
+	gate func(http.Handler) http.Handler
+}
+
+func NewRouter(mux *http.ServeMux, gate func(http.Handler) http.Handler) *Router {
+	if gate == nil {
+		gate = func(next http.Handler) http.Handler { return next }
+	}
+	return &Router{mux: mux, gate: gate}
+}
+
+func (r *Router) Handle(pattern string, h http.HandlerFunc) {
+	r.mux.Handle(pattern, r.gate(h))
+}

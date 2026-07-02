@@ -9,6 +9,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/model"
+	"github.com/reusing-code/kontor/backend/internal/modules/auto"
+	"github.com/reusing-code/kontor/backend/internal/modules/contracts"
+	"github.com/reusing-code/kontor/backend/internal/storage"
+	"github.com/reusing-code/kontor/backend/internal/storage/link"
 )
 
 const testUser = "test-user"
@@ -16,12 +20,14 @@ const testModule = "contracts"
 
 func newTestStore(t *testing.T) *BadgerStore {
 	t.Helper()
-	s, err := NewBadgerStore(t.TempDir(), slog.Default())
+	logger := slog.New(slog.DiscardHandler)
+	engine, err := storage.Open(t.TempDir(), logger)
 	if err != nil {
-		t.Fatalf("NewBadgerStore: %v", err)
+		t.Fatalf("opening engine: %v", err)
 	}
-	t.Cleanup(func() { s.Close() })
-	return s
+	t.Cleanup(func() { engine.Close() })
+	links := link.NewRegistry()
+	return New(engine, links, contracts.NewStore(engine, links), auto.NewStore(engine, links), logger)
 }
 
 func makeCategory(name string) model.Category {

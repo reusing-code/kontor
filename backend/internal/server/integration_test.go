@@ -10,9 +10,15 @@ import (
 	"testing"
 
 	"github.com/reusing-code/kontor/backend/internal/categories"
+	"github.com/reusing-code/kontor/backend/internal/core"
 	"github.com/reusing-code/kontor/backend/internal/handler"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 	"github.com/reusing-code/kontor/backend/internal/model"
+	"github.com/reusing-code/kontor/backend/internal/module"
+	"github.com/reusing-code/kontor/backend/internal/modules/auto"
+	"github.com/reusing-code/kontor/backend/internal/modules/contracts"
+	"github.com/reusing-code/kontor/backend/internal/storage"
+	"github.com/reusing-code/kontor/backend/internal/storage/link"
 	"github.com/reusing-code/kontor/backend/internal/store"
 )
 
@@ -22,21 +28,30 @@ const testUserID = "00000000-0000-0000-0000-000000000001"
 
 func setupServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	logger := slog.Default()
-	s, err := store.NewBadgerStore(t.TempDir(), logger)
+	logger := slog.New(slog.DiscardHandler)
+	engine, err := storage.Open(t.TempDir(), logger)
 	if err != nil {
-		t.Fatalf("NewBadgerStore: %v", err)
+		t.Fatalf("opening engine: %v", err)
 	}
-	t.Cleanup(func() { s.Close() })
+	t.Cleanup(func() { engine.Close() })
 
-	h := handler.New(s, logger, testJWTSecret, nil)
-
-	catStore := categories.NewStore(s.Engine())
-	catStore.RegisterCascade("contracts", store.ContractCategoryCascade)
+	links := link.NewRegistry()
+	catStore := categories.NewStore(engine)
 	catStore.RegisterCascade("purchases", store.PurchaseCategoryCascade)
 	catHandler := categories.NewHandler(catStore, logger)
+	coreStore := core.NewStore(engine)
+
+	contractsMod := contracts.New(engine, links, catStore, coreStore, nil, logger)
+	autoMod := auto.New(engine, links, logger)
+
+	s := store.New(engine, links, contractsMod.Store(), autoMod.Store(), logger)
+	h := handler.New(s, logger, testJWTSecret, nil)
 
 	mux := http.NewServeMux()
+
+	for _, m := range []module.Module{contractsMod, autoMod} {
+		m.RegisterRoutes(module.NewRouter(mux, nil))
+	}
 
 	// Module-scoped category routes
 	mux.HandleFunc("GET /api/v1/modules/{module}/categories", catHandler.List)
@@ -44,16 +59,6 @@ func setupServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", catHandler.Get)
 	mux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", catHandler.Update)
 	mux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", catHandler.Delete)
-
-	// Contract routes
-	mux.HandleFunc("GET /api/v1/categories/{id}/contracts", h.ListContractsByCategory)
-	mux.HandleFunc("POST /api/v1/categories/{id}/contracts", h.CreateContractInCategory)
-	mux.HandleFunc("GET /api/v1/contracts/upcoming-renewals", h.UpcomingRenewals)
-	mux.HandleFunc("GET /api/v1/contracts", h.ListContracts)
-	mux.HandleFunc("GET /api/v1/contracts/{id}", h.GetContract)
-	mux.HandleFunc("PUT /api/v1/contracts/{id}", h.UpdateContract)
-	mux.HandleFunc("DELETE /api/v1/contracts/{id}", h.DeleteContract)
-	mux.HandleFunc("GET /api/v1/summary", h.Summary)
 
 	// Purchase routes
 	mux.HandleFunc("GET /api/v1/categories/{id}/purchases", h.ListPurchasesByCategory)

@@ -1,4 +1,4 @@
-package reminder
+package contracts
 
 import (
 	"context"
@@ -9,8 +9,7 @@ import (
 	"time"
 
 	"github.com/reusing-code/kontor/backend/internal/email"
-	"github.com/reusing-code/kontor/backend/internal/model"
-	"github.com/reusing-code/kontor/backend/internal/store"
+	"github.com/reusing-code/kontor/backend/internal/core"
 )
 
 var frequencyDurations = map[string]time.Duration{
@@ -20,18 +19,19 @@ var frequencyDurations = map[string]time.Duration{
 }
 
 type upcomingContract struct {
-	contract         model.Contract
+	contract         Contract
 	cancellationDate string
 }
 
 type Scheduler struct {
-	store  store.Store
-	email  *email.Client
-	logger *slog.Logger
+	core      *core.Store
+	contracts *Store
+	email     *email.Client
+	logger    *slog.Logger
 }
 
-func New(s store.Store, e *email.Client, logger *slog.Logger) *Scheduler {
-	return &Scheduler{store: s, email: e, logger: logger.With("component", "reminder")}
+func NewScheduler(coreStore *core.Store, contracts *Store, e *email.Client, logger *slog.Logger) *Scheduler {
+	return &Scheduler{core: coreStore, contracts: contracts, email: e, logger: logger.With("component", "reminder")}
 }
 
 func (s *Scheduler) Start(ctx context.Context) {
@@ -55,7 +55,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 }
 
 func (s *Scheduler) checkAll(ctx context.Context) {
-	users, err := s.store.ListUsers(ctx)
+	users, err := s.core.ListUsers(ctx)
 	if err != nil {
 		s.logger.Error("listing users for reminders", "error", err)
 		return
@@ -68,8 +68,8 @@ func (s *Scheduler) checkAll(ctx context.Context) {
 	}
 }
 
-func (s *Scheduler) checkUser(ctx context.Context, u model.User) error {
-	settings, err := s.store.GetSettings(ctx, u.ID.String())
+func (s *Scheduler) checkUser(ctx context.Context, u core.User) error {
+	settings, err := s.core.GetSettings(ctx, u.ID.String())
 	if err != nil {
 		return fmt.Errorf("getting settings: %w", err)
 	}
@@ -87,7 +87,7 @@ func (s *Scheduler) checkUser(ctx context.Context, u model.User) error {
 		return nil
 	}
 
-	contracts, err := s.store.ListContracts(ctx, u.ID.String())
+	contracts, err := s.contracts.List(ctx, u.ID.String())
 	if err != nil {
 		return fmt.Errorf("listing contracts: %w", err)
 	}
@@ -125,7 +125,7 @@ func (s *Scheduler) checkUser(ctx context.Context, u model.User) error {
 	}
 
 	settings.LastReminderSent = time.Now().UTC()
-	if err := s.store.UpdateSettings(ctx, u.ID.String(), settings); err != nil {
+	if err := s.core.UpdateSettings(ctx, u.ID.String(), settings); err != nil {
 		return fmt.Errorf("updating last reminder sent: %w", err)
 	}
 

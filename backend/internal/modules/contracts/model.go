@@ -1,4 +1,4 @@
-package model
+package contracts
 
 import (
 	"errors"

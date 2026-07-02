@@ -1,4 +1,4 @@
-package handler
+package contracts
 
 import (
 	"encoding/json"
@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/categories"
+	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
-	"github.com/reusing-code/kontor/backend/internal/model"
 )
 
 type contractImportEntry struct {
 	Category string `json:"category"`
-	model.ContractInput
+	ContractInput
 }
 
 // categoryTranslations maps nameKey to known translations (all lowercase).
@@ -40,36 +41,36 @@ func (h *Handler) ImportContracts(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
-		h.errorResponse(w, http.StatusBadRequest, "invalid multipart form")
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid multipart form")
 		return
 	}
 
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		h.errorResponse(w, http.StatusBadRequest, "missing file field")
+		httputil.Error(h.logger, w, http.StatusBadRequest, "missing file field")
 		return
 	}
 	defer file.Close()
 
 	data, err := io.ReadAll(file)
 	if err != nil {
-		h.errorResponse(w, http.StatusBadRequest, "failed to read file")
+		httputil.Error(h.logger, w, http.StatusBadRequest, "failed to read file")
 		return
 	}
 
 	var entries []contractImportEntry
 	if err := json.Unmarshal(data, &entries); err != nil {
-		h.errorResponse(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
 
-	categories, err := h.store.ListCategories(r.Context(), userID, "contracts")
+	cats, err := h.categories.List(r.Context(), userID, "contracts")
 	if err != nil {
-		h.handleStoreError(w, err)
+		httputil.StoreError(h.logger, w, err)
 		return
 	}
-	catByName := make(map[string]uuid.UUID, len(categories))
-	for _, c := range categories {
+	catByName := make(map[string]uuid.UUID, len(cats))
+	for _, c := range cats {
 		catByName[strings.ToLower(c.Name)] = c.ID
 		if c.NameKey != "" {
 			if suffix, ok := strings.CutPrefix(c.NameKey, "categoryNames."); ok {
@@ -103,13 +104,13 @@ func (h *Handler) ImportContracts(w http.ResponseWriter, r *http.Request) {
 		catID, ok := catByName[strings.ToLower(entry.Category)]
 		if !ok {
 			now := time.Now().UTC()
-			cat := model.Category{
+			cat := categories.Category{
 				ID:        uuid.New(),
 				Name:      entry.Category,
 				CreatedAt: now,
 				UpdatedAt: now,
 			}
-			if err := h.store.CreateCategory(r.Context(), userID, "contracts", cat); err != nil {
+			if err := h.categories.Create(r.Context(), userID, "contracts", cat); err != nil {
 				result.Errors = append(result.Errors, importError{Row: row, Error: fmt.Sprintf("failed to create category: %v", err)})
 				continue
 			}
@@ -120,9 +121,9 @@ func (h *Handler) ImportContracts(w http.ResponseWriter, r *http.Request) {
 		now := time.Now().UTC()
 		bi := entry.BillingInterval
 		if bi == "" {
-			bi = model.BillingMonthly
+			bi = BillingMonthly
 		}
-		con := model.Contract{
+		con := Contract{
 			ID:                      uuid.New(),
 			CategoryID:              catID,
 			Name:                    entry.Name,
@@ -144,12 +145,12 @@ func (h *Handler) ImportContracts(w http.ResponseWriter, r *http.Request) {
 			UpdatedAt:               now,
 		}
 
-		if err := h.store.CreateContract(r.Context(), userID, con); err != nil {
+		if err := h.store.Create(r.Context(), userID, con); err != nil {
 			result.Errors = append(result.Errors, importError{Row: row, Error: fmt.Sprintf("failed to create contract: %v", err)})
 			continue
 		}
 		result.Created++
 	}
 
-	h.writeJSON(w, http.StatusOK, result)
+	httputil.WriteJSON(h.logger, w, http.StatusOK, result)
 }

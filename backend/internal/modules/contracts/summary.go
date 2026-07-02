@@ -1,9 +1,10 @@
-package handler
+package contracts
 
 import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 )
 
@@ -23,15 +24,15 @@ type summaryResponse struct {
 }
 
 func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
-	cats, err := h.store.ListCategories(r.Context(), middleware.GetUserID(r.Context()), "contracts")
+	cats, err := h.categories.List(r.Context(), middleware.GetUserID(r.Context()), "contracts")
 	if err != nil {
-		h.handleStoreError(w, err)
+		httputil.StoreError(h.logger, w, err)
 		return
 	}
 
-	contracts, err := h.store.ListContracts(r.Context(), middleware.GetUserID(r.Context()))
+	contracts, err := h.store.List(r.Context(), middleware.GetUserID(r.Context()))
 	if err != nil {
-		h.handleStoreError(w, err)
+		httputil.StoreError(h.logger, w, err)
 		return
 	}
 
@@ -72,7 +73,7 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	h.writeJSON(w, http.StatusOK, summaryResponse{
+	httputil.WriteJSON(h.logger, w, http.StatusOK, summaryResponse{
 		TotalContracts:     len(contracts),
 		TotalMonthlyAmount: totalMonthly,
 		TotalYearlyAmount:  totalYearly,

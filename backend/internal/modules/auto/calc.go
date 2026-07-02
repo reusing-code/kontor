@@ -1,4 +1,4 @@
-package model
+package auto
 
 import (
 	"math"

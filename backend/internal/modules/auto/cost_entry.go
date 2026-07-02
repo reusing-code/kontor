@@ -1,53 +1,53 @@
-package handler
+package auto
 
 import (
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
-	"github.com/reusing-code/kontor/backend/internal/model"
-)
+	)
 
 func (h *Handler) ListCostEntries(w http.ResponseWriter, r *http.Request) {
-	vehicleID, err := parseUUID(r.PathValue("id"))
+	vehicleID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		h.errorResponse(w, http.StatusBadRequest, "invalid vehicle id")
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid vehicle id")
 		return
 	}
 
 	entries, err := h.store.ListCostEntries(r.Context(), middleware.GetUserID(r.Context()), vehicleID)
 	if err != nil {
-		h.handleStoreError(w, err)
+		httputil.StoreError(h.logger, w, err)
 		return
 	}
-	h.writeJSON(w, http.StatusOK, entries)
+	httputil.WriteJSON(h.logger, w, http.StatusOK, entries)
 }
 
 func (h *Handler) CreateCostEntry(w http.ResponseWriter, r *http.Request) {
-	vehicleID, err := parseUUID(r.PathValue("id"))
+	vehicleID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		h.errorResponse(w, http.StatusBadRequest, "invalid vehicle id")
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid vehicle id")
 		return
 	}
 
 	if _, err := h.store.GetVehicle(r.Context(), middleware.GetUserID(r.Context()), vehicleID); err != nil {
-		h.handleStoreError(w, err)
+		httputil.StoreError(h.logger, w, err)
 		return
 	}
 
-	var input model.CostEntryInput
-	if err := h.readJSON(r, &input); err != nil {
-		h.errorResponse(w, http.StatusBadRequest, "invalid request body")
+	var input CostEntryInput
+	if err := httputil.ReadJSON(r, &input); err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
-		h.errorResponse(w, http.StatusBadRequest, err.Error())
+		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	now := time.Now().UTC()
-	c := model.CostEntry{
+	c := CostEntry{
 		ID:          uuid.New(),
 		VehicleID:   vehicleID,
 		Type:        input.Type,
@@ -62,47 +62,47 @@ func (h *Handler) CreateCostEntry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.CreateCostEntry(r.Context(), middleware.GetUserID(r.Context()), c); err != nil {
-		h.handleStoreError(w, err)
+		httputil.StoreError(h.logger, w, err)
 		return
 	}
-	h.writeJSON(w, http.StatusCreated, c)
+	httputil.WriteJSON(h.logger, w, http.StatusCreated, c)
 }
 
 func (h *Handler) GetCostEntry(w http.ResponseWriter, r *http.Request) {
-	id, err := parseUUID(r.PathValue("id"))
+	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		h.errorResponse(w, http.StatusBadRequest, "invalid id")
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
 		return
 	}
 
 	c, err := h.store.GetCostEntry(r.Context(), middleware.GetUserID(r.Context()), id)
 	if err != nil {
-		h.handleStoreError(w, err)
+		httputil.StoreError(h.logger, w, err)
 		return
 	}
-	h.writeJSON(w, http.StatusOK, c)
+	httputil.WriteJSON(h.logger, w, http.StatusOK, c)
 }
 
 func (h *Handler) UpdateCostEntry(w http.ResponseWriter, r *http.Request) {
-	id, err := parseUUID(r.PathValue("id"))
+	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		h.errorResponse(w, http.StatusBadRequest, "invalid id")
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
 		return
 	}
 
 	existing, err := h.store.GetCostEntry(r.Context(), middleware.GetUserID(r.Context()), id)
 	if err != nil {
-		h.handleStoreError(w, err)
+		httputil.StoreError(h.logger, w, err)
 		return
 	}
 
-	var input model.CostEntryInput
-	if err := h.readJSON(r, &input); err != nil {
-		h.errorResponse(w, http.StatusBadRequest, "invalid request body")
+	var input CostEntryInput
+	if err := httputil.ReadJSON(r, &input); err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
-		h.errorResponse(w, http.StatusBadRequest, err.Error())
+		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -116,21 +116,21 @@ func (h *Handler) UpdateCostEntry(w http.ResponseWriter, r *http.Request) {
 	existing.UpdatedAt = time.Now().UTC()
 
 	if err := h.store.UpdateCostEntry(r.Context(), middleware.GetUserID(r.Context()), existing); err != nil {
-		h.handleStoreError(w, err)
+		httputil.StoreError(h.logger, w, err)
 		return
 	}
-	h.writeJSON(w, http.StatusOK, existing)
+	httputil.WriteJSON(h.logger, w, http.StatusOK, existing)
 }
 
 func (h *Handler) DeleteCostEntry(w http.ResponseWriter, r *http.Request) {
-	id, err := parseUUID(r.PathValue("id"))
+	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		h.errorResponse(w, http.StatusBadRequest, "invalid id")
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
 		return
 	}
 
 	if err := h.store.DeleteCostEntry(r.Context(), middleware.GetUserID(r.Context()), id); err != nil {
-		h.handleStoreError(w, err)
+		httputil.StoreError(h.logger, w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
