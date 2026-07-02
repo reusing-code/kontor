@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tobi/contracts/backend/internal/email"
-	"github.com/tobi/contracts/backend/internal/model"
-	"github.com/tobi/contracts/backend/internal/store"
+	"github.com/reusing-code/kontor/backend/internal/email"
+	"github.com/reusing-code/kontor/backend/internal/model"
+	"github.com/reusing-code/kontor/backend/internal/store"
 )
 
 var frequencyDurations = map[string]time.Duration{

@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tobi/contracts/backend/internal/ledgercategorization"
-	"github.com/tobi/contracts/backend/internal/model"
-	"github.com/tobi/contracts/backend/internal/store"
+	"github.com/reusing-code/kontor/backend/internal/ledgercategorization"
+	"github.com/reusing-code/kontor/backend/internal/model"
+	"github.com/reusing-code/kontor/backend/internal/store"
 )
 
 type Service struct {

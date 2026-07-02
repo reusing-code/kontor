@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/tobi/contracts/backend/internal/middleware"
-	"github.com/tobi/contracts/backend/internal/model"
-	"github.com/tobi/contracts/backend/internal/version"
+	"github.com/reusing-code/kontor/backend/internal/middleware"
+	"github.com/reusing-code/kontor/backend/internal/model"
+	"github.com/reusing-code/kontor/backend/internal/version"
 )
 
 type exportPayload struct {
@@ -103,7 +103,7 @@ func (h *Handler) Export(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filename := fmt.Sprintf("contracts-export-%s.json", payload.ExportedAt.Format("20060102-150405"))
+	filename := fmt.Sprintf("kontor-export-%s.json", payload.ExportedAt.Format("20060102-150405"))
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 	h.writeJSON(w, http.StatusOK, payload)
 }

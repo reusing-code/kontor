@@ -77,7 +77,7 @@ export function SettingsPage() {
   async function handleExport() {
     setExporting(true)
     try {
-      await download("/export", "contracts-export.json")
+      await download("/export", "kontor-export.json")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("settings.exportFailed"))
     } finally {

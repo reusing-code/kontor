@@ -34,7 +34,7 @@ See `frontend/AGENTS.md` and `backend/AGENTS.md` for per-project commands.
 
 ## Architecture overview
 
-The app is a multi-module personal finance manager. Currently four modules exist:
+The app ("Kontor") is a multi-module personal finance manager. Currently four modules exist:
 
 - **Contracts** — Recurring subscriptions with renewal tracking, notice periods, and email reminders
 - **Purchases** — One-time purchases with item details, dealer info, and document links

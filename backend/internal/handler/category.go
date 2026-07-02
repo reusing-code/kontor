@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tobi/contracts/backend/internal/middleware"
-	"github.com/tobi/contracts/backend/internal/model"
+	"github.com/reusing-code/kontor/backend/internal/middleware"
+	"github.com/reusing-code/kontor/backend/internal/model"
 )
 
 func (h *Handler) ListCategories(w http.ResponseWriter, r *http.Request) {

@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/tobi/contracts/backend/internal/middleware"
-	"github.com/tobi/contracts/backend/internal/model"
+	"github.com/reusing-code/kontor/backend/internal/middleware"
+	"github.com/reusing-code/kontor/backend/internal/model"
 )
 
 type contractView struct {

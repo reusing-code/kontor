@@ -13,15 +13,15 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/tobi/contracts/backend/internal/config"
-	"github.com/tobi/contracts/backend/internal/cryptoutil"
-	"github.com/tobi/contracts/backend/internal/email"
-	"github.com/tobi/contracts/backend/internal/handler"
-	"github.com/tobi/contracts/backend/internal/ledgeremail"
-	"github.com/tobi/contracts/backend/internal/middleware"
-	"github.com/tobi/contracts/backend/internal/reminder"
-	"github.com/tobi/contracts/backend/internal/store"
-	"github.com/tobi/contracts/backend/internal/version"
+	"github.com/reusing-code/kontor/backend/internal/config"
+	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
+	"github.com/reusing-code/kontor/backend/internal/email"
+	"github.com/reusing-code/kontor/backend/internal/handler"
+	"github.com/reusing-code/kontor/backend/internal/ledgeremail"
+	"github.com/reusing-code/kontor/backend/internal/middleware"
+	"github.com/reusing-code/kontor/backend/internal/reminder"
+	"github.com/reusing-code/kontor/backend/internal/store"
+	"github.com/reusing-code/kontor/backend/internal/version"
 )
 
 type Server struct {

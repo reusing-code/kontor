@@ -10,8 +10,8 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/google/uuid"
-	"github.com/tobi/contracts/backend/internal/model"
-	"github.com/tobi/contracts/backend/internal/store/migration"
+	"github.com/reusing-code/kontor/backend/internal/model"
+	"github.com/reusing-code/kontor/backend/internal/store/migration"
 )
 
 var (

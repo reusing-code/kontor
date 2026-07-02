@@ -16,7 +16,7 @@ COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 COPY backend/ .
 RUN CGO_ENABLED=0 go build \
-    -ldflags "-X github.com/tobi/contracts/backend/internal/version.Version=${VERSION} -X github.com/tobi/contracts/backend/internal/version.Commit=${COMMIT} -X github.com/tobi/contracts/backend/internal/version.BuildDate=${BUILD_DATE}" \
+    -ldflags "-X github.com/reusing-code/kontor/backend/internal/version.Version=${VERSION} -X github.com/reusing-code/kontor/backend/internal/version.Commit=${COMMIT} -X github.com/reusing-code/kontor/backend/internal/version.BuildDate=${BUILD_DATE}" \
     -o server ./cmd/server
 
 FROM alpine:3.21

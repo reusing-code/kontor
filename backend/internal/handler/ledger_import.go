@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/tobi/contracts/backend/internal/ledgerimport"
-	"github.com/tobi/contracts/backend/internal/middleware"
-	"github.com/tobi/contracts/backend/internal/model"
-	"github.com/tobi/contracts/backend/internal/store"
+	"github.com/reusing-code/kontor/backend/internal/ledgerimport"
+	"github.com/reusing-code/kontor/backend/internal/middleware"
+	"github.com/reusing-code/kontor/backend/internal/model"
+	"github.com/reusing-code/kontor/backend/internal/store"
 )
 
 func (h *Handler) LedgerImportPreview(w http.ResponseWriter, r *http.Request) {

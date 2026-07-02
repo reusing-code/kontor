@@ -4,9 +4,9 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/tobi/contracts/backend/internal/config"
-	"github.com/tobi/contracts/backend/internal/server"
-	"github.com/tobi/contracts/backend/internal/store"
+	"github.com/reusing-code/kontor/backend/internal/config"
+	"github.com/reusing-code/kontor/backend/internal/server"
+	"github.com/reusing-code/kontor/backend/internal/store"
 )
 
 func main() {

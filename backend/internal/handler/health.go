@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/tobi/contracts/backend/internal/store"
+	"github.com/reusing-code/kontor/backend/internal/store"
 )
 
 func (h *Handler) Healthz(w http.ResponseWriter, _ *http.Request) {

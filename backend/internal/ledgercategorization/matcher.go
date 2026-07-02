@@ -3,7 +3,7 @@ package ledgercategorization
 import (
 	"strings"
 
-	"github.com/tobi/contracts/backend/internal/model"
+	"github.com/reusing-code/kontor/backend/internal/model"
 )
 
 type MatchResult struct {

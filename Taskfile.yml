@@ -42,7 +42,7 @@ tasks:
   build:
     desc: Build Docker image
     cmds:
-      - docker build -t contracts .
+      - docker build -t kontor .
 
   up:
     desc: Start with docker compose

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tobi/contracts/backend/internal/config"
+	"github.com/reusing-code/kontor/backend/internal/config"
 )
 
 type Client struct {
