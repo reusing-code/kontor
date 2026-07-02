@@ -1,16 +1,34 @@
-package store
+package storage
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/dgraph-io/badger/v4"
 )
 
+func newTestEngine(t *testing.T) *Engine {
+	t.Helper()
+	e, err := Open(t.TempDir(), slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("opening engine: %v", err)
+	}
+	t.Cleanup(func() { e.Close() })
+	return e
+}
+
 func TestWriteBackup_CreatesSnapshot(t *testing.T) {
-	s := newTestStore(t)
+	e := newTestEngine(t)
+	if err := e.Update(func(txn *badger.Txn) error {
+		return txn.Set([]byte("test/key"), []byte("value"))
+	}); err != nil {
+		t.Fatalf("seeding data: %v", err)
+	}
 	dir := t.TempDir()
 
-	path, err := s.writeBackup(dir)
+	path, err := e.writeBackup(dir)
 	if err != nil {
 		t.Fatalf("writeBackup: %v", err)
 	}

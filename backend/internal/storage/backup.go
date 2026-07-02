@@ -1,4 +1,4 @@
-package store
+package storage
 
 import (
 	"context"
@@ -25,19 +25,19 @@ type BackupConfig struct {
 
 // Backup streams a full snapshot of the database to w in Badger's backup format.
 // Restore with `badger restore` or badger.DB.Load.
-func (s *BadgerStore) Backup(w io.Writer) error {
-	_, err := s.db.Backup(w, 0)
+func (e *Engine) Backup(w io.Writer) error {
+	_, err := e.db.Backup(w, 0)
 	return err
 }
 
 // StartBackups periodically writes full snapshots to cfg.Dir, keeping the
 // cfg.Keep most recent files. The age of the newest existing snapshot decides
 // whether a backup is due, so restarts do not trigger redundant backups.
-func (s *BadgerStore) StartBackups(ctx context.Context, cfg BackupConfig) {
+func (e *Engine) StartBackups(ctx context.Context, cfg BackupConfig) {
 	go func() {
-		logger := s.logger.With("component", "backup")
+		logger := e.logger.With("component", "backup")
 		logger.Info("backup scheduler started", "dir", cfg.Dir, "interval", cfg.Interval, "keep", cfg.Keep)
-		s.backupIfDue(cfg, logger)
+		e.backupIfDue(cfg, logger)
 
 		tick := cfg.Interval
 		if tick > time.Hour {
@@ -52,13 +52,13 @@ func (s *BadgerStore) StartBackups(ctx context.Context, cfg BackupConfig) {
 				logger.Info("backup scheduler stopped")
 				return
 			case <-ticker.C:
-				s.backupIfDue(cfg, logger)
+				e.backupIfDue(cfg, logger)
 			}
 		}
 	}()
 }
 
-func (s *BadgerStore) backupIfDue(cfg BackupConfig, logger *slog.Logger) {
+func (e *Engine) backupIfDue(cfg BackupConfig, logger *slog.Logger) {
 	files, err := listBackupFiles(cfg.Dir)
 	if err != nil {
 		logger.Error("listing backup dir", "error", err)
@@ -70,7 +70,7 @@ func (s *BadgerStore) backupIfDue(cfg BackupConfig, logger *slog.Logger) {
 			return
 		}
 	}
-	path, err := s.writeBackup(cfg.Dir)
+	path, err := e.writeBackup(cfg.Dir)
 	if err != nil {
 		logger.Error("writing backup", "error", err)
 		return
@@ -81,7 +81,7 @@ func (s *BadgerStore) backupIfDue(cfg BackupConfig, logger *slog.Logger) {
 	}
 }
 
-func (s *BadgerStore) writeBackup(dir string) (string, error) {
+func (e *Engine) writeBackup(dir string) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("creating backup dir: %w", err)
 	}
@@ -92,7 +92,7 @@ func (s *BadgerStore) writeBackup(dir string) (string, error) {
 		return "", fmt.Errorf("creating temp backup file: %w", err)
 	}
 	defer os.Remove(tmp.Name())
-	if err := s.Backup(tmp); err != nil {
+	if err := e.Backup(tmp); err != nil {
 		tmp.Close()
 		return "", fmt.Errorf("streaming backup: %w", err)
 	}

@@ -5,82 +5,62 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/model"
-	"github.com/reusing-code/kontor/backend/internal/store/migration"
+	"github.com/reusing-code/kontor/backend/internal/storage"
+	"github.com/reusing-code/kontor/backend/internal/storage/migration"
 )
 
 var (
-	ErrNotFound = errors.New("not found")
-	ErrConflict = errors.New("conflict")
+	ErrNotFound = storage.ErrNotFound
+	ErrConflict = storage.ErrConflict
 )
 
+type BackupConfig = storage.BackupConfig
+
 type BadgerStore struct {
+	engine *storage.Engine
 	db     *badger.DB
 	logger *slog.Logger
-	done   chan struct{}
 }
-
-type badgerLogger struct {
-	logger *slog.Logger
-}
-
-func (l *badgerLogger) Errorf(f string, v ...interface{})   { l.logger.Error(fmt.Sprintf(f, v...)) }
-func (l *badgerLogger) Warningf(f string, v ...interface{}) { l.logger.Warn(fmt.Sprintf(f, v...)) }
-func (l *badgerLogger) Infof(f string, v ...interface{})    { l.logger.Info(fmt.Sprintf(f, v...)) }
-func (l *badgerLogger) Debugf(f string, v ...interface{})   { l.logger.Debug(fmt.Sprintf(f, v...)) }
 
 func NewBadgerStore(path string, logger *slog.Logger) (*BadgerStore, error) {
-	opts := badger.DefaultOptions(path).
-		WithLogger(&badgerLogger{logger: logger.With("component", "badger")})
-
-	db, err := badger.Open(opts)
+	engine, err := storage.Open(path, logger)
 	if err != nil {
-		return nil, fmt.Errorf("opening badger db: %w", err)
+		return nil, err
 	}
 
-	if err := migration.RunAll(db, logger, migration.All); err != nil {
-		db.Close()
+	if err := migration.RunAll(engine.DB(), logger, migration.All); err != nil {
+		engine.Close()
 		return nil, fmt.Errorf("running migrations: %w", err)
 	}
 
-	s := &BadgerStore{
-		db:     db,
+	return &BadgerStore{
+		engine: engine,
+		db:     engine.DB(),
 		logger: logger,
-		done:   make(chan struct{}),
-	}
-	go s.runGC()
-	return s, nil
-}
-
-func (s *BadgerStore) runGC() {
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-s.done:
-			return
-		case <-ticker.C:
-			for s.db.RunValueLogGC(0.5) == nil {
-				// keep running until no more GC needed
-			}
-		}
-	}
+	}, nil
 }
 
 func (s *BadgerStore) Close() error {
-	close(s.done)
-	return s.db.Close()
+	return s.engine.Close()
 }
 
 func (s *BadgerStore) Healthy() error {
-	return s.db.View(func(txn *badger.Txn) error {
-		return nil
-	})
+	return s.engine.Healthy()
+}
+
+func (s *BadgerStore) Backup(w io.Writer) error {
+	return s.engine.Backup(w)
+}
+
+func (s *BadgerStore) StartBackups(ctx context.Context, cfg BackupConfig) {
+	s.engine.StartBackups(ctx, cfg)
 }
 
 // User keys

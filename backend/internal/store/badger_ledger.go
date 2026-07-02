@@ -12,15 +12,16 @@ import (
 	"github.com/dgraph-io/badger/v4"
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/model"
+	"github.com/reusing-code/kontor/backend/internal/storage"
 )
 
 var (
-	ErrLedgerPreviewExpired   = errors.New("ledger preview expired")
-	ErrLedgerFileImported     = errors.New("ledger file already imported")
-	ErrLedgerCategoryHasChild = errors.New("ledger category has children")
-	ErrLedgerCategoryHasCycle = errors.New("ledger category cycle")
-	ErrLedgerTransferInvalid  = errors.New("invalid transfer pair")
-	ErrLedgerTransferLinked   = errors.New("linked internal transfers must be unlinked explicitly before assigning a category")
+	ErrLedgerPreviewExpired   = storage.ErrLedgerPreviewExpired
+	ErrLedgerFileImported     = storage.ErrLedgerFileImported
+	ErrLedgerCategoryHasChild = storage.ErrLedgerCategoryHasChild
+	ErrLedgerCategoryHasCycle = storage.ErrLedgerCategoryHasCycle
+	ErrLedgerTransferInvalid  = storage.ErrLedgerTransferInvalid
+	ErrLedgerTransferLinked   = storage.ErrLedgerTransferLinked
 )
 
 const ledgerTransferMatchWindowDays = 3

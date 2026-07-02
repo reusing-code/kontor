@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -10,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 	"github.com/reusing-code/kontor/backend/internal/email"
+	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/ledgeremail"
 	"github.com/reusing-code/kontor/backend/internal/ledgerimport"
 	"github.com/reusing-code/kontor/backend/internal/store"
@@ -46,22 +46,15 @@ func New(s store.Store, logger *slog.Logger, jwtSecret []byte, emailClient *emai
 }
 
 func (h *Handler) writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		h.logger.Error("encoding response", "error", err)
-	}
+	httputil.WriteJSON(h.logger, w, status, v)
 }
 
 func (h *Handler) readJSON(r *http.Request, v any) error {
-	defer r.Body.Close()
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	return dec.Decode(v)
+	return httputil.ReadJSON(r, v)
 }
 
 func (h *Handler) errorResponse(w http.ResponseWriter, status int, msg string) {
-	h.writeJSON(w, status, map[string]string{"error": msg})
+	httputil.Error(h.logger, w, status, msg)
 }
 
 func (h *Handler) handleStoreError(w http.ResponseWriter, err error) {
