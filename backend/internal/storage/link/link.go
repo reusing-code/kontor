@@ -28,12 +28,16 @@ type Target interface {
 	// RemoveLink removes transactionID from the target item; missing items
 	// are tolerated.
 	RemoveLink(txn *badger.Txn, userID string, targetID, transactionID uuid.UUID) error
+	// Exists reports whether the target item exists.
+	Exists(txn *badger.Txn, userID string, targetID uuid.UUID) bool
 }
 
 // TransactionSide is implemented by the ledger store to strip references
 // from transactions when a referenced item is deleted.
 type TransactionSide interface {
 	RemoveReferences(txn *badger.Txn, userID string, transactionIDs []uuid.UUID, refType string, targetID uuid.UUID) error
+	// TransactionExists reports whether a ledger transaction exists.
+	TransactionExists(txn *badger.Txn, userID string, id uuid.UUID) bool
 }
 
 type Registry struct {
@@ -65,6 +69,15 @@ func (r *Registry) Target(refType string) (Target, error) {
 func (r *Registry) HasTarget(refType string) bool {
 	_, ok := r.targets[refType]
 	return ok
+}
+
+// TransactionExists reports whether a ledger transaction exists; false when
+// no transaction side is registered.
+func (r *Registry) TransactionExists(txn *badger.Txn, userID string, id uuid.UUID) bool {
+	if r.txnSide == nil {
+		return false
+	}
+	return r.txnSide.TransactionExists(txn, userID, id)
 }
 
 // RemoveReferencesTo strips references to a deleted item from the given

@@ -217,3 +217,46 @@ func (s *Store) CategoryCascade(txn *badger.Txn, userID string, categoryID uuid.
 	}
 	return nil
 }
+
+// Exists implements link.Target.
+func (s *Store) Exists(txn *badger.Txn, userID string, targetID uuid.UUID) bool {
+	_, err := txn.Get(conKey(userID, targetID))
+	return err == nil
+}
+
+// PruneDeadTransactionLinks drops linked-transaction IDs that do not resolve
+// to an existing ledger transaction, returning how many were removed.
+func (s *Store) PruneDeadTransactionLinks(_ context.Context, userID string) (int, error) {
+	pruned := 0
+	err := s.e.Update(func(txn *badger.Txn) error {
+		var items []Contract
+		if err := storage.IteratePrefix(txn, conPrefix(userID), func(_, val []byte) error {
+			var c Contract
+			if err := json.Unmarshal(val, &c); err != nil {
+				return err
+			}
+			items = append(items, normalize(c))
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, c := range items {
+			kept := c.LinkedTransactionIDs[:0:0]
+			for _, id := range c.LinkedTransactionIDs {
+				if s.links.TransactionExists(txn, userID, id) {
+					kept = append(kept, id)
+				}
+			}
+			if len(kept) == len(c.LinkedTransactionIDs) {
+				continue
+			}
+			pruned += len(c.LinkedTransactionIDs) - len(kept)
+			c.LinkedTransactionIDs = kept
+			if err := storeContract(txn, userID, c); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return pruned, err
+}

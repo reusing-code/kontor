@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/email"
 	"github.com/reusing-code/kontor/backend/internal/httputil"
+	"github.com/reusing-code/kontor/backend/internal/module"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -26,15 +27,17 @@ type Handler struct {
 	jwtSecret   []byte
 	emailClient *email.Client
 	seeds       []SeedFunc
+	registry    *module.Registry
 }
 
-func NewHandler(store *Store, logger *slog.Logger, jwtSecret []byte, emailClient *email.Client, seeds []SeedFunc) *Handler {
+func NewHandler(store *Store, logger *slog.Logger, jwtSecret []byte, emailClient *email.Client, seeds []SeedFunc, registry *module.Registry) *Handler {
 	return &Handler{
 		store:       store,
 		logger:      logger,
 		jwtSecret:   jwtSecret,
 		emailClient: emailClient,
 		seeds:       seeds,
+		registry:    registry,
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
+	"github.com/reusing-code/kontor/backend/internal/module"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -32,7 +33,7 @@ func newTestStore(t *testing.T) *Store {
 
 func newTestHandler(t *testing.T, seeds ...SeedFunc) (*Handler, *Store) {
 	s := newTestStore(t)
-	h := NewHandler(s, slog.New(slog.DiscardHandler), testJWTSecret, nil, seeds)
+	h := NewHandler(s, slog.New(slog.DiscardHandler), testJWTSecret, nil, seeds, module.NewRegistry())
 	return h, s
 }
 

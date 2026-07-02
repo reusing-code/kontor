@@ -2,8 +2,15 @@ package module
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 )
+
+// ErrInvalidSection marks import failures caused by the uploaded file rather
+// than the server; handlers map it to a 400 response.
+var ErrInvalidSection = errors.New("invalid export section")
 
 // Module is implemented by each feature module (contracts, purchases, auto,
 // ledger). The server wires all registered modules at startup.
@@ -17,6 +24,36 @@ type Module interface {
 	// StartBackground launches the module's background services, if any.
 	// Each module checks its own configuration and may do nothing.
 	StartBackground(ctx context.Context)
+	// IsEmpty reports whether the user has no data in this module.
+	IsEmpty(ctx context.Context, userID string) (bool, error)
+	// ExportSection marshals the user's module data for the export envelope.
+	ExportSection(ctx context.Context, userID string) (json.RawMessage, error)
+	// ImportSection restores a previously exported section. The module must
+	// be empty for the user; callers check IsEmpty first.
+	ImportSection(ctx context.Context, userID string, data json.RawMessage, res *ImportResult) error
+	// PruneDeadLinks removes references to items that do not exist after an
+	// import, e.g. transaction links whose ledger data was not imported.
+	PruneDeadLinks(ctx context.Context, userID string, res *ImportResult) error
+}
+
+// ImportResult aggregates per-entity restore counts and warnings.
+type ImportResult struct {
+	Restored map[string]int `json:"restored"`
+	Warnings []string       `json:"warnings"`
+}
+
+func NewImportResult() *ImportResult {
+	return &ImportResult{Restored: map[string]int{}, Warnings: []string{}}
+}
+
+func (r *ImportResult) Add(key string, n int) {
+	if n != 0 {
+		r.Restored[key] += n
+	}
+}
+
+func (r *ImportResult) Warnf(format string, args ...any) {
+	r.Warnings = append(r.Warnings, fmt.Sprintf(format, args...))
 }
 
 // Base provides no-op defaults for optional Module methods.
@@ -25,6 +62,8 @@ type Base struct{}
 func (Base) Seed(context.Context, string) error { return nil }
 
 func (Base) StartBackground(context.Context) {}
+
+func (Base) PruneDeadLinks(context.Context, string, *ImportResult) error { return nil }
 
 // Registry holds the modules wired into this server instance, in
 // registration order.

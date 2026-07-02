@@ -11,18 +11,15 @@ import (
 
 	"github.com/reusing-code/kontor/backend/internal/categories"
 	"github.com/reusing-code/kontor/backend/internal/core"
-	"github.com/reusing-code/kontor/backend/internal/handler"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
-	"github.com/reusing-code/kontor/backend/internal/model"
 	"github.com/reusing-code/kontor/backend/internal/module"
 	"github.com/reusing-code/kontor/backend/internal/modules/auto"
 	"github.com/reusing-code/kontor/backend/internal/modules/contracts"
+	"github.com/reusing-code/kontor/backend/internal/modules/ledger"
+	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 	"github.com/reusing-code/kontor/backend/internal/storage/link"
-	"github.com/reusing-code/kontor/backend/internal/store"
 )
-
-var testJWTSecret = []byte("integration-test-secret")
 
 const testUserID = "00000000-0000-0000-0000-000000000001"
 
@@ -37,19 +34,18 @@ func setupServer(t *testing.T) *httptest.Server {
 
 	links := link.NewRegistry()
 	catStore := categories.NewStore(engine)
-	catStore.RegisterCascade("purchases", store.PurchaseCategoryCascade)
 	catHandler := categories.NewHandler(catStore, logger)
 	coreStore := core.NewStore(engine)
 
 	contractsMod := contracts.New(engine, links, catStore, coreStore, nil, logger)
+	purchasesMod := purchases.New(engine, links, catStore, logger)
 	autoMod := auto.New(engine, links, logger)
-
-	s := store.New(engine, links, contractsMod.Store(), autoMod.Store(), logger)
-	h := handler.New(s, logger, testJWTSecret, nil)
+	ledgerMod := ledger.New(engine, links, coreStore, ledger.Config{}, logger)
+	registry := module.NewRegistry(contractsMod, purchasesMod, autoMod, ledgerMod)
 
 	mux := http.NewServeMux()
 
-	for _, m := range []module.Module{contractsMod, autoMod} {
+	for _, m := range registry.All() {
 		m.RegisterRoutes(module.NewRouter(mux, nil))
 	}
 
@@ -59,15 +55,6 @@ func setupServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", catHandler.Get)
 	mux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", catHandler.Update)
 	mux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", catHandler.Delete)
-
-	// Purchase routes
-	mux.HandleFunc("GET /api/v1/categories/{id}/purchases", h.ListPurchasesByCategory)
-	mux.HandleFunc("POST /api/v1/categories/{id}/purchases", h.CreatePurchaseInCategory)
-	mux.HandleFunc("GET /api/v1/purchases/summary", h.PurchaseSummary)
-	mux.HandleFunc("GET /api/v1/purchases", h.ListPurchases)
-	mux.HandleFunc("GET /api/v1/purchases/{id}", h.GetPurchase)
-	mux.HandleFunc("PUT /api/v1/purchases/{id}", h.UpdatePurchase)
-	mux.HandleFunc("DELETE /api/v1/purchases/{id}", h.DeletePurchase)
 
 	// Inject test user into context (integration tests skip auth middleware)
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -126,7 +113,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	// List categories — empty
 	resp := doJSON(t, "GET", base+"/api/v1/modules/contracts/categories", nil)
 	expectStatus(t, resp, 200)
-	cats := decode[[]model.Category](t, resp)
+	cats := decode[[]categories.Category](t, resp)
 	if len(cats) != 0 {
 		t.Fatalf("expected 0 categories, got %d", len(cats))
 	}
@@ -134,7 +121,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	// Create category
 	resp = doJSON(t, "POST", base+"/api/v1/modules/contracts/categories", map[string]string{"name": "Telecom"})
 	expectStatus(t, resp, 201)
-	cat := decode[model.Category](t, resp)
+	cat := decode[categories.Category](t, resp)
 	if cat.Name != "Telecom" {
 		t.Fatalf("Name = %q, want %q", cat.Name, "Telecom")
 	}
@@ -142,7 +129,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	// Get category
 	resp = doJSON(t, "GET", base+"/api/v1/modules/contracts/categories/"+cat.ID.String(), nil)
 	expectStatus(t, resp, 200)
-	got := decode[model.Category](t, resp)
+	got := decode[categories.Category](t, resp)
 	if got.ID != cat.ID {
 		t.Fatalf("ID mismatch")
 	}
@@ -150,7 +137,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	// Update category
 	resp = doJSON(t, "PUT", base+"/api/v1/modules/contracts/categories/"+cat.ID.String(), map[string]string{"name": "Telecommunications"})
 	expectStatus(t, resp, 200)
-	updated := decode[model.Category](t, resp)
+	updated := decode[categories.Category](t, resp)
 	if updated.Name != "Telecommunications" {
 		t.Fatalf("Name = %q, want %q", updated.Name, "Telecommunications")
 	}
@@ -166,7 +153,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	}
 	resp = doJSON(t, "POST", base+"/api/v1/categories/"+cat.ID.String()+"/contracts", conBody)
 	expectStatus(t, resp, 201)
-	con := decode[model.Contract](t, resp)
+	con := decode[contracts.Contract](t, resp)
 	if con.Name != "Phone Plan" {
 		t.Fatalf("Name = %q, want %q", con.Name, "Phone Plan")
 	}
@@ -177,7 +164,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	// Get contract
 	resp = doJSON(t, "GET", base+"/api/v1/contracts/"+con.ID.String(), nil)
 	expectStatus(t, resp, 200)
-	gotCon := decode[model.Contract](t, resp)
+	gotCon := decode[contracts.Contract](t, resp)
 	if gotCon.Company != "ACME Telecom" {
 		t.Fatalf("Company = %q, want %q", gotCon.Company, "ACME Telecom")
 	}
@@ -185,7 +172,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	// List contracts for category
 	resp = doJSON(t, "GET", base+"/api/v1/categories/"+cat.ID.String()+"/contracts", nil)
 	expectStatus(t, resp, 200)
-	cons := decode[[]model.Contract](t, resp)
+	cons := decode[[]contracts.Contract](t, resp)
 	if len(cons) != 1 {
 		t.Fatalf("expected 1 contract, got %d", len(cons))
 	}
@@ -193,7 +180,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	// List all contracts
 	resp = doJSON(t, "GET", base+"/api/v1/contracts", nil)
 	expectStatus(t, resp, 200)
-	allCons := decode[[]model.Contract](t, resp)
+	allCons := decode[[]contracts.Contract](t, resp)
 	if len(allCons) != 1 {
 		t.Fatalf("expected 1 contract, got %d", len(allCons))
 	}
@@ -202,7 +189,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	conBody["name"] = "Updated Phone Plan"
 	resp = doJSON(t, "PUT", base+"/api/v1/contracts/"+con.ID.String(), conBody)
 	expectStatus(t, resp, 200)
-	updatedCon := decode[model.Contract](t, resp)
+	updatedCon := decode[contracts.Contract](t, resp)
 	if updatedCon.Name != "Updated Phone Plan" {
 		t.Fatalf("Name = %q, want %q", updatedCon.Name, "Updated Phone Plan")
 	}
@@ -236,17 +223,17 @@ func TestIntegration_CascadeDelete(t *testing.T) {
 	// Create category with two contracts
 	resp := doJSON(t, "POST", base+"/api/v1/modules/contracts/categories", map[string]string{"name": "Insurance"})
 	expectStatus(t, resp, 201)
-	cat := decode[model.Category](t, resp)
+	cat := decode[categories.Category](t, resp)
 
 	conBody := map[string]any{"name": "Health", "startDate": "2025-01-01"}
 	resp = doJSON(t, "POST", base+"/api/v1/categories/"+cat.ID.String()+"/contracts", conBody)
 	expectStatus(t, resp, 201)
-	con1 := decode[model.Contract](t, resp)
+	con1 := decode[contracts.Contract](t, resp)
 
 	conBody["name"] = "Car"
 	resp = doJSON(t, "POST", base+"/api/v1/categories/"+cat.ID.String()+"/contracts", conBody)
 	expectStatus(t, resp, 201)
-	con2 := decode[model.Contract](t, resp)
+	con2 := decode[contracts.Contract](t, resp)
 
 	// Delete category — contracts should cascade
 	resp = doJSON(t, "DELETE", base+"/api/v1/modules/contracts/categories/"+cat.ID.String(), nil)
@@ -276,7 +263,7 @@ func TestIntegration_Summary(t *testing.T) {
 	// Create category + contract with price
 	resp = doJSON(t, "POST", base+"/api/v1/modules/contracts/categories", map[string]string{"name": "Insurance"})
 	expectStatus(t, resp, 201)
-	cat := decode[model.Category](t, resp)
+	cat := decode[categories.Category](t, resp)
 
 	price := 49.99
 	conBody := map[string]any{
@@ -321,7 +308,7 @@ func TestIntegration_UpcomingRenewals(t *testing.T) {
 	// Create category + contract (no endDate, so it gets a cancellation date)
 	resp = doJSON(t, "POST", base+"/api/v1/modules/contracts/categories", map[string]string{"name": "Telecom"})
 	expectStatus(t, resp, 201)
-	cat := decode[model.Category](t, resp)
+	cat := decode[categories.Category](t, resp)
 
 	conBody := map[string]any{
 		"name":                    "Phone",
@@ -358,7 +345,7 @@ func TestIntegration_ContractResponse_HasComputedFields(t *testing.T) {
 	// Create category + contract
 	resp := doJSON(t, "POST", base+"/api/v1/modules/contracts/categories", map[string]string{"name": "Test"})
 	expectStatus(t, resp, 201)
-	cat := decode[model.Category](t, resp)
+	cat := decode[categories.Category](t, resp)
 
 	conBody := map[string]any{
 		"name":                    "Test Contract",
@@ -397,7 +384,7 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	// List purchase categories — empty
 	resp := doJSON(t, "GET", base+"/api/v1/modules/purchases/categories", nil)
 	expectStatus(t, resp, 200)
-	cats := decode[[]model.Category](t, resp)
+	cats := decode[[]categories.Category](t, resp)
 	if len(cats) != 0 {
 		t.Fatalf("expected 0 categories, got %d", len(cats))
 	}
@@ -405,7 +392,7 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	// Create purchase category
 	resp = doJSON(t, "POST", base+"/api/v1/modules/purchases/categories", map[string]string{"name": "PC Hardware"})
 	expectStatus(t, resp, 201)
-	cat := decode[model.Category](t, resp)
+	cat := decode[categories.Category](t, resp)
 	if cat.Name != "PC Hardware" {
 		t.Fatalf("Name = %q, want %q", cat.Name, "PC Hardware")
 	}
@@ -421,7 +408,7 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	}
 	resp = doJSON(t, "POST", base+"/api/v1/categories/"+cat.ID.String()+"/purchases", purBody)
 	expectStatus(t, resp, 201)
-	pur := decode[model.Purchase](t, resp)
+	pur := decode[purchases.Purchase](t, resp)
 	if pur.ItemName != "Graphics Card" {
 		t.Fatalf("ItemName = %q, want %q", pur.ItemName, "Graphics Card")
 	}
@@ -432,7 +419,7 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	// Get purchase
 	resp = doJSON(t, "GET", base+"/api/v1/purchases/"+pur.ID.String(), nil)
 	expectStatus(t, resp, 200)
-	gotPur := decode[model.Purchase](t, resp)
+	gotPur := decode[purchases.Purchase](t, resp)
 	if gotPur.Brand != "NVIDIA" {
 		t.Fatalf("Brand = %q, want %q", gotPur.Brand, "NVIDIA")
 	}
@@ -440,7 +427,7 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	// List purchases for category
 	resp = doJSON(t, "GET", base+"/api/v1/categories/"+cat.ID.String()+"/purchases", nil)
 	expectStatus(t, resp, 200)
-	purs := decode[[]model.Purchase](t, resp)
+	purs := decode[[]purchases.Purchase](t, resp)
 	if len(purs) != 1 {
 		t.Fatalf("expected 1 purchase, got %d", len(purs))
 	}
@@ -448,7 +435,7 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	// List all purchases
 	resp = doJSON(t, "GET", base+"/api/v1/purchases", nil)
 	expectStatus(t, resp, 200)
-	allPurs := decode[[]model.Purchase](t, resp)
+	allPurs := decode[[]purchases.Purchase](t, resp)
 	if len(allPurs) != 1 {
 		t.Fatalf("expected 1 purchase, got %d", len(allPurs))
 	}
@@ -457,7 +444,7 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	purBody["itemName"] = "Updated Graphics Card"
 	resp = doJSON(t, "PUT", base+"/api/v1/purchases/"+pur.ID.String(), purBody)
 	expectStatus(t, resp, 200)
-	updatedPur := decode[model.Purchase](t, resp)
+	updatedPur := decode[purchases.Purchase](t, resp)
 	if updatedPur.ItemName != "Updated Graphics Card" {
 		t.Fatalf("ItemName = %q, want %q", updatedPur.ItemName, "Updated Graphics Card")
 	}

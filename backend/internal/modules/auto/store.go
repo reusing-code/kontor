@@ -255,3 +255,46 @@ func (s *Store) DeleteCostEntry(_ context.Context, userID string, id uuid.UUID) 
 		return txn.Delete(idxVehCostKey(userID, c.VehicleID, id))
 	})
 }
+
+// Exists implements link.Target.
+func (s *Store) Exists(txn *badger.Txn, userID string, targetID uuid.UUID) bool {
+	_, err := txn.Get(vehKey(userID, targetID))
+	return err == nil
+}
+
+// PruneDeadTransactionLinks drops linked-transaction IDs that do not resolve
+// to an existing ledger transaction, returning how many were removed.
+func (s *Store) PruneDeadTransactionLinks(_ context.Context, userID string) (int, error) {
+	pruned := 0
+	err := s.e.Update(func(txn *badger.Txn) error {
+		var items []Vehicle
+		if err := storage.IteratePrefix(txn, vehPrefix(userID), func(_, val []byte) error {
+			var v Vehicle
+			if err := json.Unmarshal(val, &v); err != nil {
+				return err
+			}
+			items = append(items, normalizeVehicle(v))
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, v := range items {
+			kept := v.LinkedTransactionIDs[:0:0]
+			for _, id := range v.LinkedTransactionIDs {
+				if s.links.TransactionExists(txn, userID, id) {
+					kept = append(kept, id)
+				}
+			}
+			if len(kept) == len(v.LinkedTransactionIDs) {
+				continue
+			}
+			pruned += len(v.LinkedTransactionIDs) - len(kept)
+			v.LinkedTransactionIDs = kept
+			if err := storeVehicle(txn, userID, v); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return pruned, err
+}

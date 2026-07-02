@@ -16,27 +16,17 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/categories"
 	"github.com/reusing-code/kontor/backend/internal/config"
 	"github.com/reusing-code/kontor/backend/internal/core"
-	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 	"github.com/reusing-code/kontor/backend/internal/email"
-	"github.com/reusing-code/kontor/backend/internal/handler"
-	"github.com/reusing-code/kontor/backend/internal/ledgeremail"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 	"github.com/reusing-code/kontor/backend/internal/module"
 	"github.com/reusing-code/kontor/backend/internal/modules/auto"
 	"github.com/reusing-code/kontor/backend/internal/modules/contracts"
+	"github.com/reusing-code/kontor/backend/internal/modules/ledger"
+	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 	"github.com/reusing-code/kontor/backend/internal/storage/link"
-	"github.com/reusing-code/kontor/backend/internal/store"
 	"github.com/reusing-code/kontor/backend/internal/version"
 )
-
-var defaultPurchaseCategories = []categories.Default{
-	{Name: "PC Hardware", NameKey: "categoryNames.pcHardware"},
-	{Name: "Entertainment", NameKey: "categoryNames.entertainment"},
-	{Name: "Kitchen", NameKey: "categoryNames.kitchen"},
-	{Name: "Tools", NameKey: "categoryNames.tools"},
-	{Name: "Household", NameKey: "categoryNames.household"},
-}
 
 type Server struct {
 	cfg    config.Config
@@ -59,16 +49,17 @@ func (s *Server) Run() error {
 
 	links := link.NewRegistry()
 	catStore := categories.NewStore(engine)
-	catStore.RegisterCascade("purchases", store.PurchaseCategoryCascade)
 	catHandler := categories.NewHandler(catStore, s.logger)
 	coreStore := core.NewStore(engine)
 
 	contractsMod := contracts.New(engine, links, catStore, coreStore, emailClient, s.logger)
+	purchasesMod := purchases.New(engine, links, catStore, s.logger)
 	autoMod := auto.New(engine, links, s.logger)
-	registry := module.NewRegistry(contractsMod, autoMod)
-
-	st := store.New(engine, links, contractsMod.Store(), autoMod.Store(), s.logger)
-	h := handler.New(st, s.logger, jwtSecret, emailClient, s.cfg.EmailEncryptionKey)
+	ledgerMod := ledger.New(engine, links, coreStore, ledger.Config{
+		EmailScanInterval:  s.cfg.LedgerEmailScanInterval,
+		EmailEncryptionKey: s.cfg.EmailEncryptionKey,
+	}, s.logger)
+	registry := module.NewRegistry(contractsMod, purchasesMod, autoMod, ledgerMod)
 
 	if s.cfg.BackupDir == "" {
 		s.logger.Info("backup scheduler disabled", "reason", "BACKUP_DIR is not set")
@@ -80,23 +71,11 @@ func (s *Server) Run() error {
 		})
 	}
 
-	if s.cfg.LedgerEmailScanInterval <= 0 {
-		s.logger.Info("ledger email scan scheduler disabled", "reason", "LEDGER_EMAIL_SCAN_INTERVAL is 0")
-	} else if encryptionKey, err := cryptoutil.NormalizeEncryptionKey(s.cfg.EmailEncryptionKey); err != nil {
-		s.logger.Info("ledger email scan scheduler disabled", "reason", err.Error())
-	} else {
-		sched := ledgeremail.NewScheduler(st, ledgeremail.NewService(st, s.logger), encryptionKey, s.cfg.LedgerEmailScanInterval, s.logger)
-		sched.Start(shutdownCtx)
+	seeds := make([]core.SeedFunc, 0, len(registry.All()))
+	for _, m := range registry.All() {
+		seeds = append(seeds, m.Seed)
 	}
-
-	seeds := []core.SeedFunc{
-		contractsMod.Seed,
-		func(ctx context.Context, userID string) error {
-			return catStore.SeedDefaults(ctx, userID, "purchases", defaultPurchaseCategories)
-		},
-		h.SeedLedgerDefaults,
-	}
-	coreHandler := core.NewHandler(coreStore, s.logger, jwtSecret, emailClient, seeds)
+	coreHandler := core.NewHandler(coreStore, s.logger, jwtSecret, emailClient, seeds, registry)
 
 	// Protected API routes (require auth)
 	apiMux := http.NewServeMux()
@@ -114,55 +93,16 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", catHandler.Update)
 	apiMux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", catHandler.Delete)
 
-	// Purchase routes
-	apiMux.HandleFunc("GET /api/v1/categories/{id}/purchases", h.ListPurchasesByCategory)
-	apiMux.HandleFunc("POST /api/v1/categories/{id}/purchases", h.CreatePurchaseInCategory)
-	apiMux.HandleFunc("GET /api/v1/purchases/summary", h.PurchaseSummary)
-	apiMux.HandleFunc("GET /api/v1/purchases", h.ListPurchases)
-	apiMux.HandleFunc("GET /api/v1/purchases/{id}", h.GetPurchase)
-	apiMux.HandleFunc("PUT /api/v1/purchases/{id}", h.UpdatePurchase)
-	apiMux.HandleFunc("DELETE /api/v1/purchases/{id}", h.DeletePurchase)
-
-	// Data export / restore
-	apiMux.HandleFunc("GET /api/v1/export", h.Export)
-	apiMux.HandleFunc("POST /api/v1/restore", h.Restore)
+	// Data export / import
+	apiMux.HandleFunc("GET /api/v1/export", coreHandler.Export)
+	apiMux.HandleFunc("POST /api/v1/import", coreHandler.Import)
+	apiMux.HandleFunc("GET /api/v1/modules/{module}/export", coreHandler.ExportModule)
+	apiMux.HandleFunc("POST /api/v1/modules/{module}/import", coreHandler.ImportModule)
 
 	// Settings routes
 	apiMux.HandleFunc("GET /api/v1/settings", coreHandler.GetSettings)
 	apiMux.HandleFunc("PUT /api/v1/settings", coreHandler.UpdateSettings)
 	apiMux.HandleFunc("PUT /api/v1/settings/password", coreHandler.ChangePassword)
-
-	// Ledger routes
-	apiMux.HandleFunc("POST /api/v1/ledger/imports/preview", h.LedgerImportPreview)
-	apiMux.HandleFunc("POST /api/v1/ledger/imports/{previewId}/commit", h.LedgerImportCommit)
-	apiMux.HandleFunc("GET /api/v1/ledger/categories", h.ListLedgerCategories)
-	apiMux.HandleFunc("POST /api/v1/ledger/categories", h.CreateLedgerCategory)
-	apiMux.HandleFunc("GET /api/v1/ledger/categories/{id}", h.GetLedgerCategory)
-	apiMux.HandleFunc("PUT /api/v1/ledger/categories/{id}", h.UpdateLedgerCategory)
-	apiMux.HandleFunc("DELETE /api/v1/ledger/categories/{id}", h.DeleteLedgerCategory)
-	apiMux.HandleFunc("GET /api/v1/ledger/accounts", h.ListLedgerAccounts)
-	apiMux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}", h.GetLedgerAccount)
-	apiMux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}/transactions", h.ListLedgerTransactions)
-	apiMux.HandleFunc("GET /api/v1/ledger/email-accounts", h.ListLedgerEmailAccounts)
-	apiMux.HandleFunc("POST /api/v1/ledger/email-accounts", h.CreateLedgerEmailAccount)
-	apiMux.HandleFunc("GET /api/v1/ledger/email-accounts/{emailAccountId}", h.GetLedgerEmailAccount)
-	apiMux.HandleFunc("PUT /api/v1/ledger/email-accounts/{emailAccountId}", h.UpdateLedgerEmailAccount)
-	apiMux.HandleFunc("DELETE /api/v1/ledger/email-accounts/{emailAccountId}", h.DeleteLedgerEmailAccount)
-	apiMux.HandleFunc("POST /api/v1/ledger/email-accounts/{emailAccountId}/test", h.TestLedgerEmailAccount)
-	apiMux.HandleFunc("POST /api/v1/ledger/email-accounts/{emailAccountId}/scan", h.ScanLedgerEmailAccount)
-	apiMux.HandleFunc("GET /api/v1/ledger/email-orders", h.ListLedgerEmailOrders)
-	apiMux.HandleFunc("GET /api/v1/ledger/email-orders/{emailOrderId}", h.GetLedgerEmailOrder)
-	apiMux.HandleFunc("POST /api/v1/ledger/email-orders/{emailOrderId}/link", h.LinkLedgerEmailOrder)
-	apiMux.HandleFunc("POST /api/v1/ledger/email-orders/{emailOrderId}/reject", h.RejectLedgerEmailOrder)
-	apiMux.HandleFunc("GET /api/v1/ledger/email-importers", h.ListLedgerEmailImporters)
-	apiMux.HandleFunc("GET /api/v1/ledger/imports", h.ListLedgerImports)
-	apiMux.HandleFunc("GET /api/v1/ledger/transactions", h.ListLedgerTransactionsReviewQueue)
-	apiMux.HandleFunc("GET /api/v1/ledger/transactions/{transactionId}", h.GetLedgerTransaction)
-	apiMux.HandleFunc("PUT /api/v1/ledger/transactions/{transactionId}", h.UpdateLedgerTransactionDetails)
-	apiMux.HandleFunc("GET /api/v1/ledger/transactions/{transactionId}/transfer-candidates", h.ListLedgerTransferCandidates)
-	apiMux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/transfer-link", h.LinkLedgerTransfer)
-	apiMux.HandleFunc("DELETE /api/v1/ledger/transactions/{transactionId}/transfer-link", h.UnlinkLedgerTransfer)
-	apiMux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/review", h.ReviewLedgerTransaction)
 
 	protectedAPI := middleware.Auth(jwtSecret)(apiMux)
 
