@@ -9,10 +9,12 @@ import { PurchaseDialog } from "@/modules/purchases/components/purchase-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { rootRoute } from "@/routes/__root"
+import { moduleGuard } from "@/modules/guard"
 
 export const purchaseDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/purchases/$purchaseId",
+  beforeLoad: moduleGuard("purchases"),
   component: PurchaseDetailPage,
 })
 

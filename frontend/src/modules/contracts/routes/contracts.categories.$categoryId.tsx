@@ -5,6 +5,7 @@ import { usePageTitle } from "@/hooks/use-page-title"
 import { toast } from "sonner"
 import { Plus } from "lucide-react"
 import { rootRoute } from "@/routes/__root"
+import { moduleGuard } from "@/modules/guard"
 import { useCategoryContracts, useCreateContract, useUpdateContract, useDeleteContract } from "@/modules/contracts/hooks/use-contracts"
 import { getCategoryById } from "@/lib/category-repository"
 import { useQuery } from "@tanstack/react-query"
@@ -17,6 +18,7 @@ import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 export const contractsCategoryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/contracts/categories/$categoryId",
+  beforeLoad: moduleGuard("contracts"),
   component: ContractsCategoryDetailPage,
 })
 

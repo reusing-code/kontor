@@ -1,6 +1,7 @@
 import { lazy } from "react"
 import { createRoute, type AnyRoute } from "@tanstack/react-router"
 import { rootRoute } from "@/routes/__root"
+import { moduleGuard } from "@/modules/guard"
 import { purchaseDetailRoute } from "./purchases.$purchaseId"
 import { purchasesCategoryRoute } from "./purchases.categories.$categoryId"
 
@@ -9,6 +10,7 @@ const PurchasesDashboardPage = lazy(() => import("./purchases.index").then((modu
 export const purchasesIndexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/purchases",
+  beforeLoad: moduleGuard("purchases"),
   component: PurchasesDashboardPage,
 })
 

@@ -1,11 +1,11 @@
-import type { Settings } from "@/types/settings"
+import type { Settings, SettingsUpdate } from "@/types/settings"
 import { get, put } from "./api"
 
 export async function getSettings(): Promise<Settings> {
   return get<Settings>("/settings")
 }
 
-export async function updateSettings(data: Settings): Promise<Settings> {
+export async function updateSettings(data: SettingsUpdate): Promise<Settings> {
   return put<Settings>("/settings", data)
 }
 

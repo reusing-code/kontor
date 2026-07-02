@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Link, useMatchRoute } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { modules } from "@/modules/registry"
+import { useModules } from "@/hooks/use-modules"
 import { cn } from "@/lib/utils"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ChevronRight, Home } from "lucide-react"
@@ -58,6 +59,7 @@ export function SidebarSection({
 export function Sidebar() {
   const { t } = useTranslation()
   const matchRoute = useMatchRoute()
+  const { isEnabled } = useModules()
 
   return (
     <aside className="w-64 shrink-0 border-r bg-background">
@@ -75,7 +77,7 @@ export function Sidebar() {
 
         <div className="my-2" />
 
-        {modules.map((m) => (
+        {modules.filter((m) => isEnabled(m.id)).map((m) => (
           <m.SidebarSection key={m.id} />
         ))}
 

@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
+import { useModules } from "@/hooks/use-modules"
 import { useLedgerTransaction } from "@/modules/ledger/hooks/use-ledger"
 import { formatAmountMinor, formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
 import { transactionPath } from "@/modules/ledger/lib/module-links"
@@ -31,6 +32,11 @@ function LinkedTransactionRow({ transactionId }: { transactionId: string }) {
 
 export function LinkedTransactionsList({ transactionIds }: LinkedTransactionsListProps) {
   const { t } = useTranslation()
+  const { isEnabled } = useModules()
+
+  if (!isEnabled("ledger")) {
+    return null
+  }
 
   if (transactionIds.length === 0) {
     return <p className="text-sm text-muted-foreground">{t("ledger.noLinkedTransactions")}</p>

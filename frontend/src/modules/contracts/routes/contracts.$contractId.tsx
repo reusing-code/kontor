@@ -9,10 +9,12 @@ import { ContractDialog } from "@/modules/contracts/components/contract-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { rootRoute } from "@/routes/__root"
+import { moduleGuard } from "@/modules/guard"
 
 export const contractDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/contracts/$contractId",
+  beforeLoad: moduleGuard("contracts"),
   component: ContractDetailPage,
 })
 

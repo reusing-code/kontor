@@ -5,6 +5,7 @@ import { usePageTitle } from "@/hooks/use-page-title"
 import { toast } from "sonner"
 import { Plus } from "lucide-react"
 import { rootRoute } from "@/routes/__root"
+import { moduleGuard } from "@/modules/guard"
 import {
   useVehicle,
   useVehicleSummary,
@@ -28,6 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 export const autoVehicleDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/auto/vehicles/$vehicleId",
+  beforeLoad: moduleGuard("auto"),
   component: AutoVehicleDetailPage,
 })
 

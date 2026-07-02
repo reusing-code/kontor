@@ -5,6 +5,7 @@ import { usePageTitle } from "@/hooks/use-page-title"
 import { toast } from "sonner"
 import { Plus } from "lucide-react"
 import { rootRoute } from "@/routes/__root"
+import { moduleGuard } from "@/modules/guard"
 import { useCategoryPurchases, useCreatePurchase, useUpdatePurchase, useDeletePurchase } from "@/modules/purchases/hooks/use-purchases"
 import { getCategoryById } from "@/lib/category-repository"
 import { useQuery } from "@tanstack/react-query"
@@ -17,6 +18,7 @@ import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 export const purchasesCategoryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/purchases/categories/$categoryId",
+  beforeLoad: moduleGuard("purchases"),
   component: PurchasesCategoryDetailPage,
 })
 

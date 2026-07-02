@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { toast } from "sonner"
 import { rootRoute } from "@/routes/__root"
+import { moduleGuard } from "@/modules/guard"
 import { useUpcomingRenewals } from "@/modules/contracts/hooks/use-contracts"
 import { useSettings } from "@/hooks/use-settings"
 import { updateContract, deleteContract } from "@/modules/contracts/lib/contract-repository"
@@ -17,6 +18,7 @@ import { getRenewalRowClass } from "@/lib/utils"
 export const contractsUpcomingRenewalsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/contracts/upcoming-renewals",
+  beforeLoad: moduleGuard("contracts"),
   component: UpcomingRenewalsPage,
 })
 
