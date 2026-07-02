@@ -9,9 +9,9 @@ vars:
   BUILD_DATE:
     sh: date -u +%Y-%m-%d
   LDFLAGS: >-
-    -X github.com/tobi/contracts/backend/internal/version.Version={{.VERSION}}
-    -X github.com/tobi/contracts/backend/internal/version.Commit={{.COMMIT}}
-    -X github.com/tobi/contracts/backend/internal/version.BuildDate={{.BUILD_DATE}}
+    -X github.com/reusing-code/kontor/backend/internal/version.Version={{.VERSION}}
+    -X github.com/reusing-code/kontor/backend/internal/version.Commit={{.COMMIT}}
+    -X github.com/reusing-code/kontor/backend/internal/version.BuildDate={{.BUILD_DATE}}
 
 tasks:
   dev:

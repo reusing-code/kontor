@@ -8,11 +8,11 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/tobi/contracts/backend/internal/cryptoutil"
-	"github.com/tobi/contracts/backend/internal/email"
-	"github.com/tobi/contracts/backend/internal/ledgeremail"
-	"github.com/tobi/contracts/backend/internal/ledgerimport"
-	"github.com/tobi/contracts/backend/internal/store"
+	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
+	"github.com/reusing-code/kontor/backend/internal/email"
+	"github.com/reusing-code/kontor/backend/internal/ledgeremail"
+	"github.com/reusing-code/kontor/backend/internal/ledgerimport"
+	"github.com/reusing-code/kontor/backend/internal/store"
 )
 
 type Handler struct {

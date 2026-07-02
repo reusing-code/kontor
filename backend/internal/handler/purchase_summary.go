@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/tobi/contracts/backend/internal/middleware"
+	"github.com/reusing-code/kontor/backend/internal/middleware"
 )
 
 type purchaseCategorySummary struct {

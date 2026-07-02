@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tobi/contracts/backend/internal/config"
+	"github.com/reusing-code/kontor/backend/internal/config"
 )
 
 // mockSMTPServer starts a simple TCP listener that mocks basic SMTP responses

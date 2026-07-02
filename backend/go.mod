@@ -1,4 +1,4 @@
-module github.com/tobi/contracts/backend
+module github.com/reusing-code/kontor/backend
 
 go 1.26.1
 

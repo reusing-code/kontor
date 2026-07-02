@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/tobi/contracts/backend/internal/cryptoutil"
-	"github.com/tobi/contracts/backend/internal/model"
-	"github.com/tobi/contracts/backend/internal/store"
+	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
+	"github.com/reusing-code/kontor/backend/internal/model"
+	"github.com/reusing-code/kontor/backend/internal/store"
 )
 
 const accountScanTimeout = 10 * time.Minute

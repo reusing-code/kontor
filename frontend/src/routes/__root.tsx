@@ -85,8 +85,8 @@ function VersionIndicator() {
 
   return (
     <div className="py-1 text-center text-[11px] text-muted-foreground/60">
-      <a href="https://github.com/reusing-code/contracts" target="_blank" rel="noopener noreferrer" className="hover:text-muted-foreground">
-        Contracts
+      <a href="https://github.com/reusing-code/kontor" target="_blank" rel="noopener noreferrer" className="hover:text-muted-foreground">
+        Kontor
       </a>
       {" "}
       {label}

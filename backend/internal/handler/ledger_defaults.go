@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tobi/contracts/backend/internal/model"
+	"github.com/reusing-code/kontor/backend/internal/model"
 	"go.yaml.in/yaml/v2"
 )
 

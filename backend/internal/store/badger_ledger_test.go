@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tobi/contracts/backend/internal/model"
+	"github.com/reusing-code/kontor/backend/internal/model"
 )
 
 func TestLedgerAccount_CreateConflictOnIBAN(t *testing.T) {

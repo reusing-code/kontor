@@ -1,4 +1,4 @@
-# Contracts
+# Kontor
 
 A self-hosted personal finance manager for tracking contracts, subscriptions, purchases, vehicle costs, and ledger transactions. Built with a Go backend and React frontend.
 

@@ -1,6 +1,6 @@
-# Contracts — Frontend
+# Kontor — Frontend
 
-React SPA for the Contracts application — a multi-module personal finance manager covering contracts, purchases, vehicles, and ledger transactions.
+React SPA for the Kontor application — a multi-module personal finance manager covering contracts, purchases, vehicles, and ledger transactions.
 
 ## Tech Stack
 
