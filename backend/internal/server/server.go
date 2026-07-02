@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/reusing-code/kontor/backend/internal/categories"
 	"github.com/reusing-code/kontor/backend/internal/config"
+	"github.com/reusing-code/kontor/backend/internal/core"
 	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 	"github.com/reusing-code/kontor/backend/internal/email"
 	"github.com/reusing-code/kontor/backend/internal/handler"
@@ -23,6 +25,20 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/store"
 	"github.com/reusing-code/kontor/backend/internal/version"
 )
+
+var defaultContractCategories = []categories.Default{
+	{Name: "Insurance", NameKey: "categoryNames.insurance"},
+	{Name: "Banking / Portfolios", NameKey: "categoryNames.banking"},
+	{Name: "Telecommunications", NameKey: "categoryNames.telecommunications"},
+}
+
+var defaultPurchaseCategories = []categories.Default{
+	{Name: "PC Hardware", NameKey: "categoryNames.pcHardware"},
+	{Name: "Entertainment", NameKey: "categoryNames.entertainment"},
+	{Name: "Kitchen", NameKey: "categoryNames.kitchen"},
+	{Name: "Tools", NameKey: "categoryNames.tools"},
+	{Name: "Household", NameKey: "categoryNames.household"},
+}
 
 type Server struct {
 	cfg    config.Config
@@ -71,15 +87,38 @@ func (s *Server) Run() error {
 
 	h := handler.New(s.store, s.logger, jwtSecret, emailClient, s.cfg.EmailEncryptionKey)
 
+	bs, isBadger := s.store.(*store.BadgerStore)
+	if !isBadger {
+		return fmt.Errorf("server requires a badger-backed store")
+	}
+	engine := bs.Engine()
+
+	catStore := categories.NewStore(engine)
+	catStore.RegisterCascade("contracts", store.ContractCategoryCascade)
+	catStore.RegisterCascade("purchases", store.PurchaseCategoryCascade)
+	catHandler := categories.NewHandler(catStore, s.logger)
+
+	coreStore := core.NewStore(engine)
+	seeds := []core.SeedFunc{
+		func(ctx context.Context, userID string) error {
+			return catStore.SeedDefaults(ctx, userID, "contracts", defaultContractCategories)
+		},
+		func(ctx context.Context, userID string) error {
+			return catStore.SeedDefaults(ctx, userID, "purchases", defaultPurchaseCategories)
+		},
+		h.SeedLedgerDefaults,
+	}
+	coreHandler := core.NewHandler(coreStore, s.logger, jwtSecret, emailClient, seeds)
+
 	// Protected API routes (require auth)
 	apiMux := http.NewServeMux()
 
 	// Module-scoped category routes
-	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories", h.ListCategories)
-	apiMux.HandleFunc("POST /api/v1/modules/{module}/categories", h.CreateCategory)
-	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", h.GetCategory)
-	apiMux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", h.UpdateCategory)
-	apiMux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", h.DeleteCategory)
+	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories", catHandler.List)
+	apiMux.HandleFunc("POST /api/v1/modules/{module}/categories", catHandler.Create)
+	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", catHandler.Get)
+	apiMux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", catHandler.Update)
+	apiMux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", catHandler.Delete)
 
 	// Contract routes
 	apiMux.HandleFunc("GET /api/v1/categories/{id}/contracts", h.ListContractsByCategory)
@@ -119,9 +158,9 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("POST /api/v1/restore", h.Restore)
 
 	// Settings routes
-	apiMux.HandleFunc("GET /api/v1/settings", h.GetSettings)
-	apiMux.HandleFunc("PUT /api/v1/settings", h.UpdateSettings)
-	apiMux.HandleFunc("PUT /api/v1/settings/password", h.ChangePassword)
+	apiMux.HandleFunc("GET /api/v1/settings", coreHandler.GetSettings)
+	apiMux.HandleFunc("PUT /api/v1/settings", coreHandler.UpdateSettings)
+	apiMux.HandleFunc("PUT /api/v1/settings/password", coreHandler.ChangePassword)
 
 	// Ledger routes
 	apiMux.HandleFunc("POST /api/v1/ledger/imports/preview", h.LedgerImportPreview)
@@ -160,15 +199,15 @@ func (s *Server) Run() error {
 	mux := http.NewServeMux()
 
 	// Public routes
-	mux.HandleFunc("GET /healthz", h.Healthz)
-	mux.HandleFunc("GET /readyz", h.Readyz)
+	mux.HandleFunc("GET /healthz", coreHandler.Healthz)
+	mux.HandleFunc("GET /readyz", coreHandler.Readyz)
 	mux.Handle("GET /metrics", promhttp.Handler())
 	authRateLimit := middleware.RateLimitPerIP(s.cfg.AuthRateLimit, s.cfg.AuthRateWindow, s.cfg.TrustProxy)
 	if s.cfg.AuthRateLimit <= 0 {
 		s.logger.Info("auth rate limiting disabled", "reason", "AUTH_RATE_LIMIT is 0")
 	}
-	mux.Handle("POST /api/v1/auth/register", authRateLimit(http.HandlerFunc(h.Register)))
-	mux.Handle("POST /api/v1/auth/login", authRateLimit(http.HandlerFunc(h.Login)))
+	mux.Handle("POST /api/v1/auth/register", authRateLimit(http.HandlerFunc(coreHandler.Register)))
+	mux.Handle("POST /api/v1/auth/login", authRateLimit(http.HandlerFunc(coreHandler.Login)))
 	mux.HandleFunc("GET /api/version", version.Handler)
 
 	// Mount protected API routes

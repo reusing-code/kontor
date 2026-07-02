@@ -44,23 +44,24 @@ func loadDefaultLedgerCategories(now time.Time) ([]model.LedgerCategory, error) 
 	return categories, nil
 }
 
-func (h *Handler) seedDefaultLedgerCategoriesIfEmpty(ctx context.Context, userID string) {
+// SeedLedgerDefaults creates the default ledger category tree if the user has
+// no ledger categories yet.
+func (h *Handler) SeedLedgerDefaults(ctx context.Context, userID string) error {
 	existing, err := h.store.ListLedgerCategories(ctx, userID)
 	if err != nil {
-		h.logger.Error("listing ledger categories for seed check", "error", err)
-		return
+		return err
 	}
 	if len(existing) > 0 {
-		return
+		return nil
 	}
 	defaults, err := loadDefaultLedgerCategories(time.Now().UTC())
 	if err != nil {
-		h.logger.Error("loading default ledger categories", "error", err)
-		return
+		return err
 	}
 	for _, category := range defaults {
 		if err := h.store.CreateLedgerCategory(ctx, userID, category); err != nil {
-			h.logger.Error("seeding default ledger category", "name", category.Name, "error", err)
+			return err
 		}
 	}
+	return nil
 }

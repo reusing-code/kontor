@@ -47,6 +47,10 @@ func NewBadgerStore(path string, logger *slog.Logger) (*BadgerStore, error) {
 	}, nil
 }
 
+func (s *BadgerStore) Engine() *storage.Engine {
+	return s.engine
+}
+
 func (s *BadgerStore) Close() error {
 	return s.engine.Close()
 }
@@ -390,62 +394,70 @@ func (s *BadgerStore) DeleteCategory(_ context.Context, userID string, module st
 			return err
 		}
 
-		if module == "contracts" {
-			// Delete all contracts in this category via the contract index
-			conPrefix := idxCatConPrefix(userID, id)
-			it := txn.NewIterator(badger.DefaultIteratorOptions)
-
-			var contractIDs []uuid.UUID
-			for it.Seek(conPrefix); it.ValidForPrefix(conPrefix); it.Next() {
-				key := it.Item().Key()
-				conIDStr := string(key[len(conPrefix):])
-				conID, err := uuid.Parse(conIDStr)
-				if err != nil {
-					continue
-				}
-				contractIDs = append(contractIDs, conID)
-			}
-			it.Close()
-
-			for _, cID := range contractIDs {
-				if err := txn.Delete(conKey(userID, cID)); err != nil {
-					return err
-				}
-				if err := txn.Delete(idxCatConKey(userID, id, cID)); err != nil {
-					return err
-				}
-			}
+		switch module {
+		case "contracts":
+			return ContractCategoryCascade(txn, userID, id)
+		case "purchases":
+			return PurchaseCategoryCascade(txn, userID, id)
 		}
-
-		if module == "purchases" {
-			// Delete all purchases in this category via the purchase index
-			purIdxPrefix := idxCatPurPrefix(userID, id)
-			it2 := txn.NewIterator(badger.DefaultIteratorOptions)
-
-			var purchaseIDs []uuid.UUID
-			for it2.Seek(purIdxPrefix); it2.ValidForPrefix(purIdxPrefix); it2.Next() {
-				key := it2.Item().Key()
-				pIDStr := string(key[len(purIdxPrefix):])
-				pID, err := uuid.Parse(pIDStr)
-				if err != nil {
-					continue
-				}
-				purchaseIDs = append(purchaseIDs, pID)
-			}
-			it2.Close()
-
-			for _, pID := range purchaseIDs {
-				if err := txn.Delete(purKey(userID, pID)); err != nil {
-					return err
-				}
-				if err := txn.Delete(idxCatPurKey(userID, id, pID)); err != nil {
-					return err
-				}
-			}
-		}
-
 		return nil
 	})
+}
+
+// ContractCategoryCascade deletes all contracts in a category via the
+// contract index, inside the given transaction.
+func ContractCategoryCascade(txn *badger.Txn, userID string, categoryID uuid.UUID) error {
+	prefix := idxCatConPrefix(userID, categoryID)
+	it := txn.NewIterator(badger.DefaultIteratorOptions)
+
+	var contractIDs []uuid.UUID
+	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+		key := it.Item().Key()
+		conID, err := uuid.Parse(string(key[len(prefix):]))
+		if err != nil {
+			continue
+		}
+		contractIDs = append(contractIDs, conID)
+	}
+	it.Close()
+
+	for _, cID := range contractIDs {
+		if err := txn.Delete(conKey(userID, cID)); err != nil {
+			return err
+		}
+		if err := txn.Delete(idxCatConKey(userID, categoryID, cID)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PurchaseCategoryCascade deletes all purchases in a category via the
+// purchase index, inside the given transaction.
+func PurchaseCategoryCascade(txn *badger.Txn, userID string, categoryID uuid.UUID) error {
+	prefix := idxCatPurPrefix(userID, categoryID)
+	it := txn.NewIterator(badger.DefaultIteratorOptions)
+
+	var purchaseIDs []uuid.UUID
+	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+		key := it.Item().Key()
+		pID, err := uuid.Parse(string(key[len(prefix):]))
+		if err != nil {
+			continue
+		}
+		purchaseIDs = append(purchaseIDs, pID)
+	}
+	it.Close()
+
+	for _, pID := range purchaseIDs {
+		if err := txn.Delete(purKey(userID, pID)); err != nil {
+			return err
+		}
+		if err := txn.Delete(idxCatPurKey(userID, categoryID, pID)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Contracts

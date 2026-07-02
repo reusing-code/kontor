@@ -1,4 +1,4 @@
-package model
+package categories
 
 import (
 	"errors"
@@ -24,4 +24,10 @@ func (c *CategoryInput) Validate() error {
 		return errors.New("name is required")
 	}
 	return nil
+}
+
+// Default describes a seeded category with its i18n name key.
+type Default struct {
+	Name    string
+	NameKey string
 }
