@@ -2,13 +2,17 @@ package migration
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/dgraph-io/badger/v4"
 )
 
-var versionKey = []byte("_meta/schema_version")
+// Each module tracks its own schema version under _meta/schema/{moduleID}.
+func versionKey(moduleID string) []byte {
+	return []byte("_meta/schema/" + moduleID)
+}
 
 type Migration struct {
 	Version     uint64
@@ -16,10 +20,21 @@ type Migration struct {
 	Run         func(db *badger.DB) error
 }
 
-func getVersion(db *badger.DB) (uint64, error) {
+// Head returns the version a database is at after running all migrations.
+func Head(migrations []Migration) uint64 {
+	var head uint64
+	for _, m := range migrations {
+		if m.Version > head {
+			head = m.Version
+		}
+	}
+	return head
+}
+
+func getVersion(db *badger.DB, moduleID string) (uint64, error) {
 	var version uint64
 	err := db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(versionKey)
+		item, err := txn.Get(versionKey(moduleID))
 		if err != nil {
 			return err
 		}
@@ -31,43 +46,45 @@ func getVersion(db *badger.DB) (uint64, error) {
 			return nil
 		})
 	})
-	if err == badger.ErrKeyNotFound {
+	if errors.Is(err, badger.ErrKeyNotFound) {
 		return 0, nil
 	}
 	return version, err
 }
 
-func setVersion(txn *badger.Txn, version uint64) error {
+func setVersion(txn *badger.Txn, moduleID string, version uint64) error {
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, version)
-	return txn.Set(versionKey, buf)
+	return txn.Set(versionKey(moduleID), buf)
 }
 
-func RunAll(db *badger.DB, logger *slog.Logger, migrations []Migration) error {
-	current, err := getVersion(db)
+// RunModule applies a module's pending migrations, tracking progress under
+// the module's own schema version key.
+func RunModule(db *badger.DB, logger *slog.Logger, moduleID string, migrations []Migration) error {
+	current, err := getVersion(db, moduleID)
 	if err != nil {
-		return fmt.Errorf("reading schema version: %w", err)
+		return fmt.Errorf("reading %s schema version: %w", moduleID, err)
 	}
 
-	logger.Info("migration check", "currentVersion", current, "availableMigrations", len(migrations))
+	logger.Info("migration check", "module", moduleID, "currentVersion", current, "availableMigrations", len(migrations))
 
 	for _, m := range migrations {
 		if m.Version <= current {
 			continue
 		}
-		logger.Info("applying migration", "version", m.Version, "description", m.Description)
+		logger.Info("applying migration", "module", moduleID, "version", m.Version, "description", m.Description)
 
 		if err := m.Run(db); err != nil {
-			return fmt.Errorf("migration %d (%s): %w", m.Version, m.Description, err)
+			return fmt.Errorf("%s migration %d (%s): %w", moduleID, m.Version, m.Description, err)
 		}
 
 		if err := db.Update(func(txn *badger.Txn) error {
-			return setVersion(txn, m.Version)
+			return setVersion(txn, moduleID, m.Version)
 		}); err != nil {
-			return fmt.Errorf("updating schema version to %d: %w", m.Version, err)
+			return fmt.Errorf("updating %s schema version to %d: %w", moduleID, m.Version, err)
 		}
 
-		logger.Info("migration applied", "version", m.Version)
+		logger.Info("migration applied", "module", moduleID, "version", m.Version)
 	}
 
 	return nil

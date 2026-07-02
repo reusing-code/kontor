@@ -61,3 +61,7 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 func (m *Module) Seed(ctx context.Context, userID string) error {
 	return m.categories.SeedDefaults(ctx, userID, ModuleID, defaultCategories)
 }
+
+func (m *Module) Prefix(userID string) []byte {
+	return module.Prefix(userID, ModuleID)
+}

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/reusing-code/kontor/backend/internal/storage/migration"
 )
 
 // ErrInvalidSection marks import failures caused by the uploaded file rather
@@ -16,6 +18,12 @@ var ErrInvalidSection = errors.New("invalid export section")
 // ledger). The server wires all registered modules at startup.
 type Module interface {
 	ID() string
+	// Prefix returns the module's DB key prefix for a user; all module data
+	// lives under it.
+	Prefix(userID string) []byte
+	// Migrations returns the module's schema migrations, applied at startup
+	// against the module's own version key.
+	Migrations() []migration.Migration
 	// RegisterRoutes adds the module's routes; every handler passes through
 	// the Router's gate, so module routes cannot bypass enablement checks.
 	RegisterRoutes(r *Router)
@@ -56,12 +64,19 @@ func (r *ImportResult) Warnf(format string, args ...any) {
 	r.Warnings = append(r.Warnings, fmt.Sprintf(format, args...))
 }
 
+// Prefix builds the canonical per-module key prefix u/{userID}/mod/{moduleID}/.
+func Prefix(userID, moduleID string) []byte {
+	return []byte("u/" + userID + "/mod/" + moduleID + "/")
+}
+
 // Base provides no-op defaults for optional Module methods.
 type Base struct{}
 
 func (Base) Seed(context.Context, string) error { return nil }
 
 func (Base) StartBackground(context.Context) {}
+
+func (Base) Migrations() []migration.Migration { return nil }
 
 func (Base) PruneDeadLinks(context.Context, string, *ImportResult) error { return nil }
 

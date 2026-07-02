@@ -25,6 +25,7 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 	"github.com/reusing-code/kontor/backend/internal/storage/link"
+	"github.com/reusing-code/kontor/backend/internal/storage/migration"
 	"github.com/reusing-code/kontor/backend/internal/version"
 )
 
@@ -60,6 +61,12 @@ func (s *Server) Run() error {
 		EmailEncryptionKey: s.cfg.EmailEncryptionKey,
 	}, s.logger)
 	registry := module.NewRegistry(contractsMod, purchasesMod, autoMod, ledgerMod)
+
+	for _, m := range registry.All() {
+		if err := migration.RunModule(engine.DB(), s.logger, m.ID(), m.Migrations()); err != nil {
+			return fmt.Errorf("running %s migrations: %w", m.ID(), err)
+		}
+	}
 
 	if s.cfg.BackupDir == "" {
 		s.logger.Info("backup scheduler disabled", "reason", "BACKUP_DIR is not set")

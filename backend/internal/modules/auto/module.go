@@ -47,3 +47,7 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("PUT /api/v1/costs/{id}", h.UpdateCostEntry)
 	r.Handle("DELETE /api/v1/costs/{id}", h.DeleteCostEntry)
 }
+
+func (m *Module) Prefix(userID string) []byte {
+	return module.Prefix(userID, ModuleID)
+}

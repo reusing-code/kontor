@@ -10,6 +10,7 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/module"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 	"github.com/reusing-code/kontor/backend/internal/storage/link"
+	"github.com/reusing-code/kontor/backend/internal/storage/migration"
 )
 
 const ModuleID = "contracts"
@@ -76,3 +77,9 @@ func (m *Module) StartBackground(ctx context.Context) {
 	}
 	NewScheduler(m.coreStore, m.store, m.emailClient, m.logger).Start(ctx)
 }
+
+func (m *Module) Prefix(userID string) []byte {
+	return module.Prefix(userID, ModuleID)
+}
+
+func (m *Module) Migrations() []migration.Migration { return nil }

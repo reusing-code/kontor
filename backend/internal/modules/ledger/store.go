@@ -76,87 +76,87 @@ type LedgerImportCommitResult struct {
 // Ledger account key helpers
 
 func ledAccKey(userID string, id uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/led/acc/%s", userID, id))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/acc/%s", userID, id))
 }
 
 func ledAccPrefix(userID string) []byte {
-	return []byte(fmt.Sprintf("u/%s/led/acc/", userID))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/acc/", userID))
 }
 
 func idxLedAccIBANKey(userID string, iban string) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/led_acc_iban/%s", userID, iban))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/idx/acc_iban/%s", userID, iban))
 }
 
 // Ledger category key helpers
 
 func ledCatKey(userID string, id uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/led/cat/%s", userID, id))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/cat/%s", userID, id))
 }
 
 func ledCatPrefix(userID string) []byte {
-	return []byte(fmt.Sprintf("u/%s/led/cat/", userID))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/cat/", userID))
 }
 
 // Ledger transaction key helpers
 
 func ledTxnKey(userID string, id uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/led/txn/%s", userID, id))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/txn/%s", userID, id))
 }
 
 func ledTxnPrefix(userID string) []byte {
-	return []byte(fmt.Sprintf("u/%s/led/txn/", userID))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/txn/", userID))
 }
 
 func idxLedAccTxnKey(userID string, accountID uuid.UUID, bookingDate string, txnID uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/led_acc_txn/%s/%s/%s", userID, accountID, bookingDate, txnID))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/idx/acc_txn/%s/%s/%s", userID, accountID, bookingDate, txnID))
 }
 
 func idxLedTxnFPKey(userID string, fingerprint string) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/led_txn_fp/%s", userID, fingerprint))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/idx/txn_fp/%s", userID, fingerprint))
 }
 
 func idxLedImpTxnKey(userID string, batchID uuid.UUID, txnID uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/led_imp_txn/%s/%s", userID, batchID, txnID))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/idx/imp_txn/%s/%s", userID, batchID, txnID))
 }
 
 // Ledger import batch key helpers
 
 func ledImpKey(userID string, id uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/led/imp/%s", userID, id))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/imp/%s", userID, id))
 }
 
 func ledImpPrefix(userID string) []byte {
-	return []byte(fmt.Sprintf("u/%s/led/imp/", userID))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/imp/", userID))
 }
 
 func idxLedFileHashKey(userID string, sha256 string) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/led_file_hash/%s", userID, sha256))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/idx/file_hash/%s", userID, sha256))
 }
 
 // Ledger email key helpers
 
 func ledEmailAccKey(userID string, id uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/led/emailacc/%s", userID, id))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/emailacc/%s", userID, id))
 }
 
 func ledEmailAccPrefix(userID string) []byte {
-	return []byte(fmt.Sprintf("u/%s/led/emailacc/", userID))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/emailacc/", userID))
 }
 
 func ledEmailOrderKey(userID string, id uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/led/eord/%s", userID, id))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/eord/%s", userID, id))
 }
 
 func ledEmailOrderPrefix(userID string) []byte {
-	return []byte(fmt.Sprintf("u/%s/led/eord/", userID))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/eord/", userID))
 }
 
 func idxLedEmailAccOrderKey(userID string, accountID uuid.UUID, orderID uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/led_emailacc_eord/%s/%s", userID, accountID, orderID))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/idx/emailacc_eord/%s/%s", userID, accountID, orderID))
 }
 
 func idxLedEmailMsgIDKey(userID string, messageID string) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/led_eord_msgid/%s", userID, messageID))
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/idx/eord_msgid/%s", userID, messageID))
 }
 
 func normalizeLedgerTransaction(t LedgerTransaction) LedgerTransaction {

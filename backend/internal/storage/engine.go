@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
-	"github.com/reusing-code/kontor/backend/internal/storage/migration"
 )
 
 // Engine owns the badger database shared by all module stores.
@@ -32,11 +31,6 @@ func Open(path string, logger *slog.Logger) (*Engine, error) {
 	db, err := badger.Open(opts)
 	if err != nil {
 		return nil, fmt.Errorf("opening badger db: %w", err)
-	}
-
-	if err := migration.RunAll(db, logger, migration.All); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("running migrations: %w", err)
 	}
 
 	e := &Engine{

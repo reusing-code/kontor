@@ -23,23 +23,23 @@ func NewStore(e *storage.Engine, links *link.Registry) *Store {
 }
 
 func vehKey(userID string, id uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/veh/%s", userID, id))
+	return []byte(fmt.Sprintf("u/%s/mod/auto/veh/%s", userID, id))
 }
 
 func vehPrefix(userID string) []byte {
-	return []byte(fmt.Sprintf("u/%s/veh/", userID))
+	return []byte(fmt.Sprintf("u/%s/mod/auto/veh/", userID))
 }
 
 func costKey(userID string, id uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/cost/%s", userID, id))
+	return []byte(fmt.Sprintf("u/%s/mod/auto/cost/%s", userID, id))
 }
 
 func idxVehCostKey(userID string, vehicleID, costID uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/veh_cost/%s/%s", userID, vehicleID, costID))
+	return []byte(fmt.Sprintf("u/%s/mod/auto/idx/veh_cost/%s/%s", userID, vehicleID, costID))
 }
 
 func idxVehCostPrefix(userID string, vehicleID uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/veh_cost/%s/", userID, vehicleID))
+	return []byte(fmt.Sprintf("u/%s/mod/auto/idx/veh_cost/%s/", userID, vehicleID))
 }
 
 func normalizeVehicle(v Vehicle) Vehicle {

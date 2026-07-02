@@ -23,19 +23,19 @@ func NewStore(e *storage.Engine, links *link.Registry) *Store {
 }
 
 func purKey(userID string, id uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/pur/%s", userID, id))
+	return []byte(fmt.Sprintf("u/%s/mod/purchases/pur/%s", userID, id))
 }
 
 func purPrefix(userID string) []byte {
-	return []byte(fmt.Sprintf("u/%s/pur/", userID))
+	return []byte(fmt.Sprintf("u/%s/mod/purchases/pur/", userID))
 }
 
 func idxCatPurKey(userID string, categoryID, purchaseID uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/cat_pur/%s/%s", userID, categoryID, purchaseID))
+	return []byte(fmt.Sprintf("u/%s/mod/purchases/idx/cat_pur/%s/%s", userID, categoryID, purchaseID))
 }
 
 func idxCatPurPrefix(userID string, categoryID uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/cat_pur/%s/", userID, categoryID))
+	return []byte(fmt.Sprintf("u/%s/mod/purchases/idx/cat_pur/%s/", userID, categoryID))
 }
 
 func normalize(p Purchase) Purchase {

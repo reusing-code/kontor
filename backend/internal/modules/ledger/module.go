@@ -13,6 +13,7 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/module"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 	"github.com/reusing-code/kontor/backend/internal/storage/link"
+	"github.com/reusing-code/kontor/backend/internal/storage/migration"
 )
 
 const ModuleID = "ledger"
@@ -149,3 +150,9 @@ func (h *Handler) storeError(w http.ResponseWriter, err error) {
 		httputil.Error(h.logger, w, http.StatusInternalServerError, "internal error")
 	}
 }
+
+func (m *Module) Prefix(userID string) []byte {
+	return module.Prefix(userID, ModuleID)
+}
+
+func (m *Module) Migrations() []migration.Migration { return nil }

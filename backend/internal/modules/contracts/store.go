@@ -23,19 +23,19 @@ func NewStore(e *storage.Engine, links *link.Registry) *Store {
 }
 
 func conKey(userID string, id uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/con/%s", userID, id))
+	return []byte(fmt.Sprintf("u/%s/mod/contracts/con/%s", userID, id))
 }
 
 func conPrefix(userID string) []byte {
-	return []byte(fmt.Sprintf("u/%s/con/", userID))
+	return []byte(fmt.Sprintf("u/%s/mod/contracts/con/", userID))
 }
 
 func idxCatConKey(userID string, categoryID, contractID uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/cat_con/%s/%s", userID, categoryID, contractID))
+	return []byte(fmt.Sprintf("u/%s/mod/contracts/idx/cat_con/%s/%s", userID, categoryID, contractID))
 }
 
 func idxCatConPrefix(userID string, categoryID uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("u/%s/idx/cat_con/%s/", userID, categoryID))
+	return []byte(fmt.Sprintf("u/%s/mod/contracts/idx/cat_con/%s/", userID, categoryID))
 }
 
 func normalize(c Contract) Contract {
