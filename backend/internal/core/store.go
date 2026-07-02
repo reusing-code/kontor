@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
@@ -140,4 +141,14 @@ func (s *Store) UpdateSettings(_ context.Context, userID string, st UserSettings
 	return s.e.Update(func(txn *badger.Txn) error {
 		return storage.SetJSON(txn, settingsKey(userID), st)
 	})
+}
+
+// ModuleEnabled implements the module gate's enablement check: a module is
+// enabled unless the user disabled it in settings.
+func (s *Store) ModuleEnabled(ctx context.Context, userID, moduleID string) (bool, error) {
+	settings, err := s.GetSettings(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	return !slices.Contains(settings.DisabledModules, moduleID), nil
 }

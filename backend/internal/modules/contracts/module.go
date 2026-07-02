@@ -63,7 +63,7 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("GET /api/v1/contracts/{id}", h.GetContract)
 	r.Handle("PUT /api/v1/contracts/{id}", h.UpdateContract)
 	r.Handle("DELETE /api/v1/contracts/{id}", h.DeleteContract)
-	r.Handle("GET /api/v1/summary", h.Summary)
+	r.Handle("GET /api/v1/contracts/summary", h.Summary)
 }
 
 func (m *Module) Seed(ctx context.Context, userID string) error {

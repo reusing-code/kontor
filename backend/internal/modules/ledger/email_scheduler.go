@@ -82,6 +82,14 @@ func (s *EmailScanScheduler) scanAll(ctx context.Context) {
 }
 
 func (s *EmailScanScheduler) scanUser(ctx context.Context, userID string) error {
+	enabled, err := s.core.ModuleEnabled(ctx, userID, ModuleID)
+	if err != nil {
+		return fmt.Errorf("checking module enablement: %w", err)
+	}
+	if !enabled {
+		return nil
+	}
+
 	accounts, err := s.store.ListLedgerEmailAccounts(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("listing email accounts: %w", err)

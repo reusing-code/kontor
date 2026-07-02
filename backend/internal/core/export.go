@@ -137,6 +137,15 @@ func (h *Handler) importEnvelope(w http.ResponseWriter, r *http.Request, onlyMod
 	}
 
 	for _, m := range targets {
+		enabled, err := h.store.ModuleEnabled(ctx, userID, m.ID())
+		if err != nil {
+			httputil.StoreError(h.logger, w, err)
+			return
+		}
+		if !enabled {
+			httputil.Error(h.logger, w, http.StatusConflict, fmt.Sprintf("enable the %s module before importing its data", m.ID()))
+			return
+		}
 		empty, err := m.IsEmpty(ctx, userID)
 		if err != nil {
 			httputil.StoreError(h.logger, w, err)
@@ -149,13 +158,6 @@ func (h *Handler) importEnvelope(w http.ResponseWriter, r *http.Request, onlyMod
 	}
 
 	result := module.NewImportResult()
-
-	if onlyModule == "" && envelope.Settings != nil {
-		if err := h.store.UpdateSettings(ctx, userID, *envelope.Settings); err != nil {
-			httputil.StoreError(h.logger, w, err)
-			return
-		}
-	}
 
 	for _, m := range targets {
 		if err := m.ImportSection(ctx, userID, envelope.Modules[m.ID()], result); err != nil {
@@ -170,6 +172,15 @@ func (h *Handler) importEnvelope(w http.ResponseWriter, r *http.Request, onlyMod
 
 	for _, m := range targets {
 		if err := m.PruneDeadLinks(ctx, userID, result); err != nil {
+			httputil.StoreError(h.logger, w, err)
+			return
+		}
+	}
+
+	// Settings are applied last so imported disabled-module preferences
+	// cannot interfere with the import itself.
+	if onlyModule == "" && envelope.Settings != nil {
+		if err := h.store.UpdateSettings(ctx, userID, *envelope.Settings); err != nil {
 			httputil.StoreError(h.logger, w, err)
 			return
 		}

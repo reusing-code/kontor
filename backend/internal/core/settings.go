@@ -2,6 +2,7 @@ package core
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
@@ -22,15 +23,48 @@ func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 		httputil.StoreError(h.logger, w, err)
 		return
 	}
-	httputil.WriteJSON(h.logger, w, http.StatusOK, SettingsResponse{
+	httputil.WriteJSON(h.logger, w, http.StatusOK, h.settingsResponse(settings))
+}
+
+func (h *Handler) settingsResponse(settings UserSettings) SettingsResponse {
+	enabled := []string{}
+	for _, id := range h.registry.IDs() {
+		if !slices.Contains(settings.DisabledModules, id) {
+			enabled = append(enabled, id)
+		}
+	}
+	return SettingsResponse{
 		RenewalDays:       settings.RenewalDays,
 		ReminderFrequency: settings.ReminderFrequency,
-	})
+		EnabledModules:    enabled,
+	}
+}
+
+type moduleStatus struct {
+	ID      string `json:"id"`
+	Enabled bool   `json:"enabled"`
+}
+
+// ListModules reports every available module and whether the user has it
+// enabled.
+func (h *Handler) ListModules(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	settings, err := h.store.GetSettings(r.Context(), userID)
+	if err != nil {
+		httputil.StoreError(h.logger, w, err)
+		return
+	}
+	statuses := []moduleStatus{}
+	for _, id := range h.registry.IDs() {
+		statuses = append(statuses, moduleStatus{ID: id, Enabled: !slices.Contains(settings.DisabledModules, id)})
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, statuses)
 }
 
 type updateSettingsRequest struct {
-	RenewalDays       int    `json:"renewalDays"`
-	ReminderFrequency string `json:"reminderFrequency"`
+	RenewalDays       int       `json:"renewalDays"`
+	ReminderFrequency string    `json:"reminderFrequency"`
+	EnabledModules    *[]string `json:"enabledModules,omitempty"`
 }
 
 func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
@@ -60,14 +94,40 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 		current.ReminderFrequency = req.ReminderFrequency
 	}
 
+	var newlyEnabled []string
+	if req.EnabledModules != nil {
+		for _, id := range *req.EnabledModules {
+			if _, ok := h.registry.Get(id); !ok {
+				httputil.Error(h.logger, w, http.StatusBadRequest, "unknown module: "+id)
+				return
+			}
+		}
+		disabled := []string{}
+		for _, id := range h.registry.IDs() {
+			if !slices.Contains(*req.EnabledModules, id) {
+				disabled = append(disabled, id)
+			} else if slices.Contains(current.DisabledModules, id) {
+				newlyEnabled = append(newlyEnabled, id)
+			}
+		}
+		current.DisabledModules = disabled
+	}
+
 	if err := h.store.UpdateSettings(r.Context(), userID, current); err != nil {
 		httputil.StoreError(h.logger, w, err)
 		return
 	}
-	httputil.WriteJSON(h.logger, w, http.StatusOK, SettingsResponse{
-		RenewalDays:       current.RenewalDays,
-		ReminderFrequency: current.ReminderFrequency,
-	})
+
+	// Re-enabled modules get their defaults seeded again (idempotent).
+	for _, id := range newlyEnabled {
+		if m, ok := h.registry.Get(id); ok {
+			if err := m.Seed(r.Context(), userID); err != nil {
+				h.logger.Error("seeding re-enabled module", "module", id, "error", err)
+			}
+		}
+	}
+
+	httputil.WriteJSON(h.logger, w, http.StatusOK, h.settingsResponse(current))
 }
 
 type changePasswordRequest struct {

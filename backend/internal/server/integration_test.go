@@ -24,6 +24,11 @@ import (
 const testUserID = "00000000-0000-0000-0000-000000000001"
 
 func setupServer(t *testing.T) *httptest.Server {
+	srv, _ := setupServerWithStore(t)
+	return srv
+}
+
+func setupServerWithStore(t *testing.T) (*httptest.Server, *core.Store) {
 	t.Helper()
 	logger := slog.New(slog.DiscardHandler)
 	engine, err := storage.Open(t.TempDir(), logger)
@@ -46,15 +51,16 @@ func setupServer(t *testing.T) *httptest.Server {
 	mux := http.NewServeMux()
 
 	for _, m := range registry.All() {
-		m.RegisterRoutes(module.NewRouter(mux, nil))
+		m.RegisterRoutes(module.NewRouter(mux, module.Gate(m.ID(), coreStore)))
 	}
 
 	// Module-scoped category routes
-	mux.HandleFunc("GET /api/v1/modules/{module}/categories", catHandler.List)
-	mux.HandleFunc("POST /api/v1/modules/{module}/categories", catHandler.Create)
-	mux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", catHandler.Get)
-	mux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", catHandler.Update)
-	mux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", catHandler.Delete)
+	catGate := module.GateParam(coreStore, contracts.ModuleID, purchases.ModuleID)
+	mux.HandleFunc("GET /api/v1/modules/{module}/categories", catGate(catHandler.List))
+	mux.HandleFunc("POST /api/v1/modules/{module}/categories", catGate(catHandler.Create))
+	mux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Get))
+	mux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Update))
+	mux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Delete))
 
 	// Inject test user into context (integration tests skip auth middleware)
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +68,7 @@ func setupServer(t *testing.T) *httptest.Server {
 		mux.ServeHTTP(w, r.WithContext(ctx))
 	})
 
-	return httptest.NewServer(wrapped)
+	return httptest.NewServer(wrapped), coreStore
 }
 
 func doJSON(t *testing.T, method, url string, body any) *http.Response {
@@ -253,7 +259,7 @@ func TestIntegration_Summary(t *testing.T) {
 	base := srv.URL
 
 	// Empty summary
-	resp := doJSON(t, "GET", base+"/api/v1/summary", nil)
+	resp := doJSON(t, "GET", base+"/api/v1/contracts/summary", nil)
 	expectStatus(t, resp, 200)
 	summary := decode[map[string]any](t, resp)
 	if int(summary["totalContracts"].(float64)) != 0 {
@@ -277,7 +283,7 @@ func TestIntegration_Summary(t *testing.T) {
 	resp.Body.Close()
 
 	// Summary should reflect the contract
-	resp = doJSON(t, "GET", base+"/api/v1/summary", nil)
+	resp = doJSON(t, "GET", base+"/api/v1/contracts/summary", nil)
 	expectStatus(t, resp, 200)
 	summary = decode[map[string]any](t, resp)
 	if int(summary["totalContracts"].(float64)) != 1 {
@@ -478,5 +484,48 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	// Verify category is gone
 	resp = doJSON(t, "GET", base+"/api/v1/modules/purchases/categories/"+cat.ID.String(), nil)
 	expectStatus(t, resp, 404)
+	resp.Body.Close()
+}
+
+func TestIntegration_DisabledModuleIsGated(t *testing.T) {
+	srv, coreStore := setupServerWithStore(t)
+	defer srv.Close()
+	base := srv.URL
+
+	// contracts route works while enabled
+	resp := doJSON(t, "GET", base+"/api/v1/contracts", nil)
+	expectStatus(t, resp, 200)
+	resp.Body.Close()
+
+	if err := coreStore.UpdateSettings(t.Context(), testUserID, core.UserSettings{
+		RenewalDays:       90,
+		ReminderFrequency: "disabled",
+		DisabledModules:   []string{"contracts"},
+	}); err != nil {
+		t.Fatalf("disabling contracts: %v", err)
+	}
+
+	for _, path := range []string{
+		"/api/v1/contracts",
+		"/api/v1/contracts/upcoming-renewals",
+		"/api/v1/contracts/summary",
+		"/api/v1/modules/contracts/categories",
+	} {
+		resp := doJSON(t, "GET", base+path, nil)
+		if resp.StatusCode != 403 {
+			t.Errorf("%s: status = %d, want 403", path, resp.StatusCode)
+		}
+		resp.Body.Close()
+	}
+
+	// other modules stay reachable
+	resp = doJSON(t, "GET", base+"/api/v1/purchases", nil)
+	expectStatus(t, resp, 200)
+	resp.Body.Close()
+	resp = doJSON(t, "GET", base+"/api/v1/vehicles", nil)
+	expectStatus(t, resp, 200)
+	resp.Body.Close()
+	resp = doJSON(t, "GET", base+"/api/v1/ledger/accounts", nil)
+	expectStatus(t, resp, 200)
 	resp.Body.Close()
 }

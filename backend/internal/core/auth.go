@@ -21,6 +21,21 @@ const minPasswordLength = 8
 // SeedFunc initializes default data for a new or returning user.
 type SeedFunc func(ctx context.Context, userID string) error
 
+// EnabledOnlySeed wraps a module seed so it only runs for users who have the
+// module enabled.
+func EnabledOnlySeed(store *Store, moduleID string, seed SeedFunc) SeedFunc {
+	return func(ctx context.Context, userID string) error {
+		enabled, err := store.ModuleEnabled(ctx, userID, moduleID)
+		if err != nil {
+			return err
+		}
+		if !enabled {
+			return nil
+		}
+		return seed(ctx, userID)
+	}
+}
+
 type Handler struct {
 	store       *Store
 	logger      *slog.Logger

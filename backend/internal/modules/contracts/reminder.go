@@ -69,6 +69,14 @@ func (s *Scheduler) checkAll(ctx context.Context) {
 }
 
 func (s *Scheduler) checkUser(ctx context.Context, u core.User) error {
+	enabled, err := s.core.ModuleEnabled(ctx, u.ID.String(), ModuleID)
+	if err != nil {
+		return fmt.Errorf("checking module enablement: %w", err)
+	}
+	if !enabled {
+		return nil
+	}
+
 	settings, err := s.core.GetSettings(ctx, u.ID.String())
 	if err != nil {
 		return fmt.Errorf("getting settings: %w", err)

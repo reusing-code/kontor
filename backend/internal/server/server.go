@@ -80,25 +80,29 @@ func (s *Server) Run() error {
 
 	seeds := make([]core.SeedFunc, 0, len(registry.All()))
 	for _, m := range registry.All() {
-		seeds = append(seeds, m.Seed)
+		seeds = append(seeds, core.EnabledOnlySeed(coreStore, m.ID(), m.Seed))
 	}
 	coreHandler := core.NewHandler(coreStore, s.logger, jwtSecret, emailClient, seeds, registry)
 
 	// Protected API routes (require auth)
 	apiMux := http.NewServeMux()
 
-	// Module routes (gate is a passthrough until enablement lands)
+	// Module routes, each gated on the user's enabled modules
 	for _, m := range registry.All() {
-		m.RegisterRoutes(module.NewRouter(apiMux, nil))
+		m.RegisterRoutes(module.NewRouter(apiMux, module.Gate(m.ID(), coreStore)))
 		m.StartBackground(shutdownCtx)
 	}
 
-	// Module-scoped category routes
-	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories", catHandler.List)
-	apiMux.HandleFunc("POST /api/v1/modules/{module}/categories", catHandler.Create)
-	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", catHandler.Get)
-	apiMux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", catHandler.Update)
-	apiMux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", catHandler.Delete)
+	// Module-scoped category routes, gated via the {module} path parameter
+	catGate := module.GateParam(coreStore, contracts.ModuleID, purchases.ModuleID)
+	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories", catGate(catHandler.List))
+	apiMux.HandleFunc("POST /api/v1/modules/{module}/categories", catGate(catHandler.Create))
+	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Get))
+	apiMux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Update))
+	apiMux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Delete))
+
+	// Module directory
+	apiMux.HandleFunc("GET /api/v1/modules", coreHandler.ListModules)
 
 	// Data export / import
 	apiMux.HandleFunc("GET /api/v1/export", coreHandler.Export)
