@@ -624,6 +624,9 @@ func paginateLedgerTransactions(txns []LedgerTransaction, limit int, cursor stri
 		end = len(txns)
 	}
 	page.Items = txns[start:end]
+	if page.Items == nil {
+		page.Items = []LedgerTransaction{}
+	}
 	if end < len(txns) && end > start {
 		page.NextCursor = txns[end-1].ID.String()
 	}
