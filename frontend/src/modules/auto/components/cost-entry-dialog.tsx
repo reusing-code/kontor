@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { useForm } from "react-hook-form"
+import { useForm, type Resolver } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { costEntryFormSchema, type CostEntryFormData, type CostEntry, type CostType } from "@/modules/auto/types"
 import {
@@ -41,7 +41,6 @@ const costTypes: CostType[] = [
   "fuel",
   "insurance",
   "tax",
-  "inspection",
   "tires",
   "mileage",
   "misc",
@@ -55,7 +54,7 @@ const defaultValues: CostEntryFormData = {
 export function CostEntryDialog({ open, onOpenChange, costEntry, onSubmit }: CostEntryDialogProps) {
   const { t } = useTranslation()
   const form = useForm<CostEntryFormData>({
-    resolver: standardSchemaResolver(costEntryFormSchema),
+    resolver: standardSchemaResolver(costEntryFormSchema) as Resolver<CostEntryFormData>,
     defaultValues,
   })
 

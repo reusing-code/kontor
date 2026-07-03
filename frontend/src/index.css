@@ -113,6 +113,25 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Cost-type series colors for auto module charts (CVD-validated categorical palette) */
+:root {
+  --viz-service: #2a78d6;
+  --viz-fuel: #1baf7a;
+  --viz-insurance: #eda100;
+  --viz-tax: #008300;
+  --viz-tires: #4a3aa7;
+  --viz-misc: #e34948;
+}
+
+.dark {
+  --viz-service: #3987e5;
+  --viz-fuel: #199e70;
+  --viz-insurance: #c98500;
+  --viz-tax: #008300;
+  --viz-tires: #9085e9;
+  --viz-misc: #e66767;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

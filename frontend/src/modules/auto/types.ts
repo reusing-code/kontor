@@ -6,7 +6,6 @@ export const costTypeSchema = z.enum([
   "fuel",
   "insurance",
   "tax",
-  "inspection",
   "tires",
   "mileage",
   "misc",
@@ -90,7 +89,6 @@ export interface YearCosts {
   fuel: number
   insurance: number
   tax: number
-  inspection: number
   tires: number
   misc: number
   total: number

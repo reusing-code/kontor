@@ -1,4 +1,4 @@
-import { useForm } from "react-hook-form"
+import { useForm, type Resolver } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { useTranslation } from "react-i18next"
 import type { LedgerEmailAccount, LedgerEmailAccountInput } from "@/modules/ledger/types"
@@ -31,7 +31,7 @@ interface LedgerEmailAccountDialogProps {
 export function LedgerEmailAccountDialog({ open, onOpenChange, account, onSubmit }: LedgerEmailAccountDialogProps) {
   const { t } = useTranslation()
   const form = useForm<LedgerEmailAccountInput>({
-    resolver: standardSchemaResolver(ledgerEmailAccountInputSchema),
+    resolver: standardSchemaResolver(ledgerEmailAccountInputSchema) as Resolver<LedgerEmailAccountInput>,
     defaultValues: {
       name: account?.name ?? "",
       imapHost: account?.imapHost ?? "imap.gmail.com",

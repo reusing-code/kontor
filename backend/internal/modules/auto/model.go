@@ -60,25 +60,23 @@ func (v *VehicleInput) Validate() error {
 
 // CostEntryType enumerates the predefined cost types.
 const (
-	CostTypeService    = "service"
-	CostTypeFuel       = "fuel"
-	CostTypeInsurance  = "insurance"
-	CostTypeTax        = "tax"
-	CostTypeInspection = "inspection"
-	CostTypeTires      = "tires"
-	CostTypeMileage    = "mileage"
-	CostTypeMisc       = "misc"
+	CostTypeService   = "service"
+	CostTypeFuel      = "fuel"
+	CostTypeInsurance = "insurance"
+	CostTypeTax       = "tax"
+	CostTypeTires     = "tires"
+	CostTypeMileage   = "mileage"
+	CostTypeMisc      = "misc"
 )
 
 var validCostTypes = map[string]bool{
-	CostTypeService:    true,
-	CostTypeFuel:       true,
-	CostTypeInsurance:  true,
-	CostTypeTax:        true,
-	CostTypeInspection: true,
-	CostTypeTires:      true,
-	CostTypeMileage:    true,
-	CostTypeMisc:       true,
+	CostTypeService:   true,
+	CostTypeFuel:      true,
+	CostTypeInsurance: true,
+	CostTypeTax:       true,
+	CostTypeTires:     true,
+	CostTypeMileage:   true,
+	CostTypeMisc:      true,
 }
 
 type CostEntry struct {

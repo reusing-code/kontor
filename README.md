@@ -7,7 +7,7 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 - **Modular design** — First-class modules (contracts, purchases, auto, ledger) with independent dashboards; enable or disable modules per account (data is kept while disabled)
 - **Contract tracking** — Store contract details including dates, pricing, notice periods, and renewal terms
 - **Purchase tracking** — Track one-time purchases with item details, pricing, dealer info, and document links
-- **Vehicle cost tracking** — Manage vehicles with cost entries (service, fuel, insurance, tax, inspection, tires, mileage, misc) and total cost of ownership projections
+- **Vehicle cost tracking** — Manage vehicles with cost entries (service, fuel, insurance, tax, tires, mileage, misc), a per-vehicle statistics page with charts, and total cost of ownership projections
 - **Ledger module** — Import bank CSVs into tracked accounts, review transactions, manage categories, add notes/links/references, mark internal transfers, and enrich transactions with parsed email order data
 - **Email order enrichment** — Configure IMAP email accounts for supported importers like Amazon.de and PayPal.de to scan inbox messages and auto-link parsed orders to ledger transactions; accounts are also scanned automatically in the background (`LEDGER_EMAIL_SCAN_INTERVAL`, default every 6h), and `.eml` upload remains available as a fallback
 - **Category organization** — Per-module categories (e.g. insurance/telecom for contracts, PC hardware/tools for purchases)

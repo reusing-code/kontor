@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
-import { useForm } from "react-hook-form"
+import { useForm, type Resolver } from "react-hook-form"
 import { toast } from "sonner"
 import { Upload } from "lucide-react"
 import { useLedgerCommitImport, useLedgerPreviewImport } from "@/modules/ledger/hooks/use-ledger"
@@ -51,7 +51,7 @@ export function LedgerImportPanel({ accounts }: LedgerImportPanelProps) {
   const [mode, setMode] = useState<"existing" | "new">("existing")
 
   const newAccountForm = useForm<LedgerAccountInput>({
-    resolver: standardSchemaResolver(ledgerAccountInputSchema),
+    resolver: standardSchemaResolver(ledgerAccountInputSchema) as Resolver<LedgerAccountInput>,
     defaultValues: defaultLedgerAccountInput(),
   })
 

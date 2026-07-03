@@ -1,9 +1,9 @@
 import { useState } from "react"
-import { createRoute } from "@tanstack/react-router"
+import { createRoute, Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { toast } from "sonner"
-import { Plus } from "lucide-react"
+import { ChartColumn, Plus } from "lucide-react"
 import { rootRoute } from "@/routes/__root"
 import { moduleGuard } from "@/modules/guard"
 import {
@@ -86,6 +86,12 @@ function AutoVehicleDetailPage() {
       <div className="flex items-center gap-4">
         <h1 className="text-2xl font-bold">{vehicle?.name ?? "..."}</h1>
         <div className="ml-auto flex gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/auto/vehicles/$vehicleId/statistics" params={{ vehicleId }}>
+              <ChartColumn className="mr-2 h-4 w-4" />
+              {t("vehicleSummary.statistics")}
+            </Link>
+          </Button>
           <Button variant="outline" onClick={() => setEditingVehicle(true)}>
             {t("vehicle.editVehicle")}
           </Button>

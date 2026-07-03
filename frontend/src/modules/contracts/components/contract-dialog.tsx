@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { useForm } from "react-hook-form"
+import { useForm, type Resolver } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { contractFormSchema, type ContractFormData, type Contract } from "@/modules/contracts/types"
 import { contractFields } from "@/modules/contracts/config/contract-fields"
@@ -34,7 +34,7 @@ const defaultValues: ContractFormData = {
 export function ContractDialog({ open, onOpenChange, contract, onSubmit }: ContractDialogProps) {
   const { t } = useTranslation()
   const form = useForm<ContractFormData>({
-    resolver: standardSchemaResolver(contractFormSchema),
+    resolver: standardSchemaResolver(contractFormSchema) as Resolver<ContractFormData>,
     defaultValues,
   })
 

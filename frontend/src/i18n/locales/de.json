@@ -161,11 +161,10 @@
     "comments": "Kommentare"
   },
   "costTypes": {
-    "service": "Wartung",
+    "service": "Wartung & TÜV/HU",
     "fuel": "Kraftstoff",
     "insurance": "Versicherung",
     "tax": "Steuer",
-    "inspection": "TÜV/HU",
     "tires": "Reifen",
     "mileage": "Kilometerstand",
     "misc": "Sonstiges"
@@ -192,7 +191,11 @@
     "projectedCostPerMonth": "Hochgerechnete Kosten / Monat",
     "projectedCostPerKm": "Hochgerechnete Kosten / km",
     "theoreticalResidual": "Theoretischer Restwert",
-    "requiredSalePrice": "Erforderlicher Verkaufspreis"
+    "requiredSalePrice": "Erforderlicher Verkaufspreis",
+    "statistics": "Statistiken",
+    "costPerKmByYear": "Kosten pro km nach Jahr",
+    "kmPerYear": "Kilometer pro Jahr",
+    "mileageHistory": "Kilometerstand-Verlauf"
   },
   "categoryNames": {
     "insurance": "Versicherung",
