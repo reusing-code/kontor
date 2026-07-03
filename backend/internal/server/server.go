@@ -13,25 +13,30 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/reusing-code/kontor/backend/internal/categories"
 	"github.com/reusing-code/kontor/backend/internal/config"
-	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
+	"github.com/reusing-code/kontor/backend/internal/core"
 	"github.com/reusing-code/kontor/backend/internal/email"
-	"github.com/reusing-code/kontor/backend/internal/handler"
-	"github.com/reusing-code/kontor/backend/internal/ledgeremail"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
-	"github.com/reusing-code/kontor/backend/internal/reminder"
-	"github.com/reusing-code/kontor/backend/internal/store"
+	"github.com/reusing-code/kontor/backend/internal/module"
+	"github.com/reusing-code/kontor/backend/internal/modules/auto"
+	"github.com/reusing-code/kontor/backend/internal/modules/contracts"
+	"github.com/reusing-code/kontor/backend/internal/modules/ledger"
+	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
+	"github.com/reusing-code/kontor/backend/internal/storage"
+	"github.com/reusing-code/kontor/backend/internal/storage/link"
+	"github.com/reusing-code/kontor/backend/internal/storage/migration"
 	"github.com/reusing-code/kontor/backend/internal/version"
 )
 
 type Server struct {
 	cfg    config.Config
 	logger *slog.Logger
-	store  store.Store
+	engine *storage.Engine
 }
 
-func New(cfg config.Config, logger *slog.Logger, s store.Store) *Server {
-	return &Server{cfg: cfg, logger: logger, store: s}
+func New(cfg config.Config, logger *slog.Logger, engine *storage.Engine) *Server {
+	return &Server{cfg: cfg, logger: logger, engine: engine}
 }
 
 func (s *Server) Run() error {
@@ -41,134 +46,89 @@ func (s *Server) Run() error {
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 	defer shutdownCancel()
 
-	if emailClient.IsConfigured() {
-		sched := reminder.New(s.store, emailClient, s.logger)
-		sched.Start(shutdownCtx)
-	} else {
-		s.logger.Info("SMTP not configured, reminder scheduler disabled")
+	engine := s.engine
+
+	links := link.NewRegistry()
+	catStore := categories.NewStore(engine)
+	catHandler := categories.NewHandler(catStore, s.logger)
+	coreStore := core.NewStore(engine)
+
+	contractsMod := contracts.New(engine, links, catStore, coreStore, emailClient, s.logger)
+	purchasesMod := purchases.New(engine, links, catStore, s.logger)
+	autoMod := auto.New(engine, links, s.logger)
+	ledgerMod := ledger.New(engine, links, coreStore, ledger.Config{
+		EmailScanInterval:  s.cfg.LedgerEmailScanInterval,
+		EmailEncryptionKey: s.cfg.EmailEncryptionKey,
+	}, s.logger)
+	registry := module.NewRegistry(contractsMod, purchasesMod, autoMod, ledgerMod)
+
+	for _, m := range registry.All() {
+		if err := migration.RunModule(engine.DB(), s.logger, m.ID(), m.Migrations()); err != nil {
+			return fmt.Errorf("running %s migrations: %w", m.ID(), err)
+		}
 	}
 
 	if s.cfg.BackupDir == "" {
 		s.logger.Info("backup scheduler disabled", "reason", "BACKUP_DIR is not set")
-	} else if bs, ok := s.store.(*store.BadgerStore); !ok {
-		s.logger.Info("backup scheduler disabled", "reason", "store does not support backups")
 	} else {
-		bs.StartBackups(shutdownCtx, store.BackupConfig{
+		engine.StartBackups(shutdownCtx, storage.BackupConfig{
 			Dir:      s.cfg.BackupDir,
 			Interval: s.cfg.BackupInterval,
 			Keep:     s.cfg.BackupKeep,
 		})
 	}
 
-	if s.cfg.LedgerEmailScanInterval <= 0 {
-		s.logger.Info("ledger email scan scheduler disabled", "reason", "LEDGER_EMAIL_SCAN_INTERVAL is 0")
-	} else if encryptionKey, err := cryptoutil.NormalizeEncryptionKey(s.cfg.EmailEncryptionKey); err != nil {
-		s.logger.Info("ledger email scan scheduler disabled", "reason", err.Error())
-	} else {
-		sched := ledgeremail.NewScheduler(s.store, ledgeremail.NewService(s.store, s.logger), encryptionKey, s.cfg.LedgerEmailScanInterval, s.logger)
-		sched.Start(shutdownCtx)
+	seeds := make([]core.SeedFunc, 0, len(registry.All()))
+	for _, m := range registry.All() {
+		seeds = append(seeds, core.EnabledOnlySeed(coreStore, m.ID(), m.Seed))
 	}
-
-	h := handler.New(s.store, s.logger, jwtSecret, emailClient, s.cfg.EmailEncryptionKey)
+	coreHandler := core.NewHandler(coreStore, s.logger, jwtSecret, emailClient, seeds, registry)
 
 	// Protected API routes (require auth)
 	apiMux := http.NewServeMux()
 
-	// Module-scoped category routes
-	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories", h.ListCategories)
-	apiMux.HandleFunc("POST /api/v1/modules/{module}/categories", h.CreateCategory)
-	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", h.GetCategory)
-	apiMux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", h.UpdateCategory)
-	apiMux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", h.DeleteCategory)
+	// Module routes, each gated on the user's enabled modules
+	for _, m := range registry.All() {
+		m.RegisterRoutes(module.NewRouter(apiMux, module.Gate(m.ID(), coreStore)))
+		m.StartBackground(shutdownCtx)
+	}
 
-	// Contract routes
-	apiMux.HandleFunc("GET /api/v1/categories/{id}/contracts", h.ListContractsByCategory)
-	apiMux.HandleFunc("POST /api/v1/categories/{id}/contracts", h.CreateContractInCategory)
-	apiMux.HandleFunc("POST /api/v1/contracts/import", h.ImportContracts)
-	apiMux.HandleFunc("GET /api/v1/contracts/upcoming-renewals", h.UpcomingRenewals)
-	apiMux.HandleFunc("GET /api/v1/contracts", h.ListContracts)
-	apiMux.HandleFunc("GET /api/v1/contracts/{id}", h.GetContract)
-	apiMux.HandleFunc("PUT /api/v1/contracts/{id}", h.UpdateContract)
-	apiMux.HandleFunc("DELETE /api/v1/contracts/{id}", h.DeleteContract)
-	apiMux.HandleFunc("GET /api/v1/summary", h.Summary)
+	// Module-scoped category routes, gated via the {module} path parameter
+	catGate := module.GateParam(coreStore, contracts.ModuleID, purchases.ModuleID)
+	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories", catGate(catHandler.List))
+	apiMux.HandleFunc("POST /api/v1/modules/{module}/categories", catGate(catHandler.Create))
+	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Get))
+	apiMux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Update))
+	apiMux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Delete))
 
-	// Purchase routes
-	apiMux.HandleFunc("GET /api/v1/categories/{id}/purchases", h.ListPurchasesByCategory)
-	apiMux.HandleFunc("POST /api/v1/categories/{id}/purchases", h.CreatePurchaseInCategory)
-	apiMux.HandleFunc("GET /api/v1/purchases/summary", h.PurchaseSummary)
-	apiMux.HandleFunc("GET /api/v1/purchases", h.ListPurchases)
-	apiMux.HandleFunc("GET /api/v1/purchases/{id}", h.GetPurchase)
-	apiMux.HandleFunc("PUT /api/v1/purchases/{id}", h.UpdatePurchase)
-	apiMux.HandleFunc("DELETE /api/v1/purchases/{id}", h.DeletePurchase)
+	// Module directory
+	apiMux.HandleFunc("GET /api/v1/modules", coreHandler.ListModules)
 
-	// Vehicle routes
-	apiMux.HandleFunc("GET /api/v1/vehicles", h.ListVehicles)
-	apiMux.HandleFunc("POST /api/v1/vehicles", h.CreateVehicle)
-	apiMux.HandleFunc("GET /api/v1/vehicles/{id}", h.GetVehicle)
-	apiMux.HandleFunc("PUT /api/v1/vehicles/{id}", h.UpdateVehicle)
-	apiMux.HandleFunc("DELETE /api/v1/vehicles/{id}", h.DeleteVehicle)
-	apiMux.HandleFunc("GET /api/v1/vehicles/{id}/summary", h.VehicleSummary)
-	apiMux.HandleFunc("GET /api/v1/vehicles/{id}/costs", h.ListCostEntries)
-	apiMux.HandleFunc("POST /api/v1/vehicles/{id}/costs", h.CreateCostEntry)
-	apiMux.HandleFunc("GET /api/v1/costs/{id}", h.GetCostEntry)
-	apiMux.HandleFunc("PUT /api/v1/costs/{id}", h.UpdateCostEntry)
-	apiMux.HandleFunc("DELETE /api/v1/costs/{id}", h.DeleteCostEntry)
-
-	// Data export / restore
-	apiMux.HandleFunc("GET /api/v1/export", h.Export)
-	apiMux.HandleFunc("POST /api/v1/restore", h.Restore)
+	// Data export / import
+	apiMux.HandleFunc("GET /api/v1/export", coreHandler.Export)
+	apiMux.HandleFunc("POST /api/v1/import", coreHandler.Import)
+	apiMux.HandleFunc("GET /api/v1/modules/{module}/export", coreHandler.ExportModule)
+	apiMux.HandleFunc("POST /api/v1/modules/{module}/import", coreHandler.ImportModule)
 
 	// Settings routes
-	apiMux.HandleFunc("GET /api/v1/settings", h.GetSettings)
-	apiMux.HandleFunc("PUT /api/v1/settings", h.UpdateSettings)
-	apiMux.HandleFunc("PUT /api/v1/settings/password", h.ChangePassword)
-
-	// Ledger routes
-	apiMux.HandleFunc("POST /api/v1/ledger/imports/preview", h.LedgerImportPreview)
-	apiMux.HandleFunc("POST /api/v1/ledger/imports/{previewId}/commit", h.LedgerImportCommit)
-	apiMux.HandleFunc("GET /api/v1/ledger/categories", h.ListLedgerCategories)
-	apiMux.HandleFunc("POST /api/v1/ledger/categories", h.CreateLedgerCategory)
-	apiMux.HandleFunc("GET /api/v1/ledger/categories/{id}", h.GetLedgerCategory)
-	apiMux.HandleFunc("PUT /api/v1/ledger/categories/{id}", h.UpdateLedgerCategory)
-	apiMux.HandleFunc("DELETE /api/v1/ledger/categories/{id}", h.DeleteLedgerCategory)
-	apiMux.HandleFunc("GET /api/v1/ledger/accounts", h.ListLedgerAccounts)
-	apiMux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}", h.GetLedgerAccount)
-	apiMux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}/transactions", h.ListLedgerTransactions)
-	apiMux.HandleFunc("GET /api/v1/ledger/email-accounts", h.ListLedgerEmailAccounts)
-	apiMux.HandleFunc("POST /api/v1/ledger/email-accounts", h.CreateLedgerEmailAccount)
-	apiMux.HandleFunc("GET /api/v1/ledger/email-accounts/{emailAccountId}", h.GetLedgerEmailAccount)
-	apiMux.HandleFunc("PUT /api/v1/ledger/email-accounts/{emailAccountId}", h.UpdateLedgerEmailAccount)
-	apiMux.HandleFunc("DELETE /api/v1/ledger/email-accounts/{emailAccountId}", h.DeleteLedgerEmailAccount)
-	apiMux.HandleFunc("POST /api/v1/ledger/email-accounts/{emailAccountId}/test", h.TestLedgerEmailAccount)
-	apiMux.HandleFunc("POST /api/v1/ledger/email-accounts/{emailAccountId}/scan", h.ScanLedgerEmailAccount)
-	apiMux.HandleFunc("GET /api/v1/ledger/email-orders", h.ListLedgerEmailOrders)
-	apiMux.HandleFunc("GET /api/v1/ledger/email-orders/{emailOrderId}", h.GetLedgerEmailOrder)
-	apiMux.HandleFunc("POST /api/v1/ledger/email-orders/{emailOrderId}/link", h.LinkLedgerEmailOrder)
-	apiMux.HandleFunc("POST /api/v1/ledger/email-orders/{emailOrderId}/reject", h.RejectLedgerEmailOrder)
-	apiMux.HandleFunc("GET /api/v1/ledger/email-importers", h.ListLedgerEmailImporters)
-	apiMux.HandleFunc("GET /api/v1/ledger/imports", h.ListLedgerImports)
-	apiMux.HandleFunc("GET /api/v1/ledger/transactions", h.ListLedgerTransactionsReviewQueue)
-	apiMux.HandleFunc("GET /api/v1/ledger/transactions/{transactionId}", h.GetLedgerTransaction)
-	apiMux.HandleFunc("PUT /api/v1/ledger/transactions/{transactionId}", h.UpdateLedgerTransactionDetails)
-	apiMux.HandleFunc("GET /api/v1/ledger/transactions/{transactionId}/transfer-candidates", h.ListLedgerTransferCandidates)
-	apiMux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/transfer-link", h.LinkLedgerTransfer)
-	apiMux.HandleFunc("DELETE /api/v1/ledger/transactions/{transactionId}/transfer-link", h.UnlinkLedgerTransfer)
-	apiMux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/review", h.ReviewLedgerTransaction)
+	apiMux.HandleFunc("GET /api/v1/settings", coreHandler.GetSettings)
+	apiMux.HandleFunc("PUT /api/v1/settings", coreHandler.UpdateSettings)
+	apiMux.HandleFunc("PUT /api/v1/settings/password", coreHandler.ChangePassword)
 
 	protectedAPI := middleware.Auth(jwtSecret)(apiMux)
 
 	mux := http.NewServeMux()
 
 	// Public routes
-	mux.HandleFunc("GET /healthz", h.Healthz)
-	mux.HandleFunc("GET /readyz", h.Readyz)
+	mux.HandleFunc("GET /healthz", coreHandler.Healthz)
+	mux.HandleFunc("GET /readyz", coreHandler.Readyz)
 	mux.Handle("GET /metrics", promhttp.Handler())
 	authRateLimit := middleware.RateLimitPerIP(s.cfg.AuthRateLimit, s.cfg.AuthRateWindow, s.cfg.TrustProxy)
 	if s.cfg.AuthRateLimit <= 0 {
 		s.logger.Info("auth rate limiting disabled", "reason", "AUTH_RATE_LIMIT is 0")
 	}
-	mux.Handle("POST /api/v1/auth/register", authRateLimit(http.HandlerFunc(h.Register)))
-	mux.Handle("POST /api/v1/auth/login", authRateLimit(http.HandlerFunc(h.Login)))
+	mux.Handle("POST /api/v1/auth/register", authRateLimit(http.HandlerFunc(coreHandler.Register)))
+	mux.Handle("POST /api/v1/auth/login", authRateLimit(http.HandlerFunc(coreHandler.Login)))
 	mux.HandleFunc("GET /api/version", version.Handler)
 
 	// Mount protected API routes

@@ -18,11 +18,13 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 
 React 19 + TypeScript SPA built with Vite. No SSR — this is a CRUD/business app behind auth.
 
-**Routing:** TanStack Router with type-safe route definitions in `src/routes/`. The router is created in `router.ts`, root layout in `__root.tsx`. Register the router type via the `Register` interface in `router.ts`. Routes use file-based conventions with dots for nesting (e.g. `contracts.index.tsx`, `contracts.categories.$categoryId.tsx`). All routes use `rootRoute` as parent with full paths (flat structure, no nested layout routes).
+**Modules:** Each feature module lives in `src/modules/{id}/` (routes, components, hooks, lib/repository, config, types.ts) and exports a `ModuleDefinition` (`src/types/modules.ts`): id, basePath, i18n label key, icon, route objects, a `SidebarSection`, and an optional `HomeCard`. `src/modules/registry.ts` lists all modules in order; the router, sidebar, and homepage are driven by it. Users enable/disable modules in settings — `useModules()` (`src/hooks/use-modules.ts`) derives enablement from the shared `["settings"]` query, the sidebar and homepage only mount enabled modules, and every module route has a `beforeLoad` guard (`src/modules/guard.ts`) that redirects to `/` when the module is disabled.
 
-**Data fetching:** TanStack Query. `QueryClientProvider` wraps the app in `App.tsx`. Hooks in `src/hooks/` wrap query/mutation logic per module (contracts, purchases, categories, vehicles, ledger).
+**Routing:** TanStack Router with type-safe route definitions. The router is created in `src/routes/router.ts` from core routes (homepage, login, settings) plus each module's routes; root layout in `src/routes/__root.tsx`. Route objects are defined next to their page components in `src/modules/{id}/routes/` and collected in that module's `routes/routes.ts`. All routes use `rootRoute` as parent with full paths (flat structure, no nested layout routes).
 
-**Forms:** React Hook Form + Zod for validation via `@hookform/resolvers`. Field configs in `src/config/` drive both form and table rendering via `FormFieldRenderer`.
+**Data fetching:** TanStack Query. The shared `QueryClient` lives in `src/lib/query-client.ts` (used by both `App.tsx` and route guards). Hooks live with their module (`src/modules/{id}/hooks/`); shared hooks (auth, settings, categories, modules) in `src/hooks/`.
+
+**Forms:** React Hook Form + Zod for validation via `@hookform/resolvers`. Field configs in `src/modules/{id}/config/` drive both form and table rendering via `FormFieldRenderer`.
 
 **Styling:** Tailwind CSS v4 with the Vite plugin. shadcn/ui for pre-built components (config in `components.json`, components go in `src/components/ui/`). Use the `cn()` helper from `@/lib/utils` for conditional classNames.
 
@@ -30,14 +32,17 @@ React 19 + TypeScript SPA built with Vite. No SSR — this is a CRUD/business ap
 
 **i18n:** `react-i18next` with locale files in `src/i18n/locales/` (en.json, de.json).
 
+**Import/export:** The settings page offers full export/import plus per-module export/import against `/api/v1/export`, `/api/v1/import`, and `/api/v1/modules/{id}/export|import` (v2 envelope format).
+
 ## Key directories
 
-- `src/routes/` — Route definitions (pages): homepage, contracts/*, purchases/*, auto/*, ledger/* including email account/order pages
-- `src/components/` — React components; `ui/` subdirectory for shadcn/ui
-- `src/lib/` — Utilities, API client, per-module repositories (category, contract, purchase, vehicle, ledger)
-- `src/hooks/` — Custom React hooks (use-categories, use-contracts, use-purchases, use-vehicles, use-ledger)
-- `src/types/` — Shared TypeScript types (contract, purchase, category, vehicle, ledger, summary)
-- `src/config/` — Field configuration for forms/tables (contract-fields, purchase-fields, vehicle-fields)
+- `src/modules/{contracts,purchases,auto,ledger}/` — Per-module routes, components, hooks, repository, field configs, and types; `index.tsx` exports the ModuleDefinition
+- `src/modules/registry.ts` — Ordered module registry; `src/modules/guard.ts` — route enablement guard
+- `src/routes/` — Core pages: homepage, login, settings, root layout, router
+- `src/components/` — Shared components (sidebar, category dialogs, linked-transactions list); `ui/` for shadcn/ui
+- `src/hooks/` — Shared hooks (use-auth, use-settings, use-modules, use-categories, use-page-title)
+- `src/lib/` — API client, query client, shared repositories (auth, settings, categories), utils
+- `src/types/` — Shared types (auth, category, settings, modules)
 - `src/i18n/` — Internationalization setup and locale files
 
-Ledger transaction detail and review flows include explicit internal transfer linking/unlinking. Keep that behavior visible in the UI and avoid implicit unlinking when editing unrelated fields.
+Ledger transaction detail and review flows include explicit internal transfer linking/unlinking. Keep that behavior visible in the UI and avoid implicit unlinking when editing unrelated fields. Cross-module reference UI (linking transactions to contracts/purchases/vehicles) must only offer targets from enabled modules and render references to disabled modules inert.

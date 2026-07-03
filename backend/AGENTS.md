@@ -24,38 +24,17 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 
 Go 1.26+ stdlib `net/http` with method+pattern routing. Single binary that optionally serves the frontend SPA.
 
-**Storage:** BadgerDB (embedded LSM-tree KV store). Data stored as JSON documents with module-scoped key prefixes for multi-user namespacing:
+**Modules:** Each feature module implements the `module.Module` interface (`internal/module`): `ID`, `Prefix` (its DB key prefix), `Migrations`, `RegisterRoutes`, `Seed`, `StartBackground`, `IsEmpty`, `ExportSection`, `ImportSection`, `PruneDeadLinks`. The server builds all modules, registers them in a `module.Registry` (order matters — it is also the import order), runs their migrations, and registers their routes through `module.Router`, which wraps every handler in the enablement gate. Users can disable modules in settings (`disabledModules`, stored as the disabled set so everything defaults to enabled); gated routes return `403 {"code":"module_disabled"}`. Data of disabled modules is kept.
 
-- Users: `usr/{userId}`
-- User email index: `usr_email/{email}`
-- User settings: `u/{userId}/settings`
-- Contract categories: `u/{userId}/mod/contracts/cat/{categoryId}`
-- Purchase categories: `u/{userId}/mod/purchases/cat/{categoryId}`
-- Contracts: `u/{userId}/con/{contractId}`
-- Contract category index: `u/{userId}/idx/cat_con/{catId}/{conId}`
-- Purchases: `u/{userId}/pur/{purchaseId}`
-- Purchase category index: `u/{userId}/idx/cat_pur/{catId}/{purId}`
-- Vehicles: `u/{userId}/veh/{vehicleId}`
-- Cost entries: `u/{userId}/cost/{costEntryId}`
-- Vehicle cost index: `u/{userId}/idx/veh_cost/{vehicleId}/{costEntryId}`
-- Ledger accounts: `u/{userId}/led/acc/{accountId}`
-- Ledger account IBAN index: `u/{userId}/idx/led_acc_iban/{iban}`
-- Ledger categories: `u/{userId}/led/cat/{categoryId}`
-- Ledger transactions: `u/{userId}/led/txn/{transactionId}`
-- Ledger account transaction index: `u/{userId}/idx/led_acc_txn/{accountId}/{bookingDate}/{transactionId}`
-- Ledger transaction fingerprint index: `u/{userId}/idx/led_txn_fp/{fingerprint}`
-- Ledger imports: `u/{userId}/led/imp/{batchId}`
-- Ledger import transaction index: `u/{userId}/idx/led_imp_txn/{batchId}/{transactionId}`
-- Ledger file hash index: `u/{userId}/idx/led_file_hash/{sha256}`
-- Ledger email accounts: `u/{userId}/led/emailacc/{emailAccountId}`
-- Ledger email orders: `u/{userId}/led/eord/{emailOrderId}`
-- Ledger email account order index: `u/{userId}/idx/led_emailacc_eord/{emailAccountId}/{emailOrderId}`
-- Ledger email message index: `u/{userId}/idx/led_eord_msgid/{messageId}`
-- Schema version: `_meta/schema_version` (current: 4)
+**Cross-module links:** Ledger transactions reference contract/purchase/vehicle items, and those items track linked transaction IDs. The synchronization goes through `internal/storage/link.Registry` inside a single badger transaction: contracts/purchases/auto stores implement `link.Target` (AddLink/RemoveLink/Exists), the ledger store implements `link.TransactionSide`. Modules never import each other; wiring happens in `internal/server`.
 
-**Migrations:** Version-based schema migrations in `internal/store/migration/`. V1 renamed `pricePerMonth` → `price`. V2 moved category keys from `u/{userId}/cat/{id}` to module-scoped `u/{userId}/mod/{module}/cat/{id}`.
+**Storage:** BadgerDB (embedded LSM-tree KV store) behind `storage.Engine` (`internal/storage`), shared by per-module stores. Data is stored as JSON documents; every module's data lives under `u/{userId}/mod/{moduleId}/...` (see the root `AGENTS.md` for the full key schema). Sentinel errors (`ErrNotFound`, `ErrConflict`, ledger-specific ones) live in `internal/storage`.
 
-**Backups:** Optional periodic full BadgerDB snapshots (`internal/store/backup.go`) to `BACKUP_DIR` every `BACKUP_INTERVAL` (default `24h`), keeping the `BACKUP_KEEP` newest files (default 7). Empty `BACKUP_DIR` disables. Restore snapshots with the `badger` CLI (`badger restore`) or `badger.DB.Load`. Per-user JSON export via `GET /api/v1/export`; restore into an empty account via `POST /api/v1/restore`.
+**Migrations:** Per module (`internal/storage/migration`): `migration.RunModule` applies a module's pending migrations against its own `_meta/schema/{moduleId}` version key at startup. A module's migrations must only touch keys under its own prefix.
+
+**Export/import:** Versioned envelope (`{"format":"kontor-export","formatVersion":2,...}`) with one section per module, each stamped with the module's section schema version. Full and per-module endpoints; import requires the affected modules to be empty and enabled, preserves IDs verbatim, strips ledger references to items that were not imported, and prunes dead transaction links (with warnings). Orchestrated in `internal/core/export.go`; each module owns its section shape.
+
+**Backups:** Optional periodic full BadgerDB snapshots (`internal/storage/backup.go`) to `BACKUP_DIR` every `BACKUP_INTERVAL` (default `24h`), keeping the `BACKUP_KEEP` newest files (default 7). Empty `BACKUP_DIR` disables. Restore snapshots with the `badger` CLI (`badger restore`) or `badger.DB.Load`.
 
 **Config:** Environment variables via `caarlos0/env` struct tags. See `.env.example` for all options.
 
@@ -63,22 +42,27 @@ Go 1.26+ stdlib `net/http` with method+pattern routing. Single binary that optio
 
 **Metrics:** Prometheus via `/metrics` endpoint. Tracks `http_requests_total`, `http_request_duration_seconds`, `http_active_requests`.
 
-**Middleware chain (outermost first):** RequestID → Recovery → Metrics → Logging → CORS → handler.
+**Middleware chain (outermost first):** RequestID → Recovery → Metrics → Logging → CORS → handler. Module routes additionally pass the enablement gate after auth.
 
-**Auth:** JWT-based authentication. Registration and login seed default categories for both modules. The store interface accepts `userID` as a parameter; handlers extract it from auth context. Passwords must be at least 8 characters (register and change). `/auth/login` and `/auth/register` share a per-IP token-bucket rate limit (`internal/middleware/ratelimit.go`): `AUTH_RATE_LIMIT` requests (default 10) per `AUTH_RATE_WINDOW` (default `1m`), 0 disables; set `TRUST_PROXY=true` behind a reverse proxy so client IPs come from `X-Real-IP`/`X-Forwarded-For`.
+**Auth:** JWT-based authentication. Registration and login seed default data for every enabled module (idempotent; re-enabling a module in settings re-seeds it). Stores accept `userID` as a parameter; handlers extract it from auth context. Passwords must be at least 8 characters (register and change). `/auth/login` and `/auth/register` share a per-IP token-bucket rate limit (`internal/middleware/ratelimit.go`): `AUTH_RATE_LIMIT` requests (default 10) per `AUTH_RATE_WINDOW` (default `1m`), 0 disables; set `TRUST_PROXY=true` behind a reverse proxy so client IPs come from `X-Real-IP`/`X-Forwarded-For`.
 
 ## Key directories
 
-- `cmd/server/` — Entrypoint
+- `cmd/server/` — Entrypoint (opens the engine, starts the server)
 - `internal/config/` — Environment-based configuration
-- `internal/model/` — Category, Contract, Purchase, Vehicle, and CostEntry types (JSON tags match frontend Zod schemas)
-- `internal/store/` — Store interface + BadgerDB implementation
-- `internal/store/migration/` — Schema migration registry and versioned migrations
-- `internal/handler/` — HTTP handlers (auth, category CRUD, contract CRUD, purchase CRUD, vehicle CRUD, cost entry CRUD, ledger accounts/categories/transactions/import, summaries, data export)
-- `internal/ledgeremail/` — IMAP client, uploaded `.eml` parsing, importer registry, auto-linking, and background scan scheduler for ledger email orders (interval via `LEDGER_EMAIL_SCAN_INTERVAL`, default `6h`, `0` disables)
-- `internal/middleware/` — Request ID, recovery, metrics, logging, CORS, auth
-- `internal/server/` — Mux setup, middleware wiring, graceful shutdown, SPA serving
-- `internal/reminder/` — Email reminder scheduler for contract renewals
+- `internal/storage/` — Badger engine, JSON txn helpers, sentinel errors, backups; `migration/` (per-module runner), `link/` (cross-module link registry)
+- `internal/module/` — Module interface, registry, gating router/middleware, import result
+- `internal/core/` — Users, settings (incl. enabled modules), auth/settings/health handlers, export/import orchestrator
+- `internal/categories/` — Shared item-category machinery for contracts and purchases (model, store with pluggable delete cascades, handlers)
+- `internal/modules/contracts/` — Contracts module incl. renewal reminder scheduler and batch item import
+- `internal/modules/purchases/` — Purchases module
+- `internal/modules/auto/` — Vehicles and cost entries
+- `internal/modules/ledger/` — Ledger module: accounts, hierarchical categories, transactions, CSV import (`import_*.go`, comdirect/DKB providers), email-order enrichment (`email_*.go`, IMAP scan scheduler via `LEDGER_EMAIL_SCAN_INTERVAL`, default `6h`, `0` disables), keyword categorization
+- `internal/httputil/` — Shared JSON response helpers
+- `internal/middleware/` — Request ID, recovery, metrics, logging, CORS, auth, rate limiting
+- `internal/email/` — SMTP client
+- `internal/cryptoutil/` — Email password encryption
+- `internal/server/` — Module wiring, mux setup, middleware, graceful shutdown, SPA serving
 - `internal/version/` — Build version info
 
 ## API
@@ -87,14 +71,14 @@ All endpoints under `/api/v1/`. JSON request/response with camelCase field names
 
 - `POST /api/v1/auth/register` — Register user
 - `POST /api/v1/auth/login` — Login (returns JWT)
-- `GET|POST /api/v1/modules/{module}/categories` — List/create categories (module: `contracts` or `purchases`)
+- `GET|POST /api/v1/modules/{module}/categories` — List/create categories (module: `contracts` or `purchases`; gated on module enablement)
 - `GET|PUT|DELETE /api/v1/modules/{module}/categories/{id}` — Get/update/delete category (delete cascades to module items)
 - `GET|POST /api/v1/categories/{id}/contracts` — List/create contracts in category
 - `GET /api/v1/contracts` — List all contracts
 - `GET|PUT|DELETE /api/v1/contracts/{id}` — Get/update/delete contract
 - `GET /api/v1/contracts/upcoming-renewals` — Upcoming renewals
 - `POST /api/v1/contracts/import` — Batch JSON import
-- `GET /api/v1/summary` — Contract dashboard stats
+- `GET /api/v1/contracts/summary` — Contract dashboard stats
 - `GET|POST /api/v1/categories/{id}/purchases` — List/create purchases in category
 - `GET /api/v1/purchases` — List all purchases
 - `GET|PUT|DELETE /api/v1/purchases/{id}` — Get/update/delete purchase
@@ -130,10 +114,13 @@ All endpoints under `/api/v1/`. JSON request/response with camelCase field names
 - `POST /api/v1/ledger/email-orders/{emailOrderId}/link` — Manually link parsed email order to ledger transactions
 - `POST /api/v1/ledger/email-orders/{emailOrderId}/reject` — Reject parsed email order
 - `GET /api/v1/ledger/email-importers` — List supported email importers
-- `GET /api/v1/export` — Download all user data as JSON
-- `POST /api/v1/restore` — Restore a JSON export into an account without data (preserves IDs; email passwords must be re-entered)
-- `GET /api/v1/settings` — Get renewal preferences
-- `PUT /api/v1/settings` — Update renewal preferences
+- `GET /api/v1/export` — Download all user data (v2 envelope with per-module sections)
+- `GET /api/v1/modules/{module}/export` — Download a single module's data
+- `POST /api/v1/import` — Import an export file (affected modules must be empty and enabled; preserves IDs; email passwords must be re-entered)
+- `POST /api/v1/modules/{module}/import` — Import a single module's section from an export file
+- `GET /api/v1/modules` — List available modules and their enabled state
+- `GET /api/v1/settings` — Get settings (renewal preferences, enabled modules)
+- `PUT /api/v1/settings` — Update settings (`enabledModules` optional; omit to leave unchanged)
 - `PUT /api/v1/settings/password` — Change password
 - `GET /healthz` — Liveness probe
 - `GET /readyz` — Readiness probe (checks DB)

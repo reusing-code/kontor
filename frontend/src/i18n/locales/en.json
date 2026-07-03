@@ -10,7 +10,11 @@
     "totalSpent": "Total spent",
     "quickStats": "Quick Stats",
     "yearlyContracts": "Yearly contracts",
-    "categories": "Categories"
+    "categories": "Categories",
+    "vehicles": "Vehicles"
+  },
+  "modules": {
+    "disabledHint": "(module disabled)"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -243,7 +247,13 @@
     "restoring": "Restoring…",
     "restoreSucceeded": "Data restored successfully.",
     "restoreFailed": "Restore failed.",
-    "restoreHint": "Restore recreates all data from an export file. It only works on an account that does not contain any data yet. Email account passwords must be re-entered afterwards."
+    "restoreHint": "Restore recreates all data from an export file. It only works on an account that does not contain any data yet. Email account passwords must be re-entered afterwards.",
+    "modules": "Modules",
+    "modulesDescription": "Choose which modules are shown. Data of disabled modules is kept.",
+    "moduleData": "Per-module export/import",
+    "moduleExportButton": "Export",
+    "moduleImportButton": "Import",
+    "moduleImportSucceeded": "{{module}} data imported."
   },
   "import": {
     "button": "Import",

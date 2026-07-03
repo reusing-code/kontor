@@ -9,53 +9,58 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/reusing-code/kontor/backend/internal/handler"
+	"github.com/reusing-code/kontor/backend/internal/categories"
+	"github.com/reusing-code/kontor/backend/internal/core"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
-	"github.com/reusing-code/kontor/backend/internal/model"
-	"github.com/reusing-code/kontor/backend/internal/store"
+	"github.com/reusing-code/kontor/backend/internal/module"
+	"github.com/reusing-code/kontor/backend/internal/modules/auto"
+	"github.com/reusing-code/kontor/backend/internal/modules/contracts"
+	"github.com/reusing-code/kontor/backend/internal/modules/ledger"
+	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
+	"github.com/reusing-code/kontor/backend/internal/storage"
+	"github.com/reusing-code/kontor/backend/internal/storage/link"
 )
-
-var testJWTSecret = []byte("integration-test-secret")
 
 const testUserID = "00000000-0000-0000-0000-000000000001"
 
 func setupServer(t *testing.T) *httptest.Server {
-	t.Helper()
-	logger := slog.Default()
-	s, err := store.NewBadgerStore(t.TempDir(), logger)
-	if err != nil {
-		t.Fatalf("NewBadgerStore: %v", err)
-	}
-	t.Cleanup(func() { s.Close() })
+	srv, _ := setupServerWithStore(t)
+	return srv
+}
 
-	h := handler.New(s, logger, testJWTSecret, nil)
+func setupServerWithStore(t *testing.T) (*httptest.Server, *core.Store) {
+	t.Helper()
+	logger := slog.New(slog.DiscardHandler)
+	engine, err := storage.Open(t.TempDir(), logger)
+	if err != nil {
+		t.Fatalf("opening engine: %v", err)
+	}
+	t.Cleanup(func() { engine.Close() })
+
+	links := link.NewRegistry()
+	catStore := categories.NewStore(engine)
+	catHandler := categories.NewHandler(catStore, logger)
+	coreStore := core.NewStore(engine)
+
+	contractsMod := contracts.New(engine, links, catStore, coreStore, nil, logger)
+	purchasesMod := purchases.New(engine, links, catStore, logger)
+	autoMod := auto.New(engine, links, logger)
+	ledgerMod := ledger.New(engine, links, coreStore, ledger.Config{}, logger)
+	registry := module.NewRegistry(contractsMod, purchasesMod, autoMod, ledgerMod)
+
 	mux := http.NewServeMux()
 
+	for _, m := range registry.All() {
+		m.RegisterRoutes(module.NewRouter(mux, module.Gate(m.ID(), coreStore)))
+	}
+
 	// Module-scoped category routes
-	mux.HandleFunc("GET /api/v1/modules/{module}/categories", h.ListCategories)
-	mux.HandleFunc("POST /api/v1/modules/{module}/categories", h.CreateCategory)
-	mux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", h.GetCategory)
-	mux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", h.UpdateCategory)
-	mux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", h.DeleteCategory)
-
-	// Contract routes
-	mux.HandleFunc("GET /api/v1/categories/{id}/contracts", h.ListContractsByCategory)
-	mux.HandleFunc("POST /api/v1/categories/{id}/contracts", h.CreateContractInCategory)
-	mux.HandleFunc("GET /api/v1/contracts/upcoming-renewals", h.UpcomingRenewals)
-	mux.HandleFunc("GET /api/v1/contracts", h.ListContracts)
-	mux.HandleFunc("GET /api/v1/contracts/{id}", h.GetContract)
-	mux.HandleFunc("PUT /api/v1/contracts/{id}", h.UpdateContract)
-	mux.HandleFunc("DELETE /api/v1/contracts/{id}", h.DeleteContract)
-	mux.HandleFunc("GET /api/v1/summary", h.Summary)
-
-	// Purchase routes
-	mux.HandleFunc("GET /api/v1/categories/{id}/purchases", h.ListPurchasesByCategory)
-	mux.HandleFunc("POST /api/v1/categories/{id}/purchases", h.CreatePurchaseInCategory)
-	mux.HandleFunc("GET /api/v1/purchases/summary", h.PurchaseSummary)
-	mux.HandleFunc("GET /api/v1/purchases", h.ListPurchases)
-	mux.HandleFunc("GET /api/v1/purchases/{id}", h.GetPurchase)
-	mux.HandleFunc("PUT /api/v1/purchases/{id}", h.UpdatePurchase)
-	mux.HandleFunc("DELETE /api/v1/purchases/{id}", h.DeletePurchase)
+	catGate := module.GateParam(coreStore, contracts.ModuleID, purchases.ModuleID)
+	mux.HandleFunc("GET /api/v1/modules/{module}/categories", catGate(catHandler.List))
+	mux.HandleFunc("POST /api/v1/modules/{module}/categories", catGate(catHandler.Create))
+	mux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Get))
+	mux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Update))
+	mux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Delete))
 
 	// Inject test user into context (integration tests skip auth middleware)
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +68,7 @@ func setupServer(t *testing.T) *httptest.Server {
 		mux.ServeHTTP(w, r.WithContext(ctx))
 	})
 
-	return httptest.NewServer(wrapped)
+	return httptest.NewServer(wrapped), coreStore
 }
 
 func doJSON(t *testing.T, method, url string, body any) *http.Response {
@@ -114,7 +119,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	// List categories — empty
 	resp := doJSON(t, "GET", base+"/api/v1/modules/contracts/categories", nil)
 	expectStatus(t, resp, 200)
-	cats := decode[[]model.Category](t, resp)
+	cats := decode[[]categories.Category](t, resp)
 	if len(cats) != 0 {
 		t.Fatalf("expected 0 categories, got %d", len(cats))
 	}
@@ -122,7 +127,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	// Create category
 	resp = doJSON(t, "POST", base+"/api/v1/modules/contracts/categories", map[string]string{"name": "Telecom"})
 	expectStatus(t, resp, 201)
-	cat := decode[model.Category](t, resp)
+	cat := decode[categories.Category](t, resp)
 	if cat.Name != "Telecom" {
 		t.Fatalf("Name = %q, want %q", cat.Name, "Telecom")
 	}
@@ -130,7 +135,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	// Get category
 	resp = doJSON(t, "GET", base+"/api/v1/modules/contracts/categories/"+cat.ID.String(), nil)
 	expectStatus(t, resp, 200)
-	got := decode[model.Category](t, resp)
+	got := decode[categories.Category](t, resp)
 	if got.ID != cat.ID {
 		t.Fatalf("ID mismatch")
 	}
@@ -138,7 +143,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	// Update category
 	resp = doJSON(t, "PUT", base+"/api/v1/modules/contracts/categories/"+cat.ID.String(), map[string]string{"name": "Telecommunications"})
 	expectStatus(t, resp, 200)
-	updated := decode[model.Category](t, resp)
+	updated := decode[categories.Category](t, resp)
 	if updated.Name != "Telecommunications" {
 		t.Fatalf("Name = %q, want %q", updated.Name, "Telecommunications")
 	}
@@ -154,7 +159,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	}
 	resp = doJSON(t, "POST", base+"/api/v1/categories/"+cat.ID.String()+"/contracts", conBody)
 	expectStatus(t, resp, 201)
-	con := decode[model.Contract](t, resp)
+	con := decode[contracts.Contract](t, resp)
 	if con.Name != "Phone Plan" {
 		t.Fatalf("Name = %q, want %q", con.Name, "Phone Plan")
 	}
@@ -165,7 +170,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	// Get contract
 	resp = doJSON(t, "GET", base+"/api/v1/contracts/"+con.ID.String(), nil)
 	expectStatus(t, resp, 200)
-	gotCon := decode[model.Contract](t, resp)
+	gotCon := decode[contracts.Contract](t, resp)
 	if gotCon.Company != "ACME Telecom" {
 		t.Fatalf("Company = %q, want %q", gotCon.Company, "ACME Telecom")
 	}
@@ -173,7 +178,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	// List contracts for category
 	resp = doJSON(t, "GET", base+"/api/v1/categories/"+cat.ID.String()+"/contracts", nil)
 	expectStatus(t, resp, 200)
-	cons := decode[[]model.Contract](t, resp)
+	cons := decode[[]contracts.Contract](t, resp)
 	if len(cons) != 1 {
 		t.Fatalf("expected 1 contract, got %d", len(cons))
 	}
@@ -181,7 +186,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	// List all contracts
 	resp = doJSON(t, "GET", base+"/api/v1/contracts", nil)
 	expectStatus(t, resp, 200)
-	allCons := decode[[]model.Contract](t, resp)
+	allCons := decode[[]contracts.Contract](t, resp)
 	if len(allCons) != 1 {
 		t.Fatalf("expected 1 contract, got %d", len(allCons))
 	}
@@ -190,7 +195,7 @@ func TestIntegration_FullCRUDFlow(t *testing.T) {
 	conBody["name"] = "Updated Phone Plan"
 	resp = doJSON(t, "PUT", base+"/api/v1/contracts/"+con.ID.String(), conBody)
 	expectStatus(t, resp, 200)
-	updatedCon := decode[model.Contract](t, resp)
+	updatedCon := decode[contracts.Contract](t, resp)
 	if updatedCon.Name != "Updated Phone Plan" {
 		t.Fatalf("Name = %q, want %q", updatedCon.Name, "Updated Phone Plan")
 	}
@@ -224,17 +229,17 @@ func TestIntegration_CascadeDelete(t *testing.T) {
 	// Create category with two contracts
 	resp := doJSON(t, "POST", base+"/api/v1/modules/contracts/categories", map[string]string{"name": "Insurance"})
 	expectStatus(t, resp, 201)
-	cat := decode[model.Category](t, resp)
+	cat := decode[categories.Category](t, resp)
 
 	conBody := map[string]any{"name": "Health", "startDate": "2025-01-01"}
 	resp = doJSON(t, "POST", base+"/api/v1/categories/"+cat.ID.String()+"/contracts", conBody)
 	expectStatus(t, resp, 201)
-	con1 := decode[model.Contract](t, resp)
+	con1 := decode[contracts.Contract](t, resp)
 
 	conBody["name"] = "Car"
 	resp = doJSON(t, "POST", base+"/api/v1/categories/"+cat.ID.String()+"/contracts", conBody)
 	expectStatus(t, resp, 201)
-	con2 := decode[model.Contract](t, resp)
+	con2 := decode[contracts.Contract](t, resp)
 
 	// Delete category — contracts should cascade
 	resp = doJSON(t, "DELETE", base+"/api/v1/modules/contracts/categories/"+cat.ID.String(), nil)
@@ -254,7 +259,7 @@ func TestIntegration_Summary(t *testing.T) {
 	base := srv.URL
 
 	// Empty summary
-	resp := doJSON(t, "GET", base+"/api/v1/summary", nil)
+	resp := doJSON(t, "GET", base+"/api/v1/contracts/summary", nil)
 	expectStatus(t, resp, 200)
 	summary := decode[map[string]any](t, resp)
 	if int(summary["totalContracts"].(float64)) != 0 {
@@ -264,7 +269,7 @@ func TestIntegration_Summary(t *testing.T) {
 	// Create category + contract with price
 	resp = doJSON(t, "POST", base+"/api/v1/modules/contracts/categories", map[string]string{"name": "Insurance"})
 	expectStatus(t, resp, 201)
-	cat := decode[model.Category](t, resp)
+	cat := decode[categories.Category](t, resp)
 
 	price := 49.99
 	conBody := map[string]any{
@@ -278,7 +283,7 @@ func TestIntegration_Summary(t *testing.T) {
 	resp.Body.Close()
 
 	// Summary should reflect the contract
-	resp = doJSON(t, "GET", base+"/api/v1/summary", nil)
+	resp = doJSON(t, "GET", base+"/api/v1/contracts/summary", nil)
 	expectStatus(t, resp, 200)
 	summary = decode[map[string]any](t, resp)
 	if int(summary["totalContracts"].(float64)) != 1 {
@@ -309,7 +314,7 @@ func TestIntegration_UpcomingRenewals(t *testing.T) {
 	// Create category + contract (no endDate, so it gets a cancellation date)
 	resp = doJSON(t, "POST", base+"/api/v1/modules/contracts/categories", map[string]string{"name": "Telecom"})
 	expectStatus(t, resp, 201)
-	cat := decode[model.Category](t, resp)
+	cat := decode[categories.Category](t, resp)
 
 	conBody := map[string]any{
 		"name":                    "Phone",
@@ -346,7 +351,7 @@ func TestIntegration_ContractResponse_HasComputedFields(t *testing.T) {
 	// Create category + contract
 	resp := doJSON(t, "POST", base+"/api/v1/modules/contracts/categories", map[string]string{"name": "Test"})
 	expectStatus(t, resp, 201)
-	cat := decode[model.Category](t, resp)
+	cat := decode[categories.Category](t, resp)
 
 	conBody := map[string]any{
 		"name":                    "Test Contract",
@@ -385,7 +390,7 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	// List purchase categories — empty
 	resp := doJSON(t, "GET", base+"/api/v1/modules/purchases/categories", nil)
 	expectStatus(t, resp, 200)
-	cats := decode[[]model.Category](t, resp)
+	cats := decode[[]categories.Category](t, resp)
 	if len(cats) != 0 {
 		t.Fatalf("expected 0 categories, got %d", len(cats))
 	}
@@ -393,7 +398,7 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	// Create purchase category
 	resp = doJSON(t, "POST", base+"/api/v1/modules/purchases/categories", map[string]string{"name": "PC Hardware"})
 	expectStatus(t, resp, 201)
-	cat := decode[model.Category](t, resp)
+	cat := decode[categories.Category](t, resp)
 	if cat.Name != "PC Hardware" {
 		t.Fatalf("Name = %q, want %q", cat.Name, "PC Hardware")
 	}
@@ -409,7 +414,7 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	}
 	resp = doJSON(t, "POST", base+"/api/v1/categories/"+cat.ID.String()+"/purchases", purBody)
 	expectStatus(t, resp, 201)
-	pur := decode[model.Purchase](t, resp)
+	pur := decode[purchases.Purchase](t, resp)
 	if pur.ItemName != "Graphics Card" {
 		t.Fatalf("ItemName = %q, want %q", pur.ItemName, "Graphics Card")
 	}
@@ -420,7 +425,7 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	// Get purchase
 	resp = doJSON(t, "GET", base+"/api/v1/purchases/"+pur.ID.String(), nil)
 	expectStatus(t, resp, 200)
-	gotPur := decode[model.Purchase](t, resp)
+	gotPur := decode[purchases.Purchase](t, resp)
 	if gotPur.Brand != "NVIDIA" {
 		t.Fatalf("Brand = %q, want %q", gotPur.Brand, "NVIDIA")
 	}
@@ -428,7 +433,7 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	// List purchases for category
 	resp = doJSON(t, "GET", base+"/api/v1/categories/"+cat.ID.String()+"/purchases", nil)
 	expectStatus(t, resp, 200)
-	purs := decode[[]model.Purchase](t, resp)
+	purs := decode[[]purchases.Purchase](t, resp)
 	if len(purs) != 1 {
 		t.Fatalf("expected 1 purchase, got %d", len(purs))
 	}
@@ -436,7 +441,7 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	// List all purchases
 	resp = doJSON(t, "GET", base+"/api/v1/purchases", nil)
 	expectStatus(t, resp, 200)
-	allPurs := decode[[]model.Purchase](t, resp)
+	allPurs := decode[[]purchases.Purchase](t, resp)
 	if len(allPurs) != 1 {
 		t.Fatalf("expected 1 purchase, got %d", len(allPurs))
 	}
@@ -445,7 +450,7 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	purBody["itemName"] = "Updated Graphics Card"
 	resp = doJSON(t, "PUT", base+"/api/v1/purchases/"+pur.ID.String(), purBody)
 	expectStatus(t, resp, 200)
-	updatedPur := decode[model.Purchase](t, resp)
+	updatedPur := decode[purchases.Purchase](t, resp)
 	if updatedPur.ItemName != "Updated Graphics Card" {
 		t.Fatalf("ItemName = %q, want %q", updatedPur.ItemName, "Updated Graphics Card")
 	}
@@ -479,5 +484,48 @@ func TestIntegration_PurchaseCRUDFlow(t *testing.T) {
 	// Verify category is gone
 	resp = doJSON(t, "GET", base+"/api/v1/modules/purchases/categories/"+cat.ID.String(), nil)
 	expectStatus(t, resp, 404)
+	resp.Body.Close()
+}
+
+func TestIntegration_DisabledModuleIsGated(t *testing.T) {
+	srv, coreStore := setupServerWithStore(t)
+	defer srv.Close()
+	base := srv.URL
+
+	// contracts route works while enabled
+	resp := doJSON(t, "GET", base+"/api/v1/contracts", nil)
+	expectStatus(t, resp, 200)
+	resp.Body.Close()
+
+	if err := coreStore.UpdateSettings(t.Context(), testUserID, core.UserSettings{
+		RenewalDays:       90,
+		ReminderFrequency: "disabled",
+		DisabledModules:   []string{"contracts"},
+	}); err != nil {
+		t.Fatalf("disabling contracts: %v", err)
+	}
+
+	for _, path := range []string{
+		"/api/v1/contracts",
+		"/api/v1/contracts/upcoming-renewals",
+		"/api/v1/contracts/summary",
+		"/api/v1/modules/contracts/categories",
+	} {
+		resp := doJSON(t, "GET", base+path, nil)
+		if resp.StatusCode != 403 {
+			t.Errorf("%s: status = %d, want 403", path, resp.StatusCode)
+		}
+		resp.Body.Close()
+	}
+
+	// other modules stay reachable
+	resp = doJSON(t, "GET", base+"/api/v1/purchases", nil)
+	expectStatus(t, resp, 200)
+	resp.Body.Close()
+	resp = doJSON(t, "GET", base+"/api/v1/vehicles", nil)
+	expectStatus(t, resp, 200)
+	resp.Body.Close()
+	resp = doJSON(t, "GET", base+"/api/v1/ledger/accounts", nil)
+	expectStatus(t, resp, 200)
 	resp.Body.Close()
 }

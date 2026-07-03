@@ -34,43 +34,29 @@ See `frontend/AGENTS.md` and `backend/AGENTS.md` for per-project commands.
 
 ## Architecture overview
 
-The app ("Kontor") is a multi-module personal finance manager. Currently four modules exist:
+The app ("Kontor") is a multi-module personal finance manager. Modules are first-class: each backend module owns its routes, store, models, migrations, and export section (`backend/internal/modules/{id}/`), and each frontend module owns its routes, components, hooks, and repository (`frontend/src/modules/{id}/`), described by a registry. Users can enable/disable modules per account in settings; disabled modules are hidden in the UI and their API routes return 403 (data is kept). Currently four modules exist:
 
 - **Contracts** — Recurring subscriptions with renewal tracking, notice periods, and email reminders
 - **Purchases** — One-time purchases with item details, dealer info, and document links
 - **Auto** — Vehicle management with cost tracking (service, fuel, insurance, tax, inspection, tires, mileage, misc) and total cost of ownership projections
 - **Ledger** — Bank account and transaction tracking with CSV import, review queue, category matching, cross references, explicit internal transfer linking between tracked accounts, and email-order enrichment from IMAP inbox scans (manual or scheduled in the background) or uploaded `.eml` messages
 
-Each module has its own categories stored under separate DB key prefixes. Categories are module-scoped via the API route (`/api/v1/modules/{module}/categories`), not via a field on the Category model. The Auto module uses its own vehicle/cost key structure instead of categories. The Ledger module has its own account, category, transaction, and import-batch keys.
+Contracts and purchases share the item-category machinery (`backend/internal/categories`), scoped via the API route (`/api/v1/modules/{module}/categories`). The Auto module uses its own vehicle/cost key structure instead of categories. The Ledger module has its own hierarchical category type. Cross-module links between ledger transactions and contract/purchase/vehicle items go through the link registry (`backend/internal/storage/link`) so modules never import each other.
 
 ### DB key schema
 
+All module data lives under one prefix per module (`u/{userId}/mod/{module}/...`), so a module's footprint is a single prefix scan.
+
 - Users: `usr/{userId}`
 - User email index: `usr_email/{email}`
-- User settings: `u/{userId}/settings`
-- Contract categories: `u/{userId}/mod/contracts/cat/{categoryId}`
-- Purchase categories: `u/{userId}/mod/purchases/cat/{categoryId}`
-- Contracts: `u/{userId}/con/{contractId}`
-- Contract category index: `u/{userId}/idx/cat_con/{catId}/{conId}`
-- Purchases: `u/{userId}/pur/{purchaseId}`
-- Purchase category index: `u/{userId}/idx/cat_pur/{catId}/{purId}`
-- Vehicles: `u/{userId}/veh/{vehicleId}`
-- Cost entries: `u/{userId}/cost/{costEntryId}`
-- Vehicle cost index: `u/{userId}/idx/veh_cost/{vehicleId}/{costEntryId}`
-- Ledger accounts: `u/{userId}/led/acc/{accountId}`
-- Ledger account IBAN index: `u/{userId}/idx/led_acc_iban/{iban}`
-- Ledger categories: `u/{userId}/led/cat/{categoryId}`
-- Ledger transactions: `u/{userId}/led/txn/{transactionId}`
-- Ledger account transaction index: `u/{userId}/idx/led_acc_txn/{accountId}/{bookingDate}/{transactionId}`
-- Ledger transaction fingerprint index: `u/{userId}/idx/led_txn_fp/{fingerprint}`
-- Ledger imports: `u/{userId}/led/imp/{batchId}`
-- Ledger import transaction index: `u/{userId}/idx/led_imp_txn/{batchId}/{transactionId}`
-- Ledger file hash index: `u/{userId}/idx/led_file_hash/{sha256}`
-- Ledger email accounts: `u/{userId}/led/emailacc/{emailAccountId}`
-- Ledger email orders: `u/{userId}/led/eord/{emailOrderId}`
-- Ledger email account order index: `u/{userId}/idx/led_emailacc_eord/{emailAccountId}/{emailOrderId}`
-- Ledger email message index: `u/{userId}/idx/led_eord_msgid/{messageId}`
-- Schema version: `_meta/schema_version` (current: 4)
+- User settings: `u/{userId}/settings` (includes `disabledModules`)
+- Contracts module: `u/{userId}/mod/contracts/` — `cat/{id}`, `con/{id}`, `idx/cat_con/{catId}/{conId}`
+- Purchases module: `u/{userId}/mod/purchases/` — `cat/{id}`, `pur/{id}`, `idx/cat_pur/{catId}/{purId}`
+- Auto module: `u/{userId}/mod/auto/` — `veh/{id}`, `cost/{id}`, `idx/veh_cost/{vehId}/{costId}`
+- Ledger module: `u/{userId}/mod/ledger/` — `acc/{id}`, `cat/{id}`, `txn/{id}`, `imp/{id}`, `emailacc/{id}`, `eord/{id}`, and indexes `idx/acc_iban/`, `idx/acc_txn/`, `idx/txn_fp/`, `idx/imp_txn/`, `idx/file_hash/`, `idx/emailacc_eord/`, `idx/eord_msgid/`
+- Schema versions: `_meta/schema/{moduleId}` (per module, 8-byte big-endian uint64; all currently 0)
+
+Migrations are per module: each module supplies its own `Migrations()` list, applied at startup against its own version key. A module's migrations must only touch keys under its own prefix. Pre-relaunch databases (global `_meta/schema_version`, un-namespaced keys) are not supported.
 
 ### Frontend routes
 
@@ -94,7 +80,7 @@ Each module has its own categories stored under separate DB key prefixes. Catego
 | `/ledger/email-accounts` | Ledger email account management |
 | `/ledger/email-orders` | Parsed email orders and matching status |
 
-Routes use TanStack Router file-based conventions with dots for nesting (e.g. `contracts.index.tsx`, `contracts.categories.$categoryId.tsx`). All routes use `rootRoute` as parent with full paths (flat structure).
+Module routes live in `frontend/src/modules/{id}/routes/` and are registered through the module registry; core routes (`/`, `/login`, `/settings`) stay in `frontend/src/routes/`. All routes use `rootRoute` as parent with full paths (flat structure). Module routes carry a `beforeLoad` guard that redirects to `/` when the module is disabled.
 
 ## Git workflow
 

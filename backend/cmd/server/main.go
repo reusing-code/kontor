@@ -6,7 +6,7 @@ import (
 
 	"github.com/reusing-code/kontor/backend/internal/config"
 	"github.com/reusing-code/kontor/backend/internal/server"
-	"github.com/reusing-code/kontor/backend/internal/store"
+	"github.com/reusing-code/kontor/backend/internal/storage"
 )
 
 func main() {
@@ -26,14 +26,14 @@ func main() {
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 
-	db, err := store.NewBadgerStore(cfg.DBPath, logger)
+	engine, err := storage.Open(cfg.DBPath, logger)
 	if err != nil {
 		logger.Error("opening database", "error", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer engine.Close()
 
-	srv := server.New(cfg, logger, db)
+	srv := server.New(cfg, logger, engine)
 	if err := srv.Run(); err != nil {
 		logger.Error("server error", "error", err)
 		os.Exit(1)

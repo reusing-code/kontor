@@ -2,7 +2,7 @@ import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { differenceInDays } from "date-fns"
 import { z } from "zod/v4"
-import type { Contract } from "@/types/contract"
+import type { Contract } from "@/modules/contracts/types"
 
 export const numericString = (schema: z.ZodNumber) =>
   z.preprocess((v) => (v === "" || v === undefined ? undefined : Number(v)), schema.optional())

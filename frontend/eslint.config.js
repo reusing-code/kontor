@@ -29,7 +29,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['src/routes/**/*.tsx', 'src/hooks/**/*.tsx', 'src/components/ui/**/*.tsx'],
+    files: ['src/routes/**/*.tsx', 'src/modules/**/routes/**/*.tsx', 'src/hooks/**/*.tsx', 'src/components/ui/**/*.tsx'],
     rules: {
       'react-refresh/only-export-components': 'off',
     },

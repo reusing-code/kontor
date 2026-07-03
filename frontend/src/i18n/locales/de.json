@@ -10,7 +10,11 @@
     "totalSpent": "Ausgaben gesamt",
     "quickStats": "Kurzübersicht",
     "yearlyContracts": "Jährliche Verträge",
-    "categories": "Kategorien"
+    "categories": "Kategorien",
+    "vehicles": "Fahrzeuge"
+  },
+  "modules": {
+    "disabledHint": "(Modul deaktiviert)"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -243,7 +247,13 @@
     "restoring": "Stelle wieder her…",
     "restoreSucceeded": "Daten erfolgreich wiederhergestellt.",
     "restoreFailed": "Wiederherstellung fehlgeschlagen.",
-    "restoreHint": "Die Wiederherstellung erstellt alle Daten aus einer Export-Datei neu. Sie funktioniert nur mit einem Konto, das noch keine Daten enthält. E-Mail-Konto-Passwörter müssen danach neu eingegeben werden."
+    "restoreHint": "Die Wiederherstellung erstellt alle Daten aus einer Export-Datei neu. Sie funktioniert nur mit einem Konto, das noch keine Daten enthält. E-Mail-Konto-Passwörter müssen danach neu eingegeben werden.",
+    "modules": "Module",
+    "modulesDescription": "Wähle aus, welche Module angezeigt werden. Daten deaktivierter Module bleiben erhalten.",
+    "moduleData": "Export/Import pro Modul",
+    "moduleExportButton": "Exportieren",
+    "moduleImportButton": "Importieren",
+    "moduleImportSucceeded": "Daten für {{module}} importiert."
   },
   "import": {
     "button": "Importieren",
