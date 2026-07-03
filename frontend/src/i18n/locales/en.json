@@ -161,11 +161,10 @@
     "comments": "Comments"
   },
   "costTypes": {
-    "service": "Service",
+    "service": "Service & Inspection",
     "fuel": "Fuel",
     "insurance": "Insurance",
     "tax": "Tax",
-    "inspection": "Inspection",
     "tires": "Tires",
     "mileage": "Mileage",
     "misc": "Miscellaneous"
@@ -192,7 +191,11 @@
     "projectedCostPerMonth": "Projected Cost / Month",
     "projectedCostPerKm": "Projected Cost / km",
     "theoreticalResidual": "Theoretical Residual Value",
-    "requiredSalePrice": "Required Sale Price"
+    "requiredSalePrice": "Required Sale Price",
+    "statistics": "Statistics",
+    "costPerKmByYear": "Cost per km by year",
+    "kmPerYear": "Kilometers per year",
+    "mileageHistory": "Odometer history"
   },
   "categoryNames": {
     "insurance": "Insurance",

@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { useForm } from "react-hook-form"
+import { useForm, type Resolver } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { purchaseFormSchema, type PurchaseFormData, type Purchase } from "@/modules/purchases/types"
 import { purchaseFields } from "@/modules/purchases/config/purchase-fields"
@@ -30,7 +30,7 @@ const defaultValues: PurchaseFormData = {
 export function PurchaseDialog({ open, onOpenChange, purchase, onSubmit }: PurchaseDialogProps) {
   const { t } = useTranslation()
   const form = useForm<PurchaseFormData>({
-    resolver: standardSchemaResolver(purchaseFormSchema),
+    resolver: standardSchemaResolver(purchaseFormSchema) as Resolver<PurchaseFormData>,
     defaultValues,
   })
 

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { useForm } from "react-hook-form"
+import { useForm, type Resolver } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import type { LedgerCategory, LedgerCategoryInput } from "@/modules/ledger/types"
 import { ledgerCategoryInputSchema } from "@/modules/ledger/types"
@@ -80,7 +80,7 @@ function LedgerCategoryDialogForm({
   const { t } = useTranslation()
   const [matchWordsInput, setMatchWordsInput] = useState((category?.matchWords ?? []).join(", "))
   const form = useForm<LedgerCategoryInput>({
-    resolver: standardSchemaResolver(ledgerCategoryInputSchema),
+    resolver: standardSchemaResolver(ledgerCategoryInputSchema) as Resolver<LedgerCategoryInput>,
     defaultValues: {
       name: category?.name ?? "",
       parentId: category?.parentId ?? initialParentId,

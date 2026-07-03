@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { useForm } from "react-hook-form"
+import { useForm, type Resolver } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { vehicleFormSchema, type VehicleFormData, type Vehicle } from "@/modules/auto/types"
 import { vehicleFields } from "@/modules/auto/config/vehicle-fields"
@@ -30,7 +30,7 @@ const defaultValues: VehicleFormData = {
 export function VehicleDialog({ open, onOpenChange, vehicle, onSubmit }: VehicleDialogProps) {
   const { t } = useTranslation()
   const form = useForm<VehicleFormData>({
-    resolver: standardSchemaResolver(vehicleFormSchema),
+    resolver: standardSchemaResolver(vehicleFormSchema) as Resolver<VehicleFormData>,
     defaultValues,
   })
 

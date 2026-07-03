@@ -38,7 +38,7 @@ The app ("Kontor") is a multi-module personal finance manager. Modules are first
 
 - **Contracts** — Recurring subscriptions with renewal tracking, notice periods, and email reminders
 - **Purchases** — One-time purchases with item details, dealer info, and document links
-- **Auto** — Vehicle management with cost tracking (service, fuel, insurance, tax, inspection, tires, mileage, misc) and total cost of ownership projections
+- **Auto** — Vehicle management with cost tracking (service, fuel, insurance, tax, tires, mileage, misc) and total cost of ownership projections
 - **Ledger** — Bank account and transaction tracking with CSV import, review queue, category matching, cross references, explicit internal transfer linking between tracked accounts, and email-order enrichment from IMAP inbox scans (manual or scheduled in the background) or uploaded `.eml` messages
 
 Contracts and purchases share the item-category machinery (`backend/internal/categories`), scoped via the API route (`/api/v1/modules/{module}/categories`). The Auto module uses its own vehicle/cost key structure instead of categories. The Ledger module has its own hierarchical category type. Cross-module links between ledger transactions and contract/purchase/vehicle items go through the link registry (`backend/internal/storage/link`) so modules never import each other.
@@ -71,7 +71,8 @@ Migrations are per module: each module supplies its own `Migrations()` list, app
 | `/purchases` | Purchases dashboard |
 | `/purchases/categories/$categoryId` | Purchase category detail |
 | `/auto` | Auto / vehicles dashboard |
-| `/auto/vehicles/$vehicleId` | Vehicle detail with cost entries and summary |
+| `/auto/vehicles/$vehicleId` | Vehicle detail with cost entries and headline stats |
+| `/auto/vehicles/$vehicleId/statistics` | Vehicle statistics with charts, yearly breakdowns, and projection |
 | `/ledger` | Ledger dashboard with accounts, imports, categories, and review queue |
 | `/ledger/accounts/$accountId` | Ledger account detail with transactions |
 | `/ledger/categories` | Ledger category tree manager |

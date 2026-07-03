@@ -9,6 +9,7 @@ React SPA for the Kontor application — a multi-module personal finance manager
 - **TanStack Router** for type-safe routing
 - **TanStack Query** for server state / data fetching
 - **React Hook Form** + **Zod** for forms and validation
+- **Recharts** for charts (vehicle statistics)
 - **react-i18next** for internationalization (en/de)
 
 ## Getting Started

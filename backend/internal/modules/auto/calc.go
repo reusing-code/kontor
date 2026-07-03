@@ -7,15 +7,14 @@ import (
 )
 
 type YearCosts struct {
-	Year       int     `json:"year"`
-	Service    float64 `json:"service"`
-	Fuel       float64 `json:"fuel"`
-	Insurance  float64 `json:"insurance"`
-	Tax        float64 `json:"tax"`
-	Inspection float64 `json:"inspection"`
-	Tires      float64 `json:"tires"`
-	Misc       float64 `json:"misc"`
-	Total      float64 `json:"total"`
+	Year      int     `json:"year"`
+	Service   float64 `json:"service"`
+	Fuel      float64 `json:"fuel"`
+	Insurance float64 `json:"insurance"`
+	Tax       float64 `json:"tax"`
+	Tires     float64 `json:"tires"`
+	Misc      float64 `json:"misc"`
+	Total     float64 `json:"total"`
 }
 
 type MileagePoint struct {
@@ -129,7 +128,7 @@ func CalculateVehicleSummary(vehicle Vehicle, entries []CostEntry, now time.Time
 		if !ok {
 			yc = &YearCosts{Year: y}
 		}
-		yc.Total = yc.Service + yc.Fuel + yc.Insurance + yc.Tax + yc.Inspection + yc.Tires + yc.Misc
+		yc.Total = yc.Service + yc.Fuel + yc.Insurance + yc.Tax + yc.Tires + yc.Misc
 		summary.CostsByYear = append(summary.CostsByYear, *yc)
 	}
 
@@ -179,8 +178,6 @@ func addToYearCosts(yc *YearCosts, costType string, amount float64) {
 		yc.Insurance += amount
 	case CostTypeTax:
 		yc.Tax += amount
-	case CostTypeInspection:
-		yc.Inspection += amount
 	case CostTypeTires:
 		yc.Tires += amount
 	case CostTypeMisc:
@@ -406,7 +403,7 @@ func calcProjection(vehicle Vehicle, summary VehicleSummary, monthsOwned, kmDriv
 	}
 
 	// Split running cost into service-related and non-service
-	serviceCost := summary.CostsByType[CostTypeService] + summary.CostsByType[CostTypeInspection] + summary.CostsByType[CostTypeTires]
+	serviceCost := summary.CostsByType[CostTypeService] + summary.CostsByType[CostTypeTires]
 	nonServiceCost := totalRunningCost - serviceCost
 
 	// Linear projection with maintenance factor on service costs

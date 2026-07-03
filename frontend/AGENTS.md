@@ -28,6 +28,8 @@ React 19 + TypeScript SPA built with Vite. No SSR — this is a CRUD/business ap
 
 **Styling:** Tailwind CSS v4 with the Vite plugin. shadcn/ui for pre-built components (config in `components.json`, components go in `src/components/ui/`). Use the `cn()` helper from `@/lib/utils` for conditional classNames.
 
+**Charts:** Recharts, currently used by the auto module's vehicle statistics page (`/auto/vehicles/$vehicleId/statistics`, lazy-loaded). Cost-type series colors are CSS custom properties (`--viz-*`) defined for light and dark mode in `src/index.css` and mapped in `src/modules/auto/config/chart.ts`.
+
 **Path alias:** `@/` maps to `src/` (configured in both tsconfig and vite.config).
 
 **i18n:** `react-i18next` with locale files in `src/i18n/locales/` (en.json, de.json).
