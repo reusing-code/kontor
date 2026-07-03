@@ -150,6 +150,25 @@ func TestLedgerTransactionsPage_PaginatesNewestFirst(t *testing.T) {
 	}
 }
 
+func TestLedgerTransactionsFiltered_EmptyResultHasNonNilItems(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	page, err := s.ListLedgerTransactionsFiltered(ctx, "user-1", LedgerTransactionListOptions{
+		ReviewStatus: LedgerTransactionReviewNeedsReview,
+		Limit:        10,
+	})
+	if err != nil {
+		t.Fatalf("ListLedgerTransactionsFiltered: %v", err)
+	}
+	if page.Items == nil {
+		t.Fatal("page.Items is nil, want empty slice (serializes to JSON null otherwise)")
+	}
+	if len(page.Items) != 0 {
+		t.Fatalf("page.Items len = %d, want 0", len(page.Items))
+	}
+}
+
 func TestLedgerCommitImport_RejectsDuplicateFile(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
