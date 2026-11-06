@@ -116,7 +116,7 @@ export function CostsByYearChart({ summary }: { summary: VehicleSummary }) {
                   .filter((p) => typeof p.value === "number" && p.value > 0)
                   .reverse()
                   .map((p) => ({
-                    name: t(`costTypes.${p.dataKey}`),
+                    name: t(`costTypes.${String(p.dataKey)}`),
                     value: `${(p.value as number).toFixed(2)} ${currency}`,
                     color: costTypeColor(p.dataKey as ChartCostType),
                   }))

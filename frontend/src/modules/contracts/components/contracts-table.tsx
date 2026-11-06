@@ -45,7 +45,7 @@ function formatCellValue(contract: Contract, key: string, currency: string, t: (
   }
   if (key === "startDate" || key === "endDate") return format(new Date(value as string), "yyyy-MM-dd")
   if (key === "minimumDurationMonths" || key === "extensionDurationMonths" || key === "noticePeriodMonths") {
-    return `${value} ${t("common.months")}`
+    return `${String(value)} ${t("common.months")}`
   }
   return String(value)
 }

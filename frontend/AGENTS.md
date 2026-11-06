@@ -10,13 +10,13 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 
 - `bun dev` — Start dev server (Vite, port 5173)
 - `bun run build` — Type-check with `tsc -b` then Vite production build
-- `bun run lint` — ESLint
+- `bun run lint` — Oxlint with type-aware rules (`oxlint --type-aware`, config in `.oxlintrc.json`); TypeScript 7 (native `tsc`) means typescript-eslint is not used
 - `bun run preview` — Preview production build locally
 - `npx shadcn@latest add <component>` — Add a shadcn/ui component (e.g. button, table, dialog)
 
 ## Architecture
 
-React 19 + TypeScript SPA built with Vite. No SSR — this is a CRUD/business app behind auth.
+React 19 + TypeScript 7 SPA built with Vite 8. No SSR — this is a CRUD/business app behind auth.
 
 **Modules:** Each feature module lives in `src/modules/{id}/` (routes, components, hooks, lib/repository, config, types.ts) and exports a `ModuleDefinition` (`src/types/modules.ts`): id, basePath, i18n label key, icon, route objects, a `SidebarSection`, and an optional `HomeCard`. `src/modules/registry.ts` lists all modules in order; the router, sidebar, and homepage are driven by it. Users enable/disable modules in settings — `useModules()` (`src/hooks/use-modules.ts`) derives enablement from the shared `["settings"]` query, the sidebar and homepage only mount enabled modules, and every module route has a `beforeLoad` guard (`src/modules/guard.ts`) that redirects to `/` when the module is disabled.
 

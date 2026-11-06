@@ -8,7 +8,7 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 
 ## Prerequisites
 
-- **Go 1.26+** — https://go.dev/dl/
+- **Go 1.27+** — https://go.dev/dl/
 - **Bun** — JavaScript runtime/package manager: https://bun.sh
 - **Task** — Task runner (taskfile.dev): `go install github.com/go-task/task/v3/cmd/task@latest` or `pacman -S go-task`
 - **Air** — Live reload for Go: `go install github.com/air-verse/air@latest`

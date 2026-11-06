@@ -27,7 +27,7 @@ Dev server runs at `http://localhost:5173`.
 |---------|-------------|
 | `bun dev` | Start dev server with HMR |
 | `bun run build` | Type-check and build for production |
-| `bun run lint` | Run ESLint |
+| `bun run lint` | Run Oxlint (type-aware) |
 | `bun run preview` | Preview production build |
 
 ## Adding UI Components

@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useForm, type Resolver } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { useTranslation } from "react-i18next"
@@ -30,6 +31,7 @@ interface LedgerEmailAccountDialogProps {
 
 export function LedgerEmailAccountDialog({ open, onOpenChange, account, onSubmit }: LedgerEmailAccountDialogProps) {
   const { t } = useTranslation()
+  const [today] = useState(() => new Date().toISOString().slice(0, 10))
   const form = useForm<LedgerEmailAccountInput>({
     resolver: standardSchemaResolver(ledgerEmailAccountInputSchema) as Resolver<LedgerEmailAccountInput>,
     defaultValues: {
@@ -39,7 +41,7 @@ export function LedgerEmailAccountDialog({ open, onOpenChange, account, onSubmit
       username: account?.username ?? "",
       password: "",
       useTls: account?.useTls ?? true,
-      scanSince: account?.scanSince ?? new Date().toISOString().slice(0, 10),
+      scanSince: account?.scanSince ?? today,
     },
   })
 

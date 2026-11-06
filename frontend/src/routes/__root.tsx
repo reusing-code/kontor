@@ -21,7 +21,7 @@ function RootLayout() {
 
   useEffect(() => {
     if (!isAuthenticated && !isLoginPage) {
-      navigate({ to: "/login" })
+      void navigate({ to: "/login" })
     }
   }, [isAuthenticated, isLoginPage, navigate])
 

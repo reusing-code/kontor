@@ -73,10 +73,13 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   }
 
   function handleCopySpec() {
-    navigator.clipboard.writeText(specText).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
+    navigator.clipboard.writeText(specText).then(
+      () => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      },
+      () => toast.error(t("import.copyFailed")),
+    )
   }
 
   return (

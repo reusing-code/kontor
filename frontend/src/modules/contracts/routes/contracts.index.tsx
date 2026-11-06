@@ -48,10 +48,12 @@ export function ContractsDashboardPage() {
 
   const updateContractMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: ContractFormData }) => updateContract(id, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["contracts"] })
-      qc.invalidateQueries({ queryKey: ["categories", "contracts"] })
-      qc.invalidateQueries({ queryKey: ["summary"] })
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["contracts"] }),
+        qc.invalidateQueries({ queryKey: ["categories", "contracts"] }),
+        qc.invalidateQueries({ queryKey: ["summary"] }),
+      ])
       toast.success(t("contract.updated"))
       setEditingContract(null)
     },
@@ -59,10 +61,12 @@ export function ContractsDashboardPage() {
 
   const deleteContractMutation = useMutation({
     mutationFn: ({ id }: { id: string }) => deleteContract(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["contracts"] })
-      qc.invalidateQueries({ queryKey: ["categories", "contracts"] })
-      qc.invalidateQueries({ queryKey: ["summary"] })
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["contracts"] }),
+        qc.invalidateQueries({ queryKey: ["categories", "contracts"] }),
+        qc.invalidateQueries({ queryKey: ["summary"] }),
+      ])
       toast.success(t("contract.deleted"))
       setDeletingContract(null)
     },

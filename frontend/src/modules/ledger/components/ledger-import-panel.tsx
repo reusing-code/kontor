@@ -103,7 +103,7 @@ export function LedgerImportPanel({ accounts }: LedgerImportPanelProps) {
     if (!preview) return
 
     if (mode === "new") {
-      newAccountForm.handleSubmit((data) => {
+      void newAccountForm.handleSubmit((data) => {
         commitMutation.mutate(
           {
             previewId: preview.previewId,

@@ -82,7 +82,7 @@ export function LedgerCategoryTreeManager({ categories }: LedgerCategoryTreeMana
     })
   }
 
-  function renderTree(parentId: string | undefined = undefined, depth: number = 0): React.ReactNode {
+  function renderTree(parentId?: string, depth = 0): React.ReactNode {
     const items = childrenByParent.get(parentId ?? "root") ?? []
 
     return items.map((category) => {

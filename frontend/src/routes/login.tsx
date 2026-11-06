@@ -90,7 +90,7 @@ function LoginPage() {
       } else {
         await login({ email, password })
       }
-      navigate({ to: "/" })
+      await navigate({ to: "/" })
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred")
     } finally {

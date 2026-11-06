@@ -32,7 +32,7 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 
 ### Prerequisites
 
-- [Go 1.26+](https://go.dev/dl/)
+- [Go 1.27+](https://go.dev/dl/)
 - [Bun](https://bun.sh)
 - [Task](https://taskfile.dev) — `go install github.com/go-task/task/v3/cmd/task@latest`
 - [Air](https://github.com/air-verse/air) — `go install github.com/air-verse/air@latest`

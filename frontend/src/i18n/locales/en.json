@@ -274,7 +274,8 @@
     "rowError": "Row {{row}}: {{error}}",
     "specTitle": "JSON Format Specification",
     "copySpec": "Copy",
-    "copied": "Copied!"
+    "copied": "Copied!",
+    "copyFailed": "Could not copy to clipboard."
   },
   "ledger": {
     "description": "Import bank CSVs, manage ledger accounts, and review transaction history.",

@@ -274,7 +274,8 @@
     "rowError": "Zeile {{row}}: {{error}}",
     "specTitle": "JSON-Format-Spezifikation",
     "copySpec": "Kopieren",
-    "copied": "Kopiert!"
+    "copied": "Kopiert!",
+    "copyFailed": "Kopieren in die Zwischenablage fehlgeschlagen."
   },
   "ledger": {
     "description": "Bank-CSV-Dateien importieren, Ledger-Konten verwalten und Transaktionen prüfen.",

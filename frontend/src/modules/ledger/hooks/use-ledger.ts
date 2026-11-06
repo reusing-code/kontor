@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import {
   commitLedgerImport,
   createLedgerCategory,
@@ -37,6 +37,7 @@ import type {
   LedgerReviewInput,
   LedgerSourceType,
   LedgerTransferLinkInput,
+  LedgerTransferLinkResult,
   LedgerTransactionDetailsInput,
 } from "@/modules/ledger/types"
 
@@ -149,13 +150,15 @@ export function useLedgerCommitImport() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ previewId, data }: { previewId: string; data: LedgerCommitRequest }) => commitLedgerImport(previewId, data),
-    onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ledgerAccountsKey })
-      qc.invalidateQueries({ queryKey: ledgerImportsKey })
-      qc.invalidateQueries({ queryKey: ledgerCategoriesKey })
-      qc.invalidateQueries({ queryKey: ledgerAccountKey(result.accountId) })
-      qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.accountId, "transactions"] })
-      qc.invalidateQueries({ queryKey: ["ledger", "review"] })
+    onSuccess: async (result) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ledgerAccountsKey }),
+        qc.invalidateQueries({ queryKey: ledgerImportsKey }),
+        qc.invalidateQueries({ queryKey: ledgerCategoriesKey }),
+        qc.invalidateQueries({ queryKey: ledgerAccountKey(result.accountId) }),
+        qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.accountId, "transactions"] }),
+        qc.invalidateQueries({ queryKey: ["ledger", "review"] }),
+      ])
     },
   })
 }
@@ -164,8 +167,8 @@ export function useCreateLedgerCategory() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: LedgerCategoryInput) => createLedgerCategory(data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ledgerCategoriesKey })
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ledgerCategoriesKey })
     },
   })
 }
@@ -174,8 +177,8 @@ export function useUpdateLedgerCategory() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: LedgerCategoryInput }) => updateLedgerCategory(id, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ledgerCategoriesKey })
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ledgerCategoriesKey })
     },
   })
 }
@@ -184,10 +187,12 @@ export function useDeleteLedgerCategory() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteLedgerCategory(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ledgerCategoriesKey })
-      qc.invalidateQueries({ queryKey: ["ledger", "review"] })
-      qc.invalidateQueries({ queryKey: ["ledger", "accounts"] })
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ledgerCategoriesKey }),
+        qc.invalidateQueries({ queryKey: ["ledger", "review"] }),
+        qc.invalidateQueries({ queryKey: ["ledger", "accounts"] }),
+      ])
     },
   })
 }
@@ -196,11 +201,13 @@ export function useReviewLedgerTransaction() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: LedgerReviewInput }) => reviewLedgerTransaction(id, data),
-    onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ledgerCategoriesKey })
-      qc.invalidateQueries({ queryKey: ["ledger", "review"] })
-      qc.invalidateQueries({ queryKey: ledgerTransactionKey(result.transaction.id) })
-      qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.transaction.accountId, "transactions"] })
+    onSuccess: async (result) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ledgerCategoriesKey }),
+        qc.invalidateQueries({ queryKey: ["ledger", "review"] }),
+        qc.invalidateQueries({ queryKey: ledgerTransactionKey(result.transaction.id) }),
+        qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.transaction.accountId, "transactions"] }),
+      ])
     },
   })
 }
@@ -209,31 +216,35 @@ export function useUpdateLedgerTransactionDetails() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: LedgerTransactionDetailsInput }) => updateLedgerTransactionDetails(id, data),
-    onSuccess: (transaction) => {
-      qc.invalidateQueries({ queryKey: ledgerTransactionKey(transaction.id) })
-      qc.invalidateQueries({ queryKey: ledgerTransferCandidatesKey(transaction.id) })
-      qc.invalidateQueries({ queryKey: ["ledger", "accounts", transaction.accountId, "transactions"] })
-      qc.invalidateQueries({ queryKey: ["contracts"] })
-      qc.invalidateQueries({ queryKey: ["purchases"] })
-      qc.invalidateQueries({ queryKey: ["vehicles"] })
+    onSuccess: async (transaction) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ledgerTransactionKey(transaction.id) }),
+        qc.invalidateQueries({ queryKey: ledgerTransferCandidatesKey(transaction.id) }),
+        qc.invalidateQueries({ queryKey: ["ledger", "accounts", transaction.accountId, "transactions"] }),
+        qc.invalidateQueries({ queryKey: ["contracts"] }),
+        qc.invalidateQueries({ queryKey: ["purchases"] }),
+        qc.invalidateQueries({ queryKey: ["vehicles"] }),
+      ])
     },
   })
+}
+
+function invalidateTransferPair(qc: QueryClient, result: LedgerTransferLinkResult) {
+  const transactions = result.pairedTransaction ? [result.transaction, result.pairedTransaction] : [result.transaction]
+  return Promise.all(
+    transactions.flatMap((txn) => [
+      qc.invalidateQueries({ queryKey: ledgerTransactionKey(txn.id) }),
+      qc.invalidateQueries({ queryKey: ledgerTransferCandidatesKey(txn.id) }),
+      qc.invalidateQueries({ queryKey: ["ledger", "accounts", txn.accountId, "transactions"] }),
+    ]),
+  )
 }
 
 export function useLinkLedgerTransfer() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: LedgerTransferLinkInput }) => linkLedgerTransfer(id, data),
-    onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ledgerTransactionKey(result.transaction.id) })
-      qc.invalidateQueries({ queryKey: ledgerTransferCandidatesKey(result.transaction.id) })
-      qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.transaction.accountId, "transactions"] })
-      if (result.pairedTransaction) {
-        qc.invalidateQueries({ queryKey: ledgerTransactionKey(result.pairedTransaction.id) })
-        qc.invalidateQueries({ queryKey: ledgerTransferCandidatesKey(result.pairedTransaction.id) })
-        qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.pairedTransaction.accountId, "transactions"] })
-      }
-    },
+    onSuccess: (result) => invalidateTransferPair(qc, result),
   })
 }
 
@@ -241,16 +252,7 @@ export function useUnlinkLedgerTransfer() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => unlinkLedgerTransfer(id),
-    onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ledgerTransactionKey(result.transaction.id) })
-      qc.invalidateQueries({ queryKey: ledgerTransferCandidatesKey(result.transaction.id) })
-      qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.transaction.accountId, "transactions"] })
-      if (result.pairedTransaction) {
-        qc.invalidateQueries({ queryKey: ledgerTransactionKey(result.pairedTransaction.id) })
-        qc.invalidateQueries({ queryKey: ledgerTransferCandidatesKey(result.pairedTransaction.id) })
-        qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.pairedTransaction.accountId, "transactions"] })
-      }
-    },
+    onSuccess: (result) => invalidateTransferPair(qc, result),
   })
 }
 
@@ -258,8 +260,8 @@ export function useCreateLedgerEmailAccount() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: LedgerEmailAccountInput) => createLedgerEmailAccount(data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ledgerEmailAccountsKey })
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ledgerEmailAccountsKey })
     },
   })
 }
@@ -268,8 +270,8 @@ export function useUpdateLedgerEmailAccount() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: LedgerEmailAccountInput }) => updateLedgerEmailAccount(id, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ledgerEmailAccountsKey })
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ledgerEmailAccountsKey })
     },
   })
 }
@@ -278,9 +280,11 @@ export function useDeleteLedgerEmailAccount() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteLedgerEmailAccount(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ledgerEmailAccountsKey })
-      qc.invalidateQueries({ queryKey: ["ledger", "email-orders"] })
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ledgerEmailAccountsKey }),
+        qc.invalidateQueries({ queryKey: ["ledger", "email-orders"] }),
+      ])
     },
   })
 }
@@ -289,11 +293,13 @@ export function useScanLedgerEmailAccount() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, files }: { id: string; files: File[] }) => scanLedgerEmailAccount(id, files),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ledgerEmailAccountsKey })
-      qc.invalidateQueries({ queryKey: ["ledger", "email-orders"] })
-      qc.invalidateQueries({ queryKey: ["ledger", "transactions"] })
-      qc.invalidateQueries({ queryKey: ["ledger", "accounts"] })
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ledgerEmailAccountsKey }),
+        qc.invalidateQueries({ queryKey: ["ledger", "email-orders"] }),
+        qc.invalidateQueries({ queryKey: ["ledger", "transactions"] }),
+        qc.invalidateQueries({ queryKey: ["ledger", "accounts"] }),
+      ])
     },
   })
 }
@@ -308,11 +314,13 @@ export function useLinkLedgerEmailOrder() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: LedgerEmailOrderLinkInput }) => linkLedgerEmailOrder(id, data),
-    onSuccess: (order) => {
-      qc.invalidateQueries({ queryKey: ledgerEmailOrderKey(order.id) })
-      qc.invalidateQueries({ queryKey: ["ledger", "email-orders"] })
-      qc.invalidateQueries({ queryKey: ["ledger", "transactions"] })
-      qc.invalidateQueries({ queryKey: ["ledger", "accounts"] })
+    onSuccess: async (order) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ledgerEmailOrderKey(order.id) }),
+        qc.invalidateQueries({ queryKey: ["ledger", "email-orders"] }),
+        qc.invalidateQueries({ queryKey: ["ledger", "transactions"] }),
+        qc.invalidateQueries({ queryKey: ["ledger", "accounts"] }),
+      ])
     },
   })
 }
@@ -321,11 +329,13 @@ export function useRejectLedgerEmailOrder() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => rejectLedgerEmailOrder(id),
-    onSuccess: (order) => {
-      qc.invalidateQueries({ queryKey: ledgerEmailOrderKey(order.id) })
-      qc.invalidateQueries({ queryKey: ["ledger", "email-orders"] })
-      qc.invalidateQueries({ queryKey: ["ledger", "transactions"] })
-      qc.invalidateQueries({ queryKey: ["ledger", "accounts"] })
+    onSuccess: async (order) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ledgerEmailOrderKey(order.id) }),
+        qc.invalidateQueries({ queryKey: ["ledger", "email-orders"] }),
+        qc.invalidateQueries({ queryKey: ["ledger", "transactions"] }),
+        qc.invalidateQueries({ queryKey: ["ledger", "accounts"] }),
+      ])
     },
   })
 }
