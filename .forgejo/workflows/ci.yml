@@ -19,6 +19,8 @@ jobs:
     steps:
       - uses: https://github.com/actions/checkout@v6
       - uses: https://github.com/oven-sh/setup-bun@v2
+        with:
+          bun-version-file: frontend/package.json
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run build
@@ -37,6 +39,7 @@ jobs:
       - run: go test ./...
       - uses: https://github.com/golangci/golangci-lint-action@v9
         with:
+          version: v2.15
           working-directory: backend
 
   docker:
@@ -72,6 +75,7 @@ jobs:
           fi
           echo "commit=${GITHUB_SHA::7}" >> "$FORGEJO_OUTPUT"
           echo "date=$(date -u +%Y-%m-%d)" >> "$FORGEJO_OUTPUT"
+          echo "bun=$(node -p "require('./frontend/package.json').engines.bun")" >> "$FORGEJO_OUTPUT"
 
       - uses: https://github.com/docker/setup-buildx-action@v4
 
@@ -85,5 +89,6 @@ jobs:
             VERSION=${{ steps.version.outputs.version }}
             COMMIT=${{ steps.version.outputs.commit }}
             BUILD_DATE=${{ steps.version.outputs.date }}
+            BUN_VERSION=${{ steps.version.outputs.bun }}
           cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache
           cache-to: type=registry,ref=${{ env.IMAGE }}:buildcache,mode=max

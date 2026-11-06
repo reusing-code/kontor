@@ -33,7 +33,7 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 ### Prerequisites
 
 - [Go 1.27+](https://go.dev/dl/)
-- [Bun](https://bun.sh)
+- [Bun 1.4](https://bun.sh) (pinned in `frontend/package.json` `engines.bun`)
 - [Task](https://taskfile.dev) — `go install github.com/go-task/task/v3/cmd/task@latest`
 - [Air](https://github.com/air-verse/air) — `go install github.com/air-verse/air@latest`
 
@@ -52,6 +52,8 @@ task build   # build image
 task up       # start with docker compose
 task down     # stop
 ```
+
+`task build` passes the Bun version from `frontend/package.json` as a build arg; when running `docker build` directly, add `--build-arg BUN_VERSION=<version>`.
 
 ## Project Structure
 

@@ -1,4 +1,6 @@
-FROM oven/bun:1.4-alpine AS frontend
+# Set from engines.bun in frontend/package.json (task build / CI)
+ARG BUN_VERSION
+FROM oven/bun:${BUN_VERSION}-alpine AS frontend
 WORKDIR /app
 COPY frontend/package.json frontend/bun.lock* ./
 RUN bun install --frozen-lockfile

@@ -47,8 +47,11 @@ tasks:
 
   build:
     desc: Build Docker image
+    vars:
+      BUN_VERSION:
+        sh: bun -p "require('./frontend/package.json').engines.bun"
     cmds:
-      - docker build -t kontor .
+      - docker build --build-arg BUN_VERSION={{.BUN_VERSION}} -t kontor .
 
   up:
     desc: Start with docker compose

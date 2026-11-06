@@ -9,7 +9,7 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 ## Prerequisites
 
 - **Go 1.27+** — https://go.dev/dl/
-- **Bun** — JavaScript runtime/package manager: https://bun.sh
+- **Bun 1.4** — JavaScript runtime/package manager: https://bun.sh. The version is pinned in `frontend/package.json` (`engines.bun`, plain `X.Y` since it is also the Docker tag); CI (`setup-bun`) and the Docker build read it from there
 - **Task** — Task runner (taskfile.dev): `go install github.com/go-task/task/v3/cmd/task@latest` or `pacman -S go-task`
 - **Air** — Live reload for Go: `go install github.com/air-verse/air@latest`
 - **Docker + Docker Compose** (optional) — For containerized deployment
@@ -21,7 +21,7 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 - `task ci` — Run the local backend + frontend checks that must pass before committing
 - `task ci:backend` — Run backend test + lint checks
 - `task ci:frontend` — Run frontend lint + build checks
-- `task build` — Build Docker image
+- `task build` — Build Docker image (passes `BUN_VERSION` from `frontend/package.json`; a plain `docker build` needs `--build-arg BUN_VERSION=<version>`)
 - `task up` / `task down` — Docker Compose up/down
 
 See `frontend/AGENTS.md` and `backend/AGENTS.md` for per-project commands.
