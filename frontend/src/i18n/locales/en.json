@@ -488,6 +488,8 @@
   "common": {
     "save": "Save",
     "cancel": "Cancel",
+    "select": "Select",
+    "selected": "Selected",
     "close": "Close",
     "delete": "Delete",
     "edit": "Edit",

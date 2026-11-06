@@ -488,6 +488,8 @@
   "common": {
     "save": "Speichern",
     "cancel": "Abbrechen",
+    "select": "Auswählen",
+    "selected": "Ausgewählt",
     "close": "Schließen",
     "delete": "Löschen",
     "edit": "Bearbeiten",
