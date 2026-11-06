@@ -8,7 +8,7 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 
 ## Prerequisites
 
-- **Go 1.26+** — https://go.dev/dl/
+- **Go 1.27+** — https://go.dev/dl/
 - **Task** — Task runner (taskfile.dev): `go install github.com/go-task/task/v3/cmd/task@latest` or `pacman -S go-task`
 - **Air** — Live reload for Go: `go install github.com/air-verse/air@latest`
 - **golangci-lint** (optional) — Linter: `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest` or `pacman -S golangci-lint`
@@ -23,7 +23,7 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 
 ## Architecture
 
-Go 1.26+ stdlib `net/http` with method+pattern routing. Single binary that optionally serves the frontend SPA.
+Go 1.27+ stdlib `net/http` with method+pattern routing. Single binary that optionally serves the frontend SPA.
 
 **Modules:** Each feature module implements the `module.Module` interface (`internal/module`): `ID`, `Prefix` (its DB key prefix), `Migrations`, `RegisterRoutes`, `Seed`, `StartBackground`, `IsEmpty`, `ExportSection`, `ImportSection`, `PruneDeadLinks`. The server builds all modules, registers them in a `module.Registry` (order matters — it is also the import order), runs their migrations, and registers their routes through `module.Router`, which wraps every handler in the enablement gate. Users can disable modules in settings (`disabledModules`, stored as the disabled set so everything defaults to enabled); gated routes return `403 {"code":"module_disabled"}`. Data of disabled modules is kept.
 
