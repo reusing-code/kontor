@@ -111,6 +111,7 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | POST | `/ledger/email-accounts/{emailAccountId}/scan` | Parse uploaded `.eml` files and match resulting orders to ledger transactions |
 | GET | `/ledger/email-orders` | List parsed email orders |
 | GET | `/ledger/email-orders/{emailOrderId}` | Get parsed email order details |
+| GET | `/ledger/email-orders/{emailOrderId}/candidates` | List unlinked outgoing transactions within the importer's charge window (`?afterDays=` widens it) |
 | POST | `/ledger/email-orders/{emailOrderId}/link` | Manually link an email order to one or more ledger transactions |
 | POST | `/ledger/email-orders/{emailOrderId}/reject` | Reject a parsed email order |
 | GET | `/ledger/email-importers` | List supported email importers |

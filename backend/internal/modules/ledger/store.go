@@ -263,6 +263,15 @@ func ledgerDateForMatch(t LedgerTransaction) string {
 	return t.BookingDate
 }
 
+func ledgerSignedDateDeltaDays(date, reference string) (int, bool) {
+	d, dErr := time.Parse("2006-01-02", date)
+	r, rErr := time.Parse("2006-01-02", reference)
+	if dErr != nil || rErr != nil {
+		return 0, false
+	}
+	return int(d.Sub(r).Hours() / 24), true
+}
+
 func ledgerDateDeltaDays(left, right string) int {
 	leftDate, leftErr := time.Parse("2006-01-02", left)
 	rightDate, rightErr := time.Parse("2006-01-02", right)
@@ -1455,6 +1464,80 @@ func (s *Store) GetLedgerEmailOrderByMessageID(_ context.Context, userID string,
 		return err
 	})
 	return order, err
+}
+
+const ledgerEmailOrderCandidateLimit = 100
+
+// ListLedgerEmailOrderCandidates returns outgoing transactions from all
+// accounts that are not linked to an email order yet and were booked within
+// window around the order date, closest amount first.
+func (s *Store) ListLedgerEmailOrderCandidates(_ context.Context, userID string, order LedgerEmailOrder, window ChargeWindow) (LedgerEmailOrderCandidatesResult, error) {
+	result := LedgerEmailOrderCandidatesResult{Items: []LedgerEmailOrderCandidate{}, ChargeWindow: window}
+	target := order.TotalMinor
+	if target < 0 {
+		target = -target
+	}
+	err := s.e.View(func(txn *badger.Txn) error {
+		accounts, err := collectLedgerAccounts(txn, userID)
+		if err != nil {
+			return err
+		}
+		accountNameByID := make(map[uuid.UUID]string, len(accounts))
+		for _, account := range accounts {
+			accountNameByID[account.ID] = account.Name
+		}
+		transactions, err := collectLedgerTransactions(txn, userID)
+		if err != nil {
+			return err
+		}
+		for _, candidate := range transactions {
+			if candidate.AmountMinor >= 0 || len(candidate.EmailOrderIDs) > 0 {
+				continue
+			}
+			if !window.Contains(candidate.BookingDate, order.OrderDate) {
+				continue
+			}
+			item := LedgerEmailOrderCandidate{Transaction: candidate, AccountName: accountNameByID[candidate.AccountID]}
+			if delta, ok := ledgerSignedDateDeltaDays(candidate.BookingDate, order.OrderDate); ok {
+				item.DateDeltaDays = &delta
+			}
+			result.Items = append(result.Items, item)
+		}
+		return nil
+	})
+	if err != nil {
+		return result, err
+	}
+	amountDelta := func(c LedgerEmailOrderCandidate) int64 {
+		delta := -c.Transaction.AmountMinor - target
+		if delta < 0 {
+			return -delta
+		}
+		return delta
+	}
+	dateDelta := func(c LedgerEmailOrderCandidate) int {
+		if c.DateDeltaDays == nil {
+			return 0
+		}
+		if *c.DateDeltaDays < 0 {
+			return -*c.DateDeltaDays
+		}
+		return *c.DateDeltaDays
+	}
+	sort.SliceStable(result.Items, func(i, j int) bool {
+		left, right := result.Items[i], result.Items[j]
+		if a, b := amountDelta(left), amountDelta(right); a != b {
+			return a < b
+		}
+		if a, b := dateDelta(left), dateDelta(right); a != b {
+			return a < b
+		}
+		return left.Transaction.BookingDate > right.Transaction.BookingDate
+	})
+	if len(result.Items) > ledgerEmailOrderCandidateLimit {
+		result.Items = result.Items[:ledgerEmailOrderCandidateLimit]
+	}
+	return result, nil
 }
 
 func (s *Store) CreateLedgerEmailOrder(_ context.Context, userID string, order LedgerEmailOrder) error {

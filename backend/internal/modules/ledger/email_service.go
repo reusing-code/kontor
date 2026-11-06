@@ -30,6 +30,27 @@ type Importer interface {
 	Matches(from string, subject string) bool
 	Parse(parsed ParsedEmail) ([]ParsedOrder, []string, error)
 	CounterpartyPattern() *regexp.Regexp
+	// ChargeWindow is the range around an order's orderDate in which the
+	// payment for it is expected to be booked.
+	ChargeWindow() ChargeWindow
+}
+
+type ChargeWindow struct {
+	BeforeDays int `json:"beforeDays"`
+	AfterDays  int `json:"afterDays"`
+}
+
+// defaultChargeWindow applies to orders whose importer is no longer registered.
+var defaultChargeWindow = ChargeWindow{BeforeDays: 3, AfterDays: 30}
+
+// Contains reports whether bookingDate lies within the window around orderDate.
+// An order without a date imposes no constraint.
+func (w ChargeWindow) Contains(bookingDate, orderDate string) bool {
+	if orderDate == "" {
+		return true
+	}
+	delta, ok := ledgerSignedDateDeltaDays(bookingDate, orderDate)
+	return ok && delta >= -w.BeforeDays && delta <= w.AfterDays
 }
 
 type ParsedEmail struct {
@@ -310,6 +331,29 @@ func (s *EmailService) processParsedEmail(ctx context.Context, userID string, ac
 	return result, nil
 }
 
+func (s *EmailService) chargeWindow(importerID string) ChargeWindow {
+	for _, importer := range s.importers {
+		if importer.Info().ID == importerID {
+			return importer.ChargeWindow()
+		}
+	}
+	return defaultChargeWindow
+}
+
+// ListOrderCandidates returns link candidates for an email order within its
+// importer's charge window; afterDays > 0 overrides the window's upper bound.
+func (s *EmailService) ListOrderCandidates(ctx context.Context, userID string, orderID uuid.UUID, afterDays int) (LedgerEmailOrderCandidatesResult, error) {
+	order, err := s.store.GetLedgerEmailOrder(ctx, userID, orderID)
+	if err != nil {
+		return LedgerEmailOrderCandidatesResult{}, err
+	}
+	window := s.chargeWindow(order.ImporterID)
+	if afterDays > 0 {
+		window.AfterDays = afterDays
+	}
+	return s.store.ListLedgerEmailOrderCandidates(ctx, userID, order, window)
+}
+
 func (s *EmailService) matchImporter(from string, subject string) Importer {
 	for _, importer := range s.importers {
 		if importer.Matches(from, subject) {
@@ -335,7 +379,7 @@ func (s *EmailService) autoLinkOrder(ctx context.Context, userID string, importe
 		if !importer.CounterpartyPattern().MatchString(strings.TrimSpace(txn.CounterpartyName + "\n" + txn.Purpose)) {
 			continue
 		}
-		if order.OrderDate != "" && ledgerDateDeltaDays(txn.BookingDate, order.OrderDate) > 7 {
+		if !importer.ChargeWindow().Contains(txn.BookingDate, order.OrderDate) {
 			continue
 		}
 		candidates = append(candidates, txn)

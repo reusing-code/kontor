@@ -39,6 +39,11 @@ func (amazonDEImporter) CounterpartyPattern() *regexp.Regexp {
 	return regexp.MustCompile(`(?i)amazon`)
 }
 
+// Amazon charges on shipping, which can be weeks after the order confirmation.
+func (amazonDEImporter) ChargeWindow() ChargeWindow {
+	return ChargeWindow{BeforeDays: 3, AfterDays: 60}
+}
+
 func (amazonDEImporter) Matches(from string, subject string) bool {
 	from = strings.ToLower(strings.TrimSpace(from))
 	subject = strings.TrimSpace(subject)
@@ -172,6 +177,11 @@ func (payPalDEImporter) Info() LedgerEmailImporterInfo {
 
 func (payPalDEImporter) CounterpartyPattern() *regexp.Regexp {
 	return regexp.MustCompile(`(?i)paypal`)
+}
+
+// PayPal's orderDate is the transaction date, so only booking lag applies.
+func (payPalDEImporter) ChargeWindow() ChargeWindow {
+	return ChargeWindow{BeforeDays: 3, AfterDays: 7}
 }
 
 func (payPalDEImporter) Matches(from string, subject string) bool {

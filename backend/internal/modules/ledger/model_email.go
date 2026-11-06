@@ -76,6 +76,17 @@ type LedgerEmailOrderItem struct {
 	TotalPriceMinor int64  `json:"totalPriceMinor"`
 }
 
+type LedgerEmailOrderCandidate struct {
+	Transaction   LedgerTransaction `json:"transaction"`
+	AccountName   string            `json:"accountName"`
+	DateDeltaDays *int              `json:"dateDeltaDays,omitempty"`
+}
+
+type LedgerEmailOrderCandidatesResult struct {
+	Items []LedgerEmailOrderCandidate `json:"items"`
+	ChargeWindow
+}
+
 type LedgerEmailOrder struct {
 	ID                   uuid.UUID              `json:"id"`
 	EmailAccountID       uuid.UUID              `json:"emailAccountId"`

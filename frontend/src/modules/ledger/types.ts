@@ -162,6 +162,22 @@ export const ledgerTransferCandidatesResultSchema = z.object({
 
 export type LedgerTransferCandidatesResult = z.infer<typeof ledgerTransferCandidatesResultSchema>
 
+export const ledgerEmailOrderCandidateSchema = z.object({
+  transaction: ledgerTransactionSchema,
+  accountName: z.string(),
+  dateDeltaDays: z.number().int().optional(),
+})
+
+export type LedgerEmailOrderCandidate = z.infer<typeof ledgerEmailOrderCandidateSchema>
+
+export const ledgerEmailOrderCandidatesResultSchema = z.object({
+  items: z.array(ledgerEmailOrderCandidateSchema),
+  beforeDays: z.number().int(),
+  afterDays: z.number().int(),
+})
+
+export type LedgerEmailOrderCandidatesResult = z.infer<typeof ledgerEmailOrderCandidatesResultSchema>
+
 export const ledgerTransferLinkInputSchema = z.object({
   pairedTransactionId: z.string().uuid(),
 })

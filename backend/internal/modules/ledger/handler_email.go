@@ -5,6 +5,7 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -215,6 +216,31 @@ func (h *Handler) GetLedgerEmailOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httputil.WriteJSON(h.logger, w, http.StatusOK, item)
+}
+
+const maxLedgerEmailOrderCandidateAfterDays = 365
+
+func (h *Handler) ListLedgerEmailOrderCandidates(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("emailOrderId"))
+	if err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid emailOrderId")
+		return
+	}
+	afterDays := 0
+	if raw := r.URL.Query().Get("afterDays"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > maxLedgerEmailOrderCandidateAfterDays {
+			httputil.Error(h.logger, w, http.StatusBadRequest, "invalid afterDays")
+			return
+		}
+		afterDays = parsed
+	}
+	result, err := h.ledgerEmail.ListOrderCandidates(r.Context(), middleware.GetUserID(r.Context()), id, afterDays)
+	if err != nil {
+		h.storeError(w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, result)
 }
 
 func (h *Handler) LinkLedgerEmailOrder(w http.ResponseWriter, r *http.Request) {

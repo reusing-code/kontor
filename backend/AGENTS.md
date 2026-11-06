@@ -113,6 +113,7 @@ All endpoints under `/api/v1/`. JSON request/response with camelCase field names
 - `POST /api/v1/ledger/email-accounts/{emailAccountId}/scan` — Scan the configured IMAP inbox for matching email importers and auto-link orders; multipart `.eml` upload is also supported as a fallback
 - `GET /api/v1/ledger/email-orders` — List parsed ledger email orders
 - `GET /api/v1/ledger/email-orders/{emailOrderId}` — Get parsed ledger email order
+- `GET /api/v1/ledger/email-orders/{emailOrderId}/candidates` — List unlinked outgoing transactions from all accounts within the importer's charge window around the order date (Amazon −3/+60 days, PayPal −3/+7); `?afterDays=1..365` widens the window
 - `POST /api/v1/ledger/email-orders/{emailOrderId}/link` — Manually link parsed email order to ledger transactions
 - `POST /api/v1/ledger/email-orders/{emailOrderId}/reject` — Reject parsed email order
 - `GET /api/v1/ledger/email-importers` — List supported email importers

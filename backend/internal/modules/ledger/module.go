@@ -103,6 +103,7 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("POST /api/v1/ledger/email-accounts/{emailAccountId}/scan", h.ScanLedgerEmailAccount)
 	r.Handle("GET /api/v1/ledger/email-orders", h.ListLedgerEmailOrders)
 	r.Handle("GET /api/v1/ledger/email-orders/{emailOrderId}", h.GetLedgerEmailOrder)
+	r.Handle("GET /api/v1/ledger/email-orders/{emailOrderId}/candidates", h.ListLedgerEmailOrderCandidates)
 	r.Handle("POST /api/v1/ledger/email-orders/{emailOrderId}/link", h.LinkLedgerEmailOrder)
 	r.Handle("POST /api/v1/ledger/email-orders/{emailOrderId}/reject", h.RejectLedgerEmailOrder)
 	r.Handle("GET /api/v1/ledger/email-importers", h.ListLedgerEmailImporters)

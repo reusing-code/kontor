@@ -1,8 +1,8 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { useLedgerAccounts, useLedgerTransactions, useLinkLedgerEmailOrder, useRejectLedgerEmailOrder } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerEmailAccounts, useLinkLedgerEmailOrder, useRejectLedgerEmailOrder } from "@/modules/ledger/hooks/use-ledger"
 import { formatAmountMinor, formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
 import type { LedgerEmailOrder } from "@/modules/ledger/types"
 import { LedgerEmailOrderLinkDialog } from "@/modules/ledger/components/ledger-email-order-link-dialog"
@@ -12,12 +12,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] }) {
   const { t, i18n } = useTranslation()
-  const { data: accounts = [] } = useLedgerAccounts()
+  const { data: emailAccounts = [] } = useLedgerEmailAccounts()
+  const emailAccountNames = useMemo(() => new Map(emailAccounts.map((account) => [account.id, account.name])), [emailAccounts])
   const linkOrder = useLinkLedgerEmailOrder()
   const rejectOrder = useRejectLedgerEmailOrder()
   const [selectedOrder, setSelectedOrder] = useState<LedgerEmailOrder | null>(null)
-  const selectedAccount = accounts.find((account) => account.id === selectedOrder?.emailAccountId)
-  const { data: selectedAccountTransactions } = useLedgerTransactions(selectedAccount?.id ?? "", 100)
 
   return (
     <Card>
@@ -27,13 +26,12 @@ export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] 
       <CardContent className="space-y-4">
         {orders.length === 0 ? <p className="text-sm text-muted-foreground">{t("ledger.email.noOrders")}</p> : null}
         {orders.map((order) => {
-          const account = accounts.find((item) => item.id === order.emailAccountId)
           return (
             <div key={order.id} className="rounded-lg border p-4 space-y-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="font-medium">{order.externalOrderId || order.emailSubject || order.importerId}</div>
-                  <div className="text-sm text-muted-foreground">{account?.name ?? order.importerId} • {formatLedgerDate(order.orderDate)}</div>
+                  <div className="text-sm text-muted-foreground">{emailAccountNames.get(order.emailAccountId) ?? order.importerId} • {formatLedgerDate(order.orderDate)}</div>
                 </div>
                 <div className="text-right">
                   <div className="font-medium">{formatAmountMinor(order.totalMinor, order.currency, i18n.language)}</div>
@@ -55,17 +53,16 @@ export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] 
                   <Button type="button" variant="outline" onClick={() => rejectOrder.mutate(order.id, { onSuccess: () => toast.success(t("ledger.email.orderRejected")), onError: (error) => toast.error(error.message) })}>{t("ledger.email.reject")}</Button>
                 ) : null}
                 {order.linkedTransactionIds?.length ? null : <Button type="button" variant="outline" onClick={() => setSelectedOrder(order)}>{t("ledger.email.review")}</Button>}
-                {order.linkedTransactionIds?.length ? null : account ? <QuickLinkButton orderId={order.id} accountId={account.id} onLink={(transactionId) => linkOrder.mutate({ id: order.id, data: { transactionIds: [transactionId] } }, { onSuccess: () => toast.success(t("ledger.email.orderLinked")), onError: (error) => toast.error(error.message) })} /> : null}
               </div>
             </div>
           )
         })}
       </CardContent>
       <LedgerEmailOrderLinkDialog
+        key={selectedOrder?.id ?? ""}
         open={selectedOrder !== null}
         onOpenChange={(open) => { if (!open) setSelectedOrder(null) }}
         order={selectedOrder}
-        transactions={selectedAccountTransactions?.items ?? []}
         onConfirm={(transactionIds) => {
           if (!selectedOrder) {
             return
@@ -83,15 +80,3 @@ export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] 
   )
 }
 
-function QuickLinkButton({ orderId, accountId, onLink }: { orderId: string; accountId: string; onLink: (transactionId: string) => void }) {
-  const { t } = useTranslation()
-  const { data: page } = useLedgerTransactions(accountId, 20)
-  if (!page?.items.length) {
-    return null
-  }
-  const candidate = page.items.find((item) => !(item.emailOrderIds ?? []).includes(orderId))
-  if (!candidate) {
-    return null
-  }
-  return <Button type="button" variant="outline" onClick={() => onLink(candidate.id)}>{t("ledger.email.quickLink")}</Button>
-}

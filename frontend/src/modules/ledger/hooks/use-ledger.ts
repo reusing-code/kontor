@@ -11,6 +11,7 @@ import {
   getLedgerEmailAccounts,
   getLedgerEmailImporters,
   getLedgerEmailOrderById,
+  getLedgerEmailOrderCandidates,
   getLedgerEmailOrders,
   getLedgerImports,
   getLedgerReviewQueue,
@@ -53,6 +54,7 @@ const ledgerTransferCandidatesKey = (transactionId: string) => ["ledger", "trans
 const ledgerTransactionsKey = (accountId: string, limit: number, cursor?: string) => ["ledger", "accounts", accountId, "transactions", { limit, cursor: cursor ?? "" }] as const
 export const ledgerEmailOrdersKey = (emailAccountId?: string, status?: string) => ["ledger", "email-orders", { emailAccountId: emailAccountId ?? "", status: status ?? "" }] as const
 const ledgerEmailOrderKey = (id: string) => ["ledger", "email-orders", id] as const
+const ledgerEmailOrderCandidatesKey = (id: string, afterDays?: number) => ["ledger", "email-orders", id, "candidates", { afterDays: afterDays ?? 0 }] as const
 
 export function useLedgerAccounts() {
   return useQuery({
@@ -90,6 +92,14 @@ export function useLedgerEmailOrder(id: string) {
   })
 }
 
+export function useLedgerEmailOrderCandidates(id: string, afterDays?: number) {
+  return useQuery({
+    queryKey: ledgerEmailOrderCandidatesKey(id, afterDays),
+    queryFn: () => getLedgerEmailOrderCandidates(id, afterDays),
+    enabled: Boolean(id),
+  })
+}
+
 export function useLedgerEmailImporters() {
   return useQuery({
     queryKey: ledgerEmailImportersKey,
@@ -108,6 +118,7 @@ export function useLedgerTransactions(accountId: string, limit: number = 100, cu
   return useQuery({
     queryKey: ledgerTransactionsKey(accountId, limit, cursor),
     queryFn: () => getLedgerTransactions(accountId, limit, cursor),
+    enabled: accountId !== "",
   })
 }
 

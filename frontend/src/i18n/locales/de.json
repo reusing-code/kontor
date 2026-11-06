@@ -447,10 +447,12 @@
       "noCandidates": "Noch keine passenden Transaktionskandidaten gefunden.",
       "linkSelected": "Auswahl verknüpfen",
       "matchScore": "Score {{score}}",
+      "candidateWindow": "Zeigt Zahlungen, die {{before}} Tage vor bis {{after}} Tage nach dem Bestelldatum gebucht wurden.",
+      "showLaterCharges": "Bis zu ein Jahr später suchen",
+      "dayDelta": "{{delta}} Tage",
       "reject": "Verwerfen",
       "orderRejected": "E-Mail-Bestellung verworfen.",
       "orderLinked": "E-Mail-Bestellung verknüpft.",
-      "quickLink": "Schnell verknüpfen",
       "noLinkedOrders": "Keine verknüpften E-Mail-Bestellungen."
     }
   },

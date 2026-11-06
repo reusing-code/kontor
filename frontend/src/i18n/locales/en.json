@@ -447,10 +447,12 @@
       "noCandidates": "No transaction candidates found yet.",
       "linkSelected": "Link selected",
       "matchScore": "Score {{score}}",
+      "candidateWindow": "Showing payments booked from {{before}} days before to {{after}} days after the order date.",
+      "showLaterCharges": "Search up to a year later",
+      "dayDelta": "{{delta}} days",
       "reject": "Reject",
       "orderRejected": "Email order rejected.",
       "orderLinked": "Email order linked.",
-      "quickLink": "Quick link",
       "noLinkedOrders": "No linked email orders."
     }
   },
