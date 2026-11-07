@@ -11,6 +11,11 @@ services:
       - LOG_LEVEL=info
       - ENVIRONMENT=production
       - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env or environment}
+      # Optional OpenAI-compatible LLM endpoint; LLM features stay off while LLM_BASE_URL is unset.
+      # - LLM_BASE_URL=http://llm-gateway:8080/v1
+      # - LLM_MODEL=kontor
+      # - LLM_API_KEY=${LLM_API_KEY}
+      # - LLM_TIMEOUT=60s
 
 volumes:
   app-data:

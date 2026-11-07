@@ -39,9 +39,11 @@ Go 1.27+ stdlib `net/http` with method+pattern routing. Single binary that optio
 
 **Config:** Environment variables via `caarlos0/env` struct tags. See `.env.example` for all options.
 
+**LLM:** Optional server-wide OpenAI-compatible endpoint (`internal/llm`). `LLM_BASE_URL` (unset disables), `LLM_MODEL` (required once the base URL is set), `LLM_API_KEY` (optional bearer token), `LLM_TIMEOUT` (per attempt, default `60s`); partial config fails at startup. `llm.New` returns a `*llm.Client` or `llm.Disabled`; both implement `llm.Extractor` (`Extract`, `Enabled`). Requests go to `POST {base}/chat/completions` with `response_format: json_schema` (`strict: true`); schemas come from `llm.SchemaFor[T]` (every field required, `omitempty`/pointer fields nullable, optional `llm:"desc=...,enum=a|b"` tag). Output that is not a JSON object or does not decode into `T` (`llm.ExtractAs`) is retried once; errors are `ErrDisabled`, `ErrInvalidOutput`, `ErrRefused`, `ErrTruncated` (no retry) and `*APIError` (upstream `error.message` only). Never log prompts or model output or put them into errors. Tests use `llmtest.Fake`.
+
 **Logging:** `log/slog` — JSON handler in production, text in dev.
 
-**Metrics:** Prometheus via `/metrics` endpoint. Tracks `http_requests_total`, `http_request_duration_seconds`, `http_active_requests`.
+**Metrics:** Prometheus via `/metrics` endpoint. Tracks `http_requests_total`, `http_request_duration_seconds`, `http_active_requests`, and for the LLM client `llm_requests_total{operation,outcome}`, `llm_request_duration_seconds{operation}`, `llm_tokens_total{operation,type}`, `llm_retries_total{operation}`.
 
 **Middleware chain (outermost first):** RequestID → Recovery → Metrics → Logging → CORS → handler. Module routes additionally pass the enablement gate after auth.
 
@@ -53,7 +55,7 @@ Go 1.27+ stdlib `net/http` with method+pattern routing. Single binary that optio
 - `internal/config/` — Environment-based configuration
 - `internal/storage/` — Badger engine, JSON txn helpers, sentinel errors, backups; `migration/` (per-module runner), `link/` (cross-module link registry)
 - `internal/module/` — Module interface, registry, gating router/middleware, import result
-- `internal/core/` — Users, settings (incl. enabled modules), auth/settings/health handlers, export/import orchestrator
+- `internal/core/` — Users, settings (incl. enabled modules), auth/settings/health/capabilities handlers, export/import orchestrator
 - `internal/categories/` — Shared item-category machinery for contracts and purchases (model, store with pluggable delete cascades, handlers)
 - `internal/modules/contracts/` — Contracts module incl. renewal reminder scheduler and batch item import
 - `internal/modules/purchases/` — Purchases module
@@ -64,6 +66,7 @@ Go 1.27+ stdlib `net/http` with method+pattern routing. Single binary that optio
 - `internal/email/` — SMTP client
 - `internal/cryptoutil/` — AES-GCM string encryption (email passwords, paperless tokens), keyed by `EMAIL_ENCRYPTION_KEY`
 - `internal/paperless/` — Optional paperless-ngx integration: per-user config (encrypted API token), outbound HTTP client (search, thumbnails, custom-field back-links), central document-link store, handlers. Routes are ungated (not module-scoped); handlers return 409 when the user has not configured the integration. Deleting an entity leaves its paperless links as unreachable keys (accepted; no sweep yet)
+- `internal/llm/` — Optional server-wide LLM client for structured extraction (config-driven `Extractor`, strict-mode schema generation, metrics); `llmtest/` holds a scripted `Fake` for tests
 - `internal/server/` — Module wiring, mux setup, middleware, graceful shutdown, SPA serving
 - `internal/version/` — Build version info
 
@@ -122,6 +125,7 @@ All endpoints under `/api/v1/`. JSON request/response with camelCase field names
 - `POST /api/v1/import` — Import an export file (affected modules must be empty and enabled; preserves IDs; email passwords must be re-entered)
 - `POST /api/v1/modules/{module}/import` — Import a single module's section from an export file
 - `GET /api/v1/modules` — List available modules and their enabled state
+- `GET /api/v1/capabilities` — Server-wide feature flags (`{"llm": bool}`; `llm` is true when `LLM_BASE_URL` is configured)
 - `GET /api/v1/settings` — Get settings (renewal preferences, enabled modules)
 - `PUT /api/v1/settings` — Update settings (`enabledModules` optional; omit to leave unchanged)
 - `PUT /api/v1/settings/password` — Change password

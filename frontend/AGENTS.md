@@ -24,6 +24,8 @@ React 19 + TypeScript 7 SPA built with Vite 8. No SSR — this is a CRUD/busines
 
 **Data fetching:** TanStack Query. The shared `QueryClient` lives in `src/lib/query-client.ts` (used by both `App.tsx` and route guards). Hooks live with their module (`src/modules/{id}/hooks/`); shared hooks (auth, settings, categories, modules) in `src/hooks/`.
 
+**Capabilities:** `useCapabilities()` (`src/hooks/use-capabilities.ts`) reads server-wide feature flags from `GET /api/v1/capabilities` (`staleTime: Infinity`, they only change with a server restart). LLM-backed UI must render nothing while `llm` is false (the default until the query resolves).
+
 **Forms:** React Hook Form + Zod for validation via `@hookform/resolvers`. Field configs in `src/modules/{id}/config/` drive both form and table rendering via `FormFieldRenderer`.
 
 **Styling:** Tailwind CSS v4 with the Vite plugin. shadcn/ui for pre-built components (config in `components.json`, components go in `src/components/ui/`). Use the `cn()` helper from `@/lib/utils` for conditional classNames.
@@ -42,9 +44,9 @@ React 19 + TypeScript 7 SPA built with Vite 8. No SSR — this is a CRUD/busines
 - `src/modules/registry.ts` — Ordered module registry; `src/modules/guard.ts` — route enablement guard
 - `src/routes/` — Core pages: homepage, login, settings, root layout, router
 - `src/components/` — Shared components (sidebar, category dialogs, linked-transactions list); `ui/` for shadcn/ui; `paperless/` for the paperless-ngx integration (settings card, search dialog, documents section, thumbnail) — all paperless surfaces render nothing until the integration is configured
-- `src/hooks/` — Shared hooks (use-auth, use-settings, use-modules, use-categories, use-page-title, use-paperless)
-- `src/lib/` — API client, query client, shared repositories (auth, settings, categories, paperless), utils
-- `src/types/` — Shared types (auth, category, settings, modules, paperless)
+- `src/hooks/` — Shared hooks (use-auth, use-settings, use-modules, use-categories, use-page-title, use-paperless, use-capabilities)
+- `src/lib/` — API client, query client, shared repositories (auth, settings, categories, paperless, capabilities), utils
+- `src/types/` — Shared types (auth, category, settings, modules, paperless, capabilities)
 - `src/i18n/` — Internationalization setup and locale files
 
 Ledger transaction detail and review flows include explicit internal transfer linking/unlinking. Keep that behavior visible in the UI and avoid implicit unlinking when editing unrelated fields. Cross-module reference UI (linking transactions to contracts/purchases/vehicles) must only offer targets from enabled modules and render references to disabled modules inert.

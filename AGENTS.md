@@ -46,6 +46,8 @@ Contracts and purchases share the item-category machinery (`backend/internal/cat
 
 An optional cross-cutting **paperless-ngx integration** (`backend/internal/paperless/`, `frontend/src/components/paperless/`) lets each user connect their paperless-ngx instance (base URL + API token, configured on the settings page). Entities (contracts, purchases, vehicles, cost entries, ledger transactions) can then attach paperless documents via a search dialog; Kontor stores the links centrally (outside the modules) and best-effort writes a back-link into a "Kontor" URL-type custom field on the paperless document. All paperless traffic is proxied through the backend; the UI hides all paperless surfaces until the integration is configured.
 
+An optional server-wide **LLM endpoint** (`backend/internal/llm/`) gives modules structured extraction from text: one OpenAI-compatible endpoint configured by the operator (`LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `LLM_TIMEOUT`), not per user. Modules receive an `llm.Extractor` (DI) and call `Extract`/`llm.ExtractAs[T]` with a JSON schema derived from a Go struct (OpenAI strict mode); with `LLM_BASE_URL` unset the extractor is `llm.Disabled` and returns `llm.ErrDisabled`, so callers never nil-check. The frontend learns whether LLM features exist from `GET /api/v1/capabilities` (`useCapabilities()`) and must hide LLM surfaces when `llm` is false. Prompts and model output are user data: never log them or put them into error messages. No module uses it yet.
+
 ### DB key schema
 
 All module data lives under one prefix per module (`u/{userId}/mod/{module}/...`), so a module's footprint is a single prefix scan.

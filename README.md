@@ -11,6 +11,7 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 - **Ledger module** — Import bank CSVs into tracked accounts, review transactions, manage categories, add notes/links/references, mark internal transfers, and enrich transactions with parsed email order data
 - **Email order enrichment** — Configure IMAP email accounts for supported importers like Amazon.de and PayPal.de to scan inbox messages and auto-link parsed orders to ledger transactions; accounts are also scanned automatically in the background (`LEDGER_EMAIL_SCAN_INTERVAL`, default every 6h), and `.eml` upload remains available as a fallback
 - **Paperless-ngx integration** — Optionally connect a paperless-ngx instance per user (base URL + API token in settings); search the document archive and attach documents to contracts, purchases, vehicles, cost entries, and ledger transactions, with an automatic back-link ("Kontor" URL custom field) on the paperless document
+- **LLM endpoint (optional)** — Server-wide OpenAI-compatible endpoint for structured extraction (`LLM_BASE_URL`, `LLM_MODEL`, optional `LLM_API_KEY`, `LLM_TIMEOUT` default `60s`); off while `LLM_BASE_URL` is unset, and the UI only offers LLM features when `/api/v1/capabilities` reports them. Prompts and model output are never logged
 - **Category organization** — Per-module categories (e.g. insurance/telecom for contracts, PC hardware/tools for purchases)
 - **Homepage overview** — Dashboard at `/` with summary cards and stats across all modules
 - **Renewal monitoring** — Upcoming renewals with color-coded urgency indicators
@@ -120,6 +121,7 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | POST | `/import` | Import an export into empty, enabled modules |
 | POST | `/modules/{module}/import` | Import a single module's section |
 | GET | `/modules` | List modules and their enabled state |
+| GET | `/capabilities` | Server-wide feature flags (`{"llm": bool}`) |
 | GET/PUT | `/settings` | Settings incl. enabled modules |
 | PUT | `/settings/password` | Change password |
 | GET/PUT/DELETE | `/paperless/config` | Paperless-ngx connection (per user; token stored encrypted) |
