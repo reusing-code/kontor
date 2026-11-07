@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/config"
 	"github.com/reusing-code/kontor/backend/internal/core"
 	"github.com/reusing-code/kontor/backend/internal/email"
+	"github.com/reusing-code/kontor/backend/internal/llm"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 	"github.com/reusing-code/kontor/backend/internal/module"
 	"github.com/reusing-code/kontor/backend/internal/modules/auto"
@@ -88,6 +90,8 @@ func (s *Server) Run() error {
 	paperlessStore := paperless.NewStore(engine)
 	paperlessHandler := paperless.NewHandler(paperlessStore, s.logger, s.cfg.EmailEncryptionKey)
 	coreHandler.SetPaperlessLinks(paperlessStore)
+
+	_ = s.newExtractor()
 
 	// Protected API routes (require auth)
 	apiMux := http.NewServeMux()
@@ -188,6 +192,24 @@ func (s *Server) Run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(ctx)
+}
+
+func (s *Server) newExtractor() llm.Extractor {
+	if !s.cfg.LLMEnabled() {
+		s.logger.Info("llm disabled", "reason", "LLM_BASE_URL is not set")
+		return llm.Disabled{}
+	}
+	baseURL := s.cfg.LLMBaseURL
+	if u, err := url.Parse(baseURL); err == nil {
+		baseURL = u.Redacted()
+	}
+	s.logger.Info("llm enabled", "base_url", baseURL, "model", s.cfg.LLMModel, "timeout", s.cfg.LLMTimeout)
+	return llm.New(llm.Config{
+		BaseURL: s.cfg.LLMBaseURL,
+		Model:   s.cfg.LLMModel,
+		APIKey:  s.cfg.LLMAPIKey,
+		Timeout: s.cfg.LLMTimeout,
+	})
 }
 
 func spaHandler(dir string) http.Handler {

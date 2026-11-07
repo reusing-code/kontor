@@ -1,8 +1,10 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -42,6 +44,12 @@ type Config struct {
 	// Take client IPs from X-Real-IP / X-Forwarded-For; only enable behind a
 	// reverse proxy that sets these headers, as clients can spoof them otherwise.
 	TrustProxy bool `env:"TRUST_PROXY" envDefault:"false"`
+
+	// Server-wide OpenAI-compatible LLM endpoint; empty base URL disables LLM features.
+	LLMBaseURL string        `env:"LLM_BASE_URL"`
+	LLMModel   string        `env:"LLM_MODEL"`
+	LLMAPIKey  string        `env:"LLM_API_KEY"`
+	LLMTimeout time.Duration `env:"LLM_TIMEOUT"  envDefault:"60s"`
 }
 
 func Load() (Config, error) {
@@ -49,7 +57,32 @@ func Load() (Config, error) {
 	if err := env.Parse(&cfg); err != nil {
 		return cfg, fmt.Errorf("parsing config: %w", err)
 	}
+	if err := cfg.validateLLM(); err != nil {
+		return cfg, err
+	}
 	return cfg, nil
+}
+
+func (c Config) LLMEnabled() bool {
+	return c.LLMBaseURL != ""
+}
+
+func (c Config) validateLLM() error {
+	switch {
+	case !c.LLMEnabled() && (c.LLMModel != "" || c.LLMAPIKey != ""):
+		return errors.New("LLM_MODEL or LLM_API_KEY is set but LLM_BASE_URL is not")
+	case c.LLMEnabled() && c.LLMModel == "":
+		return errors.New("LLM_BASE_URL is set but LLM_MODEL is not")
+	case c.LLMEnabled() && c.LLMTimeout <= 0:
+		return errors.New("LLM_TIMEOUT must be positive")
+	}
+	if c.LLMEnabled() {
+		u, err := url.Parse(c.LLMBaseURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return errors.New("LLM_BASE_URL must be an absolute http(s) URL")
+		}
+	}
+	return nil
 }
 
 func (c Config) SlogLevel() slog.Level {
