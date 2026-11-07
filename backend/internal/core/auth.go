@@ -44,6 +44,7 @@ type Handler struct {
 	seeds          []SeedFunc
 	registry       *module.Registry
 	paperlessLinks PaperlessLinkStore
+	capabilities   Capabilities
 }
 
 func NewHandler(store *Store, logger *slog.Logger, jwtSecret []byte, emailClient *email.Client, seeds []SeedFunc, registry *module.Registry) *Handler {

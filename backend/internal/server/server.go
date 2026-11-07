@@ -91,7 +91,8 @@ func (s *Server) Run() error {
 	paperlessHandler := paperless.NewHandler(paperlessStore, s.logger, s.cfg.EmailEncryptionKey)
 	coreHandler.SetPaperlessLinks(paperlessStore)
 
-	_ = s.newExtractor()
+	extractor := s.newExtractor()
+	coreHandler.SetCapabilities(core.Capabilities{LLM: extractor.Enabled()})
 
 	// Protected API routes (require auth)
 	apiMux := http.NewServeMux()
@@ -110,8 +111,9 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Update))
 	apiMux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Delete))
 
-	// Module directory
+	// Module directory and server-wide capabilities
 	apiMux.HandleFunc("GET /api/v1/modules", coreHandler.ListModules)
+	apiMux.HandleFunc("GET /api/v1/capabilities", coreHandler.GetCapabilities)
 
 	// Data export / import
 	apiMux.HandleFunc("GET /api/v1/export", coreHandler.Export)
