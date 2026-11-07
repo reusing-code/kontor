@@ -85,9 +85,9 @@ func TestSchemaForPurchaseInput(t *testing.T) {
 	}
 	want := map[string]any{
 		"itemName":     "string",
-		"type":         nullableType("string"),
+		"type":         "string",
 		"price":        nullableType("number"),
-		"purchaseDate": nullableType("string"),
+		"purchaseDate": "string",
 	}
 	for prop, typ := range want {
 		if got := typeOf(t, doc, prop); !reflect.DeepEqual(got, typ) {
@@ -106,7 +106,7 @@ func TestSchemaForContractInput(t *testing.T) {
 		"name":                  "string",
 		"billingInterval":       "string",
 		"startDate":             "string",
-		"endDate":               nullableType("string"),
+		"endDate":               "string",
 		"price":                 nullableType("number"),
 		"minimumDurationMonths": "integer",
 	}
@@ -158,16 +158,17 @@ func TestSchemaForSynthetic(t *testing.T) {
 		t.Errorf("kind = %+v", k)
 	}
 	m := doc.Properties["maybe"]
-	if !reflect.DeepEqual(m.Type, nullableType("string")) || !reflect.DeepEqual(m.Enum, []any{"a", "b", nil}) {
+	if m.Type != nil || len(m.AnyOf) != 2 || m.AnyOf[0].Type != "string" ||
+		!reflect.DeepEqual(m.AnyOf[0].Enum, []any{"a", "b"}) || m.AnyOf[1].Type != "null" {
 		t.Errorf("maybe = %+v", m)
 	}
 	if got := typeOf(t, doc, "paid"); got != "boolean" {
 		t.Errorf("paid type = %v", got)
 	}
-	if got := typeOf(t, doc, "count"); !reflect.DeepEqual(got, nullableType("integer")) {
+	if got := typeOf(t, doc, "count"); got != "integer" {
 		t.Errorf("count type = %v", got)
 	}
-	if got := typeOf(t, doc, "tags"); !reflect.DeepEqual(got, nullableType("array")) {
+	if got := typeOf(t, doc, "tags"); got != "array" {
 		t.Errorf("tags type = %v", got)
 	}
 
@@ -209,6 +210,19 @@ type withBytes struct {
 
 type withStringOpt struct {
 	N int `json:"n,string"`
+}
+
+type withOptionalEnum struct {
+	Interval string `json:"interval,omitempty" llm:"desc=Billing interval,enum=monthly|yearly"`
+}
+
+func TestSchemaForOmitemptyEnumIsNotNullable(t *testing.T) {
+	_, doc := schemaOf[withOptionalEnum](t)
+	p := doc.Properties["interval"]
+	if p.Type != "string" || p.Description != "Billing interval" || p.AnyOf != nil ||
+		!reflect.DeepEqual(p.Enum, []any{"monthly", "yearly"}) {
+		t.Errorf("interval = %+v", p)
+	}
 }
 
 type withIntEnum struct {

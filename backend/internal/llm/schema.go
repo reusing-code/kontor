@@ -66,8 +66,10 @@ var (
 
 // SchemaFor derives an OpenAI strict-mode JSON schema from struct type T:
 // every property is required, objects reject additional properties, and
-// pointer or omitempty fields are nullable. Field names come from json tags;
-// an optional `llm:"desc=...,enum=a|b"` tag adds a description and an enum.
+// only pointer fields are nullable (for other fields null and the zero value
+// decode alike, and every union counts against provider schema limits).
+// Field names come from json tags; an optional `llm:"desc=...,enum=a|b"` tag
+// adds a description and an enum.
 func SchemaFor[T any]() (Schema, error) {
 	t := reflect.TypeFor[T]()
 	if t.Kind() != reflect.Struct {
@@ -192,7 +194,7 @@ func structProperties(t reflect.Type, visiting map[reflect.Type]bool) (propertie
 		if hasOption(opts, "string") {
 			return nil, fmt.Errorf("field %s.%s: the json \",string\" option is not supported", t, f.Name)
 		}
-		schema, err := fieldSchema(f, hasOption(opts, "omitempty") || hasOption(opts, "omitzero"), visiting)
+		schema, err := fieldSchema(f, visiting)
 		if err != nil {
 			return nil, fmt.Errorf("field %s.%s: %w", t, f.Name, err)
 		}
@@ -201,7 +203,7 @@ func structProperties(t reflect.Type, visiting map[reflect.Type]bool) (propertie
 	return props, nil
 }
 
-func fieldSchema(f reflect.StructField, optional bool, visiting map[reflect.Type]bool) (*node, error) {
+func fieldSchema(f reflect.StructField, visiting map[reflect.Type]bool) (*node, error) {
 	desc, enum, err := parseLLMTag(f.Tag.Get("llm"))
 	if err != nil {
 		return nil, err
@@ -211,29 +213,30 @@ func fieldSchema(f reflect.StructField, optional bool, visiting map[reflect.Type
 		return nil, err
 	}
 	if len(enum) > 0 {
-		if f.Type.Kind() != reflect.String && (f.Type.Kind() != reflect.Pointer || f.Type.Elem().Kind() != reflect.String) {
+		isPointer := f.Type.Kind() == reflect.Pointer
+		if f.Type.Kind() != reflect.String && (!isPointer || f.Type.Elem().Kind() != reflect.String) {
 			return nil, fmt.Errorf("enum requires a string field, got %s", f.Type)
 		}
-		schema.Enum = make([]any, 0, len(enum)+1)
+		values := make([]any, 0, len(enum))
 		for _, v := range enum {
-			schema.Enum = append(schema.Enum, v)
+			values = append(values, v)
 		}
-	}
-	if optional {
-		schema = nullable(schema)
-	}
-	if isNullable(schema) && schema.Enum != nil {
-		schema.Enum = append(schema.Enum, nil)
+		schema = &node{Type: "string", Enum: values}
+		if isPointer {
+			schema = nullable(schema)
+		}
 	}
 	schema.Description = desc
 	return schema, nil
 }
 
+// nullable uses anyOf for objects and enums: some providers (Anthropic)
+// reject an enum under a ["string","null"] type list.
 func nullable(n *node) *node {
 	if isNullable(n) {
 		return n
 	}
-	if n.Type == "object" {
+	if n.Type == "object" || n.Enum != nil {
 		return &node{AnyOf: []*node{n, {Type: "null"}}}
 	}
 	cp := *n
