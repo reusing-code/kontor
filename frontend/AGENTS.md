@@ -28,6 +28,8 @@ React 19 + TypeScript 7 SPA built with Vite 8. No SSR — this is a CRUD/busines
 
 **Draft inbox:** `/inbox` (`src/routes/inbox.tsx`, components in `src/components/drafts/`, `useInboxAvailable`/`usePendingDrafts` in `src/hooks/use-drafts.ts`) lists pending drafts. It and its sidebar entry (with pending-count badge) only exist when `llm` is true and paperless is configured; the route's `beforeLoad` redirects to `/` otherwise. Type and target pickers only offer enabled modules. Accept opens the module's create dialog with `initialValues` (`PurchaseDialog`, `ContractDialog`, `CostEntryDialog`; pass a memoized object), creates the entity through the module hook, then calls the accept endpoint and shows returned warnings as toasts. Draft `note` codes are translated via `drafts.notes.*`. The paperless settings card shows the pipeline section (switch, tag names, Run now) only when `llm` is true.
 
+**Quick add:** `QuickAdd` (`src/components/quick-add/quick-add.tsx`) sits in the root layout header: button plus Ctrl/Cmd+K, rendered only when `useQuickAddTypes()` (`src/hooks/use-quick-add.ts`; `llm` capability and enabled purchases/contracts/auto) is non-empty. `QuickAddDialog` posts the note to `/api/v1/quick-add`; a `confident` proposal whose type and category/vehicle pass `targetProblem` goes straight to `PrefilledCreateDialogs`, otherwise it shows `TargetPicker` with the translated note (`quickAdd.notes.*`) or currency hint; picking another type re-runs the request with `targetType`. After creating, a toast offers "Open" (`entityPath`). The typed text is kept until an entry is created. Shared with the inbox (`src/components/drafts/`): `TargetPicker`, `useParentOptions`, `PrefilledCreateDialogs`, and `draft-input.ts` (`initialValues`, `targetProblem`, `entityPath`/`entityUrl`, `PrefillEntry`).
+
 **Forms:** React Hook Form + Zod for validation via `@hookform/resolvers`. Field configs in `src/modules/{id}/config/` drive both form and table rendering via `FormFieldRenderer`.
 
 **Styling:** Tailwind CSS v4 with the Vite plugin. shadcn/ui for pre-built components (config in `components.json`, components go in `src/components/ui/`). Use the `cn()` helper from `@/lib/utils` for conditional classNames.
@@ -45,10 +47,10 @@ React 19 + TypeScript 7 SPA built with Vite 8. No SSR — this is a CRUD/busines
 - `src/modules/{contracts,purchases,auto,ledger}/` — Per-module routes, components, hooks, repository, field configs, and types; `index.tsx` exports the ModuleDefinition
 - `src/modules/registry.ts` — Ordered module registry; `src/modules/guard.ts` — route enablement guard
 - `src/routes/` — Core pages: homepage, login, settings, inbox, root layout, router
-- `src/components/` — Shared components (sidebar, category dialogs, linked-transactions list); `ui/` for shadcn/ui; `paperless/` for the paperless-ngx integration (settings card with pipeline section, search dialog, documents section, thumbnail) — all paperless surfaces render nothing until the integration is configured; `drafts/` for the inbox (draft card, input mapping)
-- `src/hooks/` — Shared hooks (use-auth, use-settings, use-modules, use-categories, use-page-title, use-paperless, use-capabilities, use-drafts)
-- `src/lib/` — API client, query client, shared repositories (auth, settings, categories, paperless, capabilities, drafts), utils
-- `src/types/` — Shared types (auth, category, settings, modules, paperless, capabilities, drafts)
+- `src/components/` — Shared components (sidebar, category dialogs, linked-transactions list); `ui/` for shadcn/ui; `paperless/` for the paperless-ngx integration (settings card with pipeline section, search dialog, documents section, thumbnail) — all paperless surfaces render nothing until the integration is configured; `drafts/` for the inbox and shared create flow (draft card, target picker, parent options, prefilled create dialogs, input mapping); `quick-add/` for the header quick add
+- `src/hooks/` — Shared hooks (use-auth, use-settings, use-modules, use-categories, use-page-title, use-paperless, use-capabilities, use-drafts, use-quick-add)
+- `src/lib/` — API client, query client, shared repositories (auth, settings, categories, paperless, capabilities, drafts, quick add), utils
+- `src/types/` — Shared types (auth, category, settings, modules, paperless, capabilities, drafts, quick-add)
 - `src/i18n/` — Internationalization setup and locale files
 
 Ledger transaction detail and review flows include explicit internal transfer linking/unlinking. Keep that behavior visible in the UI and avoid implicit unlinking when editing unrelated fields. Cross-module reference UI (linking transactions to contracts/purchases/vehicles) must only offer targets from enabled modules and render references to disabled modules inert.

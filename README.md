@@ -12,6 +12,8 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 - **Email order enrichment** — Configure IMAP email accounts for supported importers like Amazon.de and PayPal.de to scan inbox messages and auto-link parsed orders to ledger transactions; accounts are also scanned automatically in the background (`LEDGER_EMAIL_SCAN_INTERVAL`, default every 6h), and `.eml` upload remains available as a fallback
 - **Paperless-ngx integration** — Optionally connect a paperless-ngx instance per user (base URL + API token in settings); search the document archive and attach documents to contracts, purchases, vehicles, cost entries, and ledger transactions, with an automatic back-link ("Kontor" URL custom field) on the paperless document
 - **Draft inbox from paperless (optional)** — With the LLM endpoint and paperless configured, tag a document with `kontor-inbox` in paperless and Kontor proposes a purchase, contract or vehicle cost from its text in the inbox (`/inbox`); accepting opens the prefilled create dialog, links the document and replaces the tag with `kontor`. Enabled per user in settings (tag names configurable); polled every `PAPERLESS_PIPELINE_INTERVAL` (default `15m`, `0` disables)
+- **Quick add (optional)** — With the LLM endpoint configured, the header's quick-add button (or Ctrl/Cmd+K) turns a typed note such as "bought winter tires 2026-11-02 at Reifen Müller, €640, Golf" into the prefilled create dialog of a purchase, contract or vehicle cost; unclear notes ask for the type and category/vehicle first. Nothing is stored until you save the dialog
+- **Foreign currencies** — Kontor stores amounts in EUR. When the LLM finds another currency (quick add, paperless drafts), the amount is converted at the ECB reference rate of the entry's date via the Frankfurter API (`FX_RATES_URL`, default `https://api.frankfurter.dev/v1`, `off` disables) and the original amount is kept in the comments; without a rate the amount is left empty for you to fill in
 - **LLM endpoint (optional)** — Server-wide OpenAI-compatible endpoint for structured extraction (`LLM_BASE_URL`, `LLM_MODEL`, optional `LLM_API_KEY`, `LLM_TIMEOUT` default `60s`); off while `LLM_BASE_URL` is unset, and the UI only offers LLM features when `/api/v1/capabilities` reports them. Prompts and model output are never logged
 - **Category organization** — Per-module categories (e.g. insurance/telecom for contracts, PC hardware/tools for purchases)
 - **Homepage overview** — Dashboard at `/` with summary cards and stats across all modules
@@ -137,6 +139,7 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | GET/PUT | `/drafts/{id}` | Get / edit a pending draft (type, target, input) |
 | POST | `/drafts/{id}/accept` | Accept a draft after creating its entity (links the source) |
 | POST | `/drafts/{id}/reject` | Reject a draft |
+| POST | `/quick-add` | Classify a typed note into a proposed purchase, contract or vehicle cost (nothing stored) |
 | GET | `/contracts/summary` | Contract dashboard stats |
 
 Health (`/healthz`), readiness (`/readyz`), and Prometheus metrics (`/metrics`) are available at the root.
