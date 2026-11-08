@@ -11,7 +11,7 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 - **Go 1.27+** — https://go.dev/dl/
 - **Task** — Task runner (taskfile.dev): `go install github.com/go-task/task/v3/cmd/task@latest` or `pacman -S go-task`
 - **Air** — Live reload for Go: `go install github.com/air-verse/air@latest`
-- **golangci-lint** (optional) — Linter: `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0` or `pacman -S golangci-lint`; use a 2.15.x release, the version CI pins (`version: v2.15` in `.forgejo/workflows/ci.yml`)
+- **golangci-lint** (optional) — Linter: `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0` or `pacman -S golangci-lint`; use the version CI pins in the root `.tool-versions` (`task lint` warns on a mismatch)
 
 ## Commands
 
@@ -19,7 +19,7 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 - `task clean-db` — Delete the local dev database (`./data`)
 - `task build` — Build the binary
 - `task test` — Run tests
-- `task lint` — Run golangci-lint (2.15.x, same as CI)
+- `task lint` — Run golangci-lint (warns if the installed version differs from `.tool-versions`)
 
 ## Architecture
 

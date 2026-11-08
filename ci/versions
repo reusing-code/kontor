@@ -1,0 +1,19 @@
+#!/bin/sh
+# Prints the tool versions and the CI image tag as KEY=value lines, derived
+# from their single sources. POSIX sh + busybox, run from the repo root.
+set -eu
+
+go=$(awk '$1 == "go" { print $2 }' backend/go.mod)
+bun=$(sed -n '/"engines"/,/}/s/.*"bun": *"\([^"]*\)".*/\1/p' frontend/package.json)
+lint=$(awk '$1 == "golangci-lint" { print $2 }' .tool-versions)
+hash=$(sha256sum ci/Dockerfile | cut -c1-7)
+
+for v in go bun lint; do
+  eval "val=\$$v"
+  [ -n "$val" ] || { echo "ci/versions: no $v version found" >&2; exit 1; }
+done
+
+echo "GO_VERSION=$go"
+echo "BUN_VERSION=$bun"
+echo "GOLANGCI_LINT_VERSION=$lint"
+echo "CI_IMAGE_TAG=go$go-bun$bun-lint$lint-$hash"

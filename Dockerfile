@@ -1,5 +1,7 @@
-# Set from engines.bun in frontend/package.json (task build / CI)
+# Set from engines.bun in frontend/package.json and the go line of
+# backend/go.mod (task build / CI)
 ARG BUN_VERSION
+ARG GO_VERSION
 FROM oven/bun:${BUN_VERSION}-alpine AS frontend
 WORKDIR /app
 COPY frontend/package.json frontend/bun.lock* ./
@@ -8,7 +10,7 @@ COPY frontend/ .
 COPY contract-import-spec.txt ../
 RUN bun run build
 
-FROM golang:1.27-alpine AS backend
+FROM golang:${GO_VERSION}-alpine AS backend
 WORKDIR /app
 ARG VERSION=unknown
 ARG COMMIT=unknown

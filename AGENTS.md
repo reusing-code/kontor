@@ -8,8 +8,8 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 
 ## Prerequisites
 
-- **Go 1.27+** — https://go.dev/dl/
-- **Bun 1.4** — JavaScript runtime/package manager: https://bun.sh. The version is pinned in `frontend/package.json` (`engines.bun`, plain `X.Y` since it is also the Docker tag); CI (`setup-bun`) and the Docker build read it from there
+- **Go 1.27+** — https://go.dev/dl/. The version is pinned by the `go` line in `backend/go.mod`; the CI image and the Docker build read it from there
+- **Bun 1.4.4** — JavaScript runtime/package manager: https://bun.sh. The version is pinned in `frontend/package.json` (`engines.bun`, an exact `X.Y.Z` since it is also the Docker tag); the CI image and the Docker build read it from there
 - **Task** — Task runner (taskfile.dev): `go install github.com/go-task/task/v3/cmd/task@latest` or `pacman -S go-task`
 - **Air** — Live reload for Go: `go install github.com/air-verse/air@latest`
 - **Docker + Docker Compose** (optional) — For containerized deployment
@@ -21,7 +21,7 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 - `task ci` — Run the local backend + frontend checks that must pass before committing
 - `task ci:backend` — Run backend test + lint checks
 - `task ci:frontend` — Run frontend lint + build checks
-- `task build` — Build Docker image (passes `BUN_VERSION` from `frontend/package.json`; a plain `docker build` needs `--build-arg BUN_VERSION=<version>`)
+- `task build` — Build Docker image (passes `BUN_VERSION` from `frontend/package.json` and `GO_VERSION` from `backend/go.mod`; a plain `docker build` needs both as `--build-arg`)
 - `task up` / `task down` — Docker Compose up/down
 
 See `frontend/AGENTS.md` and `backend/AGENTS.md` for per-project commands.
@@ -32,6 +32,19 @@ See `frontend/AGENTS.md` and `backend/AGENTS.md` for per-project commands.
 - `backend/` — Go API server (stdlib net/http, BadgerDB, slog, Prometheus)
 - `Dockerfile` — Multi-stage build: frontend (Bun) → backend (Go) → Alpine runtime
 - `compose.yml` — Single-service deployment with named volume for DB
+- `.forgejo/workflows/ci.yml` — CI (Forgejo Actions), see below
+- `ci/` — CI image (`ci/Dockerfile`) and helper scripts (`ci/versions`, `ci/retry`)
+- `.tool-versions` — golangci-lint version pin (asdf/mise format; mise is not required)
+
+## CI
+
+Tool versions have one source each: Go in `backend/go.mod`, Bun in `engines.bun` (`frontend/package.json`), golangci-lint in `.tool-versions`. `ci/versions` reads them and derives the CI image tag (`go<go>-bun<bun>-lint<lint>-<sha256 of ci/Dockerfile, 7 chars>`).
+
+- `ci-image` runs in `docker:<ver>-cli` and pushes `forgejo.reusing.dev/tobi/kontor-ci:<tag>` only if the tag is missing (needs the `PACKAGES_TOKEN` secret, a PAT with `write:package`; the automatic job token cannot push packages). Docker Hub is only contacted when a version or `ci/Dockerfile` changes.
+- `frontend` and `backend` run inside that image with no `uses:` steps: a shallow `git fetch` of `$GITHUB_SHA` with the job token, `GOTOOLCHAIN=local`, dependency downloads wrapped in `ci/retry`, and caches in named volumes (`kontor-bun`, `kontor-gomod`, `kontor-gocache`, `kontor-golangci`). The runner only mounts them once `kontor-*` is in its `container.valid_volumes` (tobi/shaker#45); until then the caches are cold on every run.
+- `docker` (push only) still uses the GitHub-hosted actions.
+
+To bump a tool, change its source; the next run builds a new CI image. Change `ci/Dockerfile` (e.g. the `DOCKER_VERSION` default) for anything else in the image.
 
 ## Architecture overview
 

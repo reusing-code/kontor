@@ -50,8 +50,10 @@ tasks:
     vars:
       BUN_VERSION:
         sh: bun -p "require('./frontend/package.json').engines.bun"
+      GO_VERSION:
+        sh: awk '$1 == "go" { print $2 }' backend/go.mod
     cmds:
-      - docker build --build-arg BUN_VERSION={{.BUN_VERSION}} -t kontor .
+      - docker build --build-arg BUN_VERSION={{.BUN_VERSION}} --build-arg GO_VERSION={{.GO_VERSION}} -t kontor .
 
   up:
     desc: Start with docker compose

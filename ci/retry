@@ -1,0 +1,9 @@
+#!/bin/sh
+# Usage: ci/retry <command> [args...]
+# Runs the command up to 3 times, sleeping 20 s and then 60 s between tries.
+for delay in 20 60; do
+  "$@" && exit 0
+  echo "ci/retry: '$*' failed, retrying in ${delay}s" >&2
+  sleep "$delay"
+done
+exec "$@"

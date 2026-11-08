@@ -39,5 +39,11 @@ tasks:
 
   lint:
     desc: Run golangci-lint
+    vars:
+      LINT_WANT:
+        sh: awk '$1 == "golangci-lint" { print $2 }' ../.tool-versions
+      LINT_HAVE:
+        sh: golangci-lint version --short 2>/dev/null || echo none
     cmds:
+      - '[ "{{.LINT_HAVE}}" = "{{.LINT_WANT}}" ] || echo "warning: golangci-lint {{.LINT_HAVE}} installed, CI uses {{.LINT_WANT}} (.tool-versions)" >&2'
       - golangci-lint run ./...
