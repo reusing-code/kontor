@@ -20,6 +20,8 @@ interface PurchaseDialogProps {
   onOpenChange: (open: boolean) => void
   purchase?: Purchase | null
   onSubmit: (data: PurchaseFormData) => void
+  // Prefills the create form; ignored when editing. Pass a stable object.
+  initialValues?: Partial<PurchaseFormData>
 }
 
 const defaultValues: PurchaseFormData = {
@@ -27,7 +29,7 @@ const defaultValues: PurchaseFormData = {
   purchaseDate: new Date().toISOString().slice(0, 10),
 }
 
-export function PurchaseDialog({ open, onOpenChange, purchase, onSubmit }: PurchaseDialogProps) {
+export function PurchaseDialog({ open, onOpenChange, purchase, onSubmit, initialValues }: PurchaseDialogProps) {
   const { t } = useTranslation()
   const form = useForm<PurchaseFormData>({
     resolver: standardSchemaResolver(purchaseFormSchema) as Resolver<PurchaseFormData>,
@@ -52,10 +54,10 @@ export function PurchaseDialog({ open, onOpenChange, purchase, onSubmit }: Purch
           comments: purchase.comments,
         })
       } else {
-        form.reset(defaultValues)
+        form.reset({ ...defaultValues, ...initialValues })
       }
     }
-  }, [open, purchase, form])
+  }, [open, purchase, initialValues, form])
 
   function handleSubmit(data: PurchaseFormData) {
     onSubmit(data)

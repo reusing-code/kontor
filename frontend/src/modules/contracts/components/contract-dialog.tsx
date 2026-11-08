@@ -20,6 +20,8 @@ interface ContractDialogProps {
   onOpenChange: (open: boolean) => void
   contract?: Contract | null
   onSubmit: (data: ContractFormData) => void
+  // Prefills the create form; ignored when editing. Pass a stable object.
+  initialValues?: Partial<ContractFormData>
 }
 
 const defaultValues: ContractFormData = {
@@ -31,7 +33,7 @@ const defaultValues: ContractFormData = {
   noticePeriodMonths: 3,
 }
 
-export function ContractDialog({ open, onOpenChange, contract, onSubmit }: ContractDialogProps) {
+export function ContractDialog({ open, onOpenChange, contract, onSubmit, initialValues }: ContractDialogProps) {
   const { t } = useTranslation()
   const form = useForm<ContractFormData>({
     resolver: standardSchemaResolver(contractFormSchema) as Resolver<ContractFormData>,
@@ -59,10 +61,10 @@ export function ContractDialog({ open, onOpenChange, contract, onSubmit }: Contr
           comments: contract.comments,
         })
       } else {
-        form.reset(defaultValues)
+        form.reset({ ...defaultValues, ...initialValues })
       }
     }
-  }, [open, contract, form])
+  }, [open, contract, initialValues, form])
 
   function handleSubmit(data: ContractFormData) {
     onSubmit(data)

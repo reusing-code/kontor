@@ -84,6 +84,19 @@ export function useCreateCostEntry(vehicleId: string) {
   })
 }
 
+export function useCreateCostEntryByVehicle() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ vehicleId, data }: { vehicleId: string; data: CostEntryFormData }) => createCostEntry(vehicleId, data),
+    onSuccess: async (entry) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["vehicles", entry.vehicleId, "costs"] }),
+        qc.invalidateQueries({ queryKey: ["vehicles", entry.vehicleId, "summary"] }),
+      ])
+    },
+  })
+}
+
 export function useUpdateCostEntry(vehicleId: string) {
   const qc = useQueryClient()
   return useMutation({

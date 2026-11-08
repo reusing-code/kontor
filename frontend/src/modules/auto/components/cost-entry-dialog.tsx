@@ -34,6 +34,8 @@ interface CostEntryDialogProps {
   onOpenChange: (open: boolean) => void
   costEntry?: CostEntry | null
   onSubmit: (data: CostEntryFormData) => void
+  // Prefills the create form; ignored when editing. Pass a stable object.
+  initialValues?: Partial<CostEntryFormData>
 }
 
 const costTypes: CostType[] = [
@@ -51,7 +53,7 @@ const defaultValues: CostEntryFormData = {
   date: new Date().toISOString().slice(0, 10),
 }
 
-export function CostEntryDialog({ open, onOpenChange, costEntry, onSubmit }: CostEntryDialogProps) {
+export function CostEntryDialog({ open, onOpenChange, costEntry, onSubmit, initialValues }: CostEntryDialogProps) {
   const { t } = useTranslation()
   const form = useForm<CostEntryFormData>({
     resolver: standardSchemaResolver(costEntryFormSchema) as Resolver<CostEntryFormData>,
@@ -71,10 +73,10 @@ export function CostEntryDialog({ open, onOpenChange, costEntry, onSubmit }: Cos
           comments: costEntry.comments,
         })
       } else {
-        form.reset(defaultValues)
+        form.reset({ ...defaultValues, ...initialValues })
       }
     }
-  }, [open, costEntry, form])
+  }, [open, costEntry, initialValues, form])
 
   function handleSubmit(data: CostEntryFormData) {
     onSubmit(data)
