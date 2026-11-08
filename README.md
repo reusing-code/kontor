@@ -60,6 +60,16 @@ task down     # stop
 
 `task build` passes the Bun version from `frontend/package.json` and the Go version from `backend/go.mod` as build args; when running `docker build` directly, add `--build-arg BUN_VERSION=<version> --build-arg GO_VERSION=<version>`.
 
+CI publishes the image to `forgejo.reusing.dev/tobi/kontor` and mirrors it to `ghcr.io/reusing-code/kontor`, which `compose.yml` uses. Tags: `sha-<commit>`, `main`, and per release `X.Y.Z`, `X.Y` and `latest`.
+
+Every push to `main` adds a `sha-*` tag on Forgejo. A package cleanup rule set in the Forgejo UI (user settings → Packages → Cleanup rules → Add cleanup rule) keeps that bounded while keeping release tags, `main` and `latest`:
+
+- Type: Container, "Apply pattern to full package name" checked
+- Keep the most recent: 10 versions per package
+- Remove versions matching: `^kontor/sha-`
+
+The remove pattern limits the rule to the `sha-*` tags of `kontor` (not `kontor-ci`); the preview in the rule editor shows what would be deleted.
+
 ## Project Structure
 
 ```
