@@ -4,13 +4,16 @@ import {
   deletePaperlessConfig,
   detachPaperlessDocument,
   getPaperlessConfig,
+  getPaperlessPipelineSettings,
   getPaperlessThumbnail,
   listPaperlessLinks,
+  runPaperlessPipeline,
   searchPaperlessDocuments,
   testPaperlessConfig,
   updatePaperlessConfig,
+  updatePaperlessPipelineSettings,
 } from "@/lib/paperless-repository"
-import type { PaperlessConfigInput, PaperlessEntityType } from "@/types/paperless"
+import type { PaperlessConfigInput, PaperlessEntityType, PaperlessPipelineSettings } from "@/types/paperless"
 
 export const paperlessConfigQueryOptions = queryOptions({
   queryKey: ["paperless", "config"],
@@ -43,6 +46,30 @@ export function useDeletePaperlessConfig() {
 
 export function useTestPaperlessConfig() {
   return useMutation({ mutationFn: testPaperlessConfig })
+}
+
+export function usePaperlessPipelineSettings(enabled: boolean) {
+  return useQuery({
+    queryKey: ["paperless", "pipeline"],
+    queryFn: getPaperlessPipelineSettings,
+    enabled,
+  })
+}
+
+export function useUpdatePaperlessPipelineSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: PaperlessPipelineSettings) => updatePaperlessPipelineSettings(input),
+    onSuccess: (data) => qc.setQueryData(["paperless", "pipeline"], data),
+  })
+}
+
+export function useRunPaperlessPipeline() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: runPaperlessPipeline,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["drafts"] }),
+  })
 }
 
 export function usePaperlessLinks(entityType: PaperlessEntityType, entityId: string, enabled: boolean) {

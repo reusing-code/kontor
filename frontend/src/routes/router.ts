@@ -1,9 +1,12 @@
 import { lazy } from "react"
-import { createRoute, createRouter } from "@tanstack/react-router"
+import { createRoute, createRouter, isRedirect, redirect } from "@tanstack/react-router"
 import { rootRoute } from "./__root"
 import { indexRoute } from "./index"
 import { loginRoute } from "./login"
 import { modules } from "@/modules/registry"
+import { queryClient } from "@/lib/query-client"
+import { capabilitiesQueryOptions } from "@/hooks/use-capabilities"
+import { paperlessConfigQueryOptions } from "@/hooks/use-paperless"
 
 const SettingsPage = lazy(() => import("./settings").then((module) => ({ default: module.SettingsPage })))
 
@@ -13,11 +16,35 @@ export const settingsRoute = createRoute({
   component: SettingsPage,
 })
 
+const InboxPage = lazy(() => import("./inbox").then((module) => ({ default: module.InboxPage })))
+
+export const inboxRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/inbox",
+  beforeLoad: async () => {
+    try {
+      const [capabilities, paperless] = await Promise.all([
+        queryClient.ensureQueryData(capabilitiesQueryOptions),
+        queryClient.ensureQueryData(paperlessConfigQueryOptions),
+      ])
+      if (!capabilities.llm || !paperless.configured) {
+        throw redirect({ to: "/" })
+      }
+    } catch (error) {
+      if (isRedirect(error)) {
+        throw error
+      }
+    }
+  },
+  component: InboxPage,
+})
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   ...modules.flatMap((m) => m.routes),
   loginRoute,
   settingsRoute,
+  inboxRoute,
 ])
 
 export const router = createRouter({ routeTree })

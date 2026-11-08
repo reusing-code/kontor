@@ -5,6 +5,8 @@ import type {
   PaperlessConfigInput,
   PaperlessEntityType,
   PaperlessLink,
+  PaperlessPipelineRunResult,
+  PaperlessPipelineSettings,
   PaperlessSearchPage,
 } from "@/types/paperless"
 
@@ -55,4 +57,16 @@ export async function detachPaperlessDocument(
   documentId: number,
 ): Promise<void> {
   return del(`/paperless/links/${entityType}/${entityId}/${documentId}`)
+}
+
+export async function getPaperlessPipelineSettings(): Promise<PaperlessPipelineSettings> {
+  return get<PaperlessPipelineSettings>("/paperless/pipeline")
+}
+
+export async function updatePaperlessPipelineSettings(input: PaperlessPipelineSettings): Promise<PaperlessPipelineSettings> {
+  return put<PaperlessPipelineSettings>("/paperless/pipeline", input)
+}
+
+export async function runPaperlessPipeline(): Promise<PaperlessPipelineRunResult> {
+  return post<PaperlessPipelineRunResult>("/paperless/pipeline/run", {})
 }

@@ -3,6 +3,7 @@ import { Link, useMatchRoute } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { modules } from "@/modules/registry"
 import { useModules } from "@/hooks/use-modules"
+import { useInboxAvailable, usePendingDrafts } from "@/hooks/use-drafts"
 import { cn } from "@/lib/utils"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ChevronRight, Home } from "lucide-react"
@@ -56,6 +57,35 @@ export function SidebarSection({
   )
 }
 
+function InboxLink() {
+  const { t } = useTranslation()
+  const matchRoute = useMatchRoute()
+  const available = useInboxAvailable()
+  const { data: drafts } = usePendingDrafts(available)
+  if (!available) return null
+  const count = drafts?.length ?? 0
+
+  return (
+    <Link
+      to="/inbox"
+      className={cn(
+        "flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent",
+        matchRoute({ to: "/inbox" }) && "bg-accent",
+      )}
+    >
+      {t("drafts.title")}
+      {count > 0 && (
+        <span
+          className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground"
+          aria-label={t("drafts.pendingCount", { count })}
+        >
+          {count}
+        </span>
+      )}
+    </Link>
+  )
+}
+
 export function Sidebar() {
   const { t } = useTranslation()
   const matchRoute = useMatchRoute()
@@ -82,6 +112,7 @@ export function Sidebar() {
         ))}
 
         <SidebarSection title={t("nav.general")}>
+          <InboxLink />
           <Link
             to="/settings"
             className={cn(

@@ -483,7 +483,67 @@
     "detach": "Dokumentverknüpfung entfernen",
     "detached": "Dokumentverknüpfung entfernt",
     "openInPaperless": "In paperless öffnen",
-    "pageOf": "Seite {{page}} von {{total}}"
+    "pageOf": "Seite {{page}} von {{total}}",
+    "pipeline": {
+      "title": "Entwurfs-Pipeline",
+      "description": "Versieh ein Dokument in paperless mit dem Tag \"{{inboxTag}}\" und Kontor schlägt aus dem Text einen Kauf, Vertrag oder Fahrzeugkosten in deinem Eingang vor. Beim Übernehmen wird der Tag durch \"{{doneTag}}\" ersetzt.",
+      "enable": "Entwurfs-Pipeline aktivieren",
+      "inboxTag": "Eingangs-Tag",
+      "doneTag": "Verknüpft-Tag",
+      "tagsHint": "Der Eingangs-Tag startet die Pipeline. Der Verknüpft-Tag markiert Dokumente, die mit einem Kontor-Eintrag verknüpft sind, und wird auch beim manuellen Verknüpfen gesetzt.",
+      "saveTags": "Tags speichern",
+      "saved": "Pipeline-Einstellungen gespeichert",
+      "runNow": "Jetzt ausführen",
+      "running": "Läuft…",
+      "runResult_one": "{{count}} neuer Entwurf ({{found}} mit Tag)",
+      "runResult_other": "{{count}} neue Entwürfe ({{found}} mit Tag)",
+      "runFailed_one": "{{count}} Dokument konnte nicht verarbeitet werden und wird später erneut versucht",
+      "runFailed_other": "{{count}} Dokumente konnten nicht verarbeitet werden und werden später erneut versucht"
+    }
+  },
+  "drafts": {
+    "title": "Eingang",
+    "description": "Aus deinen Dokumenten vorgeschlagene Entwürfe. Erst beim Übernehmen wird etwas angelegt.",
+    "empty": "Keine Entwürfe zur Prüfung.",
+    "pendingCount_one": "{{count}} Entwurf wartet",
+    "pendingCount_other": "{{count}} Entwürfe warten",
+    "type": "Typ",
+    "category": "Kategorie",
+    "vehicle": "Fahrzeug",
+    "pickCategory": "Kategorie wählen",
+    "pickVehicle": "Fahrzeug wählen",
+    "accept": "Übernehmen…",
+    "reject": "Verwerfen",
+    "accepted": "Entwurf übernommen und Dokument verknüpft",
+    "rejected": "Entwurf verworfen",
+    "createFailed": "Der Eintrag konnte nicht angelegt werden: {{message}}",
+    "acceptFailed": "Der Eintrag wurde angelegt, aber der Entwurf konnte nicht übernommen werden: {{message}}",
+    "hintPickType": "Wähle, worum es sich bei diesem Dokument handelt, oder verwirf es.",
+    "hintModuleDisabled": "Dieses Modul ist deaktiviert. Wähle einen anderen Typ oder verwirf den Entwurf.",
+    "hintNoCategories": "Lege zuerst eine Kategorie in diesem Modul an.",
+    "hintNoVehicles": "Lege zuerst ein Fahrzeug an.",
+    "hintPickCategory": "Wähle eine Kategorie, um den Entwurf zu übernehmen.",
+    "hintPickVehicle": "Wähle ein Fahrzeug, um den Entwurf zu übernehmen.",
+    "types": {
+      "purchase": "Kauf",
+      "contract": "Vertrag",
+      "cost": "Fahrzeugkosten",
+      "none": "Nicht zugeordnet"
+    },
+    "sources": {
+      "paperless": "Paperless",
+      "email": "E-Mail",
+      "text": "Schnellerfassung",
+      "mcp": "MCP"
+    },
+    "notes": {
+      "unclassified": "Das Dokument konnte keinem Typ zugeordnet werden.",
+      "empty_content": "Das Dokument enthält keinen Text (OCR-Inhalt ist leer).",
+      "llm_invalid_output": "Die KI-Antwort war nicht verwendbar.",
+      "llm_refused": "Die KI hat die Verarbeitung dieses Dokuments abgelehnt.",
+      "llm_truncated": "Die KI-Antwort wurde abgeschnitten.",
+      "llm_request_rejected": "Der KI-Dienst hat das Dokument abgelehnt, eventuell ist es zu lang."
+    }
   },
   "common": {
     "save": "Speichern",

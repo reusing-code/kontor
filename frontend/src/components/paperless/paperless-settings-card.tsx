@@ -11,6 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
+import { useCapabilities } from "@/hooks/use-capabilities"
+import { PaperlessPipelineSection } from "@/components/paperless/paperless-pipeline-section"
 
 export function PaperlessSettingsCard() {
   const { t } = useTranslation()
@@ -18,6 +20,7 @@ export function PaperlessSettingsCard() {
   const updateConfig = useUpdatePaperlessConfig()
   const deleteConfig = useDeletePaperlessConfig()
   const testConfig = useTestPaperlessConfig()
+  const { llm } = useCapabilities()
 
   const [baseUrl, setBaseUrl] = useState<string | null>(null)
   const [token, setToken] = useState("")
@@ -67,7 +70,7 @@ export function PaperlessSettingsCard() {
         <CardTitle>{t("paperless.title")}</CardTitle>
         <CardDescription>{t("paperless.settingsDescription")}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
         <form onSubmit={handleSave} className="space-y-4 max-w-xl">
           <div className="space-y-2">
             <Label htmlFor="paperlessBaseUrl">{t("paperless.baseUrl")}</Label>
@@ -108,6 +111,7 @@ export function PaperlessSettingsCard() {
           </div>
           {configured && <p className="text-sm text-muted-foreground">{t("paperless.removeHint")}</p>}
         </form>
+        {configured && llm && <PaperlessPipelineSection />}
       </CardContent>
     </Card>
   )

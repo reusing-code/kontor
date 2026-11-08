@@ -41,3 +41,16 @@ export interface PaperlessAttachResponse {
   links: PaperlessLink[]
   warnings: string[]
 }
+
+export interface PaperlessPipelineSettings {
+  enabled: boolean
+  inboxTag: string
+  doneTag: string
+}
+
+export interface PaperlessPipelineRunResult {
+  found: number
+  created: number
+  skipped: number
+  failed: number
+}

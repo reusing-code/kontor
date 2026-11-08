@@ -483,7 +483,67 @@
     "detach": "Remove document link",
     "detached": "Document link removed",
     "openInPaperless": "Open in paperless",
-    "pageOf": "Page {{page}} of {{total}}"
+    "pageOf": "Page {{page}} of {{total}}",
+    "pipeline": {
+      "title": "Draft pipeline",
+      "description": "Tag a document with \"{{inboxTag}}\" in paperless and Kontor proposes a purchase, contract or vehicle cost from its text in your inbox. Accepting a draft replaces the tag with \"{{doneTag}}\".",
+      "enable": "Enable draft pipeline",
+      "inboxTag": "Inbox tag",
+      "doneTag": "Linked tag",
+      "tagsHint": "The inbox tag starts the pipeline. The linked tag marks documents attached to a Kontor entry and is also set when you attach documents manually.",
+      "saveTags": "Save tags",
+      "saved": "Pipeline settings saved",
+      "runNow": "Run now",
+      "running": "Running…",
+      "runResult_one": "{{count}} new draft ({{found}} tagged)",
+      "runResult_other": "{{count}} new drafts ({{found}} tagged)",
+      "runFailed_one": "{{count}} document could not be processed and will be retried later",
+      "runFailed_other": "{{count}} documents could not be processed and will be retried later"
+    }
+  },
+  "drafts": {
+    "title": "Inbox",
+    "description": "Drafts proposed from your documents. Nothing is created until you accept a draft.",
+    "empty": "No drafts waiting for review.",
+    "pendingCount_one": "{{count}} draft waiting",
+    "pendingCount_other": "{{count}} drafts waiting",
+    "type": "Type",
+    "category": "Category",
+    "vehicle": "Vehicle",
+    "pickCategory": "Select category",
+    "pickVehicle": "Select vehicle",
+    "accept": "Accept…",
+    "reject": "Reject",
+    "accepted": "Draft accepted and document linked",
+    "rejected": "Draft rejected",
+    "createFailed": "Could not create the entry: {{message}}",
+    "acceptFailed": "The entry was created, but the draft could not be accepted: {{message}}",
+    "hintPickType": "Choose what this document is, or reject it.",
+    "hintModuleDisabled": "This module is disabled. Choose another type or reject the draft.",
+    "hintNoCategories": "Create a category in this module first.",
+    "hintNoVehicles": "Add a vehicle first.",
+    "hintPickCategory": "Choose a category to accept the draft.",
+    "hintPickVehicle": "Choose a vehicle to accept the draft.",
+    "types": {
+      "purchase": "Purchase",
+      "contract": "Contract",
+      "cost": "Vehicle cost",
+      "none": "Unclassified"
+    },
+    "sources": {
+      "paperless": "Paperless",
+      "email": "Email",
+      "text": "Quick add",
+      "mcp": "MCP"
+    },
+    "notes": {
+      "unclassified": "The document could not be assigned to a type.",
+      "empty_content": "The document has no text (OCR content is empty).",
+      "llm_invalid_output": "The AI answer could not be used.",
+      "llm_refused": "The AI refused to process this document.",
+      "llm_truncated": "The AI answer was cut off.",
+      "llm_request_rejected": "The AI service rejected the document, it may be too long."
+    }
   },
   "common": {
     "save": "Save",
