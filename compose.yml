@@ -16,6 +16,8 @@ services:
       # - LLM_MODEL=kontor
       # - LLM_API_KEY=${LLM_API_KEY}
       # - LLM_TIMEOUT=60s
+      # Paperless draft pipeline polling interval (only runs with the LLM configured); 0 disables.
+      # - PAPERLESS_PIPELINE_INTERVAL=15m
 
 volumes:
   app-data:

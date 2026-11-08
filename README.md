@@ -11,6 +11,7 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 - **Ledger module** — Import bank CSVs into tracked accounts, review transactions, manage categories, add notes/links/references, mark internal transfers, and enrich transactions with parsed email order data
 - **Email order enrichment** — Configure IMAP email accounts for supported importers like Amazon.de and PayPal.de to scan inbox messages and auto-link parsed orders to ledger transactions; accounts are also scanned automatically in the background (`LEDGER_EMAIL_SCAN_INTERVAL`, default every 6h), and `.eml` upload remains available as a fallback
 - **Paperless-ngx integration** — Optionally connect a paperless-ngx instance per user (base URL + API token in settings); search the document archive and attach documents to contracts, purchases, vehicles, cost entries, and ledger transactions, with an automatic back-link ("Kontor" URL custom field) on the paperless document
+- **Draft inbox from paperless (optional)** — With the LLM endpoint and paperless configured, tag a document with `kontor-inbox` in paperless and Kontor proposes a purchase, contract or vehicle cost from its text in the inbox (`/inbox`); accepting opens the prefilled create dialog, links the document and replaces the tag with `kontor`. Enabled per user in settings (tag names configurable); polled every `PAPERLESS_PIPELINE_INTERVAL` (default `15m`, `0` disables)
 - **LLM endpoint (optional)** — Server-wide OpenAI-compatible endpoint for structured extraction (`LLM_BASE_URL`, `LLM_MODEL`, optional `LLM_API_KEY`, `LLM_TIMEOUT` default `60s`); off while `LLM_BASE_URL` is unset, and the UI only offers LLM features when `/api/v1/capabilities` reports them. Prompts and model output are never logged
 - **Category organization** — Per-module categories (e.g. insurance/telecom for contracts, PC hardware/tools for purchases)
 - **Homepage overview** — Dashboard at `/` with summary cards and stats across all modules
@@ -130,6 +131,12 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | GET | `/paperless/documents/{id}/thumb` | Proxied document thumbnail |
 | GET/POST | `/paperless/links/{entityType}/{entityId}` | List / attach paperless document links |
 | DELETE | `/paperless/links/{entityType}/{entityId}/{documentId}` | Detach a document link |
+| GET/PUT | `/paperless/pipeline` | Draft pipeline settings (on/off, inbox and done tag) |
+| POST | `/paperless/pipeline/run` | Run the draft pipeline for the current user now |
+| GET | `/drafts` | List drafts (`?status=pending` default, `accepted`, `rejected`, `all`) |
+| GET/PUT | `/drafts/{id}` | Get / edit a pending draft (type, target, input) |
+| POST | `/drafts/{id}/accept` | Accept a draft after creating its entity (links the source) |
+| POST | `/drafts/{id}/reject` | Reject a draft |
 | GET | `/contracts/summary` | Contract dashboard stats |
 
 Health (`/healthz`), readiness (`/readyz`), and Prometheus metrics (`/metrics`) are available at the root.

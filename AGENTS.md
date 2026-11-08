@@ -46,7 +46,9 @@ Contracts and purchases share the item-category machinery (`backend/internal/cat
 
 An optional cross-cutting **paperless-ngx integration** (`backend/internal/paperless/`, `frontend/src/components/paperless/`) lets each user connect their paperless-ngx instance (base URL + API token, configured on the settings page). Entities (contracts, purchases, vehicles, cost entries, ledger transactions) can then attach paperless documents via a search dialog; Kontor stores the links centrally (outside the modules) and best-effort writes a back-link into a "Kontor" URL-type custom field on the paperless document. All paperless traffic is proxied through the backend; the UI hides all paperless surfaces until the integration is configured.
 
-An optional server-wide **LLM endpoint** (`backend/internal/llm/`) gives modules structured extraction from text: one OpenAI-compatible endpoint configured by the operator (`LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `LLM_TIMEOUT`), not per user. Modules receive an `llm.Extractor` (DI) and call `Extract`/`llm.ExtractAs[T]` with a JSON schema derived from a Go struct (OpenAI strict mode); with `LLM_BASE_URL` unset the extractor is `llm.Disabled` and returns `llm.ErrDisabled`, so callers never nil-check. The frontend learns whether LLM features exist from `GET /api/v1/capabilities` (`useCapabilities()`) and must hide LLM surfaces when `llm` is false. Prompts and model output are user data: never log them or put them into error messages. No module uses it yet.
+An optional server-wide **LLM endpoint** (`backend/internal/llm/`) gives modules structured extraction from text: one OpenAI-compatible endpoint configured by the operator (`LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `LLM_TIMEOUT`), not per user. Modules receive an `llm.Extractor` (DI) and call `Extract`/`llm.ExtractAs[T]` with a JSON schema derived from a Go struct (OpenAI strict mode); with `LLM_BASE_URL` unset the extractor is `llm.Disabled` and returns `llm.ErrDisabled`, so callers never nil-check. The frontend learns whether LLM features exist from `GET /api/v1/capabilities` (`useCapabilities()`) and must hide LLM surfaces when `llm` is false. Prompts and model output are user data: never log them or put them into error messages. The paperless draft pipeline is the first user.
+
+A central, source-agnostic **draft inbox** (`backend/internal/drafts/`, frontend `/inbox`) holds proposed entities (purchase, contract, auto cost, or an unclassified `none` draft) with their source (`paperless`, later `email`, `text`, `mcp`). Nothing is created without confirmation: on Accept the frontend opens the module's prefilled create dialog, creates the entity through the regular (gated) module endpoint and then calls `POST /api/v1/drafts/{id}/accept` with the new entity; the backend marks the draft accepted and runs the source's accept hook. Sources register `drafts.SourceHooks` (accept/reject) in `internal/server`; the drafts package never imports modules or sources. The first source is the **paperless pipeline** (`backend/internal/paperless/pipeline.go`): every `PAPERLESS_PIPELINE_INTERVAL` (default `15m`, `0` disables; off without an LLM) it looks at documents carrying the user's inbox tag (default `kontor-inbox`) for users who enabled it in settings, classifies their OCR content with one LLM call (`paperless.classify`) offering only enabled modules with their categories and vehicles, and stores a draft (max 10 new per user and pass). Accepting stores the paperless link, writes the back-link and replaces the inbox tag with the done tag (default `kontor`, "linked to Kontor"; also set on manual attach and removed when the last link to a document goes); rejecting removes the inbox tag. Deciding a draft frees its source, so re-tagging a document creates a new draft. The inbox is shown only when the `llm` capability is on and paperless is configured.
 
 ### DB key schema
 
@@ -55,7 +57,8 @@ All module data lives under one prefix per module (`u/{userId}/mod/{module}/...`
 - Users: `usr/{userId}`
 - User email index: `usr_email/{email}`
 - User settings: `u/{userId}/settings` (includes `disabledModules`)
-- Paperless integration: `u/{userId}/paperless/config` (base URL, encrypted API token, cached custom field ID) and `u/{userId}/paperless/link/{entityType}/{entityId}/{documentId}` (entityType: `contract`, `purchase`, `vehicle`, `cost`, `transaction`); links appear as an optional `paperless` section in full exports (the config/token is never exported)
+- Paperless integration: `u/{userId}/paperless/config` (base URL, encrypted API token, cached custom field ID), `u/{userId}/paperless/pipeline` (draft pipeline settings: `enabled`, `inboxTag`, `doneTag`; not exported) and `u/{userId}/paperless/link/{entityType}/{entityId}/{documentId}` (entityType: `contract`, `purchase`, `vehicle`, `cost`, `transaction`); links appear as an optional `paperless` section in full exports (the config/token is never exported)
+- Draft inbox: `u/{userId}/drafts/item/{id}` (draft) and `u/{userId}/drafts/src/{kind}/{ref}` → draft ID (dedupes drafts per source while pending; deleted when the draft is accepted or rejected); not exported
 - Contracts module: `u/{userId}/mod/contracts/` — `cat/{id}`, `con/{id}`, `idx/cat_con/{catId}/{conId}`
 - Purchases module: `u/{userId}/mod/purchases/` — `cat/{id}`, `pur/{id}`, `idx/cat_pur/{catId}/{purId}`
 - Auto module: `u/{userId}/mod/auto/` — `veh/{id}`, `cost/{id}`, `idx/veh_cost/{vehId}/{costId}`
@@ -71,6 +74,7 @@ Migrations are per module: each module supplies its own `Migrations()` list, app
 | `/` | Homepage with overview cards for all modules |
 | `/login` | Login / registration |
 | `/settings` | User settings |
+| `/inbox` | Draft inbox (only with the `llm` capability and paperless configured) |
 | `/contracts` | Contracts dashboard |
 | `/contracts/categories/$categoryId` | Contract category detail |
 | `/contracts/upcoming-renewals` | Upcoming renewals |
@@ -87,7 +91,7 @@ Migrations are per module: each module supplies its own `Migrations()` list, app
 | `/ledger/email-accounts` | Ledger email account management |
 | `/ledger/email-orders` | Parsed email orders and matching status |
 
-Module routes live in `frontend/src/modules/{id}/routes/` and are registered through the module registry; core routes (`/`, `/login`, `/settings`) stay in `frontend/src/routes/`. All routes use `rootRoute` as parent with full paths (flat structure). Module routes carry a `beforeLoad` guard that redirects to `/` when the module is disabled.
+Module routes live in `frontend/src/modules/{id}/routes/` and are registered through the module registry; core routes (`/`, `/login`, `/settings`, `/inbox`) stay in `frontend/src/routes/`. All routes use `rootRoute` as parent with full paths (flat structure). Module routes carry a `beforeLoad` guard that redirects to `/` when the module is disabled.
 
 ## Git workflow
 

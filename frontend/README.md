@@ -56,4 +56,6 @@ src/
 
 The `@/` import alias maps to `src/`.
 
+The draft inbox at `/inbox` lists entries proposed from tagged paperless documents; it only appears when the server has an LLM configured and paperless is connected.
+
 Ledger transactions can be reviewed from `/ledger/review`, linked to other modules via references, and explicitly linked/unlinked as internal transfers on the review and detail screens.
