@@ -57,14 +57,48 @@ export function convertInput(
   return Object.fromEntries(Object.entries(converted).filter(([, v]) => present(v)))
 }
 
-export function entityUrl(type: DraftEntityType, entityId: string, parentId: string): string {
-  const origin = window.location.origin
+export interface DraftOption {
+  id: string
+  label: string
+}
+
+// PrefillEntry is what a create dialog is opened with: the entity type, its
+// category or vehicle and the module create-input fields.
+export interface PrefillEntry {
+  type: DraftEntityType
+  parentId: string
+  input: Record<string, unknown>
+}
+
+export function entityPath(type: DraftEntityType, entityId: string, parentId: string): string {
   switch (type) {
     case "purchase":
-      return `${origin}/purchases/${entityId}`
+      return `/purchases/${entityId}`
     case "contract":
-      return `${origin}/contracts/${entityId}`
+      return `/contracts/${entityId}`
     case "cost":
-      return `${origin}/auto/vehicles/${parentId}`
+      return `/auto/vehicles/${parentId}`
   }
+}
+
+export function entityUrl(type: DraftEntityType, entityId: string, parentId: string): string {
+  return window.location.origin + entityPath(type, entityId, parentId)
+}
+
+export type TargetProblem = "pickType" | "moduleDisabled" | "noCategories" | "noVehicles" | "pickCategory" | "pickVehicle"
+
+// targetProblem tells what is missing before an entry of this type can be
+// created in parentId, or null when nothing is.
+export function targetProblem(
+  target: DraftTargetType,
+  parentId: string | undefined,
+  enabledTypes: DraftEntityType[],
+  parentOptions: Record<DraftEntityType, DraftOption[]>,
+): TargetProblem | null {
+  if (target === "none") return "pickType"
+  if (!enabledTypes.includes(target)) return "moduleDisabled"
+  const options = parentOptions[target]
+  if (options.length === 0) return target === "cost" ? "noVehicles" : "noCategories"
+  if (!options.some((o) => o.id === parentId)) return target === "cost" ? "pickVehicle" : "pickCategory"
+  return null
 }

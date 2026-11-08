@@ -4,12 +4,17 @@ import type { Draft, DraftEntityType, DraftTargetType } from "@/types/drafts"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PaperlessThumbnail } from "@/components/paperless/paperless-thumbnail"
+import { targetProblem, type DraftOption, type TargetProblem } from "@/components/drafts/draft-input"
+import { TargetPicker } from "@/components/drafts/target-picker"
 
-export interface DraftOption {
-  id: string
-  label: string
+const hintKeys: Record<TargetProblem, string> = {
+  pickType: "drafts.hintPickType",
+  moduleDisabled: "drafts.hintModuleDisabled",
+  noCategories: "drafts.hintNoCategories",
+  noVehicles: "drafts.hintNoVehicles",
+  pickCategory: "drafts.hintPickCategory",
+  pickVehicle: "drafts.hintPickVehicle",
 }
 
 interface DraftCardProps {
@@ -66,14 +71,6 @@ export function DraftCard({
 }: DraftCardProps) {
   const { t, i18n } = useTranslation()
   const target = draft.targetType
-  const typeEnabled = target !== "none" && enabledTypes.includes(target)
-  const options = target === "none" ? [] : parentOptions[target]
-  const parentValid = options.some((o) => o.id === draft.parentId)
-  const typeChoices: DraftTargetType[] = [
-    ...enabledTypes,
-    ...(target !== "none" && !typeEnabled ? [target] : []),
-    "none",
-  ]
 
   const documentId = draft.source.kind === "paperless" ? Number(draft.source.ref) : NaN
   const money = new Intl.NumberFormat(i18n.language, { style: "currency", currency: "EUR" })
@@ -84,11 +81,8 @@ export function DraftCard({
     return String(value)
   }
 
-  let hint: string | null = null
-  if (target === "none") hint = t("drafts.hintPickType")
-  else if (!typeEnabled) hint = t("drafts.hintModuleDisabled")
-  else if (options.length === 0) hint = t(target === "cost" ? "drafts.hintNoVehicles" : "drafts.hintNoCategories")
-  else if (!parentValid) hint = t(target === "cost" ? "drafts.hintPickVehicle" : "drafts.hintPickCategory")
+  const problem = targetProblem(target, draft.parentId, enabledTypes, parentOptions)
+  const hint = problem && t(hintKeys[problem])
 
   const fields = summaryFields(draft).filter(([, value]) => value !== undefined && value !== null && value !== "")
 
@@ -139,37 +133,20 @@ export function DraftCard({
           )}
 
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={target} onValueChange={(v) => onChangeType(v as DraftTargetType)} disabled={busy}>
-              <SelectTrigger className="w-44" aria-label={t("drafts.type")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {typeChoices.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {t(`drafts.types.${type}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {target !== "none" && options.length > 0 && (
-              <Select value={parentValid ? draft.parentId : ""} onValueChange={onChangeParent} disabled={busy}>
-                <SelectTrigger className="w-52" aria-label={t(target === "cost" ? "drafts.vehicle" : "drafts.category")}>
-                  <SelectValue placeholder={t(target === "cost" ? "drafts.pickVehicle" : "drafts.pickCategory")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <TargetPicker
+              target={target}
+              parentId={draft.parentId}
+              enabledTypes={enabledTypes}
+              parentOptions={parentOptions}
+              disabled={busy}
+              onChangeType={onChangeType}
+              onChangeParent={onChangeParent}
+            />
             <div className="ml-auto flex gap-2">
               <Button variant="outline" onClick={onReject} disabled={busy}>
                 {t("drafts.reject")}
               </Button>
-              <Button onClick={onAccept} disabled={busy || hint !== null}>
+              <Button onClick={onAccept} disabled={busy || problem !== null}>
                 {t("drafts.accept")}
               </Button>
             </div>
