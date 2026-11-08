@@ -1,0 +1,45 @@
+#!/bin/sh
+# Usage: ci/base-images [Dockerfile]
+# Prints the external base images of a Dockerfile (default ./Dockerfile), one
+# per line: FROM lines with global ARGs substituted from the environment (or
+# their default), without stage references and scratch. POSIX sh + busybox.
+set -eu
+
+awk '
+function subst(s,    out, name, m) {
+  out = ""
+  while (match(s, /\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*/)) {
+    m = substr(s, RSTART, RLENGTH)
+    name = m
+    gsub(/[${}]/, "", name)
+    if (!(name in val) || val[name] == "") {
+      printf "ci/base-images: %s is not set\n", name > "/dev/stderr"
+      failed = 1
+      exit 1
+    }
+    out = out substr(s, 1, RSTART - 1) val[name]
+    s = substr(s, RSTART + RLENGTH)
+  }
+  return out s
+}
+toupper($1) == "ARG" && !seen_from {
+  split($2, kv, "=")
+  name = kv[1]
+  def = substr($2, length(name) + 2)
+  gsub(/^["\047]|["\047]$/, "", def)
+  val[name] = (name in ENVIRON) ? ENVIRON[name] : def
+  next
+}
+toupper($1) == "FROM" {
+  seen_from = 1
+  i = 2
+  while (substr($i, 1, 2) == "--") i++
+  img = subst($i)
+  external = img != "scratch" && !(tolower(img) in stage) && !(img in printed)
+  if (toupper($(i + 1)) == "AS") stage[tolower($(i + 2))] = 1
+  if (!external) next
+  printed[img] = 1
+  print img
+}
+END { if (failed) exit 1 }
+' "${1:-Dockerfile}"
