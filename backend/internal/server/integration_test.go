@@ -11,12 +11,15 @@ import (
 
 	"github.com/reusing-code/kontor/backend/internal/categories"
 	"github.com/reusing-code/kontor/backend/internal/core"
+	"github.com/reusing-code/kontor/backend/internal/drafts"
+	"github.com/reusing-code/kontor/backend/internal/llm"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 	"github.com/reusing-code/kontor/backend/internal/module"
 	"github.com/reusing-code/kontor/backend/internal/modules/auto"
 	"github.com/reusing-code/kontor/backend/internal/modules/contracts"
 	"github.com/reusing-code/kontor/backend/internal/modules/ledger"
 	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
+	"github.com/reusing-code/kontor/backend/internal/paperless"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 	"github.com/reusing-code/kontor/backend/internal/storage/link"
 )
@@ -29,6 +32,14 @@ func setupServer(t *testing.T) *httptest.Server {
 }
 
 func setupServerWithStore(t *testing.T) (*httptest.Server, *core.Store) {
+	t.Helper()
+	return setupServerWithExtractor(t, llm.Disabled{})
+}
+
+// testEncryptionKey is 32 bytes.
+const testEncryptionKey = "0123456789abcdef0123456789abcdef"
+
+func setupServerWithExtractor(t *testing.T, extractor llm.Extractor) (*httptest.Server, *core.Store) {
 	t.Helper()
 	logger := slog.New(slog.DiscardHandler)
 	engine, err := storage.Open(t.TempDir(), logger)
@@ -61,6 +72,15 @@ func setupServerWithStore(t *testing.T) (*httptest.Server, *core.Store) {
 	mux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Get))
 	mux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Update))
 	mux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Delete))
+
+	paperlessService := paperless.NewService(paperless.NewStore(engine), logger, testEncryptionKey)
+	draftStore := drafts.NewStore(engine)
+	draftHandler := drafts.NewHandler(draftStore, logger)
+	draftHandler.RegisterSource(drafts.SourcePaperless, paperless.NewDraftHooks(paperlessService))
+	pipeline := paperless.NewPipeline(paperlessService, draftStore, extractor,
+		pipelineDeps(coreStore, catStore, autoMod.Store()), 0, logger)
+	registerPaperlessRoutes(mux, paperless.NewHandler(paperlessService, logger), pipeline)
+	registerDraftRoutes(mux, draftHandler)
 
 	// Inject test user into context (integration tests skip auth middleware)
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
