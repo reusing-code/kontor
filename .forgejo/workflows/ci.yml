@@ -146,6 +146,7 @@ jobs:
           echo "commit=${GITHUB_SHA::7}" >> "$FORGEJO_OUTPUT"
           echo "date=$(date -u +%Y-%m-%d)" >> "$FORGEJO_OUTPUT"
           echo "bun=$(node -p "require('./frontend/package.json').engines.bun")" >> "$FORGEJO_OUTPUT"
+          echo "go=$(awk '$1 == "go" { print $2 }' backend/go.mod)" >> "$FORGEJO_OUTPUT"
 
       - uses: https://github.com/docker/setup-buildx-action@v4
 
@@ -160,5 +161,6 @@ jobs:
             COMMIT=${{ steps.version.outputs.commit }}
             BUILD_DATE=${{ steps.version.outputs.date }}
             BUN_VERSION=${{ steps.version.outputs.bun }}
+            GO_VERSION=${{ steps.version.outputs.go }}
           cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache
           cache-to: type=registry,ref=${{ env.IMAGE }}:buildcache,mode=max
