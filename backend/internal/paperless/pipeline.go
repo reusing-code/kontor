@@ -12,12 +12,13 @@ import (
 	"time"
 
 	"github.com/reusing-code/kontor/backend/internal/drafts"
+	"github.com/reusing-code/kontor/backend/internal/extraction"
 	"github.com/reusing-code/kontor/backend/internal/httputil"
-	"github.com/reusing-code/kontor/backend/internal/llm"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 )
 
 const (
+	classifyOperation   = "paperless.classify"
 	maxScannedDocuments = 500
 	maxDraftsPerRun     = 10
 	userRunTimeout      = 15 * time.Minute
@@ -26,44 +27,35 @@ const (
 var (
 	ErrPipelineDisabled = errors.New("the paperless pipeline is disabled")
 	ErrPipelineBusy     = errors.New("the paperless pipeline is already running")
-	ErrNoTargets        = errors.New("no purchases, contracts or auto module is enabled")
+	ErrNoTargets        = extraction.ErrNoTargets
 	errUpstream         = errors.New("paperless request failed")
 )
 
-// PipelineDeps are the module lookups the pipeline needs; they are wired in
-// the server so that this package does not import modules. Targets are
-// draft target types (purchase, contract, cost).
-type PipelineDeps struct {
-	UserIDs       func(ctx context.Context) ([]string, error)
-	TargetEnabled func(ctx context.Context, userID, target string) (bool, error)
-	Categories    func(ctx context.Context, userID, target string) ([]Option, error)
-	Vehicles      func(ctx context.Context, userID string) ([]Option, error)
-}
-
 // Pipeline turns documents carrying the user's inbox tag into drafts.
 type Pipeline struct {
-	svc       *Service
-	drafts    *drafts.Store
-	extractor llm.Extractor
-	deps      PipelineDeps
-	interval  time.Duration
-	logger    *slog.Logger
-	now       func() time.Time
+	svc        *Service
+	drafts     *drafts.Store
+	classifier *extraction.Classifier
+	userIDs    func(ctx context.Context) ([]string, error)
+	interval   time.Duration
+	logger     *slog.Logger
+	now        func() time.Time
 
 	mu      sync.Mutex
 	running map[string]bool
 }
 
-func NewPipeline(svc *Service, draftStore *drafts.Store, extractor llm.Extractor, deps PipelineDeps, interval time.Duration, logger *slog.Logger) *Pipeline {
+func NewPipeline(svc *Service, draftStore *drafts.Store, classifier *extraction.Classifier,
+	userIDs func(ctx context.Context) ([]string, error), interval time.Duration, logger *slog.Logger) *Pipeline {
 	return &Pipeline{
-		svc:       svc,
-		drafts:    draftStore,
-		extractor: extractor,
-		deps:      deps,
-		interval:  interval,
-		logger:    logger.With("component", "paperless-pipeline"),
-		now:       time.Now,
-		running:   map[string]bool{},
+		svc:        svc,
+		drafts:     draftStore,
+		classifier: classifier,
+		userIDs:    userIDs,
+		interval:   interval,
+		logger:     logger.With("component", "paperless-pipeline"),
+		now:        time.Now,
+		running:    map[string]bool{},
 	}
 }
 
@@ -81,7 +73,7 @@ func (p *Pipeline) Start(ctx context.Context) {
 	case p.interval <= 0:
 		p.logger.Info("paperless pipeline disabled", "reason", "PAPERLESS_PIPELINE_INTERVAL is 0")
 		return
-	case !p.extractor.Enabled():
+	case !p.classifier.Enabled():
 		p.logger.Info("paperless pipeline disabled", "reason", "LLM is not configured")
 		return
 	}
@@ -103,7 +95,7 @@ func (p *Pipeline) Start(ctx context.Context) {
 }
 
 func (p *Pipeline) runAll(ctx context.Context) {
-	userIDs, err := p.deps.UserIDs(ctx)
+	userIDs, err := p.userIDs(ctx)
 	if err != nil {
 		p.logger.Error("listing users for the paperless pipeline", "error", err)
 		return
@@ -143,41 +135,6 @@ func (p *Pipeline) unlock(userID string) {
 	delete(p.running, userID)
 }
 
-func (p *Pipeline) enabledTargets(ctx context.Context, userID string) ([]string, error) {
-	var targets []string
-	for _, t := range []string{drafts.TargetPurchase, drafts.TargetContract, drafts.TargetCost} {
-		ok, err := p.deps.TargetEnabled(ctx, userID, t)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			targets = append(targets, t)
-		}
-	}
-	return targets, nil
-}
-
-func (p *Pipeline) loadCatalog(ctx context.Context, userID string, targets []string) (catalog, error) {
-	c := catalog{targets: targets}
-	var err error
-	if c.offers(drafts.TargetPurchase) {
-		if c.purchaseCategories, err = p.deps.Categories(ctx, userID, drafts.TargetPurchase); err != nil {
-			return catalog{}, err
-		}
-	}
-	if c.offers(drafts.TargetContract) {
-		if c.contractCategories, err = p.deps.Categories(ctx, userID, drafts.TargetContract); err != nil {
-			return catalog{}, err
-		}
-	}
-	if c.offers(drafts.TargetCost) {
-		if c.vehicles, err = p.deps.Vehicles(ctx, userID); err != nil {
-			return catalog{}, err
-		}
-	}
-	return c, nil
-}
-
 // RunUser processes up to maxDraftsPerRun new documents carrying the user's
 // inbox tag. A transient LLM failure ends the pass early; the documents are
 // picked up again next time.
@@ -195,7 +152,7 @@ func (p *Pipeline) RunUser(ctx context.Context, userID string) (RunResult, error
 	if !settings.Enabled {
 		return res, ErrPipelineDisabled
 	}
-	targets, err := p.enabledTargets(ctx, userID)
+	targets, err := p.classifier.EnabledTargets(ctx, userID)
 	if err != nil {
 		return res, err
 	}
@@ -219,7 +176,7 @@ func (p *Pipeline) RunUser(ctx context.Context, userID string) (RunResult, error
 	}
 	res.Found = len(docs)
 
-	var cat *catalog
+	var cat *extraction.Catalog
 	attempted := 0
 	for _, doc := range docs {
 		if ctx.Err() != nil {
@@ -239,7 +196,7 @@ func (p *Pipeline) RunUser(ctx context.Context, userID string) (RunResult, error
 		}
 		attempted++
 		if cat == nil {
-			loaded, err := p.loadCatalog(ctx, userID, targets)
+			loaded, err := p.classifier.LoadCatalog(ctx, userID, targets)
 			if err != nil {
 				return res, err
 			}
@@ -261,13 +218,14 @@ func (p *Pipeline) RunUser(ctx context.Context, userID string) (RunResult, error
 
 // processDocument creates one draft. transient reports a failure worth
 // stopping the pass for (LLM unavailable).
-func (p *Pipeline) processDocument(ctx context.Context, userID string, client *Client, cfg Config, documentID int, cat catalog) (created, transient bool) {
+func (p *Pipeline) processDocument(ctx context.Context, userID string, client *Client, cfg Config, documentID int, cat extraction.Catalog) (created, transient bool) {
 	doc, err := client.GetDocument(ctx, documentID)
 	if err != nil {
 		p.logger.Warn("fetching paperless document", "userID", userID, "documentId", documentID, "error", err)
 		return false, false
 	}
-	prop, err := p.classify(ctx, doc, cat)
+	prop, err := p.classifier.Classify(ctx, classifyOperation, cat,
+		extraction.Input{Kind: extraction.InputDocument, Title: doc.Title, Text: doc.Content}, p.now())
 	if err != nil {
 		p.logger.Warn("classifying paperless document", "userID", userID, "documentId", documentID, "error", err)
 		return false, true
@@ -278,7 +236,7 @@ func (p *Pipeline) processDocument(ctx context.Context, userID string, client *C
 		Title: strings.TrimSpace(doc.Title),
 		URL:   DocumentURL(cfg.BaseURL, doc.ID),
 	}
-	d, err := drafts.New(source, prop.target, prop.parentID, prop.input, prop.note)
+	d, err := drafts.New(source, prop.Target, prop.ParentID, prop.Input, prop.Note)
 	if err == nil {
 		err = p.drafts.Create(ctx, userID, d)
 	}
@@ -291,24 +249,9 @@ func (p *Pipeline) processDocument(ctx context.Context, userID string, client *C
 	return true, false
 }
 
-// classify returns an error only for transient LLM failures.
-func (p *Pipeline) classify(ctx context.Context, doc Document, cat catalog) (proposal, error) {
-	if strings.TrimSpace(doc.Content) == "" {
-		return noneProposal(NoteEmptyContent), nil
-	}
-	out, err := llm.ExtractAs[classification](ctx, p.extractor, newClassifyRequest(doc, cat, p.now()))
-	if err != nil {
-		if note, ok := llmErrorNote(err); ok {
-			return noneProposal(note), nil
-		}
-		return proposal{}, err
-	}
-	return toProposal(out, cat)
-}
-
 // Run handles POST /api/v1/paperless/pipeline/run for the current user.
 func (p *Pipeline) Run(w http.ResponseWriter, r *http.Request) {
-	if !p.extractor.Enabled() {
+	if !p.classifier.Enabled() {
 		httputil.Error(p.logger, w, http.StatusConflict, "the LLM is not configured")
 		return
 	}

@@ -53,6 +53,11 @@ type Config struct {
 	LLMModel   string        `env:"LLM_MODEL"`
 	LLMAPIKey  string        `env:"LLM_API_KEY"`
 	LLMTimeout time.Duration `env:"LLM_TIMEOUT"  envDefault:"60s"`
+
+	// Frankfurter-compatible API with ECB reference rates, used to convert
+	// extracted non-EUR amounts. "off" disables conversion (an empty value
+	// falls back to the default).
+	FXRatesURL string `env:"FX_RATES_URL" envDefault:"https://api.frankfurter.dev/v1"`
 }
 
 func Load() (Config, error) {
@@ -63,11 +68,18 @@ func Load() (Config, error) {
 	if err := cfg.validateLLM(); err != nil {
 		return cfg, err
 	}
+	if cfg.FXRatesEnabled() && !isHTTPURL(cfg.FXRatesURL) {
+		return cfg, errors.New(`FX_RATES_URL must be an absolute http(s) URL or "off"`)
+	}
 	return cfg, nil
 }
 
 func (c Config) LLMEnabled() bool {
 	return c.LLMBaseURL != ""
+}
+
+func (c Config) FXRatesEnabled() bool {
+	return c.FXRatesURL != "off"
 }
 
 func (c Config) validateLLM() error {
@@ -79,13 +91,15 @@ func (c Config) validateLLM() error {
 	case c.LLMEnabled() && c.LLMTimeout <= 0:
 		return errors.New("LLM_TIMEOUT must be positive")
 	}
-	if c.LLMEnabled() {
-		u, err := url.Parse(c.LLMBaseURL)
-		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-			return errors.New("LLM_BASE_URL must be an absolute http(s) URL")
-		}
+	if c.LLMEnabled() && !isHTTPURL(c.LLMBaseURL) {
+		return errors.New("LLM_BASE_URL must be an absolute http(s) URL")
 	}
 	return nil
+}
+
+func isHTTPURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 func (c Config) SlogLevel() slog.Level {

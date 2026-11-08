@@ -11,6 +11,8 @@ import (
 
 	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 	"github.com/reusing-code/kontor/backend/internal/drafts"
+	"github.com/reusing-code/kontor/backend/internal/extraction"
+	"github.com/reusing-code/kontor/backend/internal/fx"
 	"github.com/reusing-code/kontor/backend/internal/llm"
 	"github.com/reusing-code/kontor/backend/internal/llm/llmtest"
 	"github.com/reusing-code/kontor/backend/internal/paperless/paperlesstest"
@@ -65,22 +67,23 @@ func newPipelineEnv(t *testing.T) *pipelineEnv {
 	}
 	env.inboxID = env.fake.AddTag(DefaultInboxTag)
 
-	deps := PipelineDeps{
-		UserIDs: func(context.Context) ([]string, error) { return []string{testUserID}, nil },
+	deps := extraction.Deps{
 		TargetEnabled: func(_ context.Context, _ string, target string) (bool, error) {
 			return env.enabled[target], nil
 		},
-		Categories: func(_ context.Context, _ string, target string) ([]Option, error) {
+		Categories: func(_ context.Context, _ string, target string) ([]extraction.Option, error) {
 			if target == drafts.TargetPurchase {
-				return []Option{{ID: purchaseCatID, Name: "Tools"}}, nil
+				return []extraction.Option{{ID: purchaseCatID, Name: "Tools"}}, nil
 			}
-			return []Option{{ID: contractCatID, Name: "Telecom"}}, nil
+			return []extraction.Option{{ID: contractCatID, Name: "Telecom"}}, nil
 		},
-		Vehicles: func(context.Context, string) ([]Option, error) {
-			return []Option{{ID: vehicleID, Name: "Golf (VW Golf, B-XY 123)"}}, nil
+		Vehicles: func(context.Context, string) ([]extraction.Option, error) {
+			return []extraction.Option{{ID: vehicleID, Name: "Golf (VW Golf, B-XY 123)"}}, nil
 		},
 	}
-	env.pipeline = NewPipeline(env.svc, env.drafts, env.llm, deps, time.Minute, logger)
+	classifier := extraction.New(env.llm, deps, fx.Disabled{}, logger)
+	userIDs := func(context.Context) ([]string, error) { return []string{testUserID}, nil }
+	env.pipeline = NewPipeline(env.svc, env.drafts, classifier, userIDs, time.Minute, logger)
 	env.pipeline.now = func() time.Time { return time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC) }
 	return env
 }
@@ -113,9 +116,9 @@ func TestPipeline_CreatesPurchaseDraft(t *testing.T) {
 	env := newPipelineEnv(t)
 	env.addInboxDoc(5, "Rechnung Bohrmaschine 129,99 EUR")
 	env.fake.AddDocument(paperlesstest.Document{ID: 6, Title: "Untagged", Content: "x"})
-	env.llm.Push(llmtest.JSON(classification{
+	env.llm.Push(llmtest.JSON(extraction.Classification{
 		Kind: "purchase",
-		Purchase: &purchaseExtract{
+		Purchase: &extraction.PurchaseExtract{
 			CategoryID: purchaseCatID, ItemName: " Drill ", Dealer: "Hornbach",
 			Price: price(129.99), PurchaseDate: "2026-10-01",
 		},
@@ -169,11 +172,11 @@ func TestPipeline_ValidatesModelOutput(t *testing.T) {
 	env.addInboxDoc(1, "contract")
 	env.addInboxDoc(2, "cost")
 	env.llm.Push(
-		llmtest.JSON(classification{Kind: "contract", Contract: &contractExtract{
+		llmtest.JSON(extraction.Classification{Kind: "contract", Contract: &extraction.ContractExtract{
 			CategoryID: "99999999-9999-9999-9999-999999999999", Name: "Phone", BillingInterval: "weekly",
 			StartDate: "01.02.2026", NoticePeriodMonths: -1, CustomerPortalURL: "not a url",
 		}}),
-		llmtest.JSON(classification{Kind: "cost", Cost: &costExtract{VehicleID: vehicleID, Type: "mileage", Date: "2026-09-30", Amount: price(80)}}),
+		llmtest.JSON(extraction.Classification{Kind: "cost", Cost: &extraction.CostExtract{VehicleID: vehicleID, Type: "mileage", Date: "2026-09-30", Amount: price(80)}}),
 	)
 	env.run(t)
 
@@ -204,9 +207,9 @@ func TestPipeline_UnclassifiableBecomesNoneDraft(t *testing.T) {
 	env.addInboxDoc(3, "   ")
 	env.addInboxDoc(4, "purchase without object")
 	env.llm.Push(
-		llmtest.JSON(classification{Kind: "none"}),
+		llmtest.JSON(extraction.Classification{Kind: "none"}),
 		llmtest.Error(llm.ErrInvalidOutput),
-		llmtest.JSON(classification{Kind: "purchase"}),
+		llmtest.JSON(extraction.Classification{Kind: "purchase"}),
 	)
 	res := env.run(t)
 	if res.Created != 4 {
@@ -219,7 +222,7 @@ func TestPipeline_UnclassifiableBecomesNoneDraft(t *testing.T) {
 		}
 		notes[d.Source.Ref] = d.Note
 	}
-	want := map[string]string{"1": NoteUnclassified, "2": NoteLLMInvalidOutput, "3": NoteEmptyContent, "4": NoteLLMInvalidOutput}
+	want := map[string]string{"1": extraction.NoteUnclassified, "2": extraction.NoteLLMInvalidOutput, "3": extraction.NoteEmptyContent, "4": extraction.NoteLLMInvalidOutput}
 	for ref, note := range want {
 		if notes[ref] != note {
 			t.Errorf("doc %s note = %q, want %q", ref, notes[ref], note)
@@ -244,7 +247,7 @@ func TestPipeline_TransientErrorStopsPassWithoutDraft(t *testing.T) {
 		t.Fatalf("no draft and one attempt expected")
 	}
 
-	env.llm.Push(llmtest.JSON(classification{Kind: "none"}), llmtest.JSON(classification{Kind: "none"}))
+	env.llm.Push(llmtest.JSON(extraction.Classification{Kind: "none"}), llmtest.JSON(extraction.Classification{Kind: "none"}))
 	if res := env.run(t); res.Created != 2 {
 		t.Errorf("retry run = %+v", res)
 	}
@@ -271,7 +274,7 @@ func TestPipeline_OnlyOffersEnabledModules(t *testing.T) {
 	env.enabled[drafts.TargetPurchase] = false
 	env.enabled[drafts.TargetCost] = false
 	env.addInboxDoc(1, "doc")
-	env.llm.Push(llmtest.JSON(classification{Kind: "purchase", Purchase: &purchaseExtract{ItemName: "Drill"}}))
+	env.llm.Push(llmtest.JSON(extraction.Classification{Kind: "purchase", Purchase: &extraction.PurchaseExtract{ItemName: "Drill"}}))
 
 	env.run(t)
 	req := env.llm.Requests()[0]
@@ -279,7 +282,7 @@ func TestPipeline_OnlyOffersEnabledModules(t *testing.T) {
 		t.Errorf("system prompt offers disabled modules: %q", req.System)
 	}
 	d := env.pending(t)[0]
-	if d.TargetType != drafts.TargetNone || d.Note != NoteUnclassified {
+	if d.TargetType != drafts.TargetNone || d.Note != extraction.NoteUnclassified {
 		t.Errorf("disabled kind must become none: %+v", d)
 	}
 }
@@ -380,15 +383,5 @@ func TestDraftHooks_RejectRemovesInboxTag(t *testing.T) {
 	}
 	if env.fake.HasTag(9, DefaultInboxTag) || env.fake.HasTag(9, DefaultDoneTag) {
 		t.Error("reject must remove the inbox tag and not add the done tag")
-	}
-}
-
-func TestClassificationSchemaIsValid(t *testing.T) {
-	var def map[string]any
-	if err := json.Unmarshal(classificationSchema.Definition, &def); err != nil {
-		t.Fatal(err)
-	}
-	if strings.Count(string(classificationSchema.Definition), `"null"`) > 16 {
-		t.Error("schema exceeds 16 nullable fields")
 	}
 }

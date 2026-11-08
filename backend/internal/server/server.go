@@ -19,6 +19,8 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/core"
 	"github.com/reusing-code/kontor/backend/internal/drafts"
 	"github.com/reusing-code/kontor/backend/internal/email"
+	"github.com/reusing-code/kontor/backend/internal/extraction"
+	"github.com/reusing-code/kontor/backend/internal/fx"
 	"github.com/reusing-code/kontor/backend/internal/llm"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 	"github.com/reusing-code/kontor/backend/internal/module"
@@ -90,6 +92,7 @@ func (s *Server) Run() error {
 
 	extractor := s.newExtractor()
 	coreHandler.SetCapabilities(core.Capabilities{LLM: extractor.Enabled()})
+	classifier := extraction.New(extractor, extractionDeps(coreStore, catStore, autoMod.Store()), s.newRates(), s.logger)
 
 	paperlessStore := paperless.NewStore(engine)
 	paperlessService := paperless.NewService(paperlessStore, s.logger, s.cfg.EmailEncryptionKey)
@@ -99,8 +102,8 @@ func (s *Server) Run() error {
 	draftStore := drafts.NewStore(engine)
 	draftHandler := drafts.NewHandler(draftStore, s.logger)
 	draftHandler.RegisterSource(drafts.SourcePaperless, paperless.NewDraftHooks(paperlessService))
-	pipeline := paperless.NewPipeline(paperlessService, draftStore, extractor,
-		pipelineDeps(coreStore, catStore, autoMod.Store()), s.cfg.PaperlessPipelineInterval, s.logger)
+	pipeline := paperless.NewPipeline(paperlessService, draftStore, classifier,
+		userIDs(coreStore), s.cfg.PaperlessPipelineInterval, s.logger)
 	pipeline.Start(shutdownCtx)
 
 	// Protected API routes (require auth)
@@ -215,6 +218,15 @@ func (s *Server) newExtractor() llm.Extractor {
 		APIKey:  s.cfg.LLMAPIKey,
 		Timeout: s.cfg.LLMTimeout,
 	})
+}
+
+func (s *Server) newRates() fx.Rates {
+	if !s.cfg.FXRatesEnabled() {
+		s.logger.Info("currency conversion disabled", "reason", "FX_RATES_URL is off")
+		return fx.Disabled{}
+	}
+	s.logger.Info("currency conversion enabled", "rates_url", s.cfg.FXRatesURL)
+	return fx.NewFrankfurter(s.cfg.FXRatesURL)
 }
 
 func spaHandler(dir string) http.Handler {

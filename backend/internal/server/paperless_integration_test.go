@@ -6,6 +6,7 @@ import (
 
 	"github.com/reusing-code/kontor/backend/internal/categories"
 	"github.com/reusing-code/kontor/backend/internal/drafts"
+	"github.com/reusing-code/kontor/backend/internal/extraction"
 	"github.com/reusing-code/kontor/backend/internal/llm/llmtest"
 	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
 	"github.com/reusing-code/kontor/backend/internal/paperless"
@@ -85,7 +86,7 @@ func TestIntegration_PaperlessPipeline(t *testing.T) {
 	if purchaseDraft.TargetType != drafts.TargetPurchase || purchaseDraft.ParentID != cat.ID.String() {
 		t.Fatalf("purchase draft = %+v", purchaseDraft)
 	}
-	if letterDraft.TargetType != drafts.TargetNone || letterDraft.Note != paperless.NoteUnclassified {
+	if letterDraft.TargetType != drafts.TargetNone || letterDraft.Note != extraction.NoteUnclassified {
 		t.Fatalf("letter draft = %+v", letterDraft)
 	}
 	if !fake.HasTag(5, "kontor-inbox") {

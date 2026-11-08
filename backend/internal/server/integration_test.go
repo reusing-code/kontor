@@ -12,6 +12,8 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/categories"
 	"github.com/reusing-code/kontor/backend/internal/core"
 	"github.com/reusing-code/kontor/backend/internal/drafts"
+	"github.com/reusing-code/kontor/backend/internal/extraction"
+	"github.com/reusing-code/kontor/backend/internal/fx"
 	"github.com/reusing-code/kontor/backend/internal/llm"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 	"github.com/reusing-code/kontor/backend/internal/module"
@@ -36,10 +38,15 @@ func setupServerWithStore(t *testing.T) (*httptest.Server, *core.Store) {
 	return setupServerWithExtractor(t, llm.Disabled{})
 }
 
+func setupServerWithExtractor(t *testing.T, extractor llm.Extractor) (*httptest.Server, *core.Store) {
+	t.Helper()
+	return setupServerWith(t, extractor, fx.Disabled{})
+}
+
 // testEncryptionKey is 32 bytes.
 const testEncryptionKey = "0123456789abcdef0123456789abcdef"
 
-func setupServerWithExtractor(t *testing.T, extractor llm.Extractor) (*httptest.Server, *core.Store) {
+func setupServerWith(t *testing.T, extractor llm.Extractor, rates fx.Rates) (*httptest.Server, *core.Store) {
 	t.Helper()
 	logger := slog.New(slog.DiscardHandler)
 	engine, err := storage.Open(t.TempDir(), logger)
@@ -77,8 +84,8 @@ func setupServerWithExtractor(t *testing.T, extractor llm.Extractor) (*httptest.
 	draftStore := drafts.NewStore(engine)
 	draftHandler := drafts.NewHandler(draftStore, logger)
 	draftHandler.RegisterSource(drafts.SourcePaperless, paperless.NewDraftHooks(paperlessService))
-	pipeline := paperless.NewPipeline(paperlessService, draftStore, extractor,
-		pipelineDeps(coreStore, catStore, autoMod.Store()), 0, logger)
+	classifier := extraction.New(extractor, extractionDeps(coreStore, catStore, autoMod.Store()), rates, logger)
+	pipeline := paperless.NewPipeline(paperlessService, draftStore, classifier, userIDs(coreStore), 0, logger)
 	registerPaperlessRoutes(mux, paperless.NewHandler(paperlessService, logger), pipeline)
 	registerDraftRoutes(mux, draftHandler)
 
