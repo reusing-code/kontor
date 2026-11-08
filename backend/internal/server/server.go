@@ -29,6 +29,7 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/modules/ledger"
 	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
 	"github.com/reusing-code/kontor/backend/internal/paperless"
+	"github.com/reusing-code/kontor/backend/internal/quickadd"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 	"github.com/reusing-code/kontor/backend/internal/storage/link"
 	"github.com/reusing-code/kontor/backend/internal/storage/migration"
@@ -138,10 +139,11 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("PUT /api/v1/settings", coreHandler.UpdateSettings)
 	apiMux.HandleFunc("PUT /api/v1/settings/password", coreHandler.ChangePassword)
 
-	// Paperless-ngx integration (per-user, hidden until configured) and the
-	// draft inbox it feeds
+	// Paperless-ngx integration (per-user, hidden until configured), the
+	// draft inbox it feeds and free-text quick add
 	registerPaperlessRoutes(apiMux, paperlessHandler, pipeline)
 	registerDraftRoutes(apiMux, draftHandler)
+	apiMux.HandleFunc("POST /api/v1/quick-add", quickadd.NewHandler(classifier, s.logger).Classify)
 
 	protectedAPI := middleware.Auth(jwtSecret)(apiMux)
 

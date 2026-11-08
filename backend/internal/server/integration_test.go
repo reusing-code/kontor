@@ -22,6 +22,7 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/modules/ledger"
 	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
 	"github.com/reusing-code/kontor/backend/internal/paperless"
+	"github.com/reusing-code/kontor/backend/internal/quickadd"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 	"github.com/reusing-code/kontor/backend/internal/storage/link"
 )
@@ -88,6 +89,7 @@ func setupServerWith(t *testing.T, extractor llm.Extractor, rates fx.Rates) (*ht
 	pipeline := paperless.NewPipeline(paperlessService, draftStore, classifier, userIDs(coreStore), 0, logger)
 	registerPaperlessRoutes(mux, paperless.NewHandler(paperlessService, logger), pipeline)
 	registerDraftRoutes(mux, draftHandler)
+	mux.HandleFunc("POST /api/v1/quick-add", quickadd.NewHandler(classifier, logger).Classify)
 
 	// Inject test user into context (integration tests skip auth middleware)
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
