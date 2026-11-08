@@ -542,7 +542,38 @@
       "llm_invalid_output": "The AI answer could not be used.",
       "llm_refused": "The AI refused to process this document.",
       "llm_truncated": "The AI answer was cut off.",
-      "llm_request_rejected": "The AI service rejected the document, it may be too long."
+      "llm_request_rejected": "The AI service rejected the document, it may be too long.",
+      "currency_converted": "The amount was converted to EUR at the ECB rate; the original amount is in the comments.",
+      "currency_not_converted": "The amount is in another currency and could not be converted to EUR; the original amount is in the comments."
+    }
+  },
+  "quickAdd": {
+    "button": "Quick add",
+    "title": "Quick add",
+    "description": "Describe a purchase, contract or vehicle cost in your own words. The AI fills in the form, you check it.",
+    "placeholder": "e.g. bought winter tires 2026-11-02 at Reifen Müller, €640, Golf",
+    "submit": "Suggest",
+    "thinking": "Thinking…",
+    "continue": "Continue",
+    "failed": "Quick add failed: {{message}}",
+    "open": "Open",
+    "created": {
+      "purchase": "Purchase created",
+      "contract": "Contract created",
+      "cost": "Vehicle cost created"
+    },
+    "hintPickType": "Choose what this is.",
+    "hintPickCategory": "Choose a category.",
+    "hintPickVehicle": "Choose a vehicle.",
+    "hintCheck": "Check the type and category, then continue. You can edit all fields in the next step.",
+    "currencyConverted": "Converted from {{original}} at the ECB rate of {{date}} (1 {{code}} = {{rate}} EUR). Check the amount, your bank may have charged a different rate.",
+    "currencyNotConverted": "The amount is {{original}} and could not be converted to EUR. Enter the EUR amount in the next step.",
+    "notes": {
+      "unclassified": "The AI could not tell what this is.",
+      "llm_invalid_output": "The AI answer could not be used.",
+      "llm_refused": "The AI refused to process this text.",
+      "llm_truncated": "The AI answer was cut off.",
+      "llm_request_rejected": "The AI service rejected the text."
     }
   },
   "common": {

@@ -3,6 +3,7 @@ import { createRootRoute, Outlet, Link, useMatchRoute } from "@tanstack/react-ro
 import { useTranslation } from "react-i18next"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { Sidebar } from "@/components/sidebar"
+import { QuickAdd } from "@/components/quick-add/quick-add"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { LogOut } from "lucide-react"
@@ -41,6 +42,7 @@ function RootLayout() {
             {t("app.title")}
           </Link>
           <div className="flex items-center gap-2">
+            <QuickAdd />
             <LanguageSwitcher />
             <Button variant="ghost" size="icon" onClick={logout} title={t("auth.logout")}>
               <LogOut className="h-4 w-4" />

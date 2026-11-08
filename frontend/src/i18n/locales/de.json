@@ -542,7 +542,38 @@
       "llm_invalid_output": "Die KI-Antwort war nicht verwendbar.",
       "llm_refused": "Die KI hat die Verarbeitung dieses Dokuments abgelehnt.",
       "llm_truncated": "Die KI-Antwort wurde abgeschnitten.",
-      "llm_request_rejected": "Der KI-Dienst hat das Dokument abgelehnt, eventuell ist es zu lang."
+      "llm_request_rejected": "Der KI-Dienst hat das Dokument abgelehnt, eventuell ist es zu lang.",
+      "currency_converted": "Der Betrag wurde zum EZB-Kurs in EUR umgerechnet; der ursprüngliche Betrag steht in den Kommentaren.",
+      "currency_not_converted": "Der Betrag ist in einer anderen Währung und konnte nicht in EUR umgerechnet werden; der ursprüngliche Betrag steht in den Kommentaren."
+    }
+  },
+  "quickAdd": {
+    "button": "Schnellerfassung",
+    "title": "Schnellerfassung",
+    "description": "Beschreibe einen Kauf, Vertrag oder Fahrzeugkosten in eigenen Worten. Die KI füllt das Formular aus, du prüfst es.",
+    "placeholder": "z. B. Winterreifen am 2.11.2026 bei Reifen Müller gekauft, 640 €, Golf",
+    "submit": "Vorschlagen",
+    "thinking": "Denke nach…",
+    "continue": "Weiter",
+    "failed": "Schnellerfassung fehlgeschlagen: {{message}}",
+    "open": "Öffnen",
+    "created": {
+      "purchase": "Kauf angelegt",
+      "contract": "Vertrag angelegt",
+      "cost": "Fahrzeugkosten angelegt"
+    },
+    "hintPickType": "Wähle, worum es sich handelt.",
+    "hintPickCategory": "Wähle eine Kategorie.",
+    "hintPickVehicle": "Wähle ein Fahrzeug.",
+    "hintCheck": "Prüfe Typ und Kategorie und fahre dann fort. Im nächsten Schritt kannst du alle Felder bearbeiten.",
+    "currencyConverted": "Umgerechnet von {{original}} zum EZB-Kurs vom {{date}} (1 {{code}} = {{rate}} EUR). Prüfe den Betrag, deine Bank hat eventuell einen anderen Kurs berechnet.",
+    "currencyNotConverted": "Der Betrag ist {{original}} und konnte nicht in EUR umgerechnet werden. Trage im nächsten Schritt den Betrag in EUR ein.",
+    "notes": {
+      "unclassified": "Die KI konnte nicht erkennen, worum es sich handelt.",
+      "llm_invalid_output": "Die KI-Antwort war nicht verwendbar.",
+      "llm_refused": "Die KI hat die Verarbeitung dieses Texts abgelehnt.",
+      "llm_truncated": "Die KI-Antwort wurde abgeschnitten.",
+      "llm_request_rejected": "Der KI-Dienst hat den Text abgelehnt."
     }
   },
   "common": {
