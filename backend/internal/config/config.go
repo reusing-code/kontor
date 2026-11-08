@@ -33,6 +33,9 @@ type Config struct {
 	// Interval between background IMAP scans of ledger email accounts. 0 disables.
 	LedgerEmailScanInterval time.Duration `env:"LEDGER_EMAIL_SCAN_INTERVAL" envDefault:"6h"`
 
+	// Interval between paperless pipeline passes (tagged documents to drafts). 0 disables.
+	PaperlessPipelineInterval time.Duration `env:"PAPERLESS_PIPELINE_INTERVAL" envDefault:"15m"`
+
 	// Periodic Badger snapshots are written here; empty disables backups.
 	BackupDir      string        `env:"BACKUP_DIR"`
 	BackupInterval time.Duration `env:"BACKUP_INTERVAL" envDefault:"24h"`

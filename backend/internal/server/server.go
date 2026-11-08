@@ -17,6 +17,7 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/categories"
 	"github.com/reusing-code/kontor/backend/internal/config"
 	"github.com/reusing-code/kontor/backend/internal/core"
+	"github.com/reusing-code/kontor/backend/internal/drafts"
 	"github.com/reusing-code/kontor/backend/internal/email"
 	"github.com/reusing-code/kontor/backend/internal/llm"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
@@ -87,12 +88,20 @@ func (s *Server) Run() error {
 	}
 	coreHandler := core.NewHandler(coreStore, s.logger, jwtSecret, emailClient, seeds, registry)
 
-	paperlessStore := paperless.NewStore(engine)
-	paperlessHandler := paperless.NewHandler(paperless.NewService(paperlessStore, s.logger, s.cfg.EmailEncryptionKey), s.logger)
-	coreHandler.SetPaperlessLinks(paperlessStore)
-
 	extractor := s.newExtractor()
 	coreHandler.SetCapabilities(core.Capabilities{LLM: extractor.Enabled()})
+
+	paperlessStore := paperless.NewStore(engine)
+	paperlessService := paperless.NewService(paperlessStore, s.logger, s.cfg.EmailEncryptionKey)
+	paperlessHandler := paperless.NewHandler(paperlessService, s.logger)
+	coreHandler.SetPaperlessLinks(paperlessStore)
+
+	draftStore := drafts.NewStore(engine)
+	draftHandler := drafts.NewHandler(draftStore, s.logger)
+	draftHandler.RegisterSource(drafts.SourcePaperless, paperless.NewDraftHooks(paperlessService))
+	pipeline := paperless.NewPipeline(paperlessService, draftStore, extractor,
+		pipelineDeps(coreStore, catStore, autoMod.Store()), s.cfg.PaperlessPipelineInterval, s.logger)
+	pipeline.Start(shutdownCtx)
 
 	// Protected API routes (require auth)
 	apiMux := http.NewServeMux()
@@ -126,18 +135,10 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("PUT /api/v1/settings", coreHandler.UpdateSettings)
 	apiMux.HandleFunc("PUT /api/v1/settings/password", coreHandler.ChangePassword)
 
-	// Paperless-ngx integration (per-user, hidden until configured)
-	apiMux.HandleFunc("GET /api/v1/paperless/config", paperlessHandler.GetConfig)
-	apiMux.HandleFunc("PUT /api/v1/paperless/config", paperlessHandler.PutConfig)
-	apiMux.HandleFunc("DELETE /api/v1/paperless/config", paperlessHandler.DeleteConfig)
-	apiMux.HandleFunc("POST /api/v1/paperless/config/test", paperlessHandler.TestConfig)
-	apiMux.HandleFunc("GET /api/v1/paperless/search", paperlessHandler.Search)
-	apiMux.HandleFunc("GET /api/v1/paperless/documents/{documentId}/thumb", paperlessHandler.Thumbnail)
-	apiMux.HandleFunc("GET /api/v1/paperless/links/{entityType}/{entityId}", paperlessHandler.ListLinks)
-	apiMux.HandleFunc("POST /api/v1/paperless/links/{entityType}/{entityId}", paperlessHandler.AttachLinks)
-	apiMux.HandleFunc("DELETE /api/v1/paperless/links/{entityType}/{entityId}/{documentId}", paperlessHandler.DetachLink)
-	apiMux.HandleFunc("GET /api/v1/paperless/pipeline", paperlessHandler.GetPipelineSettings)
-	apiMux.HandleFunc("PUT /api/v1/paperless/pipeline", paperlessHandler.PutPipelineSettings)
+	// Paperless-ngx integration (per-user, hidden until configured) and the
+	// draft inbox it feeds
+	registerPaperlessRoutes(apiMux, paperlessHandler, pipeline)
+	registerDraftRoutes(apiMux, draftHandler)
 
 	protectedAPI := middleware.Auth(jwtSecret)(apiMux)
 
