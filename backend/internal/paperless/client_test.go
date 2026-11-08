@@ -2,131 +2,38 @@ package paperless
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/reusing-code/kontor/backend/internal/paperless/paperlesstest"
 )
 
-// fakePaperless is a minimal paperless-ngx API double.
-type fakePaperless struct {
-	mux          *http.ServeMux
-	server       *httptest.Server
-	customFields []customField
-	documents    map[int]*fakeDocument
-	lastAuth     string
-	lastAccept   string
-}
-
-type fakeDocument struct {
-	ID           int                `json:"id"`
-	Title        string             `json:"title"`
-	Created      string             `json:"created"`
-	CustomFields []customFieldValue `json:"custom_fields"`
-}
-
-func newFakePaperless(t *testing.T) *fakePaperless {
+func newFake(t *testing.T) (*paperlesstest.Server, *Client) {
 	t.Helper()
-	f := &fakePaperless{
-		mux:       http.NewServeMux(),
-		documents: map[int]*fakeDocument{},
-	}
-	record := func(next http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			f.lastAuth = r.Header.Get("Authorization")
-			f.lastAccept = r.Header.Get("Accept")
-			next(w, r)
-		}
-	}
-	f.mux.HandleFunc("GET /api/documents/", record(f.listDocuments))
-	f.mux.HandleFunc("GET /api/documents/{id}/", record(f.getDocument))
-	f.mux.HandleFunc("PATCH /api/documents/{id}/", record(f.patchDocument))
-	f.mux.HandleFunc("GET /api/documents/{id}/thumb/", record(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "image/webp")
-		w.Write([]byte("thumb-bytes"))
-	}))
-	f.mux.HandleFunc("GET /api/custom_fields/", record(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(customFieldPage{Count: len(f.customFields), Results: f.customFields})
-	}))
-	f.mux.HandleFunc("POST /api/custom_fields/", record(func(w http.ResponseWriter, r *http.Request) {
-		var body map[string]string
-		json.NewDecoder(r.Body).Decode(&body)
-		field := customField{ID: len(f.customFields) + 1, Name: body["name"], DataType: body["data_type"]}
-		f.customFields = append(f.customFields, field)
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(field)
-	}))
-	f.server = httptest.NewServer(f.mux)
-	t.Cleanup(f.server.Close)
-	return f
-}
-
-func (f *fakePaperless) listDocuments(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query().Get("query")
-	results := []map[string]any{}
-	for _, doc := range f.documents {
-		entry := map[string]any{"id": doc.ID, "title": doc.Title, "created": doc.Created}
-		if query != "" {
-			entry["__search_hit__"] = map[string]any{"highlights": "<span>match</span> context"}
-		}
-		results = append(results, entry)
-	}
-	json.NewEncoder(w).Encode(map[string]any{"count": len(results), "results": results})
-}
-
-func (f *fakePaperless) getDocument(w http.ResponseWriter, r *http.Request) {
-	doc, ok := f.documents[atoiOr(r.PathValue("id"))]
-	if !ok {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-	json.NewEncoder(w).Encode(doc)
-}
-
-func (f *fakePaperless) patchDocument(w http.ResponseWriter, r *http.Request) {
-	doc, ok := f.documents[atoiOr(r.PathValue("id"))]
-	if !ok {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-	var body documentFields
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "bad body", http.StatusBadRequest)
-		return
-	}
-	doc.CustomFields = body.CustomFields
-	json.NewEncoder(w).Encode(doc)
-}
-
-func atoiOr(s string) int {
-	var n int
-	fmt.Sscanf(s, "%d", &n)
-	return n
-}
-
-func (f *fakePaperless) client() *Client {
-	return NewClient(f.server.URL, "test-token")
+	f := paperlesstest.New(t)
+	return f, NewClient(f.URL, "test-token")
 }
 
 func TestClientSendsAuthAndVersionHeaders(t *testing.T) {
-	f := newFakePaperless(t)
-	if err := f.client().Ping(context.Background()); err != nil {
+	f, c := newFake(t)
+	if err := c.Ping(context.Background()); err != nil {
 		t.Fatalf("Ping: %v", err)
 	}
-	if f.lastAuth != "Token test-token" {
-		t.Errorf("Authorization = %q, want %q", f.lastAuth, "Token test-token")
+	auth, accept := f.LastHeaders()
+	if auth != "Token test-token" {
+		t.Errorf("Authorization = %q, want %q", auth, "Token test-token")
 	}
-	if f.lastAccept != "application/json; version="+apiVersion {
-		t.Errorf("Accept = %q", f.lastAccept)
+	if accept != "application/json; version="+apiVersion {
+		t.Errorf("Accept = %q", accept)
 	}
 }
 
 func TestSearchDocuments(t *testing.T) {
-	f := newFakePaperless(t)
-	f.documents[1] = &fakeDocument{ID: 1, Title: "Invoice 2026", Created: "2026-01-01"}
+	f, c := newFake(t)
+	f.AddDocument(paperlesstest.Document{ID: 1, Title: "Invoice 2026", Created: "2026-01-01"})
 
-	page, err := f.client().SearchDocuments(context.Background(), "invoice", 1)
+	page, err := c.SearchDocuments(context.Background(), "invoice", 1)
 	if err != nil {
 		t.Fatalf("SearchDocuments: %v", err)
 	}
@@ -143,10 +50,10 @@ func TestSearchDocuments(t *testing.T) {
 }
 
 func TestSearchDocuments_EmptyQueryListsRecent(t *testing.T) {
-	f := newFakePaperless(t)
-	f.documents[1] = &fakeDocument{ID: 1, Title: "Doc", Created: "2026-01-01"}
+	f, c := newFake(t)
+	f.AddDocument(paperlesstest.Document{ID: 1, Title: "Doc", Created: "2026-01-01"})
 
-	page, err := f.client().SearchDocuments(context.Background(), "", 1)
+	page, err := c.SearchDocuments(context.Background(), "", 1)
 	if err != nil {
 		t.Fatalf("SearchDocuments: %v", err)
 	}
@@ -159,8 +66,7 @@ func TestSearchDocuments_EmptyQueryListsRecent(t *testing.T) {
 }
 
 func TestEnsureCustomField_CreatesThenFinds(t *testing.T) {
-	f := newFakePaperless(t)
-	c := f.client()
+	f, c := newFake(t)
 
 	id, err := c.EnsureCustomField(context.Background())
 	if err != nil {
@@ -169,8 +75,9 @@ func TestEnsureCustomField_CreatesThenFinds(t *testing.T) {
 	if id != 1 {
 		t.Fatalf("id = %d, want 1", id)
 	}
-	if len(f.customFields) != 1 || f.customFields[0].DataType != "url" {
-		t.Fatalf("customFields = %+v", f.customFields)
+	fields := f.CustomFields()
+	if len(fields) != 1 || fields[0].DataType != "url" {
+		t.Fatalf("customFields = %+v", fields)
 	}
 
 	id2, err := c.EnsureCustomField(context.Background())
@@ -180,30 +87,30 @@ func TestEnsureCustomField_CreatesThenFinds(t *testing.T) {
 	if id2 != id {
 		t.Errorf("second call id = %d, want %d (no duplicate)", id2, id)
 	}
-	if len(f.customFields) != 1 {
-		t.Errorf("expected 1 custom field, got %d", len(f.customFields))
+	if len(f.CustomFields()) != 1 {
+		t.Errorf("expected 1 custom field, got %d", len(f.CustomFields()))
 	}
 }
 
 func TestSetCustomField_PreservesOtherFields(t *testing.T) {
-	f := newFakePaperless(t)
-	f.documents[5] = &fakeDocument{ID: 5, Title: "Doc", CustomFields: []customFieldValue{{Field: 9, Value: "keep"}}}
+	f, c := newFake(t)
+	f.AddDocument(paperlesstest.Document{ID: 5, Title: "Doc", CustomFields: []paperlesstest.CustomFieldValue{{Field: 9, Value: "keep"}}})
 
-	if err := f.client().SetCustomField(context.Background(), 5, 1, "https://kontor.example/a"); err != nil {
+	if err := c.SetCustomField(context.Background(), 5, 1, "https://kontor.example/a"); err != nil {
 		t.Fatalf("SetCustomField: %v", err)
 	}
-	fields := f.documents[5].CustomFields
-	if len(fields) != 2 {
-		t.Fatalf("fields = %+v", fields)
+	doc, _ := f.Document(5)
+	if len(doc.CustomFields) != 2 {
+		t.Fatalf("fields = %+v", doc.CustomFields)
 	}
-	if err := f.client().SetCustomField(context.Background(), 5, 1, "https://kontor.example/b"); err != nil {
+	if err := c.SetCustomField(context.Background(), 5, 1, "https://kontor.example/b"); err != nil {
 		t.Fatalf("SetCustomField (update): %v", err)
 	}
-	fields = f.documents[5].CustomFields
-	if len(fields) != 2 {
-		t.Fatalf("expected value update not append, fields = %+v", fields)
+	doc, _ = f.Document(5)
+	if len(doc.CustomFields) != 2 {
+		t.Fatalf("expected value update not append, fields = %+v", doc.CustomFields)
 	}
-	for _, fv := range fields {
+	for _, fv := range doc.CustomFields {
 		if fv.Field == 1 && fv.Value != "https://kontor.example/b" {
 			t.Errorf("field 1 value = %v", fv.Value)
 		}
@@ -211,27 +118,25 @@ func TestSetCustomField_PreservesOtherFields(t *testing.T) {
 }
 
 func TestClearCustomFieldIfMatches(t *testing.T) {
-	f := newFakePaperless(t)
-	f.documents[5] = &fakeDocument{ID: 5, CustomFields: []customFieldValue{
+	f, c := newFake(t)
+	f.AddDocument(paperlesstest.Document{ID: 5, CustomFields: []paperlesstest.CustomFieldValue{
 		{Field: 1, Value: "https://kontor.example/other"},
 		{Field: 9, Value: "keep"},
-	}}
+	}})
 
-	// Non-matching value: field stays.
-	if err := f.client().ClearCustomFieldIfMatches(context.Background(), 5, 1, "https://kontor.example/mine"); err != nil {
+	if err := c.ClearCustomFieldIfMatches(context.Background(), 5, 1, "https://kontor.example/mine"); err != nil {
 		t.Fatalf("ClearCustomFieldIfMatches: %v", err)
 	}
-	if len(f.documents[5].CustomFields) != 2 {
-		t.Fatalf("field should not be cleared on mismatch: %+v", f.documents[5].CustomFields)
+	if doc, _ := f.Document(5); len(doc.CustomFields) != 2 {
+		t.Fatalf("field should not be cleared on mismatch: %+v", doc.CustomFields)
 	}
 
-	// Matching value: field removed, others kept.
-	if err := f.client().ClearCustomFieldIfMatches(context.Background(), 5, 1, "https://kontor.example/other"); err != nil {
+	if err := c.ClearCustomFieldIfMatches(context.Background(), 5, 1, "https://kontor.example/other"); err != nil {
 		t.Fatalf("ClearCustomFieldIfMatches: %v", err)
 	}
-	fields := f.documents[5].CustomFields
-	if len(fields) != 1 || fields[0].Field != 9 {
-		t.Fatalf("fields = %+v", fields)
+	doc, _ := f.Document(5)
+	if len(doc.CustomFields) != 1 || doc.CustomFields[0].Field != 9 {
+		t.Fatalf("fields = %+v", doc.CustomFields)
 	}
 }
 
@@ -244,5 +149,80 @@ func TestClientUpstreamError(t *testing.T) {
 	err := NewClient(server.URL, "bad").Ping(context.Background())
 	if err == nil {
 		t.Fatal("expected error for 401 response")
+	}
+}
+
+func TestFindAndEnsureTag(t *testing.T) {
+	f, c := newFake(t)
+	ctx := context.Background()
+	f.AddTag("Other")
+
+	if _, found, err := c.FindTag(ctx, "kontor"); err != nil || found {
+		t.Fatalf("FindTag missing: found=%v err=%v", found, err)
+	}
+	id, err := c.EnsureTag(ctx, "kontor")
+	if err != nil {
+		t.Fatalf("EnsureTag: %v", err)
+	}
+	if id != f.TagID("kontor") {
+		t.Fatalf("EnsureTag id = %d, want %d", id, f.TagID("kontor"))
+	}
+	again, err := c.EnsureTag(ctx, "KONTOR")
+	if err != nil || again != id {
+		t.Fatalf("EnsureTag (case-insensitive) = %d, %v; want %d", again, err, id)
+	}
+}
+
+func TestListDocumentsWithTag_PagesAndCaps(t *testing.T) {
+	f, c := newFake(t)
+	inbox := f.AddTag("kontor-inbox")
+	for i := 1; i <= 250; i++ {
+		tags := []int{}
+		if i%2 == 0 {
+			tags = append(tags, inbox)
+		}
+		f.AddDocument(paperlesstest.Document{ID: i, Title: "Doc", Tags: tags})
+	}
+
+	docs, err := c.ListDocumentsWithTag(context.Background(), inbox, 1000)
+	if err != nil {
+		t.Fatalf("ListDocumentsWithTag: %v", err)
+	}
+	if len(docs) != 125 {
+		t.Fatalf("got %d documents, want 125 across pages", len(docs))
+	}
+	capped, err := c.ListDocumentsWithTag(context.Background(), inbox, 30)
+	if err != nil {
+		t.Fatalf("ListDocumentsWithTag (capped): %v", err)
+	}
+	if len(capped) != 30 || capped[0].ID != 2 {
+		t.Fatalf("capped = %d docs starting at %d", len(capped), capped[0].ID)
+	}
+}
+
+func TestGetDocumentAndModifyTags(t *testing.T) {
+	f, c := newFake(t)
+	ctx := context.Background()
+	inbox := f.AddTag("kontor-inbox")
+	done := f.AddTag("kontor")
+	f.AddDocument(paperlesstest.Document{ID: 3, Title: "Invoice", Content: "Total 12.00", Tags: []int{inbox, 99}})
+
+	doc, err := c.GetDocument(ctx, 3)
+	if err != nil {
+		t.Fatalf("GetDocument: %v", err)
+	}
+	if doc.Content != "Total 12.00" || doc.Title != "Invoice" {
+		t.Fatalf("doc = %+v", doc)
+	}
+
+	if err := c.ModifyTags(ctx, []int{3}, []int{done}, []int{inbox}); err != nil {
+		t.Fatalf("ModifyTags: %v", err)
+	}
+	if f.HasTag(3, "kontor-inbox") || !f.HasTag(3, "kontor") {
+		t.Fatalf("tags not swapped")
+	}
+	got, _ := f.Document(3)
+	if len(got.Tags) != 2 {
+		t.Fatalf("other tags must be kept: %v", got.Tags)
 	}
 }

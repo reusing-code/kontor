@@ -20,6 +20,7 @@ const (
 	apiVersion      = "9"
 	CustomFieldName = "Kontor"
 	pageSize        = 20
+	listPageSize    = 100
 )
 
 var htmlTagPattern = regexp.MustCompile(`<[^>]+>`)
@@ -268,4 +269,126 @@ func (c *Client) ClearCustomFieldIfMatches(ctx context.Context, documentID, fiel
 		return nil
 	}
 	return c.patchDocumentFields(ctx, documentID, kept)
+}
+
+// DocumentURL is the paperless web UI page of a document.
+func DocumentURL(baseURL string, documentID int) string {
+	return fmt.Sprintf("%s/documents/%d/details", strings.TrimRight(baseURL, "/"), documentID)
+}
+
+type Tag struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+type tagPage struct {
+	Results []Tag `json:"results"`
+}
+
+// FindTag looks up a tag by name, case-insensitively as paperless does.
+// found is false when no such tag exists.
+func (c *Client) FindTag(ctx context.Context, name string) (id int, found bool, err error) {
+	params := url.Values{}
+	params.Set("name__iexact", name)
+	var page tagPage
+	if err := c.doJSON(ctx, http.MethodGet, "/api/tags/?"+params.Encode(), nil, &page); err != nil {
+		return 0, false, fmt.Errorf("looking up tag: %w", err)
+	}
+	for _, tag := range page.Results {
+		if strings.EqualFold(tag.Name, name) {
+			return tag.ID, true, nil
+		}
+	}
+	return 0, false, nil
+}
+
+// EnsureTag returns the ID of the named tag, creating it without automatic
+// matching when it does not exist.
+func (c *Client) EnsureTag(ctx context.Context, name string) (int, error) {
+	id, found, err := c.FindTag(ctx, name)
+	if err != nil || found {
+		return id, err
+	}
+	var created Tag
+	body := map[string]any{"name": name, "matching_algorithm": 0}
+	if err := c.doJSON(ctx, http.MethodPost, "/api/tags/", body, &created); err != nil {
+		return 0, fmt.Errorf("creating tag: %w", err)
+	}
+	return created.ID, nil
+}
+
+type Document struct {
+	ID      int    `json:"id"`
+	Title   string `json:"title"`
+	Created string `json:"created"`
+	Content string `json:"content"`
+	Tags    []int  `json:"tags"`
+}
+
+type documentListPage struct {
+	Next    *string    `json:"next"`
+	Results []Document `json:"results"`
+}
+
+// ListDocumentsWithTag returns the documents carrying the tag, oldest first,
+// without their content and capped at limit.
+func (c *Client) ListDocumentsWithTag(ctx context.Context, tagID, limit int) ([]Document, error) {
+	params := url.Values{}
+	params.Set("tags__id__all", strconv.Itoa(tagID))
+	params.Set("ordering", "added")
+	params.Set("page_size", strconv.Itoa(min(limit, listPageSize)))
+	params.Set("fields", "id,title,created,tags")
+	path := "/api/documents/?" + params.Encode()
+	docs := []Document{}
+	for len(docs) < limit {
+		var page documentListPage
+		if err := c.doJSON(ctx, http.MethodGet, path, nil, &page); err != nil {
+			return nil, fmt.Errorf("listing tagged documents: %w", err)
+		}
+		docs = append(docs, page.Results...)
+		if page.Next == nil || *page.Next == "" || len(page.Results) == 0 {
+			break
+		}
+		next, err := url.Parse(*page.Next)
+		if err != nil {
+			return nil, fmt.Errorf("parsing documents page url: %w", err)
+		}
+		path = next.RequestURI()
+	}
+	return docs[:min(len(docs), limit)], nil
+}
+
+// GetDocument fetches a document including its OCR content.
+func (c *Client) GetDocument(ctx context.Context, documentID int) (Document, error) {
+	var doc Document
+	if err := c.doJSON(ctx, http.MethodGet, fmt.Sprintf("/api/documents/%d/", documentID), nil, &doc); err != nil {
+		return Document{}, fmt.Errorf("fetching document %d: %w", documentID, err)
+	}
+	return doc, nil
+}
+
+// ModifyTags adds and removes tags on documents in one bulk edit.
+func (c *Client) ModifyTags(ctx context.Context, documentIDs, add, remove []int) error {
+	if len(documentIDs) == 0 || (len(add) == 0 && len(remove) == 0) {
+		return nil
+	}
+	body := map[string]any{
+		"documents": documentIDs,
+		"method":    "modify_tags",
+		"parameters": map[string]any{
+			"add_tags":    nonNil(add),
+			"remove_tags": nonNil(remove),
+		},
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "/api/documents/bulk_edit/", body, nil); err != nil {
+		return fmt.Errorf("modifying document tags: %w", err)
+	}
+	return nil
+}
+
+func nonNil(ids []int) []int {
+	if ids == nil {
+		return []int{}
+	}
+	return ids
 }

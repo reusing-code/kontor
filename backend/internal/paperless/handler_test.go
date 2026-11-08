@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"log/slog"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
+	"github.com/reusing-code/kontor/backend/internal/paperless/paperlesstest"
 )
 
 const testUserID = "00000000-0000-0000-0000-000000000001"
@@ -21,7 +22,7 @@ const testEncryptionKey = "0123456789abcdef0123456789abcdef"
 func newHandlerMux(t *testing.T, encryptionKey string) (http.Handler, *Store) {
 	t.Helper()
 	s := newTestStore(t)
-	h := NewHandler(s, slog.New(slog.DiscardHandler), encryptionKey)
+	h := NewHandler(NewService(s, slog.New(slog.DiscardHandler), encryptionKey), slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/paperless/config", h.GetConfig)
 	mux.HandleFunc("PUT /api/v1/paperless/config", h.PutConfig)
@@ -32,6 +33,8 @@ func newHandlerMux(t *testing.T, encryptionKey string) (http.Handler, *Store) {
 	mux.HandleFunc("GET /api/v1/paperless/links/{entityType}/{entityId}", h.ListLinks)
 	mux.HandleFunc("POST /api/v1/paperless/links/{entityType}/{entityId}", h.AttachLinks)
 	mux.HandleFunc("DELETE /api/v1/paperless/links/{entityType}/{entityId}/{documentId}", h.DetachLink)
+	mux.HandleFunc("GET /api/v1/paperless/pipeline", h.GetPipelineSettings)
+	mux.HandleFunc("PUT /api/v1/paperless/pipeline", h.PutPipelineSettings)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := middleware.SetUserID(r.Context(), testUserID)
 		mux.ServeHTTP(w, r.WithContext(ctx))
@@ -186,10 +189,10 @@ func TestTestConfig_UpstreamDown(t *testing.T) {
 }
 
 func TestTestConfigAndSearch_Success(t *testing.T) {
-	f := newFakePaperless(t)
-	f.documents[1] = &fakeDocument{ID: 1, Title: "Invoice", Created: "2026-01-01"}
+	f := paperlesstest.New(t)
+	f.AddDocument(paperlesstest.Document{ID: 1, Title: "Invoice", Created: "2026-01-01"})
 	mux, _ := newHandlerMux(t, testEncryptionKey)
-	putConfig(t, mux, f.server.URL, "test-token")
+	putConfig(t, mux, f.URL, "test-token")
 
 	rec := do(mux, "POST", "/api/v1/paperless/config/test", jsonBody(map[string]string{}))
 	if rec.Code != http.StatusOK {
@@ -231,10 +234,10 @@ func TestListLinks_EmptyWithoutConfig(t *testing.T) {
 }
 
 func TestAttachAndDetach_WithBacklink(t *testing.T) {
-	f := newFakePaperless(t)
-	f.documents[7] = &fakeDocument{ID: 7, Title: "Invoice", Created: "2026-01-01"}
+	f := paperlesstest.New(t)
+	f.AddDocument(paperlesstest.Document{ID: 7, Title: "Invoice", Created: "2026-01-01"})
 	mux, store := newHandlerMux(t, testEncryptionKey)
-	putConfig(t, mux, f.server.URL, "test-token")
+	putConfig(t, mux, f.URL, "test-token")
 
 	entityID := uuid.NewString()
 	entityURL := "https://kontor.example/contracts/" + entityID
@@ -250,31 +253,102 @@ func TestAttachAndDetach_WithBacklink(t *testing.T) {
 		t.Fatalf("resp = %+v", resp)
 	}
 
-	// Back-link set on the paperless document.
-	if len(f.documents[7].CustomFields) != 1 {
-		t.Fatalf("doc fields = %+v", f.documents[7].CustomFields)
+	doc, _ := f.Document(7)
+	if len(doc.CustomFields) != 1 {
+		t.Fatalf("doc fields = %+v", doc.CustomFields)
 	}
-	if f.documents[7].CustomFields[0].Value != entityURL {
-		t.Errorf("back-link = %v, want %s", f.documents[7].CustomFields[0].Value, entityURL)
+	if doc.CustomFields[0].Value != entityURL {
+		t.Errorf("back-link = %v, want %s", doc.CustomFields[0].Value, entityURL)
+	}
+	if !f.HasTag(7, DefaultDoneTag) {
+		t.Errorf("attach should add the done tag %q", DefaultDoneTag)
 	}
 
-	// Custom field ID cached in config.
 	cfg, _ := store.GetConfig(context.Background(), testUserID)
 	if cfg.CustomFieldID == 0 {
 		t.Error("expected cached CustomFieldID")
 	}
 
-	// Detach clears the back-link (value matches).
 	rec = do(mux, "DELETE", "/api/v1/paperless/links/contract/"+entityID+"/7", nil)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("detach status = %d", rec.Code)
 	}
-	if len(f.documents[7].CustomFields) != 0 {
-		t.Errorf("back-link should be cleared: %+v", f.documents[7].CustomFields)
+	doc, _ = f.Document(7)
+	if len(doc.CustomFields) != 0 {
+		t.Errorf("back-link should be cleared: %+v", doc.CustomFields)
+	}
+	if f.HasTag(7, DefaultDoneTag) {
+		t.Error("detaching the last link should remove the done tag")
 	}
 	links, _ := store.ListLinks(context.Background(), testUserID, EntityContract, entityID)
 	if len(links) != 0 {
 		t.Errorf("links = %+v", links)
+	}
+}
+
+func TestDetach_KeepsDoneTagWhileOtherLinksRemain(t *testing.T) {
+	f := paperlesstest.New(t)
+	f.AddDocument(paperlesstest.Document{ID: 7, Title: "Invoice"})
+	mux, _ := newHandlerMux(t, testEncryptionKey)
+	putConfig(t, mux, f.URL, "test-token")
+	rec := do(mux, "PUT", "/api/v1/paperless/pipeline", jsonBody(PipelineSettings{InboxTag: "in", DoneTag: "linked"}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT pipeline status = %d: %s", rec.Code, rec.Body.String())
+	}
+
+	first, second := uuid.NewString(), uuid.NewString()
+	for _, id := range []string{first, second} {
+		rec := do(mux, "POST", "/api/v1/paperless/links/purchase/"+id, jsonBody(AttachInput{
+			EntityURL: "https://kontor.example/purchases/" + id,
+			Documents: []AttachDocument{{ID: 7, Title: "Invoice"}},
+		}))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("attach status = %d", rec.Code)
+		}
+	}
+	if !f.HasTag(7, "linked") {
+		t.Fatal("configured done tag should be added")
+	}
+
+	do(mux, "DELETE", "/api/v1/paperless/links/purchase/"+first+"/7", nil)
+	if !f.HasTag(7, "linked") {
+		t.Error("done tag must stay while another entity links the document")
+	}
+	do(mux, "DELETE", "/api/v1/paperless/links/purchase/"+second+"/7", nil)
+	if f.HasTag(7, "linked") {
+		t.Error("done tag should be removed with the last link")
+	}
+}
+
+func TestPipelineSettings_DefaultsAndValidation(t *testing.T) {
+	mux, _ := newHandlerMux(t, testEncryptionKey)
+	rec := do(mux, "GET", "/api/v1/paperless/pipeline", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if got := decodeJSON[PipelineSettings](t, rec); got != DefaultPipelineSettings() {
+		t.Fatalf("defaults = %+v", got)
+	}
+
+	for _, bad := range []PipelineSettings{
+		{InboxTag: "", DoneTag: "kontor"},
+		{InboxTag: "a", DoneTag: " "},
+		{InboxTag: "Kontor", DoneTag: "kontor"},
+	} {
+		rec := do(mux, "PUT", "/api/v1/paperless/pipeline", jsonBody(bad))
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%+v: status = %d, want 400", bad, rec.Code)
+		}
+	}
+
+	rec = do(mux, "PUT", "/api/v1/paperless/pipeline", jsonBody(PipelineSettings{Enabled: true, InboxTag: " inbox ", DoneTag: "done"}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	rec = do(mux, "GET", "/api/v1/paperless/pipeline", nil)
+	want := PipelineSettings{Enabled: true, InboxTag: "inbox", DoneTag: "done"}
+	if got := decodeJSON[PipelineSettings](t, rec); got != want {
+		t.Fatalf("settings = %+v, want %+v", got, want)
 	}
 }
 

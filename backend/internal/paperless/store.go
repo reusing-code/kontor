@@ -31,6 +31,10 @@ func configKey(userID string) []byte {
 	return []byte(fmt.Sprintf("u/%s/paperless/config", userID))
 }
 
+func pipelineKey(userID string) []byte {
+	return []byte(fmt.Sprintf("u/%s/paperless/pipeline", userID))
+}
+
 func linkKey(userID, entityType, entityID string, documentID int) []byte {
 	return []byte(fmt.Sprintf("u/%s/paperless/link/%s/%s/%d", userID, entityType, entityID, documentID))
 }
@@ -65,6 +69,38 @@ func (s *Store) DeleteConfig(_ context.Context, userID string) error {
 		}
 		return err
 	})
+}
+
+// GetPipelineSettings returns the defaults when nothing is stored.
+func (s *Store) GetPipelineSettings(_ context.Context, userID string) (PipelineSettings, error) {
+	settings := DefaultPipelineSettings()
+	err := s.e.View(func(txn *badger.Txn) error {
+		return storage.GetJSON(txn, pipelineKey(userID), &settings)
+	})
+	if errors.Is(err, storage.ErrNotFound) {
+		return DefaultPipelineSettings(), nil
+	}
+	return settings, err
+}
+
+func (s *Store) PutPipelineSettings(_ context.Context, userID string, settings PipelineSettings) error {
+	return s.e.Update(func(txn *badger.Txn) error {
+		return storage.SetJSON(txn, pipelineKey(userID), settings)
+	})
+}
+
+// HasDocumentLinks reports whether any entity still links the document.
+func (s *Store) HasDocumentLinks(ctx context.Context, userID string, documentID int) (bool, error) {
+	links, err := s.ListAllLinks(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	for _, l := range links {
+		if l.DocumentID == documentID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *Store) ListLinks(_ context.Context, userID, entityType, entityID string) ([]Link, error) {

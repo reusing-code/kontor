@@ -2,7 +2,6 @@ package paperless
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -18,18 +17,13 @@ import (
 )
 
 type Handler struct {
-	store         *Store
-	logger        *slog.Logger
-	encryptionKey []byte
+	svc    *Service
+	store  *Store
+	logger *slog.Logger
 }
 
-func NewHandler(store *Store, logger *slog.Logger, encryptionKeyRaw string) *Handler {
-	key, err := cryptoutil.NormalizeEncryptionKey(encryptionKeyRaw)
-	if err != nil {
-		logger.Warn("paperless integration requires EMAIL_ENCRYPTION_KEY", "error", err)
-		key = nil
-	}
-	return &Handler{store: store, logger: logger, encryptionKey: key}
+func NewHandler(svc *Service, logger *slog.Logger) *Handler {
+	return &Handler{svc: svc, store: svc.Store(), logger: logger}
 }
 
 type configResponse struct {
@@ -51,8 +45,8 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PutConfig(w http.ResponseWriter, r *http.Request) {
-	if len(h.encryptionKey) == 0 {
-		httputil.Error(h.logger, w, http.StatusInternalServerError, "EMAIL_ENCRYPTION_KEY is not configured")
+	if len(h.svc.encryptionKey) == 0 {
+		httputil.Error(h.logger, w, http.StatusInternalServerError, ErrNoEncryptionKey.Error())
 		return
 	}
 	var input ConfigInput
@@ -81,7 +75,7 @@ func (h *Handler) PutConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	cfg.BaseURL = input.BaseURL
 	if input.Token != "" {
-		encrypted, err := cryptoutil.EncryptString(input.Token, h.encryptionKey)
+		encrypted, err := cryptoutil.EncryptString(input.Token, h.svc.encryptionKey)
 		if err != nil {
 			httputil.Error(h.logger, w, http.StatusInternalServerError, err.Error())
 			return
@@ -104,33 +98,25 @@ func (h *Handler) DeleteConfig(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// clientForUser builds a client from the stored config. It writes the error
-// response itself and returns nil when the integration is unusable.
-func (h *Handler) clientForUser(w http.ResponseWriter, r *http.Request) (*Client, Config, bool) {
-	userID := middleware.GetUserID(r.Context())
-	cfg, err := h.store.GetConfig(r.Context(), userID)
-	if errors.Is(err, storage.ErrNotFound) {
-		httputil.Error(h.logger, w, http.StatusConflict, "paperless is not configured")
-		return nil, Config{}, false
-	}
-	if err != nil {
+// clientForUser writes the error response itself and returns false when
+// the integration is unusable.
+func (h *Handler) clientForUser(w http.ResponseWriter, r *http.Request) (*Client, bool) {
+	client, _, err := h.svc.Client(r.Context(), middleware.GetUserID(r.Context()))
+	switch {
+	case errors.Is(err, ErrNotConfigured):
+		httputil.Error(h.logger, w, http.StatusConflict, err.Error())
+	case errors.Is(err, ErrNoEncryptionKey), errors.Is(err, ErrTokenDecrypt):
+		httputil.Error(h.logger, w, http.StatusInternalServerError, err.Error())
+	case err != nil:
 		httputil.StoreError(h.logger, w, err)
-		return nil, Config{}, false
+	default:
+		return client, true
 	}
-	if len(h.encryptionKey) == 0 {
-		httputil.Error(h.logger, w, http.StatusInternalServerError, "EMAIL_ENCRYPTION_KEY is not configured")
-		return nil, Config{}, false
-	}
-	token, err := cryptoutil.DecryptString(cfg.EncryptedToken, h.encryptionKey)
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusInternalServerError, "could not decrypt stored paperless token")
-		return nil, Config{}, false
-	}
-	return NewClient(cfg.BaseURL, token), cfg, true
+	return nil, false
 }
 
 func (h *Handler) TestConfig(w http.ResponseWriter, r *http.Request) {
-	client, _, ok := h.clientForUser(w, r)
+	client, ok := h.clientForUser(w, r)
 	if !ok {
 		return
 	}
@@ -142,7 +128,7 @@ func (h *Handler) TestConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
-	client, _, ok := h.clientForUser(w, r)
+	client, ok := h.clientForUser(w, r)
 	if !ok {
 		return
 	}
@@ -169,7 +155,7 @@ func (h *Handler) Thumbnail(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid documentId")
 		return
 	}
-	client, _, ok := h.clientForUser(w, r)
+	client, ok := h.clientForUser(w, r)
 	if !ok {
 		return
 	}
@@ -234,59 +220,27 @@ func (h *Handler) AttachLinks(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
 		return
 	}
-	client, cfg, ok := h.clientForUser(w, r)
-	if !ok {
+	if _, ok := h.clientForUser(w, r); !ok {
 		return
 	}
-	userID := middleware.GetUserID(r.Context())
 	now := time.Now().UTC()
 	links := make([]Link, 0, len(input.Documents))
 	for _, doc := range input.Documents {
-		l := Link{
+		links = append(links, Link{
 			EntityType: entityType,
 			EntityID:   entityID,
 			DocumentID: doc.ID,
 			Title:      doc.Title,
 			EntityURL:  input.EntityURL,
 			CreatedAt:  now,
-		}
-		if err := h.store.PutLink(r.Context(), userID, l); err != nil {
-			httputil.StoreError(h.logger, w, err)
-			return
-		}
-		links = append(links, l)
+		})
 	}
-
-	// Back-links are best effort: the links above are already stored, so
-	// paperless being unreachable only produces warnings.
-	warnings := []string{}
-	fieldID, err := h.ensureCustomField(r, client, cfg)
+	warnings, err := h.svc.Attach(r.Context(), middleware.GetUserID(r.Context()), links, "")
 	if err != nil {
-		warnings = append(warnings, fmt.Sprintf("could not prepare the %s custom field in paperless: %v", CustomFieldName, err))
-	} else {
-		for _, l := range links {
-			if err := client.SetCustomField(r.Context(), l.DocumentID, fieldID, l.EntityURL); err != nil {
-				h.logger.Warn("setting paperless back-link", "documentId", l.DocumentID, "error", err)
-				warnings = append(warnings, fmt.Sprintf("could not set the back-link on document %d: %v", l.DocumentID, err))
-			}
-		}
+		httputil.StoreError(h.logger, w, err)
+		return
 	}
 	httputil.WriteJSON(h.logger, w, http.StatusOK, attachResponse{Links: links, Warnings: warnings})
-}
-
-func (h *Handler) ensureCustomField(r *http.Request, client *Client, cfg Config) (int, error) {
-	if cfg.CustomFieldID > 0 {
-		return cfg.CustomFieldID, nil
-	}
-	fieldID, err := client.EnsureCustomField(r.Context())
-	if err != nil {
-		return 0, err
-	}
-	cfg.CustomFieldID = fieldID
-	if err := h.store.PutConfig(r.Context(), middleware.GetUserID(r.Context()), cfg); err != nil {
-		h.logger.Warn("caching paperless custom field id", "error", err)
-	}
-	return fieldID, nil
 }
 
 func (h *Handler) DetachLink(w http.ResponseWriter, r *http.Request) {
@@ -299,22 +253,35 @@ func (h *Handler) DetachLink(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid documentId")
 		return
 	}
-	userID := middleware.GetUserID(r.Context())
-	deleted, err := h.store.DeleteLink(r.Context(), userID, entityType, entityID, documentID)
+	if err := h.svc.Detach(r.Context(), middleware.GetUserID(r.Context()), entityType, entityID, documentID); err != nil {
+		httputil.StoreError(h.logger, w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) GetPipelineSettings(w http.ResponseWriter, r *http.Request) {
+	settings, err := h.store.GetPipelineSettings(r.Context(), middleware.GetUserID(r.Context()))
 	if err != nil {
 		httputil.StoreError(h.logger, w, err)
 		return
 	}
-	// Best-effort back-link cleanup; only clears the field when it still
-	// points at this entity.
-	cfg, err := h.store.GetConfig(r.Context(), userID)
-	if err == nil && cfg.CustomFieldID > 0 && len(h.encryptionKey) > 0 {
-		if token, err := cryptoutil.DecryptString(cfg.EncryptedToken, h.encryptionKey); err == nil {
-			client := NewClient(cfg.BaseURL, token)
-			if err := client.ClearCustomFieldIfMatches(r.Context(), documentID, cfg.CustomFieldID, deleted.EntityURL); err != nil {
-				h.logger.Warn("clearing paperless back-link", "documentId", documentID, "error", err)
-			}
-		}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, settings)
+}
+
+func (h *Handler) PutPipelineSettings(w http.ResponseWriter, r *http.Request) {
+	var input PipelineSettings
+	if err := httputil.ReadJSON(r, &input); err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	if err := input.Validate(); err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := h.store.PutPipelineSettings(r.Context(), middleware.GetUserID(r.Context()), input); err != nil {
+		httputil.StoreError(h.logger, w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, input)
 }

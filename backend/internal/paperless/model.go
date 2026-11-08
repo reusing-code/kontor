@@ -103,3 +103,35 @@ type SearchPage struct {
 	PageSize int            `json:"pageSize"`
 	Results  []SearchResult `json:"results"`
 }
+
+const (
+	DefaultInboxTag = "kontor-inbox"
+	DefaultDoneTag  = "kontor"
+	maxTagNameLen   = 128
+)
+
+// PipelineSettings control the per-user draft pipeline. The done tag also
+// marks manually linked documents, independent of Enabled.
+type PipelineSettings struct {
+	Enabled  bool   `json:"enabled"`
+	InboxTag string `json:"inboxTag"`
+	DoneTag  string `json:"doneTag"`
+}
+
+func DefaultPipelineSettings() PipelineSettings {
+	return PipelineSettings{InboxTag: DefaultInboxTag, DoneTag: DefaultDoneTag}
+}
+
+func (s *PipelineSettings) Validate() error {
+	s.InboxTag = strings.TrimSpace(s.InboxTag)
+	s.DoneTag = strings.TrimSpace(s.DoneTag)
+	switch {
+	case s.InboxTag == "" || s.DoneTag == "":
+		return errors.New("inboxTag and doneTag must not be empty")
+	case len(s.InboxTag) > maxTagNameLen || len(s.DoneTag) > maxTagNameLen:
+		return errors.New("tag names must be at most 128 characters")
+	case strings.EqualFold(s.InboxTag, s.DoneTag):
+		return errors.New("inboxTag and doneTag must differ")
+	}
+	return nil
+}

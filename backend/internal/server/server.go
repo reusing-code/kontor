@@ -88,7 +88,7 @@ func (s *Server) Run() error {
 	coreHandler := core.NewHandler(coreStore, s.logger, jwtSecret, emailClient, seeds, registry)
 
 	paperlessStore := paperless.NewStore(engine)
-	paperlessHandler := paperless.NewHandler(paperlessStore, s.logger, s.cfg.EmailEncryptionKey)
+	paperlessHandler := paperless.NewHandler(paperless.NewService(paperlessStore, s.logger, s.cfg.EmailEncryptionKey), s.logger)
 	coreHandler.SetPaperlessLinks(paperlessStore)
 
 	extractor := s.newExtractor()
@@ -136,6 +136,8 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("GET /api/v1/paperless/links/{entityType}/{entityId}", paperlessHandler.ListLinks)
 	apiMux.HandleFunc("POST /api/v1/paperless/links/{entityType}/{entityId}", paperlessHandler.AttachLinks)
 	apiMux.HandleFunc("DELETE /api/v1/paperless/links/{entityType}/{entityId}/{documentId}", paperlessHandler.DetachLink)
+	apiMux.HandleFunc("GET /api/v1/paperless/pipeline", paperlessHandler.GetPipelineSettings)
+	apiMux.HandleFunc("PUT /api/v1/paperless/pipeline", paperlessHandler.PutPipelineSettings)
 
 	protectedAPI := middleware.Auth(jwtSecret)(apiMux)
 
