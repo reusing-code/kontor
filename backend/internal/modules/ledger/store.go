@@ -1708,6 +1708,31 @@ func retryOnConflict(fn func() error) error {
 	return err
 }
 
+// CreateScannedLedgerEmailOrder stores an order found by a scan. Unlike
+// CreateLedgerEmailOrder it refuses (ErrConflict) a message ID that already
+// has an order, so two scans sharing a mailbox cannot store a message twice.
+func (s *Store) CreateScannedLedgerEmailOrder(_ context.Context, userID string, order LedgerEmailOrder) error {
+	return retryOnConflict(func() error { return s.createScannedLedgerEmailOrder(userID, order) })
+}
+
+func (s *Store) createScannedLedgerEmailOrder(userID string, order LedgerEmailOrder) error {
+	return s.e.Update(func(txn *badger.Txn) error {
+		if _, err := txn.Get(ledEmailOrderKey(userID, order.ID)); err == nil {
+			return storage.ErrConflict
+		} else if !errors.Is(err, badger.ErrKeyNotFound) {
+			return err
+		}
+		if strings.TrimSpace(order.EmailMessageID) != "" {
+			if _, err := txn.Get(idxLedEmailMsgIDKey(userID, order.EmailMessageID)); err == nil {
+				return storage.ErrConflict
+			} else if !errors.Is(err, badger.ErrKeyNotFound) {
+				return err
+			}
+		}
+		return storeLedgerEmailOrder(txn, userID, order)
+	})
+}
+
 func unlinkLedgerEmailOrderTxn(txn *badger.Txn, userID string, orderID uuid.UUID) error {
 	order, err := loadLedgerEmailOrder(txn, userID, orderID)
 	if err != nil {

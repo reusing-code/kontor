@@ -163,14 +163,6 @@ type LedgerEmailOrderLinkInput struct {
 	TransactionIDs []uuid.UUID `json:"transactionIds"`
 }
 
-type LedgerEmailImporterInfo struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Senders     []string `json:"senders"`
-	Subjects    []string `json:"subjects"`
-}
-
 type LedgerEmailScanResult struct {
 	EmailsScanned int                `json:"emailsScanned"`
 	OrdersFound   int                `json:"ordersFound"`
@@ -178,6 +170,16 @@ type LedgerEmailScanResult struct {
 	OrdersLinked  int                `json:"ordersLinked"`
 	Warnings      []string           `json:"warnings,omitempty"`
 	Orders        []LedgerEmailOrder `json:"orders,omitempty"`
+	Partial       bool               `json:"partial,omitempty"`
+	// Skipped counts messages that were left unprocessed for a reason that is
+	// worth retrying (transient LLM or IMAP failure).
+	Skipped int `json:"skipped,omitempty"`
+}
+
+// Complete reports whether every message of the scan was dealt with, so the
+// next scan may start after it.
+func (r LedgerEmailScanResult) Complete() bool {
+	return !r.Partial && r.Skipped == 0
 }
 
 const maxEmailFolderRunes = 255

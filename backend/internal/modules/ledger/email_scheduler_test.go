@@ -2,12 +2,16 @@ package ledger
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 	"github.com/reusing-code/kontor/backend/internal/llm"
+	"github.com/reusing-code/kontor/backend/internal/llm/llmtest"
 )
 
 func TestAccountDue(t *testing.T) {
@@ -151,4 +155,195 @@ func TestAccountDue_UsesTheLastAttempt(t *testing.T) {
 			t.Errorf("%s: accountDue = %v, want %v", tt.name, got, tt.want)
 		}
 	}
+}
+
+func TestScanAccount_LLMDisabledIsSkippedAndStaysDue(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	past := time.Now().UTC().Add(-48 * time.Hour)
+	account := LedgerEmailAccount{
+		ID: uuid.New(), Name: "Mailbox", IMAPHost: "imap.invalid", IMAPPort: 993, Username: "u", Folder: "INBOX",
+		EncryptedPassword: "not-decryptable", LastScanAt: &past, CreatedAt: past, UpdatedAt: past,
+	}
+	if err := s.CreateLedgerEmailAccount(ctx, testUserID, account); err != nil {
+		t.Fatalf("CreateLedgerEmailAccount: %v", err)
+	}
+	scheduler := &EmailScanScheduler{
+		store:    s.Store,
+		service:  NewEmailService(s.Store, llm.Disabled{}, slog.New(slog.DiscardHandler)),
+		interval: time.Hour,
+		logger:   slog.New(slog.DiscardHandler),
+	}
+
+	scheduler.scanAccount(ctx, testUserID, account)
+	got, err := s.GetLedgerEmailAccount(ctx, testUserID, account.ID)
+	if err != nil {
+		t.Fatalf("GetLedgerEmailAccount: %v", err)
+	}
+	if got.LastScanAt == nil || !got.LastScanAt.Equal(past) {
+		t.Errorf("LastScanAt = %v, want unchanged %v", got.LastScanAt, past)
+	}
+	if want := "Background scan skipped: the LLM is not configured"; got.LastScanStatusMessage != want {
+		t.Errorf("status = %q, want %q", got.LastScanStatusMessage, want)
+	}
+}
+
+func TestScanOutcome(t *testing.T) {
+	ok := LedgerEmailScanResult{EmailsScanned: 2, OrdersNew: 1}
+	partial := LedgerEmailScanResult{Partial: true}
+	tests := []struct {
+		name        string
+		result      LedgerEmailScanResult
+		err         error
+		timedOut    bool
+		wantStatus  string
+		wantAdvance bool
+	}{
+		{"complete", ok, nil, false, `Background scan of folder "F": 2 emails scanned, 1 new orders, 0 linked`, true},
+		{"repeated llm failures", partial, nil, false, `Background scan of folder "F" stopped after repeated LLM failures`, false},
+		{"timeout", partial, context.DeadlineExceeded, true, `Background scan of folder "F" timed out; it continues on the next run`, false},
+		{"deadline without scan timeout", ok, context.DeadlineExceeded, false, "Background scan failed: context deadline exceeded", false},
+		{"imap failure", ok, ErrIMAP, false, "Background scan failed: imap", false},
+		{"skipped messages", LedgerEmailScanResult{EmailsScanned: 3, OrdersNew: 1, Skipped: 2}, nil, false, `Background scan of folder "F": 3 emails scanned, 1 new orders, 0 linked; 2 skipped and retried on the next run`, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status, advance := scanOutcome("F", tt.result, tt.err, tt.timedOut)
+			if status != tt.wantStatus || advance != tt.wantAdvance {
+				t.Errorf("scanOutcome() = %q, %v; want %q, %v", status, advance, tt.wantStatus, tt.wantAdvance)
+			}
+		})
+	}
+}
+
+type imapSchedulerTest struct {
+	scheduler *EmailScanScheduler
+	store     *testStores
+	account   LedgerEmailAccount
+	past      time.Time
+}
+
+func newIMAPSchedulerTest(t *testing.T, server *fakeIMAP, fake llm.Extractor) *imapSchedulerTest {
+	t.Helper()
+	s := newTestStore(t)
+	key := []byte("0123456789abcdef0123456789abcdef")
+	encrypted, err := cryptoutil.EncryptString("pw", key)
+	if err != nil {
+		t.Fatalf("EncryptString: %v", err)
+	}
+	host, port := server.host()
+	past := time.Now().UTC().Add(-72 * time.Hour)
+	account := LedgerEmailAccount{
+		ID: uuid.New(), Name: "Mailbox", IMAPHost: host, IMAPPort: port, UseTLS: false, Username: "u",
+		EncryptedPassword: encrypted, Folder: "Orders", ScanSince: "2026-01-01", LastScanAt: &past, CreatedAt: past, UpdatedAt: past,
+	}
+	if err := s.CreateLedgerEmailAccount(context.Background(), testUserID, account); err != nil {
+		t.Fatalf("CreateLedgerEmailAccount: %v", err)
+	}
+	logger := slog.New(slog.DiscardHandler)
+	return &imapSchedulerTest{
+		scheduler: &EmailScanScheduler{store: s.Store, service: NewEmailService(s.Store, fake, logger), encryptionKey: key, interval: 6 * time.Hour, logger: logger},
+		store:     s, account: account, past: past,
+	}
+}
+
+func (x *imapSchedulerTest) run(t *testing.T) LedgerEmailAccount {
+	t.Helper()
+	x.scheduler.scanAccount(context.Background(), testUserID, x.account)
+	got, err := x.store.GetLedgerEmailAccount(context.Background(), testUserID, x.account.ID)
+	if err != nil {
+		t.Fatalf("GetLedgerEmailAccount: %v", err)
+	}
+	return got
+}
+
+func (x *imapSchedulerTest) assertIncomplete(t *testing.T, got LedgerEmailAccount) {
+	t.Helper()
+	if got.LastScanAt == nil || !got.LastScanAt.Equal(x.past) {
+		t.Errorf("LastScanAt = %v, want unchanged %v", got.LastScanAt, x.past)
+	}
+	if got.LastScanAttemptAt == nil || !got.LastScanAttemptAt.After(x.past) {
+		t.Errorf("LastScanAttemptAt = %v, want stamped", got.LastScanAttemptAt)
+	}
+	if accountDue(got, time.Now().UTC(), x.scheduler.interval) {
+		t.Error("an incomplete scan must keep the normal retry interval")
+	}
+}
+
+func TestScanAccount_CompleteScanAdvancesLastScanAt(t *testing.T) {
+	server := newFakeIMAP(t, "AmazonDE-1.eml", "AmazonDE-2.eml")
+	x := newIMAPSchedulerTest(t, server, orderFake())
+	got := x.run(t)
+	if got.LastScanAt == nil || !got.LastScanAt.After(x.past) || got.LastScanAttemptAt == nil {
+		t.Fatalf("account = %+v", got)
+	}
+	if !strings.Contains(got.LastScanStatusMessage, "2 emails scanned, 2 new orders") {
+		t.Errorf("status = %q", got.LastScanStatusMessage)
+	}
+}
+
+func TestScanAccount_SkippedMessagesKeepLastScanAt(t *testing.T) {
+	t.Run("rejected header fetch", func(t *testing.T) {
+		server := newFakeIMAP(t, "AmazonDE-1.eml", "AmazonDE-2.eml")
+		server.set(server.rejectHeader, 1)
+		x := newIMAPSchedulerTest(t, server, orderFake())
+		got := x.run(t)
+		x.assertIncomplete(t, got)
+		if !strings.Contains(got.LastScanStatusMessage, "1 skipped") {
+			t.Errorf("status = %q", got.LastScanStatusMessage)
+		}
+	})
+	t.Run("transient LLM failure for one message", func(t *testing.T) {
+		server := newFakeIMAP(t, "AmazonDE-1.eml", "AmazonDE-2.eml")
+		fake := llmtest.New(llmtest.Error(&llm.APIError{StatusCode: 503}), llmtest.JSON(goldenOrders[1].extraction()))
+		x := newIMAPSchedulerTest(t, server, fake)
+		got := x.run(t)
+		x.assertIncomplete(t, got)
+		if !strings.Contains(got.LastScanStatusMessage, "1 new orders") || !strings.Contains(got.LastScanStatusMessage, "1 skipped") {
+			t.Errorf("status = %q", got.LastScanStatusMessage)
+		}
+	})
+	t.Run("connection dropped mid-scan", func(t *testing.T) {
+		server := newFakeIMAP(t, "AmazonDE-1.eml", "AmazonDE-2.eml")
+		server.set(server.dropOnHeader, 2)
+		x := newIMAPSchedulerTest(t, server, orderFake())
+		got := x.run(t)
+		x.assertIncomplete(t, got)
+		if !strings.HasPrefix(got.LastScanStatusMessage, "Background scan failed") {
+			t.Errorf("status = %q", got.LastScanStatusMessage)
+		}
+	})
+}
+
+func TestScanAccount_PersistentlyRejectedMessageStopsBlockingCompleteScans(t *testing.T) {
+	server := newFakeIMAP(t, "AmazonDE-1.eml", "AmazonDE-2.eml")
+	server.set(server.rejectHeader, 1)
+	x := newIMAPSchedulerTest(t, server, orderFake())
+
+	for scan := 1; scan < maxFetchRejections; scan++ {
+		x.assertIncomplete(t, x.run(t))
+	}
+	// The third refusal gives up on the message and the scan completes.
+	got := x.run(t)
+	if got.LastScanAt == nil || !got.LastScanAt.After(x.past) {
+		t.Fatalf("LastScanAt = %v, want advanced after the message was given up on", got.LastScanAt)
+	}
+	if strings.Contains(got.LastScanStatusMessage, "skipped") {
+		t.Errorf("status = %q", got.LastScanStatusMessage)
+	}
+	if seen, _ := x.store.HasLedgerEmailSeen(context.Background(), testUserID, x.account.ID, "uid:1"); !seen {
+		t.Error("rejected message not marked as ignored")
+	}
+	// Later scans do not even ask the server for it.
+	x.account.LastScanAt = got.LastScanAt
+	if again := x.run(t); again.LastScanAt == nil || !again.LastScanAt.After(*got.LastScanAt) {
+		t.Errorf("fourth scan did not complete: %+v", again)
+	}
+}
+
+// orderFake answers every extraction with a valid order.
+func orderFake() *llmtest.Fake {
+	return &llmtest.Fake{Func: func(llm.Request) (json.RawMessage, error) {
+		return json.Marshal(goldenOrders[0].extraction())
+	}}
 }

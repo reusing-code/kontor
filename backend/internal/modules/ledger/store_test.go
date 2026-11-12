@@ -843,6 +843,39 @@ func TestSetLedgerEmailAccountScanState_DoesNotRevertConcurrentEdits(t *testing.
 	}
 }
 
+func TestCreateScannedLedgerEmailOrder_ConcurrentCreatesStoreOneOrder(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	for round := range 30 {
+		key := fmt.Sprintf("<race-%d@example.com>", round)
+		const workers = 6
+		start := make(chan struct{})
+		errs := make(chan error, workers)
+		for range workers {
+			go func() {
+				order := LedgerEmailOrder{ID: uuid.New(), EmailAccountID: uuid.New(), ImporterID: LedgerEmailImporterLLM, OrderDate: "2026-04-01", TotalMinor: 100, Currency: "EUR", EmailMessageID: key, CreatedAt: now, UpdatedAt: now}
+				<-start
+				errs <- s.CreateScannedLedgerEmailOrder(ctx, "test-user", order)
+			}()
+		}
+		close(start)
+		created := 0
+		for range workers {
+			switch err := <-errs; {
+			case err == nil:
+				created++
+			case errors.Is(err, storage.ErrConflict):
+			default:
+				t.Fatalf("round %d: err = %v, want nil or storage.ErrConflict (never badger.ErrConflict)", round, err)
+			}
+		}
+		if created != 1 {
+			t.Fatalf("round %d: %d orders created, want 1", round, created)
+		}
+	}
+}
+
 func TestRecordLedgerEmailRejection_CountsPerMessageAndIsDeletedWithTheAccount(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()

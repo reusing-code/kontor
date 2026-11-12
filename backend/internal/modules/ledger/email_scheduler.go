@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -10,7 +11,9 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 )
 
-const accountScanTimeout = 10 * time.Minute
+// emailScanTimeout bounds one account scan, scheduled or manual. A variable so
+// tests can shorten it.
+var emailScanTimeout = 10 * time.Minute
 
 type EmailScanScheduler struct {
 	store         *Store
@@ -116,12 +119,11 @@ func (s *EmailScanScheduler) scanUser(ctx context.Context, userID string) error 
 }
 
 func (s *EmailScanScheduler) scanAccount(ctx context.Context, userID string, account LedgerEmailAccount) {
-	scanCtx, cancel := context.WithTimeout(ctx, accountScanTimeout)
+	scanCtx, cancel := context.WithTimeout(ctx, emailScanTimeout)
 	defer cancel()
 
-	if account.Folder == "" {
-		s.logger.Debug("skipping email account without folder", "userID", userID, "accountID", account.ID)
-		s.finishScan(ctx, userID, account, "Background scan skipped: choose a folder to scan", false, false)
+	if err := s.service.CanScan(account, true); err != nil {
+		s.skipScan(ctx, userID, account, err)
 		return
 	}
 	if account.EncryptedPassword == "" {
@@ -136,15 +138,64 @@ func (s *EmailScanScheduler) scanAccount(ctx context.Context, userID string, acc
 		return
 	}
 	result, err := s.service.ScanMailbox(scanCtx, userID, account, password)
-	if err != nil {
-		s.logger.Error("background mailbox scan failed", "userID", userID, "accountID", account.ID, "error", err)
-		s.finishScan(ctx, userID, account, fmt.Sprintf("Background scan failed: %v", err), true, false)
+	switch {
+	case errors.Is(err, ErrEmailScanRunning):
+		s.logger.Debug("email account is already being scanned", "userID", userID, "accountID", account.ID)
+		return
+	case errors.Is(err, ErrEmailFolderMissing), errors.Is(err, ErrEmailLLMDisabled):
+		s.skipScan(ctx, userID, account, err)
+		return
+	case err != nil && ctx.Err() != nil:
+		s.logger.Debug("email scan interrupted by shutdown", "userID", userID, "accountID", account.ID)
 		return
 	}
-	s.logger.Info("background mailbox scan finished",
+	status, complete := scanOutcome(account.Folder, result, err, scanCtx.Err() != nil)
+	s.logScanOutcome(userID, account, result, err, complete)
+	s.finishScan(ctx, userID, account, status, true, complete)
+}
+
+// scanOutcome decides the status message and whether the scan was complete.
+// Only a complete scan advances LastScanAt: the next scan searches from there
+// (minus a 48 hour overlap), so advancing after an incomplete one would
+// skip mail.
+func scanOutcome(folder string, result LedgerEmailScanResult, err error, timedOut bool) (status string, complete bool) {
+	switch {
+	case err != nil && timedOut && errors.Is(err, context.DeadlineExceeded):
+		return fmt.Sprintf("Background scan of folder %q timed out; it continues on the next run", folder), false
+	case err != nil:
+		return fmt.Sprintf("Background scan failed: %v", err), false
+	case result.Partial:
+		return fmt.Sprintf("Background scan of folder %q stopped after repeated LLM failures", folder), false
+	case result.Skipped > 0:
+		return fmt.Sprintf("Background scan of folder %q: %d emails scanned, %d new orders, %d linked; %d skipped and retried on the next run",
+			folder, result.EmailsScanned, result.OrdersNew, result.OrdersLinked, result.Skipped), false
+	default:
+		return scanStatusMessage(folder, result), true
+	}
+}
+
+func (s *EmailScanScheduler) logScanOutcome(userID string, account LedgerEmailAccount, result LedgerEmailScanResult, err error, complete bool) {
+	attrs := []any{
 		"userID", userID, "accountID", account.ID,
-		"emailsScanned", result.EmailsScanned, "ordersNew", result.OrdersNew, "ordersLinked", result.OrdersLinked)
-	s.finishScan(ctx, userID, account, scanStatusMessage(account.Folder, result), true, true)
+		"emailsScanned", result.EmailsScanned, "ordersNew", result.OrdersNew, "ordersLinked", result.OrdersLinked,
+	}
+	switch {
+	case complete:
+		s.logger.Info("background mailbox scan finished", attrs...)
+	case err != nil && errors.Is(err, context.DeadlineExceeded):
+		s.logger.Info("background mailbox scan timed out", attrs...)
+	case err != nil:
+		s.logger.Error("background mailbox scan failed", append(attrs, "error", err)...)
+	default:
+		s.logger.Warn("background mailbox scan incomplete", append(attrs, "partial", result.Partial, "skipped", result.Skipped)...)
+	}
+}
+
+// skipScan records why an account was not scanned. The account stays due, so it
+// is retried on the next tick once the cause is fixed.
+func (s *EmailScanScheduler) skipScan(ctx context.Context, userID string, account LedgerEmailAccount, cause error) {
+	s.logger.Debug("skipping email account scan", "userID", userID, "accountID", account.ID, "reason", cause.Error())
+	s.finishScan(ctx, userID, account, "Background scan skipped: "+cause.Error(), false, false)
 }
 
 func scanStatusMessage(folder string, result LedgerEmailScanResult) string {
