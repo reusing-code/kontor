@@ -86,6 +86,25 @@ func (r *Registrar) CreateDraft(ctx context.Context, c Call, req DraftRequest) (
 	return DraftResult{DraftID: d.ID.String(), Status: d.Status}, nil
 }
 
+// DraftSpec is DraftRequest with a typed input that CreateDraftFrom marshals.
+type DraftSpec struct {
+	Target   string
+	ParentID string
+	Input    any
+	Title    string
+	Key      string
+	Note     string
+}
+
+// CreateDraftFrom marshals the already validated input and creates the draft.
+func (r *Registrar) CreateDraftFrom(ctx context.Context, c Call, s DraftSpec) (DraftResult, error) {
+	raw, err := json.Marshal(s.Input)
+	if err != nil {
+		return DraftResult{}, err
+	}
+	return r.CreateDraft(ctx, c, DraftRequest{Target: s.Target, ParentID: s.ParentID, Input: raw, Title: s.Title, Key: s.Key, Note: s.Note})
+}
+
 // CheckLen validates a text field (length in characters).
 func CheckLen(field, v string, minLen, maxLen int) error {
 	n := utf8.RuneCountInString(v)

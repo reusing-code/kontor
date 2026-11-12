@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -355,5 +356,225 @@ func TestMCPAttachIsolationAndModuleState(t *testing.T) {
 	}
 	if isErr, text := attach(ownerClient, "purchase", ids["purchase"]); isErr {
 		t.Errorf("purchase with enabled module: %q", text)
+	}
+}
+
+// allowedTools is the complete tool surface an agent may see, by scope. A new
+// tool must be added here on purpose: the drafts-only guarantee test fails
+// for anything else.
+var allowedTools = map[string][]string{
+	pat.ScopeRead: {
+		"list_modules", "search_paperless_documents",
+		"list_contract_categories", "search_contracts",
+		"list_purchase_categories", "search_purchases",
+		"list_vehicles", "search_vehicle_costs",
+	},
+	pat.ScopeDrafts: {
+		"create_contract_draft", "create_contract_category_draft",
+		"create_purchase_draft", "create_purchase_category_draft",
+		"create_vehicle_cost_draft", "create_vehicle_draft",
+	},
+	pat.ScopeLinks: {
+		"attach_paperless_documents",
+	},
+}
+
+func (a *testApp) toolNames(t *testing.T, cs *mcp.ClientSession) []string {
+	t.Helper()
+	res, err := cs.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := []string{}
+	for _, tool := range res.Tools {
+		names = append(names, tool.Name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+func sorted(lists ...[]string) []string {
+	var all []string
+	for _, l := range lists {
+		all = append(all, l...)
+	}
+	slices.Sort(all)
+	return all
+}
+
+func TestMCPToolAllowList(t *testing.T) {
+	a := newTestApp(t)
+	userID, _ := a.register(t, "allow@example.com")
+
+	_, allTok := a.newPAT(t, userID, nil, pat.ScopeRead, pat.ScopeDrafts, pat.ScopeLinks)
+	want := sorted(allowedTools[pat.ScopeRead], allowedTools[pat.ScopeDrafts], allowedTools[pat.ScopeLinks])
+	if got := a.toolNames(t, a.mcpClient(t, allTok)); !slices.Equal(got, want) {
+		t.Fatalf("tools with all scopes:\n got %v\nwant %v", got, want)
+	}
+
+	// every tool needs exactly one scope: the single-scope listings partition the set
+	var union []string
+	for scope, names := range allowedTools {
+		_, tok := a.newPAT(t, userID, nil, scope)
+		if got := a.toolNames(t, a.mcpClient(t, tok)); !slices.Equal(got, sorted(names)) {
+			t.Fatalf("tools with only %s:\n got %v\nwant %v", scope, got, sorted(names))
+		}
+		union = append(union, names...)
+	}
+	if !slices.Equal(sorted(union), want) {
+		t.Fatalf("scope groups do not partition the tool set: %v", sorted(union))
+	}
+}
+
+func TestMCPToolListFollowsModuleToggles(t *testing.T) {
+	a := newTestApp(t)
+	userID, jwt := a.register(t, "toggle-tools@example.com")
+	_, raw := a.newPAT(t, userID, nil, pat.ScopeRead, pat.ScopeDrafts, pat.ScopeLinks)
+	cs := a.mcpClient(t, raw)
+
+	setModules := func(modules string) {
+		t.Helper()
+		status, body := a.request(t, "PUT", "/api/v1/settings", jwt, `{"renewalDays":90,"reminderFrequency":"disabled","enabledModules":`+modules+`}`)
+		if status != 200 {
+			t.Fatalf("settings = %d %s", status, body)
+		}
+	}
+	all := sorted(allowedTools[pat.ScopeRead], allowedTools[pat.ScopeDrafts], allowedTools[pat.ScopeLinks])
+	without := func(prefixes ...string) []string {
+		var out []string
+		for _, n := range all {
+			skip := false
+			for _, p := range prefixes {
+				skip = skip || strings.Contains(n, p)
+			}
+			if !skip {
+				out = append(out, n)
+			}
+		}
+		return out
+	}
+
+	setModules(`["purchases","auto","ledger"]`)
+	if got := a.toolNames(t, cs); !slices.Equal(got, without("contract")) {
+		t.Fatalf("contracts disabled: %v", got)
+	}
+	res, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: "search_contracts", Arguments: map[string]any{}})
+	if err != nil || !res.IsError || !strings.HasPrefix(res.Content[0].(*mcp.TextContent).Text, "module_disabled") {
+		t.Fatalf("call to a disabled module's tool: %v %+v", err, res)
+	}
+
+	setModules(`["contracts"]`)
+	if got := a.toolNames(t, cs); !slices.Equal(got, without("purchase", "vehicle")) {
+		t.Fatalf("only contracts enabled: %v", got)
+	}
+
+	setModules(`["contracts","purchases","auto","ledger"]`)
+	if got := a.toolNames(t, cs); !slices.Equal(got, all) {
+		t.Fatalf("all enabled again: %v", got)
+	}
+}
+
+func TestMCPBackfillCreatesDraftsOnly(t *testing.T) {
+	a := newTestApp(t)
+	userID, jwt := a.register(t, "backfill@example.com")
+	_, raw := a.newPAT(t, userID, nil, pat.ScopeRead, pat.ScopeDrafts)
+	cs := a.mcpClient(t, raw)
+
+	structured := func(name string, args any, out any) {
+		t.Helper()
+		res, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: name, Arguments: args})
+		if err != nil || res.IsError {
+			t.Fatalf("%s: %v %+v", name, err, res)
+		}
+		b, _ := json.Marshal(res.StructuredContent)
+		if err := json.Unmarshal(b, out); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var contractCats, purchaseCats struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}
+	structured("list_contract_categories", map[string]any{}, &contractCats)
+	structured("list_purchase_categories", map[string]any{}, &purchaseCats)
+	if len(contractCats.Items) == 0 || len(purchaseCats.Items) == 0 {
+		t.Fatal("registration should have seeded categories")
+	}
+
+	// a vehicle must exist for the user before a cost draft can name it
+	status, body := a.request(t, "POST", "/api/v1/vehicles", jwt, `{"name":"Golf"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("vehicle = %d %s", status, body)
+	}
+	var vehicle struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal([]byte(body), &vehicle)
+
+	var created struct {
+		DraftID string `json:"draftId"`
+	}
+	drafted := map[string]string{} // targetType → draft ID
+	create := func(target, tool string, args map[string]any) {
+		t.Helper()
+		args["title"] = tool
+		args["key"] = tool
+		structured(tool, args, &created)
+		drafted[target] = created.DraftID
+	}
+	create("contract", "create_contract_draft", map[string]any{"categoryId": contractCats.Items[0].ID, "input": map[string]any{
+		"name": "Home insurance", "billingInterval": "monthly", "startDate": "2026-03-01", "minimumDurationMonths": 12, "extensionDurationMonths": 12, "noticePeriodMonths": 3}})
+	create("contract_category", "create_contract_category_draft", map[string]any{"input": map[string]any{"name": "Energy"}})
+	create("purchase", "create_purchase_draft", map[string]any{"categoryId": purchaseCats.Items[0].ID, "input": map[string]any{"itemName": "Drill"}})
+	create("purchase_category", "create_purchase_category_draft", map[string]any{"input": map[string]any{"name": "Garden"}})
+	create("cost", "create_vehicle_cost_draft", map[string]any{"vehicleId": vehicle.ID, "input": map[string]any{"type": "service", "date": "2026-09-15"}})
+	create("vehicle", "create_vehicle_draft", map[string]any{"input": map[string]any{"name": "Polo"}})
+
+	status, body = a.request(t, "GET", "/api/v1/drafts", jwt, "")
+	if status != 200 {
+		t.Fatalf("drafts = %d %s", status, body)
+	}
+	var list []struct {
+		ID         string `json:"id"`
+		TargetType string `json:"targetType"`
+		Status     string `json:"status"`
+		Source     struct {
+			Kind string `json:"kind"`
+		} `json:"source"`
+	}
+	if err := json.Unmarshal([]byte(body), &list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != len(drafted) {
+		t.Fatalf("%d drafts visible, created %d: %s", len(list), len(drafted), body)
+	}
+	for _, d := range list {
+		if drafted[d.TargetType] != d.ID || d.Status != "pending" || d.Source.Kind != "mcp" {
+			t.Errorf("unexpected draft %+v", d)
+		}
+	}
+	if status, body := a.request(t, "GET", "/api/v1/drafts/summary", jwt, ""); status != 200 || !strings.Contains(body, `"pending":6`) {
+		t.Fatalf("summary = %d %s", status, body)
+	}
+
+	// nothing but the user's own vehicle exists: the drafts created no entity
+	for path, want := range map[string]string{
+		"/api/v1/contracts":                         "[]",
+		"/api/v1/purchases":                         "[]",
+		"/api/v1/vehicles/" + vehicle.ID + "/costs": "[]",
+	} {
+		if status, body := a.request(t, "GET", path, jwt, ""); status != 200 || strings.TrimSpace(body) != want {
+			t.Errorf("%s = %d %s, want %s", path, status, body, want)
+		}
+	}
+	if _, body := a.request(t, "GET", "/api/v1/vehicles", jwt, ""); strings.Contains(body, "Polo") {
+		t.Error("the vehicle draft created a vehicle")
+	}
+	for _, module := range []string{"contracts", "purchases"} {
+		_, body := a.request(t, "GET", "/api/v1/modules/"+module+"/categories", jwt, "")
+		if strings.Contains(body, "Energy") || strings.Contains(body, "Garden") {
+			t.Errorf("a category draft created a %s category", module)
+		}
 	}
 }
