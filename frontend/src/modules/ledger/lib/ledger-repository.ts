@@ -5,7 +5,6 @@ import type {
   LedgerCategoryInput,
   LedgerEmailAccount,
   LedgerEmailAccountInput,
-  LedgerEmailImporterInfo,
   LedgerEmailOrder,
   LedgerEmailOrderCandidatesResult,
   LedgerEmailOrderLinkInput,
@@ -68,10 +67,6 @@ export async function getLedgerEmailOrders(emailAccountId?: string, status?: str
 
 export async function getLedgerEmailOrderById(id: string): Promise<LedgerEmailOrder> {
   return get<LedgerEmailOrder>(`/ledger/email-orders/${id}`)
-}
-
-export async function getLedgerEmailImporters(): Promise<LedgerEmailImporterInfo[]> {
-  return get<LedgerEmailImporterInfo[]>("/ledger/email-importers")
 }
 
 export async function getLedgerEmailOrderCandidates(id: string, afterDays?: number): Promise<LedgerEmailOrderCandidatesResult> {

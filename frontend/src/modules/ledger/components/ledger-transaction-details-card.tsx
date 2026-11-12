@@ -10,7 +10,7 @@ import { useLedgerCategories, useLedgerEmailOrders, useUpdateLedgerTransactionDe
 import { useCreatePurchaseByCategory, usePurchases } from "@/modules/purchases/hooks/use-purchases"
 import { useCreateVehicle, useVehicles } from "@/modules/auto/hooks/use-vehicles"
 import { moduleReferenceToPath, referenceModuleId } from "@/modules/ledger/lib/module-links"
-import { formatAmountMinor, formatLedgerDate, formatLedgerReviewStatus, formatLedgerSpecialCategory } from "@/modules/ledger/lib/ledger-utils"
+import { emailOrderTitle, formatAmountMinor, formatLedgerDate, formatLedgerReviewStatus, formatLedgerSpecialCategory } from "@/modules/ledger/lib/ledger-utils"
 import type { ContractFormData } from "@/modules/contracts/types"
 import type { LedgerTransaction, LedgerTransactionReference } from "@/modules/ledger/types"
 import type { PurchaseFormData } from "@/modules/purchases/types"
@@ -391,7 +391,7 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
             ) : (
               linkedEmailOrders.map((order) => (
                 <div key={order.id} className="rounded-md border p-3 text-sm">
-                  <div className="font-medium">{order.externalOrderId || order.emailSubject || order.importerId}</div>
+                  <div className="font-medium">{emailOrderTitle(order)}</div>
                   <div className="text-xs text-muted-foreground">{formatLedgerDate(order.orderDate)}</div>
                   <div className="mt-2 space-y-1 text-muted-foreground">
                     {(order.items ?? []).map((item, index) => (

@@ -1,4 +1,9 @@
 import { format } from "date-fns"
+import type { LedgerEmailOrder } from "@/modules/ledger/types"
+
+export function emailOrderTitle(order: LedgerEmailOrder): string {
+  return [order.merchant, order.externalOrderId].filter(Boolean).join(" · ") || order.emailSubject || order.importerId
+}
 
 export function formatLedgerDate(value?: string): string {
   if (!value) return "-"

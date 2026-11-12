@@ -19,6 +19,8 @@ export const ledgerEmailAccountSchema = z.object({
   imapPort: z.number().int(),
   username: z.string().min(1),
   useTls: z.boolean(),
+  folder: z.string(),
+  preClassify: z.boolean(),
   scanSince: z.string(),
   lastScanAt: z.string().datetime().optional(),
   lastScanStatusMessage: z.string().optional(),
@@ -35,20 +37,12 @@ export const ledgerEmailAccountInputSchema = z.object({
   username: z.string().min(1),
   password: z.string().min(1).optional(),
   useTls: z.boolean().default(true),
+  folder: z.string().trim().min(1),
+  preClassify: z.boolean().default(false),
   scanSince: z.string().min(1),
 })
 
 export type LedgerEmailAccountInput = z.infer<typeof ledgerEmailAccountInputSchema>
-
-export const ledgerEmailImporterInfoSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  description: z.string().min(1),
-  senders: z.array(z.string()),
-  subjects: z.array(z.string()),
-})
-
-export type LedgerEmailImporterInfo = z.infer<typeof ledgerEmailImporterInfoSchema>
 
 export const ledgerEmailOrderItemSchema = z.object({
   name: z.string().min(1),
@@ -67,6 +61,8 @@ export const ledgerEmailOrderSchema = z.object({
   orderDate: z.string(),
   totalMinor: z.int(),
   currency: z.string().min(1),
+  merchant: z.string().optional(),
+  paymentMethod: z.string().optional(),
   items: z.array(ledgerEmailOrderItemSchema).optional(),
   emailMessageId: z.string().optional(),
   emailSubject: z.string().optional(),
@@ -91,6 +87,8 @@ export const ledgerEmailScanResultSchema = z.object({
   ordersLinked: z.number().int(),
   warnings: z.array(z.string()).optional(),
   orders: z.array(ledgerEmailOrderSchema).optional(),
+  partial: z.boolean().optional(),
+  skipped: z.number().int().optional(),
 })
 
 export type LedgerEmailScanResult = z.infer<typeof ledgerEmailScanResultSchema>

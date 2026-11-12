@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useLedgerEmailOrderCandidates } from "@/modules/ledger/hooks/use-ledger"
-import { formatAmountMinor, formatLedgerDate, tokenizeLedgerMatchWords } from "@/modules/ledger/lib/ledger-utils"
+import { emailOrderTitle, formatAmountMinor, formatLedgerDate, tokenizeLedgerMatchWords } from "@/modules/ledger/lib/ledger-utils"
 import type { LedgerEmailOrder, LedgerEmailOrderCandidate } from "@/modules/ledger/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -88,7 +88,7 @@ export function LedgerEmailOrderLinkDialog({ open, onOpenChange, order, onConfir
         {order ? (
           <div className="space-y-4">
             <div className="rounded-md border p-4 space-y-2">
-              <div className="font-medium">{order.externalOrderId || order.emailSubject || order.importerId}</div>
+              <div className="font-medium">{emailOrderTitle(order)}</div>
               <div className="text-sm text-muted-foreground">{formatLedgerDate(order.orderDate)} • {formatAmountMinor(order.totalMinor, order.currency, i18n.language)}</div>
               <div className="space-y-1 text-sm text-muted-foreground">
                 {(order.items ?? []).map((item, index) => (

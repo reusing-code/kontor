@@ -8,9 +8,16 @@ import { LedgerEmailAccountDialog } from "@/modules/ledger/components/ledger-ema
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { useCapabilities } from "@/hooks/use-capabilities"
+import { LedgerEmailLlmNotice } from "@/modules/ledger/components/ledger-email-llm-notice"
+import type { LedgerEmailScanResult } from "@/modules/ledger/types"
+
+const MAX_SHOWN_WARNINGS = 5
 
 export function LedgerEmailAccountsPanel() {
   const { t } = useTranslation()
+  const { llm, isLoading: capabilitiesLoading } = useCapabilities()
+  const llmOff = !capabilitiesLoading && !llm
   const { data: accounts = [] } = useLedgerEmailAccounts()
   const createAccount = useCreateLedgerEmailAccount()
   const updateAccount = useUpdateLedgerEmailAccount()
@@ -19,6 +26,20 @@ export function LedgerEmailAccountsPanel() {
   const testAccount = useTestLedgerEmailAccount()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState<LedgerEmailAccount | null>(null)
+
+  function reportScan(result: LedgerEmailScanResult) {
+    toast.success(t("ledger.email.scanSuccess", { count: result.ordersNew }))
+    if (result.warnings?.length) {
+      const shown = result.warnings.slice(0, MAX_SHOWN_WARNINGS)
+      const more = result.warnings.length - shown.length
+      toast.warning(t("ledger.email.scanWarnings", { count: result.warnings.length }), {
+        description: <span className="whitespace-pre-line">{[...shown, ...(more > 0 ? [t("ledger.email.scanWarningsMore", { count: more })] : [])].join("\n")}</span>,
+      })
+    }
+    if (result.partial || result.skipped) {
+      toast.warning(t("ledger.email.scanPartial"))
+    }
+  }
 
   function openCreate() {
     setSelectedAccount(null)
@@ -32,6 +53,7 @@ export function LedgerEmailAccountsPanel() {
         <Button type="button" onClick={openCreate}><Plus className="mr-2 h-4 w-4" />{t("ledger.email.addAccount")}</Button>
       </CardHeader>
       <CardContent className="space-y-4">
+        <LedgerEmailLlmNotice />
         {accounts.length === 0 ? <p className="text-sm text-muted-foreground">{t("ledger.email.noAccounts")}</p> : null}
         <p className="text-sm text-muted-foreground">{t("ledger.email.scanHint")}</p>
         <div className="grid gap-4 md:grid-cols-2">
@@ -39,7 +61,8 @@ export function LedgerEmailAccountsPanel() {
             <div key={account.id} className="rounded-lg border p-4 space-y-3">
               <div>
                 <div className="font-medium">{account.name}</div>
-                <div className="text-sm text-muted-foreground">{account.username} • {account.imapHost}:{account.imapPort}</div>
+                <div className="text-sm text-muted-foreground">{account.username} • {account.imapHost}:{account.imapPort}{account.folder ? ` • ${account.folder}` : ""}</div>
+                {account.folder ? null : <div className="text-sm text-amber-600 dark:text-amber-400">{t("ledger.email.folderMissing")}</div>}
                 <div className="text-xs text-muted-foreground">{t("ledger.email.lastScan")}: {account.lastScanAt ?? "-"}</div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -56,12 +79,13 @@ export function LedgerEmailAccountsPanel() {
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={llmOff || !account.folder || scanAccount.isPending}
                   onClick={() => scanAccount.mutate({ id: account.id, files: [] }, {
-                    onSuccess: (result) => toast.success(t("ledger.email.scanSuccess", { count: result.ordersNew })),
+                    onSuccess: reportScan,
                     onError: (error) => toast.error(error.message),
                   })}
                 >
-                  <Play className="mr-2 h-4 w-4" />{t("ledger.email.scanNow")}
+                  <Play className="mr-2 h-4 w-4" />{scanAccount.isPending && scanAccount.variables?.id === account.id ? t("ledger.email.scanning") : t("ledger.email.scanNow")}
                 </Button>
                 <label className="inline-flex">
                   <Input
@@ -69,19 +93,20 @@ export function LedgerEmailAccountsPanel() {
                     multiple
                     accept=".eml,message/rfc822"
                     className="hidden"
+                    disabled={llmOff || scanAccount.isPending}
                     onChange={(event) => {
                       const files = Array.from(event.target.files ?? [])
                       if (files.length === 0) {
                         return
                       }
                       scanAccount.mutate({ id: account.id, files }, {
-                        onSuccess: (result) => toast.success(t("ledger.email.scanSuccess", { count: result.ordersNew })),
+                        onSuccess: reportScan,
                         onError: (error) => toast.error(error.message),
                       })
                       event.target.value = ""
                     }}
                   />
-                  <Button type="button" variant="outline" asChild>
+                  <Button type="button" variant="outline" asChild aria-disabled={llmOff} className={llmOff ? "pointer-events-none opacity-50" : undefined}>
                     <span>{t("ledger.email.scanUpload")}</span>
                   </Button>
                 </label>

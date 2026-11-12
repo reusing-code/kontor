@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useLedgerEmailAccounts, useLinkLedgerEmailOrder, useRejectLedgerEmailOrder } from "@/modules/ledger/hooks/use-ledger"
-import { formatAmountMinor, formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
+import { emailOrderTitle, formatAmountMinor, formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
 import type { LedgerEmailOrder } from "@/modules/ledger/types"
 import { LedgerEmailOrderLinkDialog } from "@/modules/ledger/components/ledger-email-order-link-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -30,8 +30,8 @@ export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] 
             <div key={order.id} className="rounded-lg border p-4 space-y-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="font-medium">{order.externalOrderId || order.emailSubject || order.importerId}</div>
-                  <div className="text-sm text-muted-foreground">{emailAccountNames.get(order.emailAccountId) ?? order.importerId} • {formatLedgerDate(order.orderDate)}</div>
+                  <div className="font-medium">{emailOrderTitle(order)}</div>
+                  <div className="text-sm text-muted-foreground">{emailAccountNames.get(order.emailAccountId) ?? order.importerId} • {formatLedgerDate(order.orderDate)}{order.paymentMethod ? ` • ${t(`ledger.email.paymentMethod.${order.paymentMethod}`, { defaultValue: order.paymentMethod })}` : ""}</div>
                 </div>
                 <div className="text-right">
                   <div className="font-medium">{formatAmountMinor(order.totalMinor, order.currency, i18n.language)}</div>

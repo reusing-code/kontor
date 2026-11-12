@@ -15,12 +15,15 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
+import { useCapabilities } from "@/hooks/use-capabilities"
 
 interface LedgerEmailAccountDialogProps {
   open: boolean
@@ -31,6 +34,7 @@ interface LedgerEmailAccountDialogProps {
 
 export function LedgerEmailAccountDialog({ open, onOpenChange, account, onSubmit }: LedgerEmailAccountDialogProps) {
   const { t } = useTranslation()
+  const { llm } = useCapabilities()
   const [today] = useState(() => new Date().toISOString().slice(0, 10))
   const form = useForm<LedgerEmailAccountInput>({
     resolver: standardSchemaResolver(ledgerEmailAccountInputSchema) as Resolver<LedgerEmailAccountInput>,
@@ -41,6 +45,8 @@ export function LedgerEmailAccountDialog({ open, onOpenChange, account, onSubmit
       username: account?.username ?? "",
       password: "",
       useTls: account?.useTls ?? true,
+      folder: account ? account.folder : "INBOX",
+      preClassify: account?.preClassify ?? false,
       scanSince: account?.scanSince ?? today,
     },
   })
@@ -88,6 +94,27 @@ export function LedgerEmailAccountDialog({ open, onOpenChange, account, onSubmit
                 <FormMessage />
               </FormItem>
             )} />
+            <FormField control={form.control} name="folder" render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("ledger.email.folder")}</FormLabel>
+                <FormControl><Input placeholder="INBOX" {...field} /></FormControl>
+                <FormDescription>{t("ledger.email.folderHint")}</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )} />
+            {llm ? (
+              <FormField control={form.control} name="preClassify" render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between gap-4">
+                    <FormLabel>{t("ledger.email.preClassify")}</FormLabel>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </div>
+                  <FormDescription>{t("ledger.email.preClassifyHint")}</FormDescription>
+                </FormItem>
+              )} />
+            ) : null}
             <FormField control={form.control} name="scanSince" render={({ field }) => (
               <FormItem>
                 <FormLabel>{t("ledger.email.scanSince")}</FormLabel>
