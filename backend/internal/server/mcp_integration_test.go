@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -368,14 +369,16 @@ var allowedTools = map[string][]string{
 		"list_contract_categories", "search_contracts",
 		"list_purchase_categories", "search_purchases",
 		"list_vehicles", "search_vehicle_costs",
+		"list_ledger_accounts", "list_ledger_categories", "search_ledger_transactions",
 	},
 	pat.ScopeDrafts: {
 		"create_contract_draft", "create_contract_category_draft",
 		"create_purchase_draft", "create_purchase_category_draft",
 		"create_vehicle_cost_draft", "create_vehicle_draft",
+		"create_ledger_category_draft", "create_ledger_account_draft",
 	},
 	pat.ScopeLinks: {
-		"attach_paperless_documents",
+		"attach_paperless_documents", "link_transaction",
 	},
 }
 
@@ -403,6 +406,9 @@ func sorted(lists ...[]string) []string {
 }
 
 func TestMCPToolAllowList(t *testing.T) {
+	if n := len(sorted(allowedTools[pat.ScopeRead], allowedTools[pat.ScopeDrafts], allowedTools[pat.ScopeLinks])); n != 21 {
+		t.Fatalf("the allow-list has %d tools, want 21", n)
+	}
 	a := newTestApp(t)
 	userID, _ := a.register(t, "allow@example.com")
 
@@ -464,7 +470,7 @@ func TestMCPToolListFollowsModuleToggles(t *testing.T) {
 	}
 
 	setModules(`["contracts"]`)
-	if got := a.toolNames(t, cs); !slices.Equal(got, without("purchase", "vehicle")) {
+	if got := a.toolNames(t, cs); !slices.Equal(got, without("purchase", "vehicle", "ledger", "link_transaction")) {
 		t.Fatalf("only contracts enabled: %v", got)
 	}
 
@@ -530,6 +536,8 @@ func TestMCPBackfillCreatesDraftsOnly(t *testing.T) {
 	create("purchase_category", "create_purchase_category_draft", map[string]any{"input": map[string]any{"name": "Garden"}})
 	create("cost", "create_vehicle_cost_draft", map[string]any{"vehicleId": vehicle.ID, "input": map[string]any{"type": "service", "date": "2026-09-15"}})
 	create("vehicle", "create_vehicle_draft", map[string]any{"input": map[string]any{"name": "Polo"}})
+	create("ledger_category", "create_ledger_category_draft", map[string]any{"input": map[string]any{"name": "Energy costs", "matchWords": []string{"stadtwerke"}}})
+	create("ledger_account", "create_ledger_account_draft", map[string]any{"input": map[string]any{"name": "Main", "bank": "DKB", "iban": "DE89370400440532013000"}})
 
 	status, body = a.request(t, "GET", "/api/v1/drafts", jwt, "")
 	if status != 200 {
@@ -554,7 +562,7 @@ func TestMCPBackfillCreatesDraftsOnly(t *testing.T) {
 			t.Errorf("unexpected draft %+v", d)
 		}
 	}
-	if status, body := a.request(t, "GET", "/api/v1/drafts/summary", jwt, ""); status != 200 || !strings.Contains(body, `"pending":6`) {
+	if status, body := a.request(t, "GET", "/api/v1/drafts/summary", jwt, ""); status != 200 || !strings.Contains(body, `"pending":8`) {
 		t.Fatalf("summary = %d %s", status, body)
 	}
 
@@ -571,10 +579,273 @@ func TestMCPBackfillCreatesDraftsOnly(t *testing.T) {
 	if _, body := a.request(t, "GET", "/api/v1/vehicles", jwt, ""); strings.Contains(body, "Polo") {
 		t.Error("the vehicle draft created a vehicle")
 	}
+	if status, body := a.request(t, "GET", "/api/v1/ledger/accounts", jwt, ""); status != 200 || strings.TrimSpace(body) != "[]" {
+		t.Errorf("accounts = %d %s", status, body)
+	}
+	if _, body := a.request(t, "GET", "/api/v1/ledger/categories", jwt, ""); strings.Contains(body, "Energy costs") {
+		t.Error("the ledger category draft created a category")
+	}
 	for _, module := range []string{"contracts", "purchases"} {
 		_, body := a.request(t, "GET", "/api/v1/modules/"+module+"/categories", jwt, "")
 		if strings.Contains(body, "Energy") || strings.Contains(body, "Garden") {
 			t.Errorf("a category draft created a %s category", module)
 		}
+	}
+}
+
+func TestMCPLinkTransactionToRealEntities(t *testing.T) {
+	a := newTestApp(t)
+	userID, jwt := a.register(t, "link-real@example.com")
+	otherID, _ := a.register(t, "link-other@example.com")
+	ids := a.entities(t, userID, jwt)
+	_, raw := a.newPAT(t, userID, nil, pat.ScopeLinks, pat.ScopeRead)
+	cs := a.mcpClient(t, raw)
+
+	link := func(client *mcp.ClientSession, txn, targetType, target string) (*mcp.CallToolResult, string) {
+		t.Helper()
+		res, err := client.CallTool(t.Context(), &mcp.CallToolParams{Name: "link_transaction", Arguments: map[string]any{
+			"transactionId": txn, "targetType": targetType, "targetId": target}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var text string
+		for _, c := range res.Content {
+			text += c.(*mcp.TextContent).Text
+		}
+		return res, text
+	}
+
+	for _, target := range []string{"contract", "purchase", "vehicle"} {
+		if res, text := link(cs, ids["transaction"], target, ids[target]); res.IsError {
+			t.Fatalf("link to %s: %s", target, text)
+		}
+	}
+	status, body := a.request(t, "GET", "/api/v1/ledger/transactions/"+ids["transaction"], jwt, "")
+	if status != 200 || strings.Count(body, `"targetId"`) != 3 {
+		t.Fatalf("transaction = %d %s", status, body)
+	}
+	for path, wantID := range map[string]string{"/api/v1/contracts/" + ids["contract"]: ids["transaction"], "/api/v1/purchases/" + ids["purchase"]: ids["transaction"], "/api/v1/vehicles/" + ids["vehicle"]: ids["transaction"]} {
+		if status, body := a.request(t, "GET", path, jwt, ""); status != 200 || !strings.Contains(body, wantID) {
+			t.Errorf("%s lacks the back-link: %d %s", path, status, body)
+		}
+	}
+	if res, text := link(cs, ids["transaction"], "purchase", ids["purchase"]); res.IsError || !strings.Contains(text, `"alreadyLinked":true`) {
+		t.Fatalf("repeat: %v %s", res.IsError, text)
+	}
+
+	// another user's token cannot touch this user's transaction
+	_, otherRaw := a.newPAT(t, otherID, nil, pat.ScopeLinks)
+	if res, text := link(a.mcpClient(t, otherRaw), ids["transaction"], "purchase", ids["purchase"]); !res.IsError || !strings.HasPrefix(text, "not_found") {
+		t.Fatalf("foreign token: %q", text)
+	}
+
+	// a disabled target module blocks the link without changing anything
+	status, body = a.request(t, "PUT", "/api/v1/settings", jwt, `{"renewalDays":90,"reminderFrequency":"disabled","enabledModules":["purchases","contracts","ledger"]}`)
+	if status != 200 {
+		t.Fatalf("settings = %d %s", status, body)
+	}
+	if res, text := link(cs, ids["transaction"], "vehicle", ids["vehicle"]); !res.IsError || !strings.HasPrefix(text, "module_disabled") {
+		t.Fatalf("disabled target module: %q", text)
+	}
+}
+
+func (a *testApp) mcpRaw(t *testing.T, token, contentType, body string) (int, string) {
+	t.Helper()
+	req, err := http.NewRequest("POST", a.srv.URL+"/mcp", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var buf bytes.Buffer
+	buf.ReadFrom(resp.Body)
+	return resp.StatusCode, buf.String()
+}
+
+func TestMCPHostileBodies(t *testing.T) {
+	a := newTestApp(t)
+	userID, _ := a.register(t, "hostile@example.com")
+	_, raw := a.newPAT(t, userID, nil, pat.ScopeRead, pat.ScopeDrafts)
+
+	tests := map[string]struct {
+		contentType, body string
+	}{
+		"not json":            {"application/json", "not json"},
+		"empty body":          {"application/json", ""},
+		"wrong content type":  {"text/plain", `{"jsonrpc":"2.0","id":1,"method":"ping"}`},
+		"unknown method":      {"application/json", `{"jsonrpc":"2.0","id":1,"method":"does/not/exist"}`},
+		"wrong jsonrpc":       {"application/json", `{"jsonrpc":"1.0","id":1,"method":"ping"}`},
+		"call without params": {"application/json", `{"jsonrpc":"2.0","id":1,"method":"tools/call"}`},
+		"null params":         {"application/json", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":null}`},
+		"tool name is number": {"application/json", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":5}}`},
+		"oversized body":      {"application/json", `{"jsonrpc":"2.0","id":1,"method":"ping","x":"` + strings.Repeat("a", 5<<20) + `"}`},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			status, body := a.mcpRaw(t, raw, tt.contentType, tt.body)
+			if status >= 500 {
+				t.Fatalf("status = %d, body = %s", status, body)
+			}
+			if strings.Contains(body, raw) || strings.Contains(body, "goroutine") || strings.Contains(body, ".go:") {
+				t.Fatalf("response leaks internals: %s", body)
+			}
+		})
+	}
+
+	// The token still works after the hostile requests.
+	cs := a.mcpClient(t, raw)
+	listModules(t, cs)
+}
+
+func TestMCPHostileToolArguments(t *testing.T) {
+	a := newTestApp(t)
+	userID, _ := a.register(t, "args@example.com")
+	_, raw := a.newPAT(t, userID, nil, pat.ScopeRead, pat.ScopeDrafts, pat.ScopeLinks)
+	cs := a.mcpClient(t, raw)
+
+	calls := []struct {
+		name string
+		args map[string]any
+	}{
+		{"create_contract_draft", map[string]any{}},
+		{"create_contract_draft", map[string]any{"title": strings.Repeat("x", 100000), "input": map[string]any{}}},
+		{"create_contract_draft", map[string]any{"title": "t", "input": "not an object"}},
+		{"create_contract_draft", map[string]any{"title": "t", "key": strings.Repeat("k", 100000), "input": map[string]any{}}},
+		{"attach_paperless_documents", map[string]any{"entityType": "../../etc", "entityId": "x", "documentIds": []int{1}}},
+		{"attach_paperless_documents", map[string]any{"entityType": "contract", "entityId": "not-a-uuid", "documentIds": []int{}}},
+		{"attach_paperless_documents", map[string]any{"entityType": "contract", "entityId": "x", "documentIds": []int{-1}}},
+		{"link_transaction", map[string]any{"transactionId": "' or 1=1", "targetType": "contract", "targetId": "x"}},
+		{"link_transaction", map[string]any{}},
+		{"search_paperless_documents", map[string]any{"query": strings.Repeat("q", 100000)}},
+	}
+	for _, c := range calls {
+		res, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: c.name, Arguments: c.args})
+		if err != nil {
+			continue // protocol-level rejection of the arguments is fine
+		}
+		if !res.IsError {
+			t.Errorf("%s(%v) succeeded", c.name, c.args)
+			continue
+		}
+		b, _ := json.Marshal(res.Content)
+		if strings.Contains(string(b), "goroutine") || strings.Contains(string(b), ".go:") {
+			t.Errorf("%s leaks internals: %s", c.name, b)
+		}
+	}
+	listModules(t, cs)
+}
+
+func TestPATCreateRESTHostileInput(t *testing.T) {
+	a := newTestApp(t)
+	_, jwt := a.register(t, "hostilepat@example.com")
+	for name, body := range map[string]string{
+		"not json":          `nope`,
+		"scopes null":       `{"name":"a","scopes":null}`,
+		"scopes wrong type": `{"name":"a","scopes":"read"}`,
+		"write scope":       `{"name":"a","scopes":["write"]}`,
+		"admin scope":       `{"name":"a","scopes":["admin"]}`,
+		"expiry in past":    `{"name":"a","scopes":["read"],"expiresAt":"2000-01-01T00:00:00Z"}`,
+		"expiry not date":   `{"name":"a","scopes":["read"],"expiresAt":"tomorrow"}`,
+		"huge name":         `{"name":"` + strings.Repeat("a", 1<<20) + `","scopes":["read"]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			status, resp := a.request(t, "POST", "/api/v1/tokens", jwt, body)
+			if status < 400 || status >= 500 {
+				t.Fatalf("status = %d, body = %s", status, resp)
+			}
+		})
+	}
+}
+
+func TestMCPConcurrentSameKeyCreatesOneDraft(t *testing.T) {
+	a := newTestApp(t)
+	userID, jwt := a.register(t, "concurrent@example.com")
+	_, raw := a.newPAT(t, userID, nil, pat.ScopeRead, pat.ScopeDrafts)
+
+	const n = 12
+	var wg sync.WaitGroup
+	ids := make([]string, n)
+	errs := make([]string, n)
+	for i := range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cs := a.mcpClient(t, raw)
+			res, err := cs.CallTool(t.Context(), &mcp.CallToolParams{
+				Name: "create_vehicle_draft",
+				Arguments: map[string]any{
+					"title": "Polo", "key": "same-key",
+					"input": map[string]any{"name": "Polo"},
+				},
+			})
+			if err != nil {
+				t.Errorf("call %d: %v", i, err)
+				return
+			}
+			if res.IsError {
+				b, _ := json.Marshal(res.Content)
+				errs[i] = string(b)
+				return
+			}
+			b, _ := json.Marshal(res.StructuredContent)
+			var out struct {
+				DraftID string `json:"draftId"`
+			}
+			_ = json.Unmarshal(b, &out)
+			ids[i] = out.DraftID
+		}()
+	}
+	wg.Wait()
+	created := 0
+	for i := range n {
+		switch {
+		case ids[i] != "":
+			created++
+		case !strings.Contains(errs[i], "already_pending"):
+			t.Errorf("call %d: unexpected result %q", i, errs[i])
+		}
+	}
+	if created != 1 {
+		t.Fatalf("%d calls created a draft, want exactly 1 (ids=%v errs=%v)", created, ids, errs)
+	}
+	status, body := a.request(t, "GET", "/api/v1/drafts", jwt, "")
+	var list []json.RawMessage
+	if status != 200 || json.Unmarshal([]byte(body), &list) != nil || len(list) != 1 {
+		t.Fatalf("drafts = %d %s", status, body)
+	}
+}
+
+func TestMCPInvalidDraftInputIsRejectedBeforeCreation(t *testing.T) {
+	a := newTestApp(t)
+	userID, jwt := a.register(t, "invalid@example.com")
+	_, raw := a.newPAT(t, userID, nil, pat.ScopeRead, pat.ScopeDrafts)
+	cs := a.mcpClient(t, raw)
+
+	for name, c := range map[string]struct {
+		tool string
+		args map[string]any
+	}{
+		"bad IBAN checksum": {"create_ledger_account_draft", map[string]any{"title": "a", "input": map[string]any{"name": "Main", "bank": "DKB", "iban": "DE00370400440532013000"}}},
+		"empty vehicle":     {"create_vehicle_draft", map[string]any{"title": "a", "input": map[string]any{}}},
+		"blank category":    {"create_contract_category_draft", map[string]any{"title": "a", "input": map[string]any{"name": "   "}}},
+		"unknown category":  {"create_contract_draft", map[string]any{"title": "a", "categoryId": uuid.NewString(), "input": map[string]any{"name": "x"}}},
+		"foreign vehicle":   {"create_vehicle_cost_draft", map[string]any{"title": "a", "vehicleId": uuid.NewString(), "input": map[string]any{"type": "service", "date": "2026-09-15"}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			res, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: c.tool, Arguments: c.args})
+			if err == nil && !res.IsError {
+				t.Fatalf("accepted: %+v", res.StructuredContent)
+			}
+		})
+	}
+	status, body := a.request(t, "GET", "/api/v1/drafts", jwt, "")
+	if status != 200 || strings.TrimSpace(body) != "[]" && !strings.Contains(body, "null") {
+		t.Fatalf("invalid input created drafts: %d %s", status, body)
 	}
 }

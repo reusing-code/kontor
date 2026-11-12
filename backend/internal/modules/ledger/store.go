@@ -54,6 +54,23 @@ type LedgerTransactionListOptions struct {
 	Cursor       string
 }
 
+// LedgerTransactionSearch filters SearchLedgerTransactions; empty fields do
+// not filter. Amount bounds compare the absolute amount in minor units.
+type LedgerTransactionSearch struct {
+	Query       string
+	DateFrom    string
+	DateTo      string
+	MinAbsMinor *int64
+	MaxAbsMinor *int64
+	AccountID   *uuid.UUID
+	Limit       int
+}
+
+var (
+	ErrTransactionNotFound = fmt.Errorf("%w: transaction", storage.ErrNotFound)
+	ErrTargetNotFound      = fmt.Errorf("%w: target", storage.ErrNotFound)
+)
+
 type LedgerReviewResult struct {
 	Transaction LedgerTransaction
 	Category    *LedgerCategory
@@ -1200,6 +1217,64 @@ func (s *Store) UpdateLedgerTransactionDetails(_ context.Context, userID string,
 	return updated, nil
 }
 
+// SearchLedgerTransactions returns the newest matching transactions, at most
+// Limit; truncated reports that more matched. Like the list endpoints it
+// reads all transactions of the user and filters in memory.
+func (s *Store) SearchLedgerTransactions(_ context.Context, userID string, q LedgerTransactionSearch) ([]LedgerTransaction, bool, error) {
+	var matched []LedgerTransaction
+	err := s.e.View(func(txn *badger.Txn) error {
+		all, err := collectLedgerTransactions(txn, userID)
+		if err != nil {
+			return err
+		}
+		sortLedgerTransactions(all)
+		for _, t := range all {
+			if q.AccountID != nil && t.AccountID != *q.AccountID {
+				continue
+			}
+			if q.DateFrom != "" && t.BookingDate < q.DateFrom || q.DateTo != "" && t.BookingDate > q.DateTo {
+				continue
+			}
+			abs := t.AmountMinor
+			if abs < 0 {
+				abs = -abs
+			}
+			if q.MinAbsMinor != nil && abs < *q.MinAbsMinor || q.MaxAbsMinor != nil && abs > *q.MaxAbsMinor {
+				continue
+			}
+			if q.Query != "" && !containsFold(q.Query, t.CounterpartyName, t.Purpose, t.Note) {
+				continue
+			}
+			matched = append(matched, t)
+			if q.Limit > 0 && len(matched) > q.Limit {
+				break
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	truncated := q.Limit > 0 && len(matched) > q.Limit
+	if truncated {
+		matched = matched[:q.Limit]
+	}
+	if matched == nil {
+		matched = []LedgerTransaction{}
+	}
+	return matched, truncated, nil
+}
+
+func containsFold(needle string, fields ...string) bool {
+	needle = strings.ToLower(needle)
+	for _, f := range fields {
+		if strings.Contains(strings.ToLower(f), needle) {
+			return true
+		}
+	}
+	return false
+}
+
 // AddLedgerTransactionReference appends one reference and the target's
 // back-link in a single transaction. A reference that already exists leaves
 // the transaction unchanged and reports added=false. It touches nothing else (category, transfer
@@ -1229,7 +1304,7 @@ func (s *Store) addLedgerTransactionReference(userID string, id uuid.UUID, ref L
 		ledgerTxn, err := loadLedgerTransaction(txn, userID, id)
 		if err != nil {
 			if errors.Is(err, storage.ErrNotFound) {
-				return fmt.Errorf("%w: transaction", storage.ErrNotFound)
+				return ErrTransactionNotFound
 			}
 			return err
 		}
@@ -1240,7 +1315,7 @@ func (s *Store) addLedgerTransactionReference(userID string, id uuid.UUID, ref L
 		next := append(slices.Clone(ledgerTxn.References), ref)
 		if err := s.syncLedgerReferences(txn, userID, ledgerTxn.ID, ledgerTxn.References, next); err != nil {
 			if errors.Is(err, storage.ErrNotFound) {
-				return fmt.Errorf("%w: target", storage.ErrNotFound)
+				return ErrTargetNotFound
 			}
 			return err
 		}

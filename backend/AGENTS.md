@@ -76,6 +76,14 @@ Go 1.27+ stdlib `net/http` with method+pattern routing. Single binary that optio
 | `search_vehicle_costs` | read | auto | `vehicleId`, `query` (description, vendor), `type`, `dateFrom`/`dateTo` |
 | `create_vehicle_cost_draft` | drafts | auto | `vehicleId` + `CostEntryInput`; target `cost` |
 | `create_vehicle_draft` | drafts | auto | `VehicleInput`; target `vehicle` |
+| `list_ledger_accounts` | read | ledger | Accounts with `ibanLast4` only (never the full IBAN) |
+| `list_ledger_categories` | read | ledger | Category IDs, names, parent IDs |
+| `search_ledger_transactions` | read | ledger | `query` (counterparty, purpose, note), `dateFrom`/`dateTo` (booking date), `minAmount`/`maxAmount` (absolute, major units, 0 to 10^12), `accountId`; results carry the signed `amount`, `purpose` cut to 200 characters, references, no counterparty IBAN |
+| `create_ledger_category_draft` | drafts | ledger | `{name, matchWords}` plus optional `parentId` (goes to the draft's `parentId`, not into `input`); target `ledger_category` |
+| `create_ledger_account_draft` | drafts | ledger | `{name, bank, iban?, currency?}` (`ValidateForCreate`; an IBAN that already exists is rejected); target `ledger_account` |
+| `link_transaction` | links | ledger | Add one reference (`targetType` contract, purchase or vehicle) through the same code as `POST /ledger/transactions/{id}/references`; `{linked, alreadyLinked}` (decided inside the write transaction, exact under concurrency; the tool is annotated idempotent); `module_disabled` when the target's module is disabled |
+
+That is 21 tools in total: 11 read, 8 drafts and 2 links (`allowedTools` in the integration test is the authoritative list). Ledger transaction search reads all of the user's transactions and filters in memory, like the list endpoints.
 
 **Logging:** `log/slog` — JSON handler in production, text in dev.
 
