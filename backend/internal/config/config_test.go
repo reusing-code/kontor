@@ -108,3 +108,42 @@ func TestLoadFXRatesURL(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadPublicURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		want    string
+		wantErr bool
+	}{
+		{name: "unset", value: "", want: ""},
+		{name: "https", value: "https://kontor.example.com", want: "https://kontor.example.com"},
+		{name: "trailing slash trimmed", value: "https://kontor.example.com/", want: "https://kontor.example.com"},
+		{name: "path kept", value: "http://host:8080/kontor/", want: "http://host:8080/kontor"},
+		{name: "ftp", value: "ftp://kontor.example.com", wantErr: true},
+		{name: "relative", value: "kontor.example.com", wantErr: true},
+		{name: "no host", value: "https://", wantErr: true},
+		{name: "query", value: "https://kontor.example.com?x=1", wantErr: true},
+		{name: "empty query marker", value: "https://kontor.example.com/?", wantErr: true},
+		{name: "fragment", value: "https://kontor.example.com/#top", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("JWT_SECRET", "test")
+			t.Setenv("PUBLIC_URL", tt.value)
+			cfg, err := Load()
+			if tt.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "PUBLIC_URL") {
+					t.Fatalf("Load() error = %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if cfg.PublicURL != tt.want {
+				t.Fatalf("PublicURL = %q, want %q", cfg.PublicURL, tt.want)
+			}
+		})
+	}
+}

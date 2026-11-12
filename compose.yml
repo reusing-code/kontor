@@ -20,6 +20,8 @@ services:
       # - PAPERLESS_PIPELINE_INTERVAL=15m
       # ECB exchange rates (Frankfurter API) for converting extracted non-EUR amounts; "off" disables.
       # - FX_RATES_URL=https://api.frankfurter.dev/v1
+      # Public base URL of this Kontor, used for paperless back-links created through MCP.
+      # - PUBLIC_URL=https://kontor.example.com
 
 volumes:
   app-data:

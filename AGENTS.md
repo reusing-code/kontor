@@ -68,6 +68,8 @@ A central, source-agnostic **draft inbox** (`backend/internal/drafts/`, frontend
 
 **Personal access tokens** (`backend/internal/pat/`): users create long-lived, revocable tokens (`kpat_…`, shown once, only the SHA-256 hash is stored) in the settings API (`/api/v1/tokens`, JWT only) with scopes `read`, `drafts` and `links`, an optional expiry and at most 50 per user. Tokens are not exported and not revoked on a password change. They are also accepted on the REST API next to the JWT, restricted per route by a default-deny scope table (`backend/internal/server/scopes.go`): `read` for every `GET` (including the exports), `drafts` for the draft decisions, `links` for attaching paperless documents and adding ledger transaction references; everything else, token management and the password change need the JWT.
 
+**MCP endpoint** (`backend/internal/mcptool/`, `backend/internal/mcpserver/`, `internal/server/mcp.go`): `/mcp` serves the Model Context Protocol (official Go SDK, stateless streamable HTTP) for agents. It accepts personal access tokens only (a JWT gets 401 with `WWW-Authenticate: Bearer`). Agents get a drafts-only tool set: list reference data, search, create drafts in the inbox and link paperless documents; they cannot create or change entities. Each request builds its own server bound to the token's user and scopes, so revoking a token, scope limits and module toggles apply on the next request. Modules contribute tools through the module registry (`module.ToolProvider`). The paperless back-link written by `attach_paperless_documents` needs the operator to set `PUBLIC_URL`.
+
 ### DB key schema
 
 All module data lives under one prefix per module (`u/{userId}/mod/{module}/...`), so a module's footprint is a single prefix scan.

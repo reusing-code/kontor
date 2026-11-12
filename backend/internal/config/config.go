@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -58,6 +59,10 @@ type Config struct {
 	// extracted non-EUR amounts. "off" disables conversion (an empty value
 	// falls back to the default).
 	FXRatesURL string `env:"FX_RATES_URL" envDefault:"https://api.frankfurter.dev/v1"`
+
+	// Public base URL of this Kontor (no trailing slash); used for the
+	// back-links that MCP tools write into paperless. Empty = unset.
+	PublicURL string `env:"PUBLIC_URL"`
 }
 
 func Load() (Config, error) {
@@ -71,7 +76,17 @@ func Load() (Config, error) {
 	if cfg.FXRatesEnabled() && !isHTTPURL(cfg.FXRatesURL) {
 		return cfg, errors.New(`FX_RATES_URL must be an absolute http(s) URL or "off"`)
 	}
+	cfg.PublicURL = strings.TrimRight(cfg.PublicURL, "/")
+	if cfg.PublicURL != "" && !validPublicURL(cfg.PublicURL) {
+		return cfg, errors.New("PUBLIC_URL must be an absolute http(s) URL")
+	}
 	return cfg, nil
+}
+
+func validPublicURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" &&
+		u.RawQuery == "" && u.Fragment == "" && !strings.Contains(raw, "?") && !strings.Contains(raw, "#")
 }
 
 func (c Config) LLMEnabled() bool {

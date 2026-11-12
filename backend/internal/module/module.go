@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/reusing-code/kontor/backend/internal/mcptool"
 	"github.com/reusing-code/kontor/backend/internal/storage/migration"
 )
 
@@ -42,6 +43,12 @@ type Module interface {
 	// PruneDeadLinks removes references to items that do not exist after an
 	// import, e.g. transaction links whose ledger data was not imported.
 	PruneDeadLinks(ctx context.Context, userID string, res *ImportResult) error
+}
+
+// ToolProvider is optionally implemented by modules that contribute MCP
+// tools; Base needs no change because the interface is separate.
+type ToolProvider interface {
+	RegisterTools(r *mcptool.Registrar)
 }
 
 // ImportResult aggregates per-entity restore counts and warnings.
@@ -101,6 +108,16 @@ func (r *Registry) All() []Module { return r.modules }
 func (r *Registry) Get(id string) (Module, bool) {
 	m, ok := r.byID[id]
 	return m, ok
+}
+
+// RegisterTools lets every module that provides tools register them, in
+// registration order.
+func (r *Registry) RegisterTools(reg *mcptool.Registrar) {
+	for _, m := range r.modules {
+		if p, ok := m.(ToolProvider); ok {
+			p.RegisterTools(reg)
+		}
+	}
 }
 
 func (r *Registry) IDs() []string {

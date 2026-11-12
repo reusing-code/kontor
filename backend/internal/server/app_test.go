@@ -32,7 +32,11 @@ type testApp struct {
 // background services) behind an httptest server.
 func newTestApp(t *testing.T, mutate ...func(*config.Config)) *testApp {
 	t.Helper()
-	logger := slog.New(slog.DiscardHandler)
+	return newTestAppWithLogger(t, slog.New(slog.DiscardHandler), mutate...)
+}
+
+func newTestAppWithLogger(t *testing.T, logger *slog.Logger, mutate ...func(*config.Config)) *testApp {
+	t.Helper()
 	engine, err := storage.Open(t.TempDir(), logger)
 	if err != nil {
 		t.Fatalf("opening engine: %v", err)

@@ -151,6 +151,12 @@ func (s *Server) buildApp() (*app, error) {
 	registerDraftRoutes(apiMux, draftHandler)
 	apiMux.HandleFunc("POST /api/v1/quick-add", quickadd.NewHandler(classifier, s.logger).Classify)
 
+	mcpHandler := s.newMCPHandler(mcpDeps{
+		registry: registry, coreStore: coreStore, drafts: draftStore, paperless: paperlessService,
+		contracts: contractsMod, purchases: purchasesMod, auto: autoMod, ledger: ledgerMod,
+		patStore: patStore, jwtSecret: jwtSecret,
+	})
+
 	protectedAPI := middleware.Auth(jwtSecret,
 		middleware.WithPATs(patStore),
 		middleware.WithAuthLogger(s.logger),
@@ -172,6 +178,7 @@ func (s *Server) buildApp() (*app, error) {
 
 	// Mount protected API routes
 	mux.Handle("/api/v1/", protectedAPI)
+	mux.Handle("/mcp", mcpHandler)
 
 	// SPA static files
 	if s.cfg.StaticDir != "" {
