@@ -13,8 +13,17 @@ const (
 	LedgerEmailOrderStatusMatched   = "matched"
 	LedgerEmailOrderStatusRejected  = "rejected"
 
+	// Legacy importer IDs of orders stored before the LLM extraction.
 	LedgerEmailImporterAmazonDE = "amazon.de"
 	LedgerEmailImporterPayPalDE = "paypal.de"
+	LedgerEmailImporterLLM      = "llm"
+
+	PaymentMethodPayPal       = "paypal"
+	PaymentMethodCard         = "card"
+	PaymentMethodDirectDebit  = "direct_debit"
+	PaymentMethodBankTransfer = "bank_transfer"
+	PaymentMethodOther        = "other"
+	PaymentMethodUnknown      = "unknown"
 )
 
 type LedgerEmailAccount struct {
@@ -95,6 +104,8 @@ type LedgerEmailOrder struct {
 	OrderDate            string                 `json:"orderDate"`
 	TotalMinor           int64                  `json:"totalMinor"`
 	Currency             string                 `json:"currency"`
+	Merchant             string                 `json:"merchant,omitempty"`
+	PaymentMethod        string                 `json:"paymentMethod,omitempty"`
 	Items                []LedgerEmailOrderItem `json:"items,omitempty"`
 	EmailMessageID       string                 `json:"emailMessageId,omitempty"`
 	EmailSubject         string                 `json:"emailSubject,omitempty"`

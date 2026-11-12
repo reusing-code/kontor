@@ -1,28 +1,19 @@
 package ledger
 
 import (
-	"bufio"
 	"bytes"
 	"context"
-	"crypto/tls"
-	"encoding/base64"
 	"fmt"
-	"github.com/reusing-code/kontor/backend/internal/storage"
 	"io"
 	"log/slog"
-	"mime"
-	"mime/multipart"
-	"mime/quotedprintable"
-	"net"
-	"net/mail"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/reusing-code/kontor/backend/internal/storage"
+
 	"github.com/google/uuid"
-	"golang.org/x/net/html/charset"
 )
 
 type Importer interface {
@@ -33,33 +24,6 @@ type Importer interface {
 	// ChargeWindow is the range around an order's orderDate in which the
 	// payment for it is expected to be booked.
 	ChargeWindow() ChargeWindow
-}
-
-type ChargeWindow struct {
-	BeforeDays int `json:"beforeDays"`
-	AfterDays  int `json:"afterDays"`
-}
-
-// defaultChargeWindow applies to orders whose importer is no longer registered.
-var defaultChargeWindow = ChargeWindow{BeforeDays: 3, AfterDays: 30}
-
-// Contains reports whether bookingDate lies within the window around orderDate.
-// An order without a date imposes no constraint.
-func (w ChargeWindow) Contains(bookingDate, orderDate string) bool {
-	if orderDate == "" {
-		return true
-	}
-	delta, ok := ledgerSignedDateDeltaDays(bookingDate, orderDate)
-	return ok && delta >= -w.BeforeDays && delta <= w.AfterDays
-}
-
-type ParsedEmail struct {
-	MessageID string
-	From      string
-	Subject   string
-	Date      time.Time
-	TextBody  string
-	HTMLBody  string
 }
 
 type ParsedOrder struct {
@@ -159,7 +123,7 @@ func (s *EmailService) ScanUploadedMessages(ctx context.Context, userID string, 
 				CreatedAt:       now,
 				UpdatedAt:       now,
 			}
-			linked, warnings, err := s.autoLinkOrder(ctx, userID, importer, &order)
+			linked, warnings, err := s.autoLinkOrder(ctx, userID, matchRule{Pattern: importer.CounterpartyPattern(), Window: importer.ChargeWindow()}, &order)
 			result.Warnings = append(result.Warnings, warnings...)
 			if err != nil {
 				return result, err
@@ -307,7 +271,7 @@ func (s *EmailService) processParsedEmail(ctx context.Context, userID string, ac
 			CreatedAt:       now,
 			UpdatedAt:       now,
 		}
-		linked, linkWarnings, err := s.autoLinkOrder(ctx, userID, importer, &order)
+		linked, linkWarnings, err := s.autoLinkOrder(ctx, userID, matchRule{Pattern: importer.CounterpartyPattern(), Window: importer.ChargeWindow()}, &order)
 		result.Warnings = append(result.Warnings, linkWarnings...)
 		if err != nil {
 			return result, err
@@ -331,23 +295,14 @@ func (s *EmailService) processParsedEmail(ctx context.Context, userID string, ac
 	return result, nil
 }
 
-func (s *EmailService) chargeWindow(importerID string) ChargeWindow {
-	for _, importer := range s.importers {
-		if importer.Info().ID == importerID {
-			return importer.ChargeWindow()
-		}
-	}
-	return defaultChargeWindow
-}
-
 // ListOrderCandidates returns link candidates for an email order within its
-// importer's charge window; afterDays > 0 overrides the window's upper bound.
+// charge window (derived from the order); afterDays > 0 overrides the window's upper bound.
 func (s *EmailService) ListOrderCandidates(ctx context.Context, userID string, orderID uuid.UUID, afterDays int) (LedgerEmailOrderCandidatesResult, error) {
 	order, err := s.store.GetLedgerEmailOrder(ctx, userID, orderID)
 	if err != nil {
 		return LedgerEmailOrderCandidatesResult{}, err
 	}
-	window := s.chargeWindow(order.ImporterID)
+	window := matchRuleForOrder(order).Window
 	if afterDays > 0 {
 		window.AfterDays = afterDays
 	}
@@ -363,7 +318,10 @@ func (s *EmailService) matchImporter(from string, subject string) Importer {
 	return nil
 }
 
-func (s *EmailService) autoLinkOrder(ctx context.Context, userID string, importer Importer, order *LedgerEmailOrder) (bool, []string, error) {
+func (s *EmailService) autoLinkOrder(ctx context.Context, userID string, rule matchRule, order *LedgerEmailOrder) (bool, []string, error) {
+	if rule.Pattern == nil {
+		return false, nil, nil
+	}
 	transactions, err := s.store.ListLedgerTransactionsFiltered(ctx, userID, LedgerTransactionListOptions{Limit: 500})
 	if err != nil {
 		return false, nil, err
@@ -376,10 +334,10 @@ func (s *EmailService) autoLinkOrder(ctx context.Context, userID string, importe
 		if len(txn.EmailOrderIDs) > 0 {
 			continue
 		}
-		if !importer.CounterpartyPattern().MatchString(strings.TrimSpace(txn.CounterpartyName + "\n" + txn.Purpose)) {
+		if !rule.Pattern.MatchString(strings.TrimSpace(txn.CounterpartyName + "\n" + txn.Purpose)) {
 			continue
 		}
-		if !importer.ChargeWindow().Contains(txn.BookingDate, order.OrderDate) {
+		if !rule.Window.Contains(txn.BookingDate, order.OrderDate) {
 			continue
 		}
 		candidates = append(candidates, txn)
@@ -446,320 +404,4 @@ func findTransactionCombination(candidates []LedgerTransaction, target int64) []
 	}
 	walk(0, 0, nil)
 	return best
-}
-
-func parseMessage(r io.Reader) (ParsedEmail, error) {
-	msg, err := mail.ReadMessage(bufio.NewReader(r))
-	if err != nil {
-		return ParsedEmail{}, fmt.Errorf("reading message: %w", err)
-	}
-	subject := strings.TrimSpace(msg.Header.Get("Subject"))
-	if decodedSubject, err := decodeHeader(subject); err == nil && decodedSubject != "" {
-		subject = decodedSubject
-	}
-	from := strings.TrimSpace(msg.Header.Get("From"))
-	if decodedFrom, err := decodeHeader(from); err == nil && decodedFrom != "" {
-		from = decodedFrom
-	}
-	parsed := ParsedEmail{
-		MessageID: strings.TrimSpace(msg.Header.Get("Message-Id")),
-		From:      from,
-		Subject:   subject,
-	}
-	if dateHeader := strings.TrimSpace(msg.Header.Get("Date")); dateHeader != "" {
-		if parsedDate, err := mail.ParseDate(dateHeader); err == nil {
-			parsed.Date = parsedDate.UTC()
-		}
-	}
-	bodyBytes, err := io.ReadAll(msg.Body)
-	if err != nil {
-		return ParsedEmail{}, fmt.Errorf("reading body: %w", err)
-	}
-	mediaType, params, _ := mime.ParseMediaType(msg.Header.Get("Content-Type"))
-	if strings.HasPrefix(mediaType, "multipart/") {
-		reader := multipart.NewReader(bytes.NewReader(bodyBytes), params["boundary"])
-		for {
-			part, err := reader.NextPart()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return ParsedEmail{}, fmt.Errorf("reading multipart body: %w", err)
-			}
-			partBytes, err := readMessagePart(part)
-			if err != nil {
-				return ParsedEmail{}, fmt.Errorf("reading part body: %w", err)
-			}
-			partType, _, _ := mime.ParseMediaType(part.Header.Get("Content-Type"))
-			switch partType {
-			case "text/plain":
-				parsed.TextBody = string(partBytes)
-			case "text/html":
-				parsed.HTMLBody = string(partBytes)
-			}
-		}
-	} else if mediaType == "text/html" {
-		decodedBody, err := decodeBody(bodyBytes, msg.Header.Get("Content-Transfer-Encoding"))
-		if err != nil {
-			return ParsedEmail{}, fmt.Errorf("decoding html body: %w", err)
-		}
-		parsed.HTMLBody = string(decodedBody)
-	} else {
-		decodedBody, err := decodeBody(bodyBytes, msg.Header.Get("Content-Transfer-Encoding"))
-		if err != nil {
-			return ParsedEmail{}, fmt.Errorf("decoding text body: %w", err)
-		}
-		parsed.TextBody = string(decodedBody)
-	}
-	if parsed.TextBody == "" && parsed.HTMLBody != "" {
-		parsed.TextBody = stripHTML(parsed.HTMLBody)
-	}
-	return parsed, nil
-}
-
-func readMessagePart(part *multipart.Part) ([]byte, error) {
-	partBytes, err := io.ReadAll(part)
-	if err != nil {
-		return nil, err
-	}
-	return decodeBody(partBytes, part.Header.Get("Content-Transfer-Encoding"))
-}
-
-func decodeBody(body []byte, transferEncoding string) ([]byte, error) {
-	switch strings.ToLower(strings.TrimSpace(transferEncoding)) {
-	case "quoted-printable":
-		reader := quotedprintable.NewReader(bytes.NewReader(body))
-		return io.ReadAll(reader)
-	case "base64":
-		cleaned := bytes.ReplaceAll(body, []byte("\r"), nil)
-		cleaned = bytes.ReplaceAll(cleaned, []byte("\n"), nil)
-		decoded := make([]byte, base64.StdEncoding.DecodedLen(len(cleaned)))
-		n, err := base64.StdEncoding.Decode(decoded, cleaned)
-		if err != nil {
-			return nil, err
-		}
-		return decoded[:n], nil
-	default:
-		return body, nil
-	}
-}
-
-func decodeHeader(value string) (string, error) {
-	decoder := &mime.WordDecoder{CharsetReader: charset.NewReaderLabel}
-	decoded, err := decoder.DecodeHeader(value)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(decoded), nil
-}
-
-func stripHTML(input string) string {
-	replacer := strings.NewReplacer("<br>", "\n", "<br/>", "\n", "<br />", "\n", "</p>", "\n", "</div>", "\n")
-	cleaned := replacer.Replace(input)
-	tagPattern := regexp.MustCompile(`<[^>]+>`)
-	cleaned = tagPattern.ReplaceAllString(cleaned, " ")
-	spacePattern := regexp.MustCompile(`[ \t\f\v]+`)
-	cleaned = spacePattern.ReplaceAllString(cleaned, " ")
-	linePattern := regexp.MustCompile(`\n\s+`)
-	cleaned = linePattern.ReplaceAllString(cleaned, "\n")
-	return strings.TrimSpace(cleaned)
-}
-
-const (
-	imapDialTimeout = 15 * time.Second
-	imapIOTimeout   = 60 * time.Second
-)
-
-type imapClient struct {
-	conn   net.Conn
-	r      *bufio.Reader
-	w      *bufio.Writer
-	tagNum int
-}
-
-func newIMAPClient(host string, port int, useTLS bool) (*imapClient, error) {
-	address := net.JoinHostPort(host, strconv.Itoa(port))
-	dialer := &net.Dialer{Timeout: imapDialTimeout}
-	var (
-		conn net.Conn
-		err  error
-	)
-	if useTLS {
-		conn, err = tls.DialWithDialer(dialer, "tcp", address, &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12})
-	} else {
-		conn, err = dialer.Dial("tcp", address)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("connecting to imap: %w", err)
-	}
-	client := &imapClient{conn: conn, r: bufio.NewReader(conn), w: bufio.NewWriter(conn)}
-	line, err := client.readLine()
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("reading imap greeting: %w", err)
-	}
-	if !strings.HasPrefix(line, "*") {
-		conn.Close()
-		return nil, fmt.Errorf("unexpected imap greeting: %s", strings.TrimSpace(line))
-	}
-	return client, nil
-}
-
-func (c *imapClient) Close() error {
-	if c.conn == nil {
-		return nil
-	}
-	return c.conn.Close()
-}
-
-func (c *imapClient) Login(username string, password string) error {
-	_, err := c.command(fmt.Sprintf("LOGIN %s %s", imapQuote(username), imapQuote(password)))
-	if err != nil {
-		return fmt.Errorf("logging in to imap: %w", err)
-	}
-	return nil
-}
-
-func (c *imapClient) Logout() {
-	_, _ = c.command("LOGOUT")
-}
-
-func (c *imapClient) SelectInbox() error {
-	_, err := c.command("SELECT INBOX")
-	if err != nil {
-		return fmt.Errorf("selecting inbox: %w", err)
-	}
-	return nil
-}
-
-func (c *imapClient) SearchSince(scanSince string) ([]uint32, error) {
-	date, err := time.Parse("2006-01-02", scanSince)
-	if err != nil {
-		return nil, fmt.Errorf("invalid scan start date: %w", err)
-	}
-	lines, err := c.command(fmt.Sprintf("UID SEARCH SINCE %s", date.Format("2-Jan-2006")))
-	if err != nil {
-		return nil, fmt.Errorf("searching mailbox: %w", err)
-	}
-	for _, line := range lines {
-		if !strings.HasPrefix(line, "* SEARCH") {
-			continue
-		}
-		fields := strings.Fields(strings.TrimSpace(strings.TrimPrefix(line, "* SEARCH")))
-		result := make([]uint32, 0, len(fields))
-		for _, field := range fields {
-			value, err := strconv.ParseUint(field, 10, 32)
-			if err != nil {
-				continue
-			}
-			result = append(result, uint32(value))
-		}
-		return result, nil
-	}
-	return nil, nil
-}
-
-func (c *imapClient) FetchMessage(uid uint32) ([]byte, error) {
-	tag := c.nextTag()
-	if err := c.writeLine(fmt.Sprintf("%s UID FETCH %d (BODY.PEEK[])", tag, uid)); err != nil {
-		return nil, err
-	}
-	var body []byte
-	for {
-		line, err := c.readLine()
-		if err != nil {
-			return nil, err
-		}
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, tag+" ") {
-			if !strings.Contains(trimmed, "OK") {
-				return nil, fmt.Errorf("fetch failed: %s", trimmed)
-			}
-			break
-		}
-		literalSize, ok := parseIMAPLiteralSize(line)
-		if ok {
-			body = make([]byte, literalSize)
-			c.extendDeadline()
-			if _, err := io.ReadFull(c.r, body); err != nil {
-				return nil, fmt.Errorf("reading message literal: %w", err)
-			}
-		}
-	}
-	if len(body) == 0 {
-		return nil, fmt.Errorf("empty message body for uid %d", uid)
-	}
-	return body, nil
-}
-
-func (c *imapClient) command(command string) ([]string, error) {
-	tag := c.nextTag()
-	if err := c.writeLine(fmt.Sprintf("%s %s", tag, command)); err != nil {
-		return nil, err
-	}
-	lines := make([]string, 0)
-	for {
-		line, err := c.readLine()
-		if err != nil {
-			return nil, err
-		}
-		lines = append(lines, line)
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, tag+" ") {
-			if !strings.Contains(trimmed, "OK") {
-				return lines, fmt.Errorf("imap command failed: %s", trimmed)
-			}
-			return lines, nil
-		}
-		if literalSize, ok := parseIMAPLiteralSize(line); ok {
-			c.extendDeadline()
-			if _, err := io.CopyN(io.Discard, c.r, int64(literalSize)); err != nil {
-				return nil, err
-			}
-		}
-	}
-}
-
-func (c *imapClient) nextTag() string {
-	c.tagNum++
-	return fmt.Sprintf("A%04d", c.tagNum)
-}
-
-// extendDeadline bounds the next read/write so a stalled IMAP server
-// cannot block the calling request indefinitely.
-func (c *imapClient) extendDeadline() {
-	_ = c.conn.SetDeadline(time.Now().Add(imapIOTimeout))
-}
-
-func (c *imapClient) writeLine(line string) error {
-	c.extendDeadline()
-	if _, err := c.w.WriteString(line + "\r\n"); err != nil {
-		return err
-	}
-	return c.w.Flush()
-}
-
-func (c *imapClient) readLine() (string, error) {
-	c.extendDeadline()
-	return c.r.ReadString('\n')
-}
-
-func imapQuote(value string) string {
-	escaped := strings.ReplaceAll(value, `\`, `\\`)
-	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-	return `"` + escaped + `"`
-}
-
-func parseIMAPLiteralSize(line string) (int, bool) {
-	trimmed := strings.TrimRight(line, "\r\n")
-	start := strings.LastIndex(trimmed, "{")
-	end := strings.LastIndex(trimmed, "}")
-	if start == -1 || end == -1 || end <= start+1 || end != len(trimmed)-1 {
-		return 0, false
-	}
-	size, err := strconv.Atoi(trimmed[start+1 : end])
-	if err != nil || size < 0 {
-		return 0, false
-	}
-	return size, true
 }

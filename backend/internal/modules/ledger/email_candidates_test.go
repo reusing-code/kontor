@@ -55,13 +55,13 @@ func TestChargeWindow_Contains(t *testing.T) {
 
 func TestAutoLinkOrder_UsesImporterChargeWindow(t *testing.T) {
 	tests := []struct {
-		name     string
-		importer Importer
-		purpose  string
-		want     bool
+		name       string
+		importerID string
+		purpose    string
+		want       bool
 	}{
-		{"amazon charged on shipping", newAmazonDEImporter(), "AMAZON PAYMENTS", true},
-		{"paypal outside window", newPayPalDEImporter(), "PAYPAL EUROPE", false},
+		{"amazon charged on shipping", LedgerEmailImporterAmazonDE, "AMAZON PAYMENTS", true},
+		{"paypal outside window", LedgerEmailImporterPayPalDE, "PAYPAL EUROPE", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -73,7 +73,7 @@ func TestAutoLinkOrder_UsesImporterChargeWindow(t *testing.T) {
 			)
 			order := LedgerEmailOrder{ID: uuid.New(), OrderDate: "2026-04-01", TotalMinor: 4999, Currency: "EUR"}
 
-			linked, _, err := h.ledgerEmail.autoLinkOrder(context.Background(), testUserID, tt.importer, &order)
+			linked, _, err := h.ledgerEmail.autoLinkOrder(context.Background(), testUserID, matchRuleForOrder(LedgerEmailOrder{ImporterID: tt.importerID}), &order)
 			if err != nil {
 				t.Fatalf("autoLinkOrder: %v", err)
 			}
