@@ -29,6 +29,7 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/modules/ledger"
 	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
 	"github.com/reusing-code/kontor/backend/internal/paperless"
+	"github.com/reusing-code/kontor/backend/internal/pat"
 	"github.com/reusing-code/kontor/backend/internal/quickadd"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 	"github.com/reusing-code/kontor/backend/internal/storage/link"
@@ -139,6 +140,12 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("GET /api/v1/settings", coreHandler.GetSettings)
 	apiMux.HandleFunc("PUT /api/v1/settings", coreHandler.UpdateSettings)
 	apiMux.HandleFunc("PUT /api/v1/settings/password", coreHandler.ChangePassword)
+
+	// Personal access token management
+	patHandler := pat.NewHandler(pat.NewStore(engine, s.logger), s.logger)
+	apiMux.HandleFunc("GET /api/v1/tokens", patHandler.List)
+	apiMux.HandleFunc("POST /api/v1/tokens", patHandler.Create)
+	apiMux.HandleFunc("DELETE /api/v1/tokens/{id}", patHandler.Revoke)
 
 	// Paperless-ngx integration (per-user, hidden until configured), the
 	// draft inbox it feeds and free-text quick add
