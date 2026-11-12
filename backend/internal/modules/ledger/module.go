@@ -103,6 +103,7 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("PUT /api/v1/ledger/categories/{id}", h.UpdateLedgerCategory)
 	r.Handle("DELETE /api/v1/ledger/categories/{id}", h.DeleteLedgerCategory)
 	r.Handle("GET /api/v1/ledger/accounts", h.ListLedgerAccounts)
+	r.Handle("POST /api/v1/ledger/accounts", h.CreateLedgerAccount)
 	r.Handle("GET /api/v1/ledger/accounts/{accountId}", h.GetLedgerAccount)
 	r.Handle("GET /api/v1/ledger/accounts/{accountId}/transactions", h.ListLedgerTransactions)
 	r.Handle("GET /api/v1/ledger/email-accounts", h.ListLedgerEmailAccounts)

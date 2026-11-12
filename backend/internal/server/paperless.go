@@ -28,6 +28,7 @@ func registerPaperlessRoutes(mux handleFuncer, h *paperless.Handler, pipeline *p
 
 func registerDraftRoutes(mux handleFuncer, h *drafts.Handler) {
 	mux.HandleFunc("GET /api/v1/drafts", h.List)
+	mux.HandleFunc("GET /api/v1/drafts/summary", h.Summary)
 	mux.HandleFunc("GET /api/v1/drafts/{id}", h.Get)
 	mux.HandleFunc("PUT /api/v1/drafts/{id}", h.Update)
 	mux.HandleFunc("POST /api/v1/drafts/{id}/accept", h.Accept)

@@ -40,15 +40,59 @@ func sourceKey(userID, kind, ref string) []byte {
 	return []byte(fmt.Sprintf("u/%s/drafts/src/%s/%s", userID, kind, ref))
 }
 
+// ErrTooManyPending is returned by CreateLimited when the user already has
+// the maximum number of pending drafts from the source kind.
+var ErrTooManyPending = fmt.Errorf("%w: too many pending drafts", storage.ErrConflict)
+
 // Create stores a draft and its source index entry; ErrDuplicateSource when
 // the source already has a draft.
-func (s *Store) Create(_ context.Context, userID string, d Draft) error {
+func (s *Store) Create(ctx context.Context, userID string, d Draft) error {
+	return s.CreateLimited(ctx, userID, d, 0)
+}
+
+// CreateLimited is Create with a cap: with limit > 0 it fails with
+// ErrTooManyPending when the user already has limit pending drafts from the
+// same source kind. The count and the write share one transaction, but badger
+// does not detect phantom inserts, so parallel creates can overshoot the cap by
+// the number of calls in flight (a soft limit, enough against flooding).
+func (s *Store) CreateLimited(ctx context.Context, userID string, d Draft, limit int) error {
+	// Parallel creates with the same source conflict in badger; the retry
+	// re-runs the source check and so reports ErrDuplicateSource.
+	return storage.RetryConflicts(ctx, createRetries, func() error { return s.createLimited(userID, d, limit) })
+}
+
+const createRetries = 10
+
+func (s *Store) createLimited(userID string, d Draft, limit int) error {
 	return s.e.Update(func(txn *badger.Txn) error {
 		srcKey := sourceKey(userID, d.Source.Kind, d.Source.Ref)
 		if _, err := txn.Get(srcKey); err == nil {
 			return ErrDuplicateSource
 		} else if !errors.Is(err, badger.ErrKeyNotFound) {
 			return err
+		}
+		if limit > 0 {
+			pending := 0
+			if err := storage.IteratePrefix(txn, itemPrefix(userID), func(_, val []byte) error {
+				var existing struct {
+					Status string `json:"status"`
+					Source struct {
+						Kind string `json:"kind"`
+					} `json:"source"`
+				}
+				if err := json.Unmarshal(val, &existing); err != nil {
+					return err
+				}
+				if existing.Status == StatusPending && existing.Source.Kind == d.Source.Kind {
+					pending++
+				}
+				return nil
+			}); err != nil {
+				return err
+			}
+			if pending >= limit {
+				return ErrTooManyPending
+			}
 		}
 		if err := txn.Set(srcKey, []byte(d.ID.String())); err != nil {
 			return err
@@ -105,6 +149,27 @@ func (s *Store) List(_ context.Context, userID, status string) ([]Draft, error) 
 		return strings.Compare(a.ID.String(), b.ID.String())
 	})
 	return drafts, nil
+}
+
+// Counts returns the number of pending and of all drafts without decoding
+// more than the status.
+func (s *Store) Counts(_ context.Context, userID string) (pending, total int, err error) {
+	err = s.e.View(func(txn *badger.Txn) error {
+		return storage.IteratePrefix(txn, itemPrefix(userID), func(_, val []byte) error {
+			var d struct {
+				Status string `json:"status"`
+			}
+			if err := json.Unmarshal(val, &d); err != nil {
+				return err
+			}
+			total++
+			if d.Status == StatusPending {
+				pending++
+			}
+			return nil
+		})
+	})
+	return pending, total, err
 }
 
 // Update applies fn to a pending draft and stores the result.

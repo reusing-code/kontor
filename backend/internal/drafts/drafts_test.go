@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -49,6 +50,7 @@ func setup(t *testing.T) (*Store, *fakeHooks, http.Handler) {
 	h.RegisterSource(SourcePaperless, hooks)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/drafts", h.List)
+	mux.HandleFunc("GET /api/v1/drafts/summary", h.Summary)
 	mux.HandleFunc("GET /api/v1/drafts/{id}", h.Get)
 	mux.HandleFunc("PUT /api/v1/drafts/{id}", h.Update)
 	mux.HandleFunc("POST /api/v1/drafts/{id}/accept", h.Accept)
@@ -275,5 +277,227 @@ func TestHandler_Reject(t *testing.T) {
 	}
 	if rec := do(t, mux, "GET", "/api/v1/drafts/"+uuid.NewString(), nil); rec.Code != http.StatusNotFound {
 		t.Errorf("unknown draft = %d, want 404", rec.Code)
+	}
+}
+
+var newTargets = []string{TargetVehicle, TargetContractCategory, TargetPurchaseCategory, TargetLedgerCategory, TargetLedgerAccount}
+
+func TestNew_NewTargets(t *testing.T) {
+	src := Source{Kind: SourceMCP, Ref: "r"}
+	for _, target := range newTargets {
+		d, err := New(src, target, "", json.RawMessage(`{"name":"x"}`), "")
+		if err != nil || d.TargetType != target {
+			t.Errorf("%s: %v %+v", target, err, d)
+		}
+	}
+}
+
+func TestNew_ParentRules(t *testing.T) {
+	src := Source{Kind: SourceMCP, Ref: "r"}
+	parent := uuid.NewString()
+	for _, target := range []string{TargetVehicle, TargetContractCategory, TargetPurchaseCategory, TargetLedgerAccount} {
+		_, err := New(src, target, parent, nil, "")
+		if err == nil || !strings.Contains(err.Error(), "parentId is not allowed for "+target) {
+			t.Errorf("%s with parent: err = %v", target, err)
+		}
+	}
+	for _, target := range []string{TargetPurchase, TargetContract, TargetCost, TargetLedgerCategory, TargetNone} {
+		d, err := New(src, target, parent, nil, "")
+		if err != nil || d.ParentID != parent {
+			t.Errorf("%s with parent: %v %+v", target, err, d)
+		}
+	}
+	if _, err := New(src, TargetLedgerCategory, "nope", nil, ""); err == nil {
+		t.Error("ledger_category: invalid parent UUID accepted")
+	}
+	if d, err := New(src, TargetLedgerCategory, "", nil, ""); err != nil || d.ParentID != "" {
+		t.Errorf("ledger_category without parent: %v", err)
+	}
+}
+
+func TestNew_UnknownTargetListsValidValues(t *testing.T) {
+	_, err := New(Source{Kind: SourceMCP, Ref: "r"}, "car", "", nil, "")
+	if err == nil || !strings.Contains(err.Error(), "ledger_account") || !strings.Contains(err.Error(), "none") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestHandler_UpdateToNewTargets(t *testing.T) {
+	store, _, mux := setup(t)
+	d := createDraft(t, store, "u1", TargetPurchase)
+
+	rec := do(t, mux, "PUT", "/api/v1/drafts/"+d.ID.String(), UpdateInput{TargetType: TargetVehicle, Input: json.RawMessage(`{"name":"Golf"}`)})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update = %d %s", rec.Code, rec.Body)
+	}
+	rec = do(t, mux, "PUT", "/api/v1/drafts/"+d.ID.String(), UpdateInput{TargetType: TargetVehicle, ParentID: uuid.NewString()})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("update with parent = %d", rec.Code)
+	}
+	rec = do(t, mux, "PUT", "/api/v1/drafts/"+d.ID.String(), UpdateInput{TargetType: TargetLedgerCategory, ParentID: uuid.NewString(), Input: json.RawMessage(`{"name":"x"}`)})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ledger_category update = %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestHandler_AcceptNewTargets(t *testing.T) {
+	store, hooks, mux := setup(t)
+	for i, target := range newTargets {
+		d, err := New(Source{Kind: SourcePaperless, Ref: strings.Repeat("a", i+1)}, target, "", json.RawMessage(`{"name":"x"}`), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.Create(t.Context(), testUserID, d); err != nil {
+			t.Fatal(err)
+		}
+		rec := do(t, mux, "POST", "/api/v1/drafts/"+d.ID.String()+"/accept", acceptBody(target))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s accept = %d %s", target, rec.Code, rec.Body)
+		}
+		decided := decode[decisionResponse](t, rec)
+		if decided.Draft.Result == nil || decided.Draft.Result.EntityType != target {
+			t.Errorf("%s result = %+v", target, decided.Draft.Result)
+		}
+	}
+	if len(hooks.accepted) != len(newTargets) {
+		t.Fatalf("hook calls = %d", len(hooks.accepted))
+	}
+}
+
+func TestHandler_AcceptEntityTypeMismatchAndNone(t *testing.T) {
+	store, _, mux := setup(t)
+	d, _ := New(Source{Kind: SourceMCP, Ref: "m"}, TargetVehicle, "", nil, "")
+	if err := store.Create(t.Context(), testUserID, d); err != nil {
+		t.Fatal(err)
+	}
+	for _, entity := range []string{TargetCost, TargetLedgerAccount, TargetNone, "car"} {
+		rec := do(t, mux, "POST", "/api/v1/drafts/"+d.ID.String()+"/accept", acceptBody(entity))
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("accept as %s = %d", entity, rec.Code)
+		}
+	}
+}
+
+func TestStore_Counts(t *testing.T) {
+	store, _, _ := setup(t)
+	ctx := t.Context()
+	if p, n, err := store.Counts(ctx, testUserID); err != nil || p != 0 || n != 0 {
+		t.Fatalf("empty = %d %d %v", p, n, err)
+	}
+	a := createDraft(t, store, "a", TargetPurchase)
+	createDraft(t, store, "b", TargetContract)
+	c := createDraft(t, store, "c", TargetCost)
+	store.Decide(ctx, testUserID, a.ID, StatusRejected, nil)
+	store.Decide(ctx, testUserID, c.ID, StatusAccepted, &Result{EntityType: TargetCost, EntityID: uuid.NewString()})
+	if p, n, err := store.Counts(ctx, testUserID); err != nil || p != 1 || n != 3 {
+		t.Fatalf("counts = %d %d %v", p, n, err)
+	}
+	if p, n, _ := store.Counts(ctx, "other-user"); p != 0 || n != 0 {
+		t.Fatalf("other user sees %d %d", p, n)
+	}
+}
+
+func TestHandler_Summary(t *testing.T) {
+	store, _, mux := setup(t)
+	createDraft(t, store, "a", TargetPurchase)
+	b := createDraft(t, store, "b", TargetNone)
+	store.Decide(t.Context(), testUserID, b.ID, StatusRejected, nil)
+
+	rec := do(t, mux, "GET", "/api/v1/drafts/summary", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("summary = %d %s", rec.Code, rec.Body)
+	}
+	got := decode[map[string]int](t, rec)
+	if got["pending"] != 1 || got["total"] != 2 {
+		t.Fatalf("summary = %v (not shadowed by {id}?)", got)
+	}
+}
+
+func TestStore_CreateLimited(t *testing.T) {
+	store, _, _ := setup(t)
+	ctx := t.Context()
+	mk := func(user, kind, ref string) Draft {
+		d, err := New(Source{Kind: kind, Ref: ref}, TargetNone, "", nil, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	for i := range 3 {
+		if err := store.CreateLimited(ctx, testUserID, mk(testUserID, SourceMCP, string(rune('a'+i))), 3); err != nil {
+			t.Fatalf("draft %d: %v", i, err)
+		}
+	}
+	over := mk(testUserID, SourceMCP, "z")
+	if err := store.CreateLimited(ctx, testUserID, over, 3); !errors.Is(err, ErrTooManyPending) {
+		t.Fatalf("over the cap: err = %v", err)
+	}
+	if has, _ := store.HasSource(ctx, testUserID, SourceMCP, "z"); has {
+		t.Fatal("the rejected draft was stored")
+	}
+	// duplicates are reported as such even at the cap
+	if err := store.CreateLimited(ctx, testUserID, mk(testUserID, SourceMCP, "a"), 3); !errors.Is(err, ErrDuplicateSource) {
+		t.Fatalf("duplicate at the cap: err = %v", err)
+	}
+	// the cap is per user and per source kind
+	if err := store.CreateLimited(ctx, "other-user", mk("", SourceMCP, "a"), 3); err != nil {
+		t.Fatalf("other user: %v", err)
+	}
+	if err := store.CreateLimited(ctx, testUserID, mk(testUserID, SourcePaperless, "p"), 3); err != nil {
+		t.Fatalf("other source kind: %v", err)
+	}
+	// deciding a draft frees a slot
+	list, _ := store.List(ctx, testUserID, StatusPending)
+	var first Draft
+	for _, d := range list {
+		if d.Source.Kind == SourceMCP {
+			first = d
+		}
+	}
+	if _, err := store.Decide(ctx, testUserID, first.ID, StatusRejected, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CreateLimited(ctx, testUserID, over, 3); err != nil {
+		t.Fatalf("after a decision: %v", err)
+	}
+	// max 0 means unlimited (Create)
+	for i := range 5 {
+		if err := store.Create(ctx, testUserID, mk(testUserID, SourceText, string(rune('a'+i)))); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestStore_ParallelSameSourceReportsDuplicate(t *testing.T) {
+	store, _, _ := setup(t)
+	ctx := t.Context()
+	const workers = 16
+	results := make(chan error, workers)
+	for range workers {
+		go func() {
+			d, err := New(Source{Kind: SourceMCP, Ref: "k:same"}, TargetNone, "", nil, "")
+			if err != nil {
+				results <- err
+				return
+			}
+			results <- store.CreateLimited(ctx, testUserID, d, 500)
+		}()
+	}
+	created, duplicates := 0, 0
+	for range workers {
+		switch err := <-results; {
+		case err == nil:
+			created++
+		case errors.Is(err, ErrDuplicateSource):
+			duplicates++
+		default:
+			t.Errorf("unexpected error: %v", err)
+		}
+	}
+	if created != 1 || duplicates != workers-1 {
+		t.Fatalf("created %d, duplicates %d; want 1 and %d", created, duplicates, workers-1)
+	}
+	if list, _ := store.List(ctx, testUserID, ""); len(list) != 1 {
+		t.Fatalf("%d drafts stored, want 1", len(list))
 	}
 }

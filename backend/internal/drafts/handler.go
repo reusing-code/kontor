@@ -58,6 +58,15 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(h.logger, w, http.StatusOK, drafts)
 }
 
+func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
+	pending, total, err := h.store.Counts(r.Context(), middleware.GetUserID(r.Context()))
+	if err != nil {
+		httputil.StoreError(h.logger, w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, map[string]int{"pending": pending, "total": total})
+}
+
 func (h *Handler) draftID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {

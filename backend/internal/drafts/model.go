@@ -26,7 +26,16 @@ const (
 	TargetContract = "contract"
 	TargetCost     = "cost"
 	TargetNone     = "none"
+
+	TargetVehicle          = "vehicle"
+	TargetContractCategory = "contract_category"
+	TargetPurchaseCategory = "purchase_category"
+	TargetLedgerCategory   = "ledger_category"
+	TargetLedgerAccount    = "ledger_account"
 )
+
+const validTargets = "purchase, contract, cost, vehicle, contract_category, purchase_category, ledger_category, ledger_account or none"
+const entityTargets = "purchase, contract, cost, vehicle, contract_category, purchase_category, ledger_category or ledger_account"
 
 const (
 	SourcePaperless = "paperless"
@@ -37,10 +46,22 @@ const (
 
 func ValidTarget(t string) bool {
 	switch t {
-	case TargetPurchase, TargetContract, TargetCost, TargetNone:
+	case TargetPurchase, TargetContract, TargetCost, TargetNone,
+		TargetVehicle, TargetContractCategory, TargetPurchaseCategory, TargetLedgerCategory, TargetLedgerAccount:
 		return true
 	}
 	return false
+}
+
+// parentAllowed reports whether a draft of this type may carry a parentId:
+// purchases and contracts (category), costs (vehicle) and ledger categories
+// (optional parent category). none keeps whatever it had.
+func parentAllowed(t string) bool {
+	switch t {
+	case TargetVehicle, TargetContractCategory, TargetPurchaseCategory, TargetLedgerAccount:
+		return false
+	}
+	return true
 }
 
 func validSource(kind string) bool {
@@ -66,9 +87,12 @@ type Result struct {
 }
 
 // Draft is a proposed entity. Input has the shape of the target module's
-// create input; ParentID is the category (purchase, contract) or vehicle
-// (cost) the entity belongs to. Note is a short machine-readable code that
-// the UI translates (e.g. "unclassified").
+// create input. ParentID is the category (purchase, contract) or vehicle (cost)
+// the entity belongs to, or the optional parent category of a ledger category;
+// it is empty for the other types. Note is a short machine-readable code that
+// the UI translates (e.g. "unclassified") for the paperless and other
+// automatic sources; for source kind mcp it is free text from the agent
+// (at most 500 characters).
 type Draft struct {
 	ID         uuid.UUID       `json:"id"`
 	Status     string          `json:"status"`
@@ -105,10 +129,13 @@ func New(source Source, targetType, parentID string, input json.RawMessage, note
 
 func normalizeContent(targetType, parentID *string, input *json.RawMessage) error {
 	if !ValidTarget(*targetType) {
-		return errors.New("targetType must be purchase, contract, cost or none")
+		return errors.New("targetType must be " + validTargets)
 	}
 	*parentID = strings.TrimSpace(*parentID)
 	if *parentID != "" {
+		if !parentAllowed(*targetType) {
+			return errors.New("parentId is not allowed for " + *targetType)
+		}
 		id, err := uuid.Parse(*parentID)
 		if err != nil {
 			return errors.New("parentId must be a UUID")
@@ -146,7 +173,7 @@ type AcceptInput struct {
 
 func (in *AcceptInput) Validate(d Draft) error {
 	if in.EntityType == TargetNone || !ValidTarget(in.EntityType) {
-		return errors.New("entityType must be purchase, contract or cost")
+		return errors.New("entityType must be " + entityTargets)
 	}
 	if in.EntityType != d.TargetType {
 		return errors.New("entityType must match the draft's targetType")

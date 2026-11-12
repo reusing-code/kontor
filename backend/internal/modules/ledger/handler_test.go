@@ -47,6 +47,7 @@ func newMux(h *Handler) http.Handler {
 	mux.HandleFunc("PUT /api/v1/ledger/categories/{id}", h.UpdateLedgerCategory)
 	mux.HandleFunc("DELETE /api/v1/ledger/categories/{id}", h.DeleteLedgerCategory)
 	mux.HandleFunc("GET /api/v1/ledger/accounts", h.ListLedgerAccounts)
+	mux.HandleFunc("POST /api/v1/ledger/accounts", h.CreateLedgerAccount)
 	mux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}", h.GetLedgerAccount)
 	mux.HandleFunc("GET /api/v1/ledger/accounts/{accountId}/transactions", h.ListLedgerTransactions)
 	mux.HandleFunc("GET /api/v1/ledger/imports", h.ListLedgerImports)

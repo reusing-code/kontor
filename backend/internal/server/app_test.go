@@ -351,3 +351,45 @@ func TestPATAttachesPaperlessDocuments(t *testing.T) {
 		t.Fatalf("list links = %d %s", status, body)
 	}
 }
+
+func TestLedgerAccountCreation(t *testing.T) {
+	a := newTestApp(t)
+	userID, jwt := a.register(t, "acct@example.com")
+	_, allTok := a.newPAT(t, userID, nil, pat.ScopeRead, pat.ScopeDrafts, pat.ScopeLinks)
+	body := `{"name":"Main","bank":"DKB","iban":"DE89370400440532013000"}`
+
+	if status, resp := a.request(t, "POST", "/api/v1/ledger/accounts", allTok, body); status != http.StatusForbidden || !strings.Contains(resp, "insufficient_scope") {
+		t.Fatalf("pat create = %d %s", status, resp)
+	}
+	if status, resp := a.request(t, "POST", "/api/v1/ledger/accounts", jwt, body); status != http.StatusCreated {
+		t.Fatalf("jwt create = %d %s", status, resp)
+	}
+	if status, resp := a.request(t, "GET", "/api/v1/ledger/accounts", allTok, ""); status != 200 || !strings.Contains(resp, "Main") {
+		t.Fatalf("list = %d %s", status, resp)
+	}
+
+	status, resp := a.request(t, "PUT", "/api/v1/settings", jwt, `{"renewalDays":90,"reminderFrequency":"disabled","enabledModules":["contracts","purchases","auto"]}`)
+	if status != 200 {
+		t.Fatalf("settings = %d %s", status, resp)
+	}
+	if status, resp := a.request(t, "POST", "/api/v1/ledger/accounts", jwt, `{"name":"Other","bank":"B"}`); status != http.StatusForbidden || !strings.Contains(resp, "module_disabled") {
+		t.Fatalf("disabled module = %d %s", status, resp)
+	}
+}
+
+func TestDraftSummaryRoute(t *testing.T) {
+	a := newTestApp(t)
+	userID, jwt := a.register(t, "sum@example.com")
+	_, readTok := a.newPAT(t, userID, nil, pat.ScopeRead)
+
+	for _, tok := range []string{jwt, readTok} {
+		status, resp := a.request(t, "GET", "/api/v1/drafts/summary", tok, "")
+		if status != 200 || strings.TrimSpace(resp) != `{"pending":0,"total":0}` {
+			t.Fatalf("summary = %d %s", status, resp)
+		}
+	}
+	_, draftTok := a.newPAT(t, userID, nil, pat.ScopeDrafts)
+	if status, _ := a.request(t, "GET", "/api/v1/drafts/summary", draftTok, ""); status != http.StatusForbidden {
+		t.Fatalf("drafts-only token = %d, want 403", status)
+	}
+}
