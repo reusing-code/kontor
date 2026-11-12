@@ -10,6 +10,7 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/core"
 	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 	"github.com/reusing-code/kontor/backend/internal/httputil"
+	"github.com/reusing-code/kontor/backend/internal/llm"
 	"github.com/reusing-code/kontor/backend/internal/module"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 	"github.com/reusing-code/kontor/backend/internal/storage/link"
@@ -40,6 +41,8 @@ type Module struct {
 type Config struct {
 	EmailScanInterval  time.Duration
 	EmailEncryptionKey string
+	// Extractor reads order data from emails; nil behaves like llm.Disabled.
+	Extractor llm.Extractor
 }
 
 func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Config, logger *slog.Logger) *Module {
@@ -50,11 +53,16 @@ func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Con
 		logger.Warn("ledger email encryption key unavailable", "error", err)
 	}
 
+	extractor := cfg.Extractor
+	if extractor == nil {
+		extractor = llm.Disabled{}
+	}
+
 	handler := &Handler{
 		store:              store,
 		logger:             logger,
 		ledgerImport:       NewImportService(store, logger),
-		ledgerEmail:        NewEmailService(store, logger),
+		ledgerEmail:        NewEmailService(store, extractor, logger),
 		emailEncryptionKey: encryptionKey,
 	}
 

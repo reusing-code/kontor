@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/reusing-code/kontor/backend/internal/llm"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 
 	"github.com/google/uuid"
@@ -52,14 +53,16 @@ type UploadedMessage struct {
 
 type EmailService struct {
 	store     *Store
+	extractor llm.Extractor
 	logger    *slog.Logger
 	importers []Importer
 }
 
-func NewEmailService(s *Store, logger *slog.Logger) *EmailService {
+func NewEmailService(s *Store, extractor llm.Extractor, logger *slog.Logger) *EmailService {
 	return &EmailService{
-		store:  s,
-		logger: logger,
+		store:     s,
+		extractor: extractor,
+		logger:    logger,
 		importers: []Importer{
 			newAmazonDEImporter(),
 			newPayPalDEImporter(),

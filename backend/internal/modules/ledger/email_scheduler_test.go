@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/llm"
 )
 
 func TestAccountDue(t *testing.T) {
@@ -66,7 +67,7 @@ func TestScanAccount_WithoutFolderIsSkippedAndStaysDue(t *testing.T) {
 	}
 	scheduler := &EmailScanScheduler{
 		store:    s.Store,
-		service:  NewEmailService(s.Store, slog.New(slog.DiscardHandler)),
+		service:  NewEmailService(s.Store, llm.Disabled{}, slog.New(slog.DiscardHandler)),
 		interval: time.Hour,
 		logger:   slog.New(slog.DiscardHandler),
 	}

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"html"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -131,14 +132,23 @@ func decodeHeader(value string) (string, error) {
 	return strings.TrimSpace(decoded), nil
 }
 
+var (
+	htmlDropBlocks = regexp.MustCompile(`(?is)<(head|style|script)\b.*?</(head|style|script)\s*>`)
+	htmlLineBreaks = regexp.MustCompile(`(?i)<\s*(br|/p|/div|/tr|/li|/h[1-6])\b[^>]*>`)
+	htmlTags       = regexp.MustCompile(`<[^>]*>`)
+	inlineSpace    = regexp.MustCompile(`[ \t\f\v\x{00a0}]+`)
+	blankLines     = regexp.MustCompile(`\s*\n\s*`)
+)
+
+// stripHTML reduces an HTML document to its visible text: head, style and
+// script blocks are dropped, block ends become line breaks and entities are
+// unescaped.
 func stripHTML(input string) string {
-	replacer := strings.NewReplacer("<br>", "\n", "<br/>", "\n", "<br />", "\n", "</p>", "\n", "</div>", "\n")
-	cleaned := replacer.Replace(input)
-	tagPattern := regexp.MustCompile(`<[^>]+>`)
-	cleaned = tagPattern.ReplaceAllString(cleaned, " ")
-	spacePattern := regexp.MustCompile(`[ \t\f\v]+`)
-	cleaned = spacePattern.ReplaceAllString(cleaned, " ")
-	linePattern := regexp.MustCompile(`\n\s+`)
-	cleaned = linePattern.ReplaceAllString(cleaned, "\n")
-	return strings.TrimSpace(cleaned)
+	text := htmlDropBlocks.ReplaceAllString(input, " ")
+	text = htmlLineBreaks.ReplaceAllString(text, "\n")
+	text = htmlTags.ReplaceAllString(text, " ")
+	text = html.UnescapeString(text)
+	text = inlineSpace.ReplaceAllString(text, " ")
+	text = blankLines.ReplaceAllString(text, "\n")
+	return strings.TrimSpace(text)
 }

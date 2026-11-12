@@ -63,9 +63,11 @@ func (s *Server) Run() error {
 	contractsMod := contracts.New(engine, links, catStore, coreStore, emailClient, s.logger)
 	purchasesMod := purchases.New(engine, links, catStore, s.logger)
 	autoMod := auto.New(engine, links, s.logger)
+	extractor := s.newExtractor()
 	ledgerMod := ledger.New(engine, links, coreStore, ledger.Config{
 		EmailScanInterval:  s.cfg.LedgerEmailScanInterval,
 		EmailEncryptionKey: s.cfg.EmailEncryptionKey,
+		Extractor:          extractor,
 	}, s.logger)
 	registry := module.NewRegistry(contractsMod, purchasesMod, autoMod, ledgerMod)
 
@@ -91,7 +93,6 @@ func (s *Server) Run() error {
 	}
 	coreHandler := core.NewHandler(coreStore, s.logger, jwtSecret, emailClient, seeds, registry)
 
-	extractor := s.newExtractor()
 	coreHandler.SetCapabilities(core.Capabilities{LLM: extractor.Enabled()})
 	classifier := extraction.New(extractor, extractionDeps(coreStore, catStore, autoMod.Store()), s.newRates(), s.logger)
 

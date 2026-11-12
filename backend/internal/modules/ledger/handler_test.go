@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
+	"github.com/reusing-code/kontor/backend/internal/llm"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
 )
@@ -21,13 +22,18 @@ const testUserID = "00000000-0000-0000-0000-000000000001"
 
 func newTestHandler(t *testing.T) (*Handler, *testStores) {
 	t.Helper()
+	return newTestHandlerWithLLM(t, llm.Disabled{})
+}
+
+func newTestHandlerWithLLM(t *testing.T, extractor llm.Extractor) (*Handler, *testStores) {
+	t.Helper()
 	s := newTestStore(t)
 	logger := slog.New(slog.DiscardHandler)
 	h := &Handler{
 		store:        s.Store,
 		logger:       logger,
 		ledgerImport: NewImportService(s.Store, logger),
-		ledgerEmail:  NewEmailService(s.Store, logger),
+		ledgerEmail:  NewEmailService(s.Store, extractor, logger),
 	}
 	return h, s
 }

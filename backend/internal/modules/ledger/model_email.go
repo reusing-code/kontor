@@ -28,6 +28,15 @@ const (
 	PaymentMethodUnknown      = "unknown"
 )
 
+var paymentMethods = []string{
+	PaymentMethodPayPal,
+	PaymentMethodCard,
+	PaymentMethodDirectDebit,
+	PaymentMethodBankTransfer,
+	PaymentMethodOther,
+	PaymentMethodUnknown,
+}
+
 type LedgerEmailAccount struct {
 	ID                    uuid.UUID  `json:"id"`
 	Name                  string     `json:"name"`
