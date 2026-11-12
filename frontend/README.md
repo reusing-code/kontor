@@ -56,6 +56,8 @@ src/
 
 The `@/` import alias maps to `src/`.
 
+The settings page has an "Access tokens" card (`src/components/tokens/`): create, list and revoke personal access tokens (shown once on creation), with copy-ready setup snippets for MCP clients.
+
 The draft inbox at `/inbox` lists entries proposed from tagged paperless documents; it only appears when the server has an LLM configured and paperless is connected.
 
 Quick add (header button, Ctrl/Cmd+K) turns a typed note into a prefilled create dialog; it only appears when the server has an LLM configured and at least one of the purchases, contracts or auto modules is enabled.

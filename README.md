@@ -71,6 +71,30 @@ Every push to `main` adds a `sha-*` tag on Forgejo. A package cleanup rule set i
 
 The remove pattern limits the rule to the `sha-*` tags of `kontor` (not `kontor-ci`); the preview in the rule editor shows what would be deleted.
 
+## Using Kontor from an agent (MCP)
+
+Create a personal access token in **Settings → Access tokens** (shown once; optional expiry, 90 days by default), then point an MCP client at `https://<your-kontor>/mcp` with the header `Authorization: Bearer <token>`:
+
+```bash
+# Claude Code
+claude mcp add --transport http kontor https://kontor.example.com/mcp --header "Authorization: Bearer <your-token>"
+```
+
+```json
+// opencode.json
+{ "mcp": { "kontor": { "type": "remote", "url": "https://kontor.example.com/mcp", "headers": { "Authorization": "Bearer <your-token>" } } } }
+```
+
+| Scope | Allows |
+|-------|--------|
+| `read` | Every read: list and search tools in MCP, and every `GET` of the REST API including the full data export |
+| `drafts` | Create drafts through MCP (contracts, purchases, vehicle costs, vehicles, categories, ledger accounts) and edit/accept/reject drafts through the REST API. Over REST a `drafts` token can accept drafts itself, even with an entity ID that was never created, so it can clear its own drafts from the inbox without your review; for drafts that came from paperless, accepting also stores a link for that unchecked item, writes the URL from the request as back-link and swaps the inbox tag for the done tag in paperless (rejecting removes the inbox tag), and it can edit any pending draft |
+| `links` | Link paperless documents to existing items and add references from ledger transactions to contracts, purchases and vehicles. Over REST a `links` token chooses the back-link URL that is written into paperless and skips the check that the item exists (the MCP tool derives the URL from `PUBLIC_URL` and verifies the item) |
+
+Agents never create or change items directly through MCP: they create drafts that you review in the inbox (the broader REST scopes are described above and in the security note). Tools of modules you disabled are hidden. Set `PUBLIC_URL` on the server so back-links written into paperless point at your Kontor.
+
+**Security:** a token with `read` can read all of your data, including exports, so treat tokens like passwords: give each client its own token with the fewest scopes and an expiry, and revoke a leaked token immediately (Settings → Access tokens). Only a hash of each token is stored; creating and revoking tokens and changing the password always need your login. Known and accepted: through the REST API a `drafts` token can accept drafts and a `links` token controls the paperless back-link URL, so only give REST access to clients you trust with those scopes (for paperless-sourced drafts `drafts` also changes the back-link and tags in paperless).
+
 ## Project Structure
 
 ```
