@@ -21,6 +21,25 @@ type LedgerTransactionReference struct {
 	TargetID uuid.UUID `json:"targetId"`
 }
 
+// LedgerTransactionReferenceInput adds one reference to a transaction.
+type LedgerTransactionReferenceInput struct {
+	Type     string    `json:"type"`
+	TargetID uuid.UUID `json:"targetId"`
+}
+
+func (i *LedgerTransactionReferenceInput) Validate() error {
+	i.Type = strings.TrimSpace(i.Type)
+	switch i.Type {
+	case LedgerReferencePurchase, LedgerReferenceContract, LedgerReferenceVehicle:
+	default:
+		return errors.New("type must be purchase, contract or vehicle")
+	}
+	if i.TargetID == uuid.Nil {
+		return errors.New("targetId is required")
+	}
+	return nil
+}
+
 type LedgerTransactionDetailsInput struct {
 	Note       string                       `json:"note,omitempty"`
 	Links      []string                     `json:"links,omitempty"`

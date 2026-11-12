@@ -25,6 +25,8 @@ type Handler struct {
 	ledgerImport       *ImportService
 	ledgerEmail        *EmailService
 	emailEncryptionKey []byte
+	// enabled checks the module of a reference target; nil skips the check.
+	enabled module.EnablementSource
 }
 
 type Module struct {
@@ -64,6 +66,7 @@ func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Con
 		ledgerImport:       NewImportService(store, logger),
 		ledgerEmail:        NewEmailService(store, extractor, logger),
 		emailEncryptionKey: encryptionKey,
+		enabled:            coreStore,
 	}
 
 	scanEnabled := true
@@ -118,6 +121,7 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("GET /api/v1/ledger/transactions", h.ListLedgerTransactionsReviewQueue)
 	r.Handle("GET /api/v1/ledger/transactions/{transactionId}", h.GetLedgerTransaction)
 	r.Handle("PUT /api/v1/ledger/transactions/{transactionId}", h.UpdateLedgerTransactionDetails)
+	r.Handle("POST /api/v1/ledger/transactions/{transactionId}/references", h.AddLedgerTransactionReference)
 	r.Handle("GET /api/v1/ledger/transactions/{transactionId}/transfer-candidates", h.ListLedgerTransferCandidates)
 	r.Handle("POST /api/v1/ledger/transactions/{transactionId}/transfer-link", h.LinkLedgerTransfer)
 	r.Handle("DELETE /api/v1/ledger/transactions/{transactionId}/transfer-link", h.UnlinkLedgerTransfer)
@@ -142,6 +146,8 @@ func (h *Handler) storeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, storage.ErrNotFound):
 		httputil.Error(h.logger, w, http.StatusNotFound, "not found")
+	case errors.Is(err, ErrTargetModuleDisabled):
+		writeModuleDisabled(w, err)
 	case errors.Is(err, storage.ErrConflict), errors.Is(err, ErrLedgerFileImported), errors.Is(err, ErrLedgerTransferLinked):
 		httputil.Error(h.logger, w, http.StatusConflict, err.Error())
 	case errors.Is(err, ErrLedgerCategoryHasChild), errors.Is(err, ErrLedgerCategoryHasCycle), errors.Is(err, ErrLedgerTransferInvalid):

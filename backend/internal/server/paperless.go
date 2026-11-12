@@ -7,7 +7,11 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/paperless"
 )
 
-func registerPaperlessRoutes(mux *http.ServeMux, h *paperless.Handler, pipeline *paperless.Pipeline) {
+type handleFuncer interface {
+	HandleFunc(pattern string, h func(http.ResponseWriter, *http.Request))
+}
+
+func registerPaperlessRoutes(mux handleFuncer, h *paperless.Handler, pipeline *paperless.Pipeline) {
 	mux.HandleFunc("GET /api/v1/paperless/config", h.GetConfig)
 	mux.HandleFunc("PUT /api/v1/paperless/config", h.PutConfig)
 	mux.HandleFunc("DELETE /api/v1/paperless/config", h.DeleteConfig)
@@ -22,7 +26,7 @@ func registerPaperlessRoutes(mux *http.ServeMux, h *paperless.Handler, pipeline 
 	mux.HandleFunc("POST /api/v1/paperless/pipeline/run", pipeline.Run)
 }
 
-func registerDraftRoutes(mux *http.ServeMux, h *drafts.Handler) {
+func registerDraftRoutes(mux handleFuncer, h *drafts.Handler) {
 	mux.HandleFunc("GET /api/v1/drafts", h.List)
 	mux.HandleFunc("GET /api/v1/drafts/{id}", h.Get)
 	mux.HandleFunc("PUT /api/v1/drafts/{id}", h.Update)

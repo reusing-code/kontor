@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -1197,6 +1198,62 @@ func (s *Store) UpdateLedgerTransactionDetails(_ context.Context, userID string,
 		return LedgerTransaction{}, err
 	}
 	return updated, nil
+}
+
+// AddLedgerTransactionReference appends one reference and the target's
+// back-link in a single transaction. A reference that already exists leaves
+// the transaction unchanged and reports added=false. It touches nothing else (category, transfer
+// state, note, links), so linked internal transfers keep their protections.
+func (s *Store) AddLedgerTransactionReference(ctx context.Context, userID string, id uuid.UUID, ref LedgerTransactionReference) (LedgerTransaction, bool, error) {
+	var (
+		result LedgerTransaction
+		added  bool
+	)
+	err := storage.RetryConflicts(ctx, referenceRetries, func() error {
+		var err error
+		result, added, err = s.addLedgerTransactionReference(userID, id, ref)
+		return err
+	})
+	if err != nil {
+		return LedgerTransaction{}, false, err
+	}
+	return result, added, nil
+}
+
+const referenceRetries = 10
+
+func (s *Store) addLedgerTransactionReference(userID string, id uuid.UUID, ref LedgerTransactionReference) (LedgerTransaction, bool, error) {
+	var result LedgerTransaction
+	added := false
+	err := s.e.Update(func(txn *badger.Txn) error {
+		ledgerTxn, err := loadLedgerTransaction(txn, userID, id)
+		if err != nil {
+			if errors.Is(err, storage.ErrNotFound) {
+				return fmt.Errorf("%w: transaction", storage.ErrNotFound)
+			}
+			return err
+		}
+		if slices.Contains(ledgerTxn.References, ref) {
+			result = ledgerTxn
+			return nil
+		}
+		next := append(slices.Clone(ledgerTxn.References), ref)
+		if err := s.syncLedgerReferences(txn, userID, ledgerTxn.ID, ledgerTxn.References, next); err != nil {
+			if errors.Is(err, storage.ErrNotFound) {
+				return fmt.Errorf("%w: target", storage.ErrNotFound)
+			}
+			return err
+		}
+		ledgerTxn.References = next
+		ledgerTxn.UpdatedAt = time.Now().UTC()
+		if err := storeLedgerTransaction(txn, userID, ledgerTxn); err != nil {
+			return err
+		}
+		result = ledgerTxn
+		added = true
+		return nil
+	})
+	return result, added && err == nil, err
 }
 
 func (s *Store) ReviewLedgerTransaction(_ context.Context, userID string, id uuid.UUID, input LedgerTransactionReviewInput) (LedgerReviewResult, error) {

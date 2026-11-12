@@ -47,12 +47,17 @@ func New(cfg config.Config, logger *slog.Logger, engine *storage.Engine) *Server
 	return &Server{cfg: cfg, logger: logger, engine: engine}
 }
 
-func (s *Server) Run() error {
+// app is the fully wired server: the handler plus the pieces tests need.
+type app struct {
+	handler  http.Handler
+	patterns []string
+	// start launches the background services (backups, pipeline, module jobs).
+	start func(ctx context.Context)
+}
+
+func (s *Server) buildApp() (*app, error) {
 	jwtSecret := []byte(s.cfg.JWTSecret)
 	emailClient := email.NewClient(s.cfg)
-
-	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
-	defer shutdownCancel()
 
 	engine := s.engine
 
@@ -74,18 +79,12 @@ func (s *Server) Run() error {
 
 	for _, m := range registry.All() {
 		if err := migration.RunModule(engine.DB(), s.logger, m.ID(), m.Migrations()); err != nil {
-			return fmt.Errorf("running %s migrations: %w", m.ID(), err)
+			return nil, fmt.Errorf("running %s migrations: %w", m.ID(), err)
 		}
 	}
 
 	if s.cfg.BackupDir == "" {
 		s.logger.Info("backup scheduler disabled", "reason", "BACKUP_DIR is not set")
-	} else {
-		engine.StartBackups(shutdownCtx, storage.BackupConfig{
-			Dir:      s.cfg.BackupDir,
-			Interval: s.cfg.BackupInterval,
-			Keep:     s.cfg.BackupKeep,
-		})
 	}
 
 	seeds := make([]core.SeedFunc, 0, len(registry.All()))
@@ -107,15 +106,13 @@ func (s *Server) Run() error {
 	draftHandler.RegisterSource(drafts.SourcePaperless, paperless.NewDraftHooks(paperlessService))
 	pipeline := paperless.NewPipeline(paperlessService, draftStore, classifier,
 		userIDs(coreStore), s.cfg.PaperlessPipelineInterval, s.logger)
-	pipeline.Start(shutdownCtx)
 
 	// Protected API routes (require auth)
-	apiMux := http.NewServeMux()
+	apiMux := newAPIMux()
 
 	// Module routes, each gated on the user's enabled modules
 	for _, m := range registry.All() {
 		m.RegisterRoutes(module.NewRouter(apiMux, module.Gate(m.ID(), coreStore)))
-		m.StartBackground(shutdownCtx)
 	}
 
 	// Module-scoped category routes, gated via the {module} path parameter
@@ -142,7 +139,8 @@ func (s *Server) Run() error {
 	apiMux.HandleFunc("PUT /api/v1/settings/password", coreHandler.ChangePassword)
 
 	// Personal access token management
-	patHandler := pat.NewHandler(pat.NewStore(engine, s.logger), s.logger)
+	patStore := pat.NewStore(engine, s.logger)
+	patHandler := pat.NewHandler(patStore, s.logger)
 	apiMux.HandleFunc("GET /api/v1/tokens", patHandler.List)
 	apiMux.HandleFunc("POST /api/v1/tokens", patHandler.Create)
 	apiMux.HandleFunc("DELETE /api/v1/tokens/{id}", patHandler.Revoke)
@@ -153,7 +151,10 @@ func (s *Server) Run() error {
 	registerDraftRoutes(apiMux, draftHandler)
 	apiMux.HandleFunc("POST /api/v1/quick-add", quickadd.NewHandler(classifier, s.logger).Classify)
 
-	protectedAPI := middleware.Auth(jwtSecret)(apiMux)
+	protectedAPI := middleware.Auth(jwtSecret,
+		middleware.WithPATs(patStore),
+		middleware.WithAuthLogger(s.logger),
+	)(middleware.ScopeGuard(apiMux.ServeMux, routeRules))
 
 	mux := http.NewServeMux()
 
@@ -185,9 +186,36 @@ func (s *Server) Run() error {
 		middleware.CORS(s.cfg.CORSOrigin),
 	)
 
+	start := func(ctx context.Context) {
+		if s.cfg.BackupDir != "" {
+			engine.StartBackups(ctx, storage.BackupConfig{
+				Dir:      s.cfg.BackupDir,
+				Interval: s.cfg.BackupInterval,
+				Keep:     s.cfg.BackupKeep,
+			})
+		}
+		pipeline.Start(ctx)
+		for _, m := range registry.All() {
+			m.StartBackground(ctx)
+		}
+	}
+
+	return &app{handler: chain, patterns: apiMux.patterns, start: start}, nil
+}
+
+func (s *Server) Run() error {
+	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
+	defer shutdownCancel()
+
+	a, err := s.buildApp()
+	if err != nil {
+		return err
+	}
+	a.start(shutdownCtx)
+
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", s.cfg.Port),
-		Handler: chain,
+		Handler: a.handler,
 	}
 
 	errCh := make(chan error, 1)

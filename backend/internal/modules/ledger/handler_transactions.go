@@ -1,12 +1,16 @@
 package ledger
 
 import (
-	"github.com/reusing-code/kontor/backend/internal/httputil"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 )
 
@@ -169,6 +173,62 @@ func (h *Handler) UpdateLedgerTransactionDetails(w http.ResponseWriter, r *http.
 		return
 	}
 	ledgerTxn, err := h.store.UpdateLedgerTransactionDetails(r.Context(), middleware.GetUserID(r.Context()), id, input)
+	if err != nil {
+		h.storeError(w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, ledgerTxn)
+}
+
+// ErrTargetModuleDisabled means the module that owns a reference target is
+// disabled for the user.
+var ErrTargetModuleDisabled = errors.New("target module is disabled")
+
+var referenceModules = map[string]string{
+	LedgerReferenceContract: "contracts",
+	LedgerReferencePurchase: "purchases",
+	LedgerReferenceVehicle:  "auto",
+}
+
+func writeModuleDisabled(w http.ResponseWriter, err error) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusForbidden)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error(), "code": "module_disabled"})
+}
+
+// linkReference adds one reference after checking that the target's module
+// is enabled for the user; added is false when it was already there.
+func (h *Handler) linkReference(ctx context.Context, userID string, txnID uuid.UUID, ref LedgerTransactionReference) (LedgerTransaction, bool, error) {
+	moduleID := referenceModules[ref.Type]
+	if h.enabled != nil && moduleID != "" {
+		enabled, err := h.enabled.ModuleEnabled(ctx, userID, moduleID)
+		if err != nil {
+			return LedgerTransaction{}, false, err
+		}
+		if !enabled {
+			return LedgerTransaction{}, false, fmt.Errorf("%w: the %s module is disabled", ErrTargetModuleDisabled, moduleID)
+		}
+	}
+	return h.store.AddLedgerTransactionReference(ctx, userID, txnID, ref)
+}
+
+func (h *Handler) AddLedgerTransactionReference(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("transactionId"))
+	if err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid transactionId")
+		return
+	}
+	var input LedgerTransactionReferenceInput
+	if err := httputil.ReadJSON(r, &input); err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := input.Validate(); err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+		return
+	}
+	ledgerTxn, _, err := h.linkReference(r.Context(), middleware.GetUserID(r.Context()),
+		id, LedgerTransactionReference(input))
 	if err != nil {
 		h.storeError(w, err)
 		return

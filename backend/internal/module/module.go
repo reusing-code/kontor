@@ -114,11 +114,16 @@ func (r *Registry) IDs() []string {
 // Router registers module routes on the shared mux, wrapping every handler
 // with the module's gate middleware.
 type Router struct {
-	mux  *http.ServeMux
+	mux  Muxer
 	gate func(http.Handler) http.Handler
 }
 
-func NewRouter(mux *http.ServeMux, gate func(http.Handler) http.Handler) *Router {
+// Muxer is the part of *http.ServeMux a Router needs.
+type Muxer interface {
+	Handle(pattern string, h http.Handler)
+}
+
+func NewRouter(mux Muxer, gate func(http.Handler) http.Handler) *Router {
 	if gate == nil {
 		gate = func(next http.Handler) http.Handler { return next }
 	}

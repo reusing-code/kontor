@@ -85,7 +85,7 @@ See `frontend/AGENTS.md` and `backend/AGENTS.md` for per-project details.
 
 ## API
 
-All endpoints under `/api/v1/`. Auth endpoints are public; everything else requires a JWT bearer token.
+All endpoints under `/api/v1/`. Auth endpoints are public; everything else requires a bearer token: the JWT from login, or a personal access token (`kpat_…`, created through `/tokens`) within its scopes. `read` allows every `GET` (including the full export, so it exposes all your data), `drafts` the draft decisions (`PUT /drafts/{id}`, accept, reject) and `links` attaching paperless documents and adding transaction references; every other write, token management and the password change need the JWT. A request outside the token's scopes gets `403 {"code":"insufficient_scope"}`. Note that over REST a `drafts` token can accept drafts (even with an entity ID that was never created; for paperless-sourced drafts that also stores a link, writes the request's URL as back-link and changes the inbox/done tags in paperless, and rejecting removes the inbox tag) and edit any pending draft, and a `links` token supplies the back-link URL written into paperless and skips the entity check; the MCP tools are stricter (they cannot accept drafts and derive the URL from `PUBLIC_URL`).
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -97,6 +97,9 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | GET | `/ledger/transactions` | Review queue for ledger transactions |
 | GET | `/ledger/transactions/{id}` | Get ledger transaction details |
 | PUT | `/ledger/transactions/{id}` | Update note, links, and cross references |
+| POST | `/ledger/transactions/{id}/references` | Add one cross reference (`{type, targetId}`; idempotent, never removes anything; `links` scope) |
+| GET/POST | `/tokens` | List / create personal access tokens (JWT only; the raw token is returned once) |
+| DELETE | `/tokens/{id}` | Revoke a personal access token (JWT only) |
 | GET | `/ledger/transactions/{id}/transfer-candidates` | List matching internal transfer candidates |
 | POST | `/ledger/transactions/{id}/transfer-link` | Link two transactions as an internal transfer |
 | DELETE | `/ledger/transactions/{id}/transfer-link` | Explicitly unlink an internal transfer |
