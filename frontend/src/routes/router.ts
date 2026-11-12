@@ -7,6 +7,7 @@ import { modules } from "@/modules/registry"
 import { queryClient } from "@/lib/query-client"
 import { capabilitiesQueryOptions } from "@/hooks/use-capabilities"
 import { paperlessConfigQueryOptions } from "@/hooks/use-paperless"
+import { draftSummaryQueryOptions } from "@/hooks/use-drafts"
 
 const SettingsPage = lazy(() => import("./settings").then((module) => ({ default: module.SettingsPage })))
 
@@ -28,7 +29,12 @@ export const inboxRoute = createRoute({
         queryClient.ensureQueryData(paperlessConfigQueryOptions),
       ])
       if (!capabilities.llm || !paperless.configured) {
-        throw redirect({ to: "/" })
+        // Drafts created by agents keep the inbox reachable; fetch fresh so a
+        // draft that just arrived opens the page.
+        const summary = await queryClient.fetchQuery({ ...draftSummaryQueryOptions, staleTime: 0 })
+        if (summary.total === 0) {
+          throw redirect({ to: "/" })
+        }
       }
     } catch (error) {
       if (isRedirect(error)) {

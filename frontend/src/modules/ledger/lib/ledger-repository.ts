@@ -134,6 +134,10 @@ export async function getLedgerCategories(): Promise<LedgerCategory[]> {
   return get<LedgerCategory[]>("/ledger/categories")
 }
 
+export async function createLedgerAccount(data: LedgerAccountInput): Promise<LedgerAccount> {
+  return post<LedgerAccount>("/ledger/accounts", data)
+}
+
 export async function createLedgerCategory(data: LedgerCategoryInput): Promise<LedgerCategory> {
   return post<LedgerCategory>("/ledger/categories", data)
 }

@@ -1,17 +1,26 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { acceptDraft, listDrafts, rejectDraft, updateDraft } from "@/lib/drafts-repository"
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { acceptDraft, getDraftSummary, listDrafts, rejectDraft, updateDraft } from "@/lib/drafts-repository"
 import { useCapabilities } from "@/hooks/use-capabilities"
 import { usePaperlessConfig } from "@/hooks/use-paperless"
 import type { DraftAcceptInput, DraftUpdateInput } from "@/types/drafts"
 
 const pendingDraftsKey = ["drafts", "pending"] as const
 
-// The inbox is only fed by the paperless pipeline so far, which needs both
-// the LLM and a paperless connection.
+// Counts of pending and of all drafts; invalidated with every ["drafts"] change.
+export const draftSummaryQueryOptions = queryOptions({
+  queryKey: ["drafts", "summary"],
+  queryFn: getDraftSummary,
+  refetchInterval: 60 * 1000,
+})
+
+// The inbox is available when the paperless pipeline can feed it (the LLM and
+// a paperless connection) or when drafts exist, e.g. created by an agent
+// through MCP, so they are never hidden.
 export function useInboxAvailable() {
   const { llm } = useCapabilities()
   const { data: config } = usePaperlessConfig()
-  return llm && (config?.configured ?? false)
+  const { data: summary } = useQuery(draftSummaryQueryOptions)
+  return (llm && (config?.configured ?? false)) || (summary?.total ?? 0) > 0
 }
 
 export function usePendingDrafts(enabled: boolean) {

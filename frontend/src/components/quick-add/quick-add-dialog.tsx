@@ -7,9 +7,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from "@/components/ui/textarea"
 import { TargetPicker } from "@/components/drafts/target-picker"
 import { useParentOptions } from "@/components/drafts/use-parent-options"
-import { targetProblem, type PrefillEntry, type TargetProblem } from "@/components/drafts/draft-input"
+import { isClassifiedType, targetProblem, type PrefillEntry, type TargetProblem } from "@/components/drafts/draft-input"
 import { quickAddMaxLength, type QuickAddCurrency, type QuickAddResponse } from "@/types/quick-add"
-import type { DraftEntityType, DraftTargetType } from "@/types/drafts"
+import type { ClassifiedEntityType, DraftTargetType } from "@/types/drafts"
 
 const hintKeys: Record<TargetProblem, string> = {
   pickType: "quickAdd.hintPickType",
@@ -23,7 +23,7 @@ const hintKeys: Record<TargetProblem, string> = {
 interface QuickAddDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  enabledTypes: DraftEntityType[]
+  enabledTypes: ClassifiedEntityType[]
   text: string
   onTextChange: (text: string) => void
   onContinue: (entry: PrefillEntry) => void
@@ -59,7 +59,7 @@ export function QuickAddDialog({ open, onOpenChange, enabledTypes, text, onTextC
     onContinue(entry)
   }
 
-  function run(targetType?: DraftEntityType) {
+  function run(targetType?: ClassifiedEntityType) {
     setError(null)
     classify.mutate(
       { text: trimmed, targetType },
@@ -83,7 +83,7 @@ export function QuickAddDialog({ open, onOpenChange, enabledTypes, text, onTextC
       setProposal({ ...proposal, targetType: "none", parentId: undefined, confident: false })
       return
     }
-    run(type)
+    if (isClassifiedType(type)) run(type)
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {

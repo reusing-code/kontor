@@ -35,6 +35,8 @@ interface LedgerCategoryDialogProps {
   category?: LedgerCategory | null
   categories: LedgerCategory[]
   initialParentId?: string
+  // Prefills the create form (name, match words); ignored when editing.
+  initialValues?: Partial<Pick<LedgerCategoryInput, "name" | "matchWords">>
   onSubmit: (data: LedgerCategoryInput) => void
 }
 
@@ -44,6 +46,7 @@ export function LedgerCategoryDialog({
   category,
   categories,
   initialParentId,
+  initialValues,
   onSubmit,
 }: LedgerCategoryDialogProps) {
   return (
@@ -54,6 +57,7 @@ export function LedgerCategoryDialog({
           category={category}
           categories={categories}
           initialParentId={initialParentId}
+          initialValues={initialValues}
           onOpenChange={onOpenChange}
           onSubmit={onSubmit}
         />
@@ -66,6 +70,7 @@ interface LedgerCategoryDialogFormProps {
   category?: LedgerCategory | null
   categories: LedgerCategory[]
   initialParentId?: string
+  initialValues?: Partial<Pick<LedgerCategoryInput, "name" | "matchWords">>
   onOpenChange: (open: boolean) => void
   onSubmit: (data: LedgerCategoryInput) => void
 }
@@ -74,17 +79,18 @@ function LedgerCategoryDialogForm({
   category,
   categories,
   initialParentId,
+  initialValues,
   onOpenChange,
   onSubmit,
 }: LedgerCategoryDialogFormProps) {
   const { t } = useTranslation()
-  const [matchWordsInput, setMatchWordsInput] = useState((category?.matchWords ?? []).join(", "))
+  const [matchWordsInput, setMatchWordsInput] = useState((category?.matchWords ?? initialValues?.matchWords ?? []).join(", "))
   const form = useForm<LedgerCategoryInput>({
     resolver: standardSchemaResolver(ledgerCategoryInputSchema) as Resolver<LedgerCategoryInput>,
     defaultValues: {
-      name: category?.name ?? "",
+      name: category?.name ?? initialValues?.name ?? "",
       parentId: category?.parentId ?? initialParentId,
-      matchWords: category?.matchWords ?? [],
+      matchWords: category?.matchWords ?? initialValues?.matchWords ?? [],
     },
   })
 

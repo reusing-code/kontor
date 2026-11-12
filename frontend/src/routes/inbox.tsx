@@ -9,7 +9,7 @@ import type { Draft, DraftTargetType } from "@/types/drafts"
 import { DraftCard } from "@/components/drafts/draft-card"
 import { PrefilledCreateDialogs } from "@/components/drafts/prefilled-create-dialogs"
 import { useParentOptions } from "@/components/drafts/use-parent-options"
-import { convertInput, draftEntityTypes, draftTargetModule, entityUrl, type PrefillEntry } from "@/components/drafts/draft-input"
+import { convertInput, draftEntityTypes, draftTargetModule, entityUrl, parentRequired, type PrefillEntry } from "@/components/drafts/draft-input"
 
 export function InboxPage() {
   const { t } = useTranslation()
@@ -28,8 +28,8 @@ export function InboxPage() {
 
   const acceptEntry = useMemo<PrefillEntry | null>(
     () =>
-      accepting && accepting.targetType !== "none" && accepting.parentId
-        ? { type: accepting.targetType, parentId: accepting.parentId, input: accepting.input }
+      accepting && accepting.targetType !== "none" && (!parentRequired(accepting.targetType) || accepting.parentId)
+        ? { type: accepting.targetType, parentId: accepting.parentId ?? "", input: accepting.input }
         : null,
     [accepting],
   )

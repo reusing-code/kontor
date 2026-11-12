@@ -27,9 +27,11 @@ interface CategoryDialogProps {
   onOpenChange: (open: boolean) => void
   category?: Category | null
   onSubmit: (data: CategoryFormData) => void
+  // Prefills the create form; ignored when editing. Pass a stable object.
+  initialValues?: Partial<CategoryFormData>
 }
 
-export function CategoryDialog({ open, onOpenChange, category, onSubmit }: CategoryDialogProps) {
+export function CategoryDialog({ open, onOpenChange, category, onSubmit, initialValues }: CategoryDialogProps) {
   const { t } = useTranslation()
   const form = useForm<CategoryFormData>({
     resolver: standardSchemaResolver(categoryFormSchema),
@@ -38,9 +40,9 @@ export function CategoryDialog({ open, onOpenChange, category, onSubmit }: Categ
 
   useEffect(() => {
     if (open) {
-      form.reset({ name: category?.name ?? "" })
+      form.reset({ name: category?.name ?? initialValues?.name ?? "" })
     }
-  }, [open, category, form])
+  }, [open, category, initialValues, form])
 
   function handleSubmit(data: CategoryFormData) {
     onSubmit(data)

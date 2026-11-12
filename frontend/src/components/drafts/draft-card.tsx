@@ -54,6 +54,28 @@ function summaryFields(draft: Draft): Field[] {
         ["costEntryFields.amount", input.amount, "money"],
         ["costEntryFields.date", input.date],
       ]
+    case "vehicle":
+      return [
+        ["vehicleFields.name", input.name],
+        ["vehicleFields.make", input.make],
+        ["vehicleFields.model", input.model],
+        ["vehicleFields.licensePlate", input.licensePlate],
+      ]
+    case "contract_category":
+    case "purchase_category":
+      return [["category.name", input.name]]
+    case "ledger_category":
+      return [
+        ["category.name", input.name],
+        ["ledger.matchWords", Array.isArray(input.matchWords) ? input.matchWords.join(", ") : undefined],
+      ]
+    case "ledger_account":
+      return [
+        ["ledger.accountName", input.name],
+        ["ledger.bank", input.bank],
+        ["ledger.iban", input.iban],
+        ["drafts.currency", input.currency],
+      ]
     default:
       return []
   }
@@ -117,7 +139,8 @@ export function DraftCard({
 
           {draft.note && (
             <p className="text-sm text-amber-700 dark:text-amber-400">
-              {t(`drafts.notes.${draft.note}`, { defaultValue: draft.note })}
+              {/* notes from agents are free text, the other sources send codes */}
+              {draft.source.kind === "mcp" ? draft.note : t(`drafts.notes.${draft.note}`, { defaultValue: draft.note })}
             </p>
           )}
 

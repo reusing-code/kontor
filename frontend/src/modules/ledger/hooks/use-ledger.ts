@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import {
   commitLedgerImport,
+  createLedgerAccount,
   createLedgerCategory,
   createLedgerEmailAccount,
   deleteLedgerCategory,
@@ -30,6 +31,7 @@ import {
   updateLedgerEmailAccount,
 } from "@/modules/ledger/lib/ledger-repository"
 import type {
+  LedgerAccountInput,
   LedgerCategoryInput,
   LedgerCommitRequest,
   LedgerEmailAccountInput,
@@ -161,6 +163,16 @@ export function useLedgerCommitImport() {
         qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.accountId, "transactions"] }),
         qc.invalidateQueries({ queryKey: ["ledger", "review"] }),
       ])
+    },
+  })
+}
+
+export function useCreateLedgerAccount() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: LedgerAccountInput) => createLedgerAccount(data),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ledgerAccountsKey })
     },
   })
 }

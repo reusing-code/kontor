@@ -473,6 +473,12 @@
       "orderRejected": "Email order rejected.",
       "orderLinked": "Email order linked.",
       "noLinkedOrders": "No linked email orders."
+    },
+    "accountDialog": {
+      "create": "Create account",
+      "namePlaceholder": "e.g. Checking account",
+      "bankPlaceholder": "e.g. DKB",
+      "currency": "Currency"
     }
   },
   "paperless": {
@@ -522,7 +528,7 @@
   },
   "drafts": {
     "title": "Inbox",
-    "description": "Drafts proposed from your documents. Nothing is created until you accept a draft.",
+    "description": "Drafts proposed from your documents or created by agents. Nothing is created until you accept a draft.",
     "empty": "No drafts waiting for review.",
     "pendingCount_one": "{{count}} draft waiting",
     "pendingCount_other": "{{count}} drafts waiting",
@@ -547,6 +553,11 @@
       "purchase": "Purchase",
       "contract": "Contract",
       "cost": "Vehicle cost",
+      "vehicle": "Vehicle",
+      "contract_category": "Contract category",
+      "purchase_category": "Purchase category",
+      "ledger_category": "Ledger category",
+      "ledger_account": "Ledger account",
       "none": "Unclassified"
     },
     "sources": {
@@ -564,7 +575,10 @@
       "llm_request_rejected": "The AI service rejected the document, it may be too long.",
       "currency_converted": "The amount was converted to EUR at the ECB rate; the original amount is in the comments.",
       "currency_not_converted": "The amount is in another currency and could not be converted to EUR; the original amount is in the comments."
-    }
+    },
+    "noParent": "No parent category",
+    "parentCategory": "Parent category",
+    "currency": "Currency"
   },
   "quickAdd": {
     "button": "Quick add",

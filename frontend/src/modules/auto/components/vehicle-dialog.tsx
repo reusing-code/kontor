@@ -20,6 +20,8 @@ interface VehicleDialogProps {
   onOpenChange: (open: boolean) => void
   vehicle?: Vehicle | null
   onSubmit: (data: VehicleFormData) => void
+  // Prefills the create form; ignored when editing. Pass a stable object.
+  initialValues?: Partial<VehicleFormData>
 }
 
 const defaultValues: VehicleFormData = {
@@ -27,7 +29,7 @@ const defaultValues: VehicleFormData = {
   purchaseDate: new Date().toISOString().slice(0, 10),
 }
 
-export function VehicleDialog({ open, onOpenChange, vehicle, onSubmit }: VehicleDialogProps) {
+export function VehicleDialog({ open, onOpenChange, vehicle, onSubmit, initialValues }: VehicleDialogProps) {
   const { t } = useTranslation()
   const form = useForm<VehicleFormData>({
     resolver: standardSchemaResolver(vehicleFormSchema) as Resolver<VehicleFormData>,
@@ -54,10 +56,10 @@ export function VehicleDialog({ open, onOpenChange, vehicle, onSubmit }: Vehicle
           comments: vehicle.comments,
         })
       } else {
-        form.reset(defaultValues)
+        form.reset({ ...defaultValues, ...initialValues })
       }
     }
-  }, [open, vehicle, form])
+  }, [open, vehicle, initialValues, form])
 
   function handleSubmit(data: VehicleFormData) {
     onSubmit(data)

@@ -473,6 +473,12 @@
       "orderRejected": "E-Mail-Bestellung verworfen.",
       "orderLinked": "E-Mail-Bestellung verknüpft.",
       "noLinkedOrders": "Keine verknüpften E-Mail-Bestellungen."
+    },
+    "accountDialog": {
+      "create": "Konto anlegen",
+      "namePlaceholder": "z. B. Girokonto",
+      "bankPlaceholder": "z. B. DKB",
+      "currency": "Währung"
     }
   },
   "paperless": {
@@ -522,7 +528,7 @@
   },
   "drafts": {
     "title": "Eingang",
-    "description": "Aus deinen Dokumenten vorgeschlagene Entwürfe. Erst beim Übernehmen wird etwas angelegt.",
+    "description": "Entwürfe aus deinen Dokumenten oder von Agenten erstellt. Es wird nichts angelegt, bis du einen Entwurf annimmst.",
     "empty": "Keine Entwürfe zur Prüfung.",
     "pendingCount_one": "{{count}} Entwurf wartet",
     "pendingCount_other": "{{count}} Entwürfe warten",
@@ -547,6 +553,11 @@
       "purchase": "Kauf",
       "contract": "Vertrag",
       "cost": "Fahrzeugkosten",
+      "vehicle": "Fahrzeug",
+      "contract_category": "Vertragskategorie",
+      "purchase_category": "Anschaffungskategorie",
+      "ledger_category": "Ledger-Kategorie",
+      "ledger_account": "Ledger-Konto",
       "none": "Nicht zugeordnet"
     },
     "sources": {
@@ -564,7 +575,10 @@
       "llm_request_rejected": "Der KI-Dienst hat das Dokument abgelehnt, eventuell ist es zu lang.",
       "currency_converted": "Der Betrag wurde zum EZB-Kurs in EUR umgerechnet; der ursprüngliche Betrag steht in den Kommentaren.",
       "currency_not_converted": "Der Betrag ist in einer anderen Währung und konnte nicht in EUR umgerechnet werden; der ursprüngliche Betrag steht in den Kommentaren."
-    }
+    },
+    "noParent": "Keine übergeordnete Kategorie",
+    "parentCategory": "Übergeordnete Kategorie",
+    "currency": "Währung"
   },
   "quickAdd": {
     "button": "Schnellerfassung",
@@ -615,12 +629,12 @@
     "scopeHint": {
       "read": "Alle deine Daten lesen, auch Exporte",
       "drafts": "Entwürfe im Posteingang erstellen und entscheiden",
-      "links": "Paperless-Dokumente und Umsätze mit bestehenden Einträgen verknüpfen"
+      "links": "Paperless-Dokumente und Transaktionen mit bestehenden Einträgen verknüpfen"
     },
     "scopeDetail": {
       "read": "Alles lesen, was du siehst, auch den vollständigen Datenexport und alle Module. In MCP: Such- und Listenwerkzeuge.",
       "drafts": "Entwürfe für den Posteingang erstellen (MCP) und Entwürfe über die API bearbeiten, annehmen oder ablehnen. Ohne deine Prüfung in der Oberfläche wird nichts angelegt.",
-      "links": "Paperless-Dokumente an bestehende Verträge, Anschaffungen, Fahrzeuge, Kosten und Umsätze anhängen sowie Umsätzen Referenzen hinzufügen."
+      "links": "Paperless-Dokumente an bestehende Verträge, Anschaffungen, Fahrzeuge, Kosten und Transaktionen anhängen sowie Transaktionen Referenzen hinzufügen."
     },
     "expiry": "Läuft ab",
     "expiryDays_one": "In {{count}} Tag",

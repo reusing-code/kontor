@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next"
 import type { DraftEntityType, DraftTargetType } from "@/types/drafts"
-import type { DraftOption } from "@/components/drafts/draft-input"
+import { parentKind, type DraftOption } from "@/components/drafts/draft-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface TargetPickerProps {
@@ -12,6 +12,21 @@ interface TargetPickerProps {
   onChangeType: (type: DraftTargetType) => void
   onChangeParent: (parentId: string) => void
 }
+
+// Select values cannot be empty, so "no parent" of a ledger category uses this.
+const noParentValue = "__none__"
+
+const parentLabelKeys = {
+  category: "drafts.category",
+  vehicle: "drafts.vehicle",
+  ledgerCategory: "drafts.parentCategory",
+} as const
+
+const parentPlaceholderKeys = {
+  category: "drafts.pickCategory",
+  vehicle: "drafts.pickVehicle",
+  ledgerCategory: "drafts.noParent",
+} as const
 
 // TargetPicker selects the entity type (enabled modules, the current type even
 // if its module is disabled, and "none") and the category or vehicle.
@@ -26,6 +41,8 @@ export function TargetPicker({
 }: TargetPickerProps) {
   const { t } = useTranslation()
   const options = target === "none" ? [] : parentOptions[target]
+  const kind = parentKind(target)
+  const optional = kind === "ledgerCategory"
   const parentValid = options.some((o) => o.id === parentId)
   const typeChoices: DraftTargetType[] = [
     ...enabledTypes,
@@ -47,12 +64,17 @@ export function TargetPicker({
           ))}
         </SelectContent>
       </Select>
-      {target !== "none" && options.length > 0 && (
-        <Select value={parentValid ? parentId : ""} onValueChange={onChangeParent} disabled={disabled}>
-          <SelectTrigger className="w-52" aria-label={t(target === "cost" ? "drafts.vehicle" : "drafts.category")}>
-            <SelectValue placeholder={t(target === "cost" ? "drafts.pickVehicle" : "drafts.pickCategory")} />
+      {kind !== "none" && options.length > 0 && (
+        <Select
+          value={parentValid ? parentId : optional ? noParentValue : ""}
+          onValueChange={(v) => onChangeParent(v === noParentValue ? "" : v)}
+          disabled={disabled}
+        >
+          <SelectTrigger className="w-52" aria-label={t(parentLabelKeys[kind])}>
+            <SelectValue placeholder={t(parentPlaceholderKeys[kind])} />
           </SelectTrigger>
           <SelectContent>
+            {optional && <SelectItem value={noParentValue}>{t("drafts.noParent")}</SelectItem>}
             {options.map((o) => (
               <SelectItem key={o.id} value={o.id}>
                 {o.label}

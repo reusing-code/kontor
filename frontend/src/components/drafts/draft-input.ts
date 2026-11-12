@@ -1,12 +1,33 @@
-import type { DraftEntityType, DraftTargetType } from "@/types/drafts"
+import type { ClassifiedEntityType, DraftEntityType, DraftTargetType } from "@/types/drafts"
 import type { ModuleId } from "@/types/modules"
 
-export const draftEntityTypes: DraftEntityType[] = ["purchase", "contract", "cost"]
+export const draftEntityTypes: DraftEntityType[] = [
+  "purchase",
+  "contract",
+  "cost",
+  "vehicle",
+  "contract_category",
+  "purchase_category",
+  "ledger_category",
+  "ledger_account",
+]
+
+// What the classifier can propose; quick add only offers these.
+export const classifiedEntityTypes: ClassifiedEntityType[] = ["purchase", "contract", "cost"]
+
+export function isClassifiedType(type: DraftTargetType): type is ClassifiedEntityType {
+  return (classifiedEntityTypes as DraftTargetType[]).includes(type)
+}
 
 export const draftTargetModule: Record<DraftEntityType, ModuleId> = {
   purchase: "purchases",
   contract: "contracts",
   cost: "auto",
+  vehicle: "auto",
+  contract_category: "contracts",
+  purchase_category: "purchases",
+  ledger_category: "ledger",
+  ledger_account: "ledger",
 }
 
 const formFields: Record<DraftEntityType, string[]> = {
@@ -16,6 +37,35 @@ const formFields: Record<DraftEntityType, string[]> = {
     "startDate", "endDate", "minimumDurationMonths", "extensionDurationMonths", "noticePeriodMonths",
     "customerPortalUrl", "comments"],
   cost: ["type", "description", "vendor", "amount", "date", "mileage", "comments"],
+  vehicle: ["name", "make", "model", "year", "licensePlate", "purchaseDate", "purchasePrice", "purchaseMileage",
+    "targetMileage", "targetMonths", "annualInsurance", "annualTax", "maintenanceFactor", "comments"],
+  contract_category: ["name"],
+  purchase_category: ["name"],
+  ledger_category: ["name", "matchWords"],
+  ledger_account: ["name", "bank", "iban", "currency"],
+}
+
+// What a draft's parentId refers to.
+export type ParentKind = "category" | "vehicle" | "ledgerCategory" | "none"
+
+export function parentKind(type: DraftTargetType): ParentKind {
+  switch (type) {
+    case "purchase":
+    case "contract":
+      return "category"
+    case "cost":
+      return "vehicle"
+    case "ledger_category":
+      return "ledgerCategory"
+    default:
+      return "none"
+  }
+}
+
+// Only entries that live inside a category or vehicle need a parent; a
+// ledger category's parent is optional.
+export function parentRequired(type: DraftTargetType): boolean {
+  return type === "purchase" || type === "contract" || type === "cost"
 }
 
 function present(value: unknown): boolean {
@@ -36,7 +86,8 @@ function first(input: Record<string, unknown>, ...keys: string[]): unknown {
 }
 
 // convertInput carries the common fields (title, party, amount, date) over
-// when the user changes a draft's type. Switching to "none" keeps the input.
+// when the user changes a draft's type; the structural types (vehicle,
+// categories, account) only carry the name. Switching to "none" keeps the input.
 export function convertInput(
   from: DraftTargetType,
   to: DraftTargetType,
@@ -47,13 +98,21 @@ export function convertInput(
   const party = first(input, "dealer", "company", "vendor")
   const amount = first(input, "price", "amount")
   const date = first(input, "purchaseDate", "startDate", "date")
-  const converted: Record<string, unknown> =
-    to === "purchase"
-      ? { itemName: title, dealer: party, price: amount, purchaseDate: date }
-      : to === "contract"
-        ? { name: title, company: party, price: amount, startDate: date }
-        : { type: "misc", description: title, vendor: party, amount, date }
-  if (present(input.comments)) converted.comments = input.comments
+  let converted: Record<string, unknown>
+  switch (to) {
+    case "purchase":
+      converted = { itemName: title, dealer: party, price: amount, purchaseDate: date }
+      break
+    case "contract":
+      converted = { name: title, company: party, price: amount, startDate: date }
+      break
+    case "cost":
+      converted = { type: "misc", description: title, vendor: party, amount, date }
+      break
+    default:
+      converted = { name: title }
+  }
+  if (present(input.comments) && parentRequired(to)) converted.comments = input.comments
   return Object.fromEntries(Object.entries(converted).filter(([, v]) => present(v)))
 }
 
@@ -63,7 +122,8 @@ export interface DraftOption {
 }
 
 // PrefillEntry is what a create dialog is opened with: the entity type, its
-// category or vehicle and the module create-input fields.
+// category or vehicle (or the optional ledger parent category) and the module
+// create-input fields.
 export interface PrefillEntry {
   type: DraftEntityType
   parentId: string
@@ -78,6 +138,16 @@ export function entityPath(type: DraftEntityType, entityId: string, parentId: st
       return `/contracts/${entityId}`
     case "cost":
       return `/auto/vehicles/${parentId}`
+    case "vehicle":
+      return `/auto/vehicles/${entityId}`
+    case "contract_category":
+      return `/contracts/categories/${entityId}`
+    case "purchase_category":
+      return `/purchases/categories/${entityId}`
+    case "ledger_category":
+      return "/ledger/categories"
+    case "ledger_account":
+      return `/ledger/accounts/${entityId}`
   }
 }
 
@@ -97,6 +167,7 @@ export function targetProblem(
 ): TargetProblem | null {
   if (target === "none") return "pickType"
   if (!enabledTypes.includes(target)) return "moduleDisabled"
+  if (!parentRequired(target)) return null
   const options = parentOptions[target]
   if (options.length === 0) return target === "cost" ? "noVehicles" : "noCategories"
   if (!options.some((o) => o.id === parentId)) return target === "cost" ? "pickVehicle" : "pickCategory"

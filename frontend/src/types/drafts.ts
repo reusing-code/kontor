@@ -1,6 +1,17 @@
 export type DraftStatus = "pending" | "accepted" | "rejected"
-export type DraftTargetType = "purchase" | "contract" | "cost" | "none"
+export type DraftTargetType =
+  | "purchase"
+  | "contract"
+  | "cost"
+  | "vehicle"
+  | "contract_category"
+  | "purchase_category"
+  | "ledger_category"
+  | "ledger_account"
+  | "none"
 export type DraftEntityType = Exclude<DraftTargetType, "none">
+// The types the LLM classifier (paperless pipeline, quick add) can propose.
+export type ClassifiedEntityType = "purchase" | "contract" | "cost"
 export type DraftSourceKind = "paperless" | "email" | "text" | "mcp"
 
 export interface DraftSource {
@@ -41,4 +52,9 @@ export interface DraftAcceptInput {
 export interface DraftDecisionResponse {
   draft: Draft
   warnings: string[]
+}
+
+export interface DraftSummary {
+  pending: number
+  total: number
 }
