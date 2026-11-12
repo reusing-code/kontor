@@ -3,6 +3,7 @@ package ledger
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/llm"
 	"github.com/reusing-code/kontor/backend/internal/llm/llmtest"
 )
 
@@ -210,6 +212,37 @@ func TestPipeline_RegexMetacharactersInMerchantMatchLiterally(t *testing.T) {
 				t.Errorf("linked = %v, want %v", got, tt.wantLinked)
 			}
 		})
+	}
+}
+
+func TestPreClassify_OutOfRangeAndDuplicateIndicesFailOpenInThePipeline(t *testing.T) {
+	fake := preClassFake(func(llm.Request) (json.RawMessage, error) {
+		return json.Marshal(preClassification{Verdicts: []preClassVerdict{
+			{Index: 0, LooksLikeOrder: false},
+			{Index: -3, LooksLikeOrder: false},
+			{Index: 99, LooksLikeOrder: false},
+			{Index: 1, LooksLikeOrder: false},
+			{Index: 1, LooksLikeOrder: true},
+			{Index: 3, LooksLikeOrder: false},
+		}})
+	})
+	p := newPipelineTest(t, fake)
+	result, err := p.processPre(context.Background(), true, syntheticMessages(4)...)
+	if err != nil || result.Partial {
+		t.Fatalf("err = %v, partial = %v", err, result.Partial)
+	}
+	preclass, extract := countOps(fake)
+	// 1 conflicts (kept), 2 and 4 are unanswered (kept), only 3 is rejected.
+	if preclass != 1 || extract != 3 || result.OrdersNew != 3 {
+		t.Fatalf("preclass = %d, extract = %d, orders = %d", preclass, extract, result.OrdersNew)
+	}
+	if !p.seen(t, "<msg-3@example.com>") {
+		t.Error("the one clearly rejected message must be marked")
+	}
+	for _, key := range []string{"<msg-1@example.com>", "<msg-2@example.com>", "<msg-4@example.com>"} {
+		if p.seen(t, key) {
+			t.Errorf("%s was marked as pre-classified", key)
+		}
 	}
 }
 

@@ -106,7 +106,7 @@ func (s *EmailService) ScanUploadedMessages(ctx context.Context, userID string, 
 			Load:   func() (ParsedEmail, error) { return parsed, nil },
 		})
 	}
-	err := s.processMessages(ctx, userID, account, msgs, &result)
+	err := s.processMessages(ctx, userID, account, msgs, false, &result)
 	return result, err
 }
 
@@ -204,7 +204,7 @@ func (s *EmailService) ScanMailbox(ctx context.Context, userID string, account L
 			},
 		})
 	}
-	err = s.processMessages(ctx, userID, account, msgs, &result)
+	err = s.processMessages(ctx, userID, account, msgs, account.PreClassify, &result)
 	return result, err
 }
 

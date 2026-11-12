@@ -167,7 +167,7 @@ func imapMessage(t *testing.T, name string, uid int) emailMessage {
 
 func (p *pipelineTest) process(ctx context.Context, msgs ...emailMessage) (LedgerEmailScanResult, error) {
 	result := newScanResult()
-	err := p.svc.processMessages(ctx, testUserID, p.account, msgs, &result)
+	err := p.svc.processMessages(ctx, testUserID, p.account, msgs, false, &result)
 	return result, err
 }
 

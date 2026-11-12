@@ -8,13 +8,13 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 - **Contract tracking** — Store contract details including dates, pricing, notice periods, and renewal terms
 - **Purchase tracking** — Track one-time purchases with item details, pricing, dealer info, and document links
 - **Vehicle cost tracking** — Manage vehicles with cost entries (service, fuel, insurance, tax, tires, mileage, misc), a per-vehicle statistics page with charts, and total cost of ownership projections
-- **Ledger module** — Import bank CSVs into tracked accounts, review transactions, manage categories, add notes/links/references, mark internal transfers, and enrich transactions with parsed email order data
-- **Email order enrichment** — Configure IMAP email accounts for supported importers like Amazon.de and PayPal.de to scan inbox messages and auto-link parsed orders to ledger transactions; accounts are also scanned automatically in the background (`LEDGER_EMAIL_SCAN_INTERVAL`, default every 6h), and `.eml` upload remains available as a fallback
+- **Ledger module** — Import bank CSVs into tracked accounts, review transactions, manage categories, add notes/links/references, mark internal transfers, and enrich transactions with email order data extracted by the LLM
+- **Email order enrichment (needs the LLM)** — Configure IMAP email accounts with the folder (or Gmail label) that holds your order emails; the LLM reads each new message of that folder (any merchant, any language), extracts merchant, payment method, order ID, date, total and items, and Kontor auto-links the order to the matching ledger transaction. Only sender, subject, date and the text body are sent to the LLM, and only for messages in the chosen folder. An optional per-account pre-selection by sender and subject skips obvious non-orders with one cheap call per batch. Messages are processed once (known orders and non-orders are not sent again). Accounts are also scanned automatically in the background (`LEDGER_EMAIL_SCAN_INTERVAL`, default every 6h); `.eml` upload is available to process old messages. Without the LLM nothing is scanned (existing orders, linking and candidates keep working); existing accounts need a folder chosen before they are scanned
 - **Paperless-ngx integration** — Optionally connect a paperless-ngx instance per user (base URL + API token in settings); search the document archive and attach documents to contracts, purchases, vehicles, cost entries, and ledger transactions, with an automatic back-link ("Kontor" URL custom field) on the paperless document
 - **Draft inbox from paperless (optional)** — With the LLM endpoint and paperless configured, tag a document with `kontor-inbox` in paperless and Kontor proposes a purchase, contract or vehicle cost from its text in the inbox (`/inbox`); accepting opens the prefilled create dialog, links the document and replaces the tag with `kontor`. Enabled per user in settings (tag names configurable); polled every `PAPERLESS_PIPELINE_INTERVAL` (default `15m`, `0` disables)
 - **Quick add (optional)** — With the LLM endpoint configured, the header's quick-add button (or Ctrl/Cmd+K) turns a typed note such as "bought winter tires 2026-11-02 at Reifen Müller, €640, Golf" into the prefilled create dialog of a purchase, contract or vehicle cost; unclear notes ask for the type and category/vehicle first. Nothing is stored until you save the dialog
 - **Foreign currencies** — Kontor stores amounts in EUR. When the LLM finds another currency (quick add, paperless drafts), the amount is converted at the ECB reference rate of the entry's date via the Frankfurter API (`FX_RATES_URL`, default `https://api.frankfurter.dev/v1`, `off` disables) and the original amount is kept in the comments; without a rate the amount is left empty for you to fill in
-- **LLM endpoint (optional)** — Server-wide OpenAI-compatible endpoint for structured extraction (`LLM_BASE_URL`, `LLM_MODEL`, optional `LLM_API_KEY`, `LLM_TIMEOUT` default `60s`); off while `LLM_BASE_URL` is unset, and the UI only offers LLM features when `/api/v1/capabilities` reports them. Prompts and model output are never logged
+- **LLM endpoint (optional)** — Server-wide OpenAI-compatible endpoint for structured extraction (`LLM_BASE_URL`, `LLM_MODEL`, optional `LLM_API_KEY`, `LLM_TIMEOUT` default `60s`); off while `LLM_BASE_URL` is unset, and the UI only offers LLM features when `/api/v1/capabilities` reports them. Used by quick add, the paperless pipeline and ledger email order extraction. Prompts and model output are never logged
 - **Category organization** — Per-module categories (e.g. insurance/telecom for contracts, PC hardware/tools for purchases)
 - **Homepage overview** — Dashboard at `/` with summary cards and stats across all modules
 - **Renewal monitoring** — Upcoming renewals with color-coded urgency indicators
@@ -125,13 +125,12 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | GET/POST | `/ledger/email-accounts` | List / create ledger email accounts |
 | GET/PUT/DELETE | `/ledger/email-accounts/{emailAccountId}` | Ledger email account CRUD |
 | POST | `/ledger/email-accounts/{emailAccountId}/test` | Test the configured IMAP connection |
-| POST | `/ledger/email-accounts/{emailAccountId}/scan` | Parse uploaded `.eml` files and match resulting orders to ledger transactions |
-| GET | `/ledger/email-orders` | List parsed email orders |
-| GET | `/ledger/email-orders/{emailOrderId}` | Get parsed email order details |
-| GET | `/ledger/email-orders/{emailOrderId}/candidates` | List unlinked outgoing transactions within the importer's charge window (`?afterDays=` widens it) |
+| POST | `/ledger/email-accounts/{emailAccountId}/scan` | Scan the account's folder via IMAP (or process uploaded `.eml` files) with the LLM and match resulting orders to ledger transactions; 409 when the LLM is off, no folder is set or a scan is already running |
+| GET | `/ledger/email-orders` | List extracted email orders |
+| GET | `/ledger/email-orders/{emailOrderId}` | Get extracted email order details |
+| GET | `/ledger/email-orders/{emailOrderId}/candidates` | List unlinked outgoing transactions within the charge window derived from the order's merchant and payment method (`?afterDays=` widens it) |
 | POST | `/ledger/email-orders/{emailOrderId}/link` | Manually link an email order to one or more ledger transactions |
-| POST | `/ledger/email-orders/{emailOrderId}/reject` | Reject a parsed email order |
-| GET | `/ledger/email-importers` | List supported email importers |
+| POST | `/ledger/email-orders/{emailOrderId}/reject` | Reject an extracted email order |
 | GET | `/export` | Download all user data (v2 envelope) |
 | GET | `/modules/{module}/export` | Download a single module's data |
 | POST | `/import` | Import an export into empty, enabled modules |

@@ -272,7 +272,7 @@ func (x *imapSchedulerTest) assertIncomplete(t *testing.T, got LedgerEmailAccoun
 
 func TestScanAccount_CompleteScanAdvancesLastScanAt(t *testing.T) {
 	server := newFakeIMAP(t, "AmazonDE-1.eml", "AmazonDE-2.eml")
-	x := newIMAPSchedulerTest(t, server, orderFake())
+	x := newIMAPSchedulerTest(t, server, preClassFake(nil))
 	got := x.run(t)
 	if got.LastScanAt == nil || !got.LastScanAt.After(x.past) || got.LastScanAttemptAt == nil {
 		t.Fatalf("account = %+v", got)
@@ -286,7 +286,7 @@ func TestScanAccount_SkippedMessagesKeepLastScanAt(t *testing.T) {
 	t.Run("rejected header fetch", func(t *testing.T) {
 		server := newFakeIMAP(t, "AmazonDE-1.eml", "AmazonDE-2.eml")
 		server.set(server.rejectHeader, 1)
-		x := newIMAPSchedulerTest(t, server, orderFake())
+		x := newIMAPSchedulerTest(t, server, preClassFake(nil))
 		got := x.run(t)
 		x.assertIncomplete(t, got)
 		if !strings.Contains(got.LastScanStatusMessage, "1 skipped") {
@@ -303,10 +303,20 @@ func TestScanAccount_SkippedMessagesKeepLastScanAt(t *testing.T) {
 			t.Errorf("status = %q", got.LastScanStatusMessage)
 		}
 	})
+	t.Run("skipped pre-classification batch", func(t *testing.T) {
+		server := newFakeIMAP(t, "AmazonDE-1.eml", "AmazonDE-2.eml")
+		fake := preClassFake(func(llm.Request) (json.RawMessage, error) { return nil, &llm.APIError{StatusCode: 503} })
+		x := newIMAPSchedulerTest(t, server, fake)
+		x.account.PreClassify = true
+		if err := x.store.UpdateLedgerEmailAccount(context.Background(), testUserID, x.account); err != nil {
+			t.Fatalf("UpdateLedgerEmailAccount: %v", err)
+		}
+		x.assertIncomplete(t, x.run(t))
+	})
 	t.Run("connection dropped mid-scan", func(t *testing.T) {
 		server := newFakeIMAP(t, "AmazonDE-1.eml", "AmazonDE-2.eml")
 		server.set(server.dropOnHeader, 2)
-		x := newIMAPSchedulerTest(t, server, orderFake())
+		x := newIMAPSchedulerTest(t, server, preClassFake(nil))
 		got := x.run(t)
 		x.assertIncomplete(t, got)
 		if !strings.HasPrefix(got.LastScanStatusMessage, "Background scan failed") {
@@ -318,7 +328,7 @@ func TestScanAccount_SkippedMessagesKeepLastScanAt(t *testing.T) {
 func TestScanAccount_PersistentlyRejectedMessageStopsBlockingCompleteScans(t *testing.T) {
 	server := newFakeIMAP(t, "AmazonDE-1.eml", "AmazonDE-2.eml")
 	server.set(server.rejectHeader, 1)
-	x := newIMAPSchedulerTest(t, server, orderFake())
+	x := newIMAPSchedulerTest(t, server, preClassFake(nil))
 
 	for scan := 1; scan < maxFetchRejections; scan++ {
 		x.assertIncomplete(t, x.run(t))
@@ -339,11 +349,4 @@ func TestScanAccount_PersistentlyRejectedMessageStopsBlockingCompleteScans(t *te
 	if again := x.run(t); again.LastScanAt == nil || !again.LastScanAt.After(*got.LastScanAt) {
 		t.Errorf("fourth scan did not complete: %+v", again)
 	}
-}
-
-// orderFake answers every extraction with a valid order.
-func orderFake() *llmtest.Fake {
-	return &llmtest.Fake{Func: func(llm.Request) (json.RawMessage, error) {
-		return json.Marshal(goldenOrders[0].extraction())
-	}}
 }

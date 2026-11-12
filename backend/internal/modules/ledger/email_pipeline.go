@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -63,36 +64,71 @@ func emailDedupKey(messageID string, header []byte) string {
 // processMessages is the one path that turns candidate messages into orders:
 // known messages are dropped before any LLM call, the rest is extracted,
 // validated, auto-linked and stored.
-func (s *EmailService) processMessages(ctx context.Context, userID string, account LedgerEmailAccount, msgs []emailMessage, result *LedgerEmailScanResult) error {
+func (s *EmailService) processMessages(ctx context.Context, userID string, account LedgerEmailAccount, msgs []emailMessage, preClassify bool, result *LedgerEmailScanResult) error {
 	todo, err := s.dropKnownMessages(ctx, userID, account, msgs, result)
 	if err != nil {
 		return err
 	}
+	batchSize := max(len(todo), 1)
+	if preClassify {
+		batchSize = preClassifyBatchSize
+	}
 	failures := 0
-	for _, m := range todo {
+	// transient reports whether the scan should stop after another transient failure.
+	transient := func() bool {
+		failures++
+		if failures < maxConsecutiveLLMFailures {
+			return false
+		}
+		result.Partial = true
+		result.Warnings = append(result.Warnings, "scan stopped after repeated LLM failures")
+		return true
+	}
+	for batch := range slices.Chunk(todo, batchSize) {
 		if ctx.Err() != nil {
 			result.Partial = true
 			return ctx.Err()
 		}
-		err := s.processMessage(ctx, userID, account, m, result)
-		switch {
-		case errors.Is(err, errTransientLLM):
-			failures++
-			if failures >= maxConsecutiveLLMFailures {
-				result.Partial = true
-				result.Warnings = append(result.Warnings, "scan stopped after repeated LLM failures")
-				return nil
+		if preClassify {
+			batch, err = s.preClassify(ctx, userID, account, batch, result)
+			if errors.Is(err, errTransientLLM) {
+				if transient() {
+					return nil
+				}
+				continue
 			}
-		case err != nil:
+			if err != nil {
+				return s.interrupted(ctx, result, err)
+			}
+			failures = 0
+		}
+		for _, m := range batch {
 			if ctx.Err() != nil {
 				result.Partial = true
+				return ctx.Err()
 			}
-			return err
-		default:
-			failures = 0
+			err := s.processMessage(ctx, userID, account, m, result)
+			switch {
+			case errors.Is(err, errTransientLLM):
+				if transient() {
+					return nil
+				}
+			case err != nil:
+				return s.interrupted(ctx, result, err)
+			default:
+				failures = 0
+			}
 		}
 	}
 	return nil
+}
+
+// interrupted marks the result partial when the scan context ended.
+func (s *EmailService) interrupted(ctx context.Context, result *LedgerEmailScanResult, err error) error {
+	if ctx.Err() != nil {
+		result.Partial = true
+	}
+	return err
 }
 
 // dropKnownMessages removes messages that already produced an order or were
