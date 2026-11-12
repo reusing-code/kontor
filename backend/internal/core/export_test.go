@@ -216,14 +216,14 @@ func seedAllModules(t *testing.T, h *exportHarness) seededData {
 	d.emailAccount = ledger.LedgerEmailAccount{
 		ID: uuid.New(), Name: "Mailbox", IMAPHost: "imap.example.com", IMAPPort: 993,
 		Username: "user", EncryptedPassword: "super-secret-ciphertext", UseTLS: true,
-		CreatedAt: now, UpdatedAt: now,
+		Folder: "Orders", PreClassify: true, CreatedAt: now, UpdatedAt: now,
 	}
 	if err := h.ledger.Store().CreateLedgerEmailAccount(ctx, exportTestUser, d.emailAccount); err != nil {
 		t.Fatalf("creating email account: %v", err)
 	}
 	d.emailOrder = ledger.LedgerEmailOrder{
-		ID: uuid.New(), EmailAccountID: d.emailAccount.ID, ImporterID: "amazon.de",
-		OrderDate: "2026-06-01", TotalMinor: 4200, Currency: "EUR", CreatedAt: now, UpdatedAt: now,
+		ID: uuid.New(), EmailAccountID: d.emailAccount.ID, ImporterID: "llm",
+		Merchant: "Amazon.de", PaymentMethod: "card", OrderDate: "2026-06-01", TotalMinor: 4200, Currency: "EUR", CreatedAt: now, UpdatedAt: now,
 	}
 	if err := h.ledger.Store().CreateLedgerEmailOrder(ctx, exportTestUser, d.emailOrder); err != nil {
 		t.Fatalf("creating email order: %v", err)
@@ -385,12 +385,18 @@ func TestExportImport_FullRoundTrip(t *testing.T) {
 	if emailAccount.EncryptedPassword != "" {
 		t.Error("restored email account must not regain a password")
 	}
+	if emailAccount.Folder != "Orders" || !emailAccount.PreClassify {
+		t.Errorf("restored email account folder = %q, preClassify = %v", emailAccount.Folder, emailAccount.PreClassify)
+	}
 	order, err := dst.ledger.Store().GetLedgerEmailOrder(ctx, exportTestUser, data.emailOrder.ID)
 	if err != nil {
 		t.Fatalf("restored email order missing: %v", err)
 	}
 	if len(order.LinkedTransactionIDs) != 1 || order.LinkedTransactionIDs[0] != data.transaction.ID {
 		t.Errorf("restored email order links = %+v", order.LinkedTransactionIDs)
+	}
+	if order.Merchant != "Amazon.de" || order.PaymentMethod != "card" {
+		t.Errorf("restored email order merchant = %q, paymentMethod = %q", order.Merchant, order.PaymentMethod)
 	}
 
 	// Settings round trip.
@@ -419,6 +425,68 @@ func TestExportImport_FullRoundTrip(t *testing.T) {
 		if !reflect.DeepEqual(want, got) {
 			t.Errorf("re-exported %s section differs:\nwant: %s\ngot:  %s", id, section, reParsed.Modules[id])
 		}
+	}
+}
+
+func TestImport_LedgerExportWithoutEmailSettings(t *testing.T) {
+	ctx := context.Background()
+	src := newExportHarness(t)
+	data := seedAllModules(t, src)
+
+	var envelope exportEnvelopeBody
+	if err := json.Unmarshal(exportFull(t, src), &envelope); err != nil {
+		t.Fatalf("unmarshal export: %v", err)
+	}
+	var section map[string]json.RawMessage
+	if err := json.Unmarshal(envelope.Modules["ledger"], &section); err != nil {
+		t.Fatalf("unmarshal ledger section: %v", err)
+	}
+	stripKeys := func(key string, drop ...string) {
+		var entries []map[string]json.RawMessage
+		if err := json.Unmarshal(section[key], &entries); err != nil {
+			t.Fatalf("unmarshal %s: %v", key, err)
+		}
+		for _, entry := range entries {
+			for _, name := range drop {
+				delete(entry, name)
+			}
+		}
+		raw, err := json.Marshal(entries)
+		if err != nil {
+			t.Fatalf("marshal %s: %v", key, err)
+		}
+		section[key] = raw
+	}
+	stripKeys("emailAccounts", "folder", "preClassify")
+	stripKeys("emailOrders", "merchant", "paymentMethod")
+	rawSection, err := json.Marshal(section)
+	if err != nil {
+		t.Fatalf("marshal ledger section: %v", err)
+	}
+	envelope.Modules["ledger"] = rawSection
+	legacy, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("marshal legacy export: %v", err)
+	}
+
+	dst := newExportHarness(t)
+	rec := dst.do(t, "POST", "/api/v1/modules/ledger/import", legacy)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("import status = %d, body: %s", rec.Code, rec.Body.String())
+	}
+	account, err := dst.ledger.Store().GetLedgerEmailAccount(ctx, exportTestUser, data.emailAccount.ID)
+	if err != nil {
+		t.Fatalf("restored email account missing: %v", err)
+	}
+	if account.Folder != "" || account.PreClassify {
+		t.Errorf("legacy account folder = %q, preClassify = %v, want zero values", account.Folder, account.PreClassify)
+	}
+	order, err := dst.ledger.Store().GetLedgerEmailOrder(ctx, exportTestUser, data.emailOrder.ID)
+	if err != nil {
+		t.Fatalf("restored email order missing: %v", err)
+	}
+	if order.Merchant != "" || order.PaymentMethod != "" {
+		t.Errorf("legacy order merchant = %q, paymentMethod = %q, want empty", order.Merchant, order.PaymentMethod)
 	}
 }
 

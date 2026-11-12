@@ -3,10 +3,12 @@ package ledger
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
 
+	"github.com/dgraph-io/badger/v4"
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/modules/contracts"
 	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
@@ -652,6 +654,46 @@ func TestReviewLedgerTransaction_RejectsCategoryAssignmentForLinkedTransfer(t *t
 	}
 }
 
+func TestLedgerEmailAccount_FolderSettingsSurvivePersistence(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	account := LedgerEmailAccount{
+		ID: uuid.New(), Name: "Mailbox", IMAPHost: "imap.example.com", IMAPPort: 993, Username: "user",
+		EncryptedPassword: "x", Folder: "Rechnungen", PreClassify: true, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := s.CreateLedgerEmailAccount(ctx, "test-user", account); err != nil {
+		t.Fatalf("CreateLedgerEmailAccount: %v", err)
+	}
+	got, err := s.GetLedgerEmailAccount(ctx, "test-user", account.ID)
+	if err != nil {
+		t.Fatalf("GetLedgerEmailAccount: %v", err)
+	}
+	if got.Folder != "Rechnungen" || !got.PreClassify {
+		t.Errorf("folder = %q, preClassify = %v, want Rechnungen/true", got.Folder, got.PreClassify)
+	}
+}
+
+func TestLedgerEmailAccount_LegacyStoredJSONHasNoFolder(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	id := uuid.New()
+	legacy := fmt.Sprintf(`{"id":%q,"name":"Mailbox","imapHost":"h","imapPort":993,"username":"u","encryptedPassword":"x","useTls":true,"scanSince":"2026-01-01","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}`, id)
+	if err := s.e.Update(func(txn *badger.Txn) error {
+		return txn.Set(ledEmailAccKey("test-user", id), []byte(legacy))
+	}); err != nil {
+		t.Fatalf("storing legacy account: %v", err)
+	}
+	got, err := s.GetLedgerEmailAccount(ctx, "test-user", id)
+	if err != nil {
+		t.Fatalf("GetLedgerEmailAccount: %v", err)
+	}
+	if got.Folder != "" || got.PreClassify || got.EncryptedPassword != "x" {
+		t.Errorf("legacy account = %+v", got)
+	}
+}
+
 func TestLedgerEmailAccount_EncryptedPasswordSurvivesPersistence(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
@@ -692,5 +734,43 @@ func TestLedgerEmailAccount_EncryptedPasswordSurvivesPersistence(t *testing.T) {
 	}
 	if len(list) != 1 || list[0].EncryptedPassword != "encrypted-secret" {
 		t.Errorf("list = %+v, want the encrypted password preserved", list)
+	}
+}
+
+func TestSetLedgerEmailAccountScanState_DoesNotRevertConcurrentEdits(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	account := LedgerEmailAccount{
+		ID: uuid.New(), Name: "Mailbox", IMAPHost: "h", IMAPPort: 993, Username: "u",
+		EncryptedPassword: "old-secret", Folder: "Old", CreatedAt: now, UpdatedAt: now,
+	}
+	if err := s.CreateLedgerEmailAccount(ctx, "test-user", account); err != nil {
+		t.Fatalf("CreateLedgerEmailAccount: %v", err)
+	}
+
+	// The user edits the account while a scan that loaded it earlier is running.
+	edited := account
+	edited.Folder, edited.EncryptedPassword, edited.PreClassify = "New", "new-secret", true
+	if err := s.UpdateLedgerEmailAccount(ctx, "test-user", edited); err != nil {
+		t.Fatalf("UpdateLedgerEmailAccount: %v", err)
+	}
+	done := time.Now().UTC()
+	if err := s.SetLedgerEmailAccountScanState(ctx, "test-user", account.ID, LedgerEmailScanState{Status: "scanned", AttemptedAt: &done, CompletedAt: &done}); err != nil {
+		t.Fatalf("SetLedgerEmailAccountScanState: %v", err)
+	}
+
+	got, err := s.GetLedgerEmailAccount(ctx, "test-user", account.ID)
+	if err != nil {
+		t.Fatalf("GetLedgerEmailAccount: %v", err)
+	}
+	if got.Folder != "New" || got.EncryptedPassword != "new-secret" || !got.PreClassify {
+		t.Errorf("edit was reverted: %+v", got)
+	}
+	if got.LastScanStatusMessage != "scanned" || got.LastScanAt == nil || got.LastScanAttemptAt == nil {
+		t.Errorf("scan state not stored: %+v", got)
+	}
+	if err := s.SetLedgerEmailAccountScanState(ctx, "test-user", uuid.New(), LedgerEmailScanState{Status: "x"}); !errors.Is(err, storage.ErrNotFound) {
+		t.Errorf("unknown account: err = %v, want ErrNotFound", err)
 	}
 }

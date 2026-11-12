@@ -3,6 +3,7 @@ package ledger
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -32,6 +33,15 @@ type ParsedOrder struct {
 	TotalMinor      int64
 	Currency        string
 	Items           []LedgerEmailOrderItem
+}
+
+var (
+	ErrEmailFolderMissing = errors.New("choose a folder to scan")
+	ErrIMAP               = errors.New("imap")
+)
+
+func imapError(err error) error {
+	return fmt.Errorf("%w: %w", ErrIMAP, err)
 }
 
 type UploadedMessage struct {
@@ -150,17 +160,20 @@ func (s *EmailService) ScanUploadedMessages(ctx context.Context, userID string, 
 
 func (s *EmailService) ScanMailbox(ctx context.Context, userID string, account LedgerEmailAccount, password string) (LedgerEmailScanResult, error) {
 	result := LedgerEmailScanResult{Warnings: []string{}, Orders: []LedgerEmailOrder{}}
+	if account.Folder == "" {
+		return result, ErrEmailFolderMissing
+	}
 	client, err := newIMAPClient(account.IMAPHost, account.IMAPPort, account.UseTLS)
 	if err != nil {
-		return result, err
+		return result, imapError(err)
 	}
 	defer client.Close()
 	if err := client.Login(account.Username, password); err != nil {
-		return result, err
+		return result, imapError(err)
 	}
 	defer client.Logout()
-	if err := client.SelectInbox(); err != nil {
-		return result, err
+	if err := client.SelectFolder(account.Folder); err != nil {
+		return result, imapError(err)
 	}
 	searchSince := account.ScanSince
 	if account.LastScanAt != nil {
@@ -171,14 +184,14 @@ func (s *EmailService) ScanMailbox(ctx context.Context, userID string, account L
 	}
 	uids, err := client.SearchSince(searchSince)
 	if err != nil {
-		return result, err
+		return result, imapError(err)
 	}
 	if len(uids) == 0 {
 		return result, nil
 	}
 	const maxFetchedMessages = 250
 	if len(uids) > maxFetchedMessages {
-		result.Warnings = append(result.Warnings, fmt.Sprintf("scan limited to the newest %d matching inbox messages", maxFetchedMessages))
+		result.Warnings = append(result.Warnings, fmt.Sprintf("scan limited to the newest %d matching messages in the selected folder", maxFetchedMessages))
 		uids = uids[len(uids)-maxFetchedMessages:]
 	}
 	for i := len(uids) - 1; i >= 0; i-- {
@@ -222,10 +235,10 @@ func (s *EmailService) TestConnection(account LedgerEmailAccount, password strin
 		return err
 	}
 	defer client.Logout()
-	if err := client.SelectInbox(); err != nil {
-		return err
+	if account.Folder == "" {
+		return nil
 	}
-	return nil
+	return client.SelectFolder(account.Folder)
 }
 
 func (s *EmailService) processParsedEmail(ctx context.Context, userID string, account LedgerEmailAccount, parsed ParsedEmail, sourceLabel string) (LedgerEmailScanResult, error) {

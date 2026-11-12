@@ -2,12 +2,15 @@ package ledger
 
 import (
 	"bytes"
-	"github.com/reusing-code/kontor/backend/internal/httputil"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/reusing-code/kontor/backend/internal/httputil"
 
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
@@ -51,6 +54,8 @@ func (h *Handler) CreateLedgerEmailAccount(w http.ResponseWriter, r *http.Reques
 		Username:          input.Username,
 		EncryptedPassword: encryptedPassword,
 		UseTLS:            input.UseTLS,
+		Folder:            input.Folder,
+		PreClassify:       input.PreClassify,
 		ScanSince:         input.ScanSince,
 		CreatedAt:         now,
 		UpdatedAt:         now,
@@ -82,11 +87,6 @@ func (h *Handler) UpdateLedgerEmailAccount(w http.ResponseWriter, r *http.Reques
 		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid emailAccountId")
 		return
 	}
-	existing, err := h.store.GetLedgerEmailAccount(r.Context(), middleware.GetUserID(r.Context()), id)
-	if err != nil {
-		h.storeError(w, err)
-		return
-	}
 	var input LedgerEmailAccountUpdateInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
 		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
@@ -96,26 +96,40 @@ func (h *Handler) UpdateLedgerEmailAccount(w http.ResponseWriter, r *http.Reques
 		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
 		return
 	}
-	existing.Name = input.Name
-	existing.IMAPHost = input.IMAPHost
-	existing.IMAPPort = input.IMAPPort
-	existing.Username = input.Username
-	existing.UseTLS = input.UseTLS
-	existing.ScanSince = input.ScanSince
-	existing.UpdatedAt = time.Now().UTC()
+	encryptedPassword := ""
 	if input.Password != nil && *input.Password != "" {
 		if len(h.emailEncryptionKey) == 0 {
 			httputil.Error(h.logger, w, http.StatusInternalServerError, "EMAIL_ENCRYPTION_KEY is not configured")
 			return
 		}
-		encryptedPassword, err := cryptoutil.EncryptString(*input.Password, h.emailEncryptionKey)
+		encrypted, err := cryptoutil.EncryptString(*input.Password, h.emailEncryptionKey)
 		if err != nil {
 			httputil.Error(h.logger, w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		existing.EncryptedPassword = encryptedPassword
+		encryptedPassword = encrypted
 	}
-	if err := h.store.UpdateLedgerEmailAccount(r.Context(), middleware.GetUserID(r.Context()), existing); err != nil {
+	existing, err := h.store.ModifyLedgerEmailAccount(r.Context(), middleware.GetUserID(r.Context()), id, func(a *LedgerEmailAccount) {
+		// Changed connection settings (or a new password) may fix a failed
+		// scan: make the account due on the next scheduler tick.
+		if a.IMAPHost != input.IMAPHost || a.IMAPPort != input.IMAPPort || a.Username != input.Username ||
+			a.UseTLS != input.UseTLS || a.Folder != input.Folder || encryptedPassword != "" {
+			a.LastScanAttemptAt = nil
+		}
+		a.Name = input.Name
+		a.IMAPHost = input.IMAPHost
+		a.IMAPPort = input.IMAPPort
+		a.Username = input.Username
+		a.UseTLS = input.UseTLS
+		a.Folder = input.Folder
+		a.PreClassify = input.PreClassify
+		a.ScanSince = input.ScanSince
+		if encryptedPassword != "" {
+			a.EncryptedPassword = encryptedPassword
+		}
+		a.UpdatedAt = time.Now().UTC()
+	})
+	if err != nil {
 		h.storeError(w, err)
 		return
 	}
@@ -280,6 +294,17 @@ func (h *Handler) RejectLedgerEmailOrder(w http.ResponseWriter, r *http.Request)
 	httputil.WriteJSON(h.logger, w, http.StatusOK, item)
 }
 
+func (h *Handler) scanError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, ErrEmailFolderMissing):
+		httputil.Error(h.logger, w, http.StatusConflict, "no folder to scan; edit the account and choose a folder")
+	case errors.Is(err, ErrIMAP):
+		httputil.Error(h.logger, w, http.StatusBadGateway, err.Error())
+	default:
+		h.storeError(w, err)
+	}
+}
+
 func (h *Handler) ScanLedgerEmailAccount(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("emailAccountId"))
 	if err != nil {
@@ -294,7 +319,8 @@ func (h *Handler) ScanLedgerEmailAccount(w http.ResponseWriter, r *http.Request)
 	userID := middleware.GetUserID(r.Context())
 	var result LedgerEmailScanResult
 	contentType := strings.TrimSpace(r.Header.Get("Content-Type"))
-	if strings.HasPrefix(contentType, "multipart/form-data") {
+	isUpload := strings.HasPrefix(contentType, "multipart/form-data")
+	if isUpload {
 		if err := r.ParseMultipartForm(32 << 20); err != nil {
 			httputil.Error(h.logger, w, http.StatusBadRequest, "invalid multipart form")
 			return
@@ -320,7 +346,15 @@ func (h *Handler) ScanLedgerEmailAccount(w http.ResponseWriter, r *http.Request)
 			uploads = append(uploads, UploadedMessage{Filename: header.Filename, Reader: bytes.NewReader(data)})
 		}
 		result, err = h.ledgerEmail.ScanUploadedMessages(r.Context(), userID, account, uploads)
+		if err != nil {
+			h.scanError(w, err)
+			return
+		}
 	} else {
+		if account.Folder == "" {
+			h.scanError(w, ErrEmailFolderMissing)
+			return
+		}
 		if len(h.emailEncryptionKey) == 0 {
 			httputil.Error(h.logger, w, http.StatusInternalServerError, "EMAIL_ENCRYPTION_KEY is not configured")
 			return
@@ -334,26 +368,19 @@ func (h *Handler) ScanLedgerEmailAccount(w http.ResponseWriter, r *http.Request)
 			httputil.Error(h.logger, w, http.StatusInternalServerError, "could not decrypt stored email password")
 			return
 		}
-		mailboxResult, scanErr := h.ledgerEmail.ScanMailbox(r.Context(), userID, account, password)
-		if scanErr != nil {
-			h.storeError(w, scanErr)
+		result, err = h.ledgerEmail.ScanMailbox(r.Context(), userID, account, password)
+		if err != nil {
+			h.scanError(w, err)
 			return
 		}
-		result = mailboxResult
 	}
-	if err != nil {
-		h.storeError(w, err)
-		return
+	// Only an IMAP scan moves the lookback start; uploads scan no mailbox.
+	state := LedgerEmailScanState{Status: "Processed uploaded email messages"}
+	if !isUpload {
+		now := time.Now().UTC()
+		state = LedgerEmailScanState{Status: fmt.Sprintf("Scanned folder %q via IMAP", account.Folder), AttemptedAt: &now, CompletedAt: &now}
 	}
-	now := time.Now().UTC()
-	account.LastScanAt = &now
-	if strings.HasPrefix(contentType, "multipart/form-data") {
-		account.LastScanStatusMessage = "Processed uploaded email messages"
-	} else {
-		account.LastScanStatusMessage = "Scanned inbox via IMAP"
-	}
-	account.UpdatedAt = now
-	if err := h.store.UpdateLedgerEmailAccount(r.Context(), userID, account); err != nil {
+	if err := h.store.SetLedgerEmailAccountScanState(r.Context(), userID, account.ID, state); err != nil {
 		h.storeError(w, err)
 		return
 	}

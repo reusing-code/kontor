@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
 )
@@ -50,6 +51,9 @@ func newMux(h *Handler) http.Handler {
 	mux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/transfer-link", h.LinkLedgerTransfer)
 	mux.HandleFunc("DELETE /api/v1/ledger/transactions/{transactionId}/transfer-link", h.UnlinkLedgerTransfer)
 	mux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/review", h.ReviewLedgerTransaction)
+	mux.HandleFunc("POST /api/v1/ledger/email-accounts", h.CreateLedgerEmailAccount)
+	mux.HandleFunc("PUT /api/v1/ledger/email-accounts/{emailAccountId}", h.UpdateLedgerEmailAccount)
+	mux.HandleFunc("POST /api/v1/ledger/email-accounts/{emailAccountId}/scan", h.ScanLedgerEmailAccount)
 	mux.HandleFunc("GET /api/v1/ledger/email-orders/{emailOrderId}/candidates", h.ListLedgerEmailOrderCandidates)
 	// Inject test user into context for all requests
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -512,5 +516,145 @@ func TestListLedgerTransactions_InvalidLimit(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func newTestHandlerWithEmailKey(t *testing.T) (*Handler, *testStores) {
+	t.Helper()
+	h, s := newTestHandler(t)
+	key, err := cryptoutil.NormalizeEncryptionKey("0123456789abcdef0123456789abcdef")
+	if err != nil {
+		t.Fatalf("NormalizeEncryptionKey: %v", err)
+	}
+	h.emailEncryptionKey = key
+	return h, s
+}
+
+func TestEmailAccountHandlers_Folder(t *testing.T) {
+	h, _ := newTestHandlerWithEmailKey(t)
+	mux := newMux(h)
+
+	create := func(folder string, preClassify bool) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/ledger/email-accounts", jsonBody(map[string]any{
+			"name": "Mail", "imapHost": "imap.example.com", "imapPort": 993, "username": "u", "password": "p",
+			"useTls": true, "scanSince": "2026-01-01", "folder": folder, "preClassify": preClassify,
+		}))
+		mux.ServeHTTP(rec, req)
+		return rec
+	}
+
+	if rec := create("", false); rec.Code != http.StatusBadRequest {
+		t.Fatalf("create without folder: status = %d, want 400", rec.Code)
+	}
+	rec := create("  Orders ", true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: status = %d, body: %s", rec.Code, rec.Body.String())
+	}
+	var created LedgerEmailAccount
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if created.Folder != "Orders" || !created.PreClassify {
+		t.Fatalf("created folder = %q, preClassify = %v", created.Folder, created.PreClassify)
+	}
+
+	update := func(folder string, preClassify bool) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/ledger/email-accounts/"+created.ID.String(), jsonBody(map[string]any{
+			"name": "Mail", "imapHost": "imap.example.com", "imapPort": 993, "username": "u",
+			"useTls": true, "scanSince": "2026-01-01", "folder": folder, "preClassify": preClassify,
+		}))
+		mux.ServeHTTP(rec, req)
+		return rec
+	}
+	if rec := update("", false); rec.Code != http.StatusBadRequest {
+		t.Fatalf("update without folder: status = %d, want 400", rec.Code)
+	}
+	rec = update("INBOX", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update: status = %d, body: %s", rec.Code, rec.Body.String())
+	}
+	var updated LedgerEmailAccount
+	if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if updated.Folder != "INBOX" || updated.PreClassify {
+		t.Fatalf("updated folder = %q, preClassify = %v", updated.Folder, updated.PreClassify)
+	}
+}
+
+func TestScanLedgerEmailAccount_WithoutFolderIs409(t *testing.T) {
+	h, s := newTestHandlerWithEmailKey(t)
+	now := time.Now().UTC()
+	account := LedgerEmailAccount{ID: uuid.New(), Name: "Mail", IMAPHost: "imap.invalid", IMAPPort: 993, Username: "u", EncryptedPassword: "x", CreatedAt: now, UpdatedAt: now}
+	if err := s.CreateLedgerEmailAccount(context.Background(), testUserID, account); err != nil {
+		t.Fatalf("CreateLedgerEmailAccount: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	newMux(h).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/ledger/email-accounts/"+account.ID.String()+"/scan", nil))
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestUpdateEmailAccount_ConnectionChangesClearTheScanAttempt(t *testing.T) {
+	h, s := newTestHandlerWithEmailKey(t)
+	mux := newMux(h)
+	attempt := time.Now().UTC().Add(-time.Hour)
+	now := time.Now().UTC()
+	account := LedgerEmailAccount{
+		ID: uuid.New(), Name: "Mail", IMAPHost: "imap.example.com", IMAPPort: 993, Username: "u", UseTLS: true,
+		EncryptedPassword: "x", Folder: "Orders", ScanSince: "2026-01-01", LastScanAttemptAt: &attempt, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := s.CreateLedgerEmailAccount(context.Background(), testUserID, account); err != nil {
+		t.Fatalf("CreateLedgerEmailAccount: %v", err)
+	}
+	put := func(mutate func(map[string]any)) {
+		body := map[string]any{
+			"name": "Mail", "imapHost": "imap.example.com", "imapPort": 993, "username": "u", "useTls": true,
+			"scanSince": "2026-01-01", "folder": "Orders", "preClassify": false,
+		}
+		mutate(body)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/api/v1/ledger/email-accounts/"+account.ID.String(), jsonBody(body)))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, body: %s", rec.Code, rec.Body.String())
+		}
+	}
+	attemptSet := func() bool {
+		got, err := s.GetLedgerEmailAccount(context.Background(), testUserID, account.ID)
+		if err != nil {
+			t.Fatalf("GetLedgerEmailAccount: %v", err)
+		}
+		return got.LastScanAttemptAt != nil
+	}
+	restore := func() {
+		if _, err := s.ModifyLedgerEmailAccount(context.Background(), testUserID, account.ID, func(a *LedgerEmailAccount) { a.LastScanAttemptAt = &attempt }); err != nil {
+			t.Fatalf("restore: %v", err)
+		}
+	}
+
+	put(func(b map[string]any) { b["name"] = "Renamed"; b["preClassify"] = true; b["scanSince"] = "2026-02-01" })
+	if !attemptSet() {
+		t.Error("a change of name, pre-classification or scanSince cleared the attempt")
+	}
+	for name, mutate := range map[string]func(map[string]any){
+		"folder":   func(b map[string]any) { b["folder"] = "Other" },
+		"host":     func(b map[string]any) { b["imapHost"] = "imap2.example.com" },
+		"port":     func(b map[string]any) { b["imapPort"] = 143 },
+		"username": func(b map[string]any) { b["username"] = "other" },
+		"tls":      func(b map[string]any) { b["useTls"] = false },
+		"password": func(b map[string]any) { b["password"] = "new-secret" },
+	} {
+		restore()
+		put(mutate)
+		if attemptSet() {
+			t.Errorf("a change of %s did not clear the attempt", name)
+		}
+		// Put the stored values back so the next case changes exactly one field.
+		restore()
+		put(func(b map[string]any) {})
 	}
 }

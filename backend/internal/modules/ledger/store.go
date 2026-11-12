@@ -1330,6 +1330,51 @@ func (s *Store) UpdateLedgerEmailAccount(_ context.Context, userID string, accou
 	})
 }
 
+// ModifyLedgerEmailAccount applies fn to the stored account in one
+// transaction, so concurrent scan-state writes are not lost.
+func (s *Store) ModifyLedgerEmailAccount(_ context.Context, userID string, id uuid.UUID, fn func(*LedgerEmailAccount)) (LedgerEmailAccount, error) {
+	var updated LedgerEmailAccount
+	err := retryOnConflict(func() error {
+		return s.e.Update(func(txn *badger.Txn) error {
+			account, err := loadLedgerEmailAccount(txn, userID, id)
+			if err != nil {
+				return err
+			}
+			fn(&account)
+			updated = account
+			return storeLedgerEmailAccount(txn, userID, account)
+		})
+	})
+	return updated, err
+}
+
+// SetLedgerEmailAccountScanState records a scan outcome without touching any
+// other account field, so edits made while the scan ran are not reverted.
+func (s *Store) SetLedgerEmailAccountScanState(_ context.Context, userID string, id uuid.UUID, state LedgerEmailScanState) error {
+	return retryOnConflict(func() error { return s.setLedgerEmailAccountScanState(userID, id, state) })
+}
+
+func (s *Store) setLedgerEmailAccountScanState(userID string, id uuid.UUID, state LedgerEmailScanState) error {
+	return s.e.Update(func(txn *badger.Txn) error {
+		account, err := loadLedgerEmailAccount(txn, userID, id)
+		if err != nil {
+			return err
+		}
+		if account.LastScanStatusMessage == state.Status && state.AttemptedAt == nil && state.CompletedAt == nil {
+			return nil
+		}
+		account.LastScanStatusMessage = state.Status
+		if state.AttemptedAt != nil {
+			account.LastScanAttemptAt = state.AttemptedAt
+		}
+		if state.CompletedAt != nil {
+			account.LastScanAt = state.CompletedAt
+		}
+		account.UpdatedAt = time.Now().UTC()
+		return storeLedgerEmailAccount(txn, userID, account)
+	})
+}
+
 func (s *Store) DeleteLedgerEmailAccount(_ context.Context, userID string, id uuid.UUID) error {
 	return s.e.Update(func(txn *badger.Txn) error {
 		account, err := loadLedgerEmailAccount(txn, userID, id)
@@ -1549,6 +1594,18 @@ func (s *Store) CreateLedgerEmailOrder(_ context.Context, userID string, order L
 		}
 		return storeLedgerEmailOrder(txn, userID, order)
 	})
+}
+
+// retryOnConflict reruns a transaction that lost an optimistic-concurrency
+// race; the rerun sees the committed state of the winner.
+func retryOnConflict(fn func() error) error {
+	var err error
+	for range 3 {
+		if err = fn(); !errors.Is(err, badger.ErrConflict) {
+			return err
+		}
+	}
+	return err
 }
 
 func unlinkLedgerEmailOrderTxn(txn *badger.Txn, userID string, orderID uuid.UUID) error {

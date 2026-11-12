@@ -3,12 +3,14 @@ package ledger
 import (
 	"bufio"
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf16"
 )
 
 const (
@@ -70,10 +72,10 @@ func (c *imapClient) Logout() {
 	_, _ = c.command("LOGOUT")
 }
 
-func (c *imapClient) SelectInbox() error {
-	_, err := c.command("SELECT INBOX")
+func (c *imapClient) SelectFolder(name string) error {
+	_, err := c.command("SELECT " + imapQuote(imapMailboxName(name)))
 	if err != nil {
-		return fmt.Errorf("selecting inbox: %w", err)
+		return fmt.Errorf("selecting folder: %w", err)
 	}
 	return nil
 }
@@ -194,6 +196,39 @@ func imapQuote(value string) string {
 	escaped := strings.ReplaceAll(value, `\`, `\\`)
 	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
 	return `"` + escaped + `"`
+}
+
+// imapMailboxName encodes a folder name as IMAP modified UTF-7 (RFC 3501, 5.1.3).
+func imapMailboxName(name string) string {
+	var out strings.Builder
+	var run []uint16
+	flush := func() {
+		if len(run) == 0 {
+			return
+		}
+		buf := make([]byte, 0, len(run)*2)
+		for _, unit := range run {
+			buf = append(buf, byte(unit>>8), byte(unit))
+		}
+		out.WriteByte('&')
+		out.WriteString(strings.ReplaceAll(base64.RawStdEncoding.EncodeToString(buf), "/", ","))
+		out.WriteByte('-')
+		run = run[:0]
+	}
+	for _, r := range name {
+		switch {
+		case r == '&':
+			flush()
+			out.WriteString("&-")
+		case r >= 0x20 && r <= 0x7e:
+			flush()
+			out.WriteRune(r)
+		default:
+			run = append(run, utf16.Encode([]rune{r})...)
+		}
+	}
+	flush()
+	return out.String()
 }
 
 func parseIMAPLiteralSize(line string) (int, bool) {

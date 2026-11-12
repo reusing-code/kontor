@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -34,8 +36,11 @@ type LedgerEmailAccount struct {
 	Username              string     `json:"username"`
 	EncryptedPassword     string     `json:"-"`
 	UseTLS                bool       `json:"useTls"`
+	Folder                string     `json:"folder"`
+	PreClassify           bool       `json:"preClassify"`
 	ScanSince             string     `json:"scanSince"`
 	LastScanAt            *time.Time `json:"lastScanAt,omitempty"`
+	LastScanAttemptAt     *time.Time `json:"lastScanAttemptAt,omitempty"`
 	LastScanStatusMessage string     `json:"lastScanStatusMessage,omitempty"`
 	CreatedAt             time.Time  `json:"createdAt"`
 	UpdatedAt             time.Time  `json:"updatedAt"`
@@ -51,31 +56,47 @@ type storableLedgerEmailAccount struct {
 	Username              string     `json:"username"`
 	EncryptedPassword     string     `json:"encryptedPassword"`
 	UseTLS                bool       `json:"useTls"`
+	Folder                string     `json:"folder"`
+	PreClassify           bool       `json:"preClassify"`
 	ScanSince             string     `json:"scanSince"`
 	LastScanAt            *time.Time `json:"lastScanAt,omitempty"`
+	LastScanAttemptAt     *time.Time `json:"lastScanAttemptAt,omitempty"`
 	LastScanStatusMessage string     `json:"lastScanStatusMessage,omitempty"`
 	CreatedAt             time.Time  `json:"createdAt"`
 	UpdatedAt             time.Time  `json:"updatedAt"`
 }
 
+// LedgerEmailScanState is the outcome of a scan as recorded on the account.
+// CompletedAt moves the lookback anchor (LastScanAt) and must only be set for
+// complete IMAP scans; AttemptedAt schedules the next background scan.
+type LedgerEmailScanState struct {
+	Status      string
+	AttemptedAt *time.Time
+	CompletedAt *time.Time
+}
+
 type LedgerEmailAccountInput struct {
-	Name      string `json:"name"`
-	IMAPHost  string `json:"imapHost"`
-	IMAPPort  int    `json:"imapPort"`
-	Username  string `json:"username"`
-	Password  string `json:"password,omitempty"`
-	UseTLS    bool   `json:"useTls"`
-	ScanSince string `json:"scanSince"`
+	Name        string `json:"name"`
+	IMAPHost    string `json:"imapHost"`
+	IMAPPort    int    `json:"imapPort"`
+	Username    string `json:"username"`
+	Password    string `json:"password,omitempty"`
+	UseTLS      bool   `json:"useTls"`
+	Folder      string `json:"folder"`
+	PreClassify bool   `json:"preClassify"`
+	ScanSince   string `json:"scanSince"`
 }
 
 type LedgerEmailAccountUpdateInput struct {
-	Name      string  `json:"name"`
-	IMAPHost  string  `json:"imapHost"`
-	IMAPPort  int     `json:"imapPort"`
-	Username  string  `json:"username"`
-	Password  *string `json:"password,omitempty"`
-	UseTLS    bool    `json:"useTls"`
-	ScanSince string  `json:"scanSince"`
+	Name        string  `json:"name"`
+	IMAPHost    string  `json:"imapHost"`
+	IMAPPort    int     `json:"imapPort"`
+	Username    string  `json:"username"`
+	Password    *string `json:"password,omitempty"`
+	UseTLS      bool    `json:"useTls"`
+	Folder      string  `json:"folder"`
+	PreClassify bool    `json:"preClassify"`
+	ScanSince   string  `json:"scanSince"`
 }
 
 type LedgerEmailOrderItem struct {
@@ -136,12 +157,30 @@ type LedgerEmailScanResult struct {
 	Orders        []LedgerEmailOrder `json:"orders,omitempty"`
 }
 
+const maxEmailFolderRunes = 255
+
+func normalizeEmailFolder(folder string) (string, error) {
+	folder = strings.TrimSpace(folder)
+	if folder == "" {
+		return "", errors.New("folder is required")
+	}
+	if !utf8.ValidString(folder) || utf8.RuneCountInString(folder) > maxEmailFolderRunes || strings.IndexFunc(folder, unicode.IsControl) >= 0 {
+		return "", errors.New("folder is invalid")
+	}
+	return folder, nil
+}
+
 func (a *LedgerEmailAccountInput) Validate() error {
 	a.Name = strings.TrimSpace(a.Name)
 	a.IMAPHost = strings.TrimSpace(a.IMAPHost)
 	a.Username = strings.TrimSpace(a.Username)
 	a.Password = strings.TrimSpace(a.Password)
 	a.ScanSince = strings.TrimSpace(a.ScanSince)
+	folder, err := normalizeEmailFolder(a.Folder)
+	if err != nil {
+		return err
+	}
+	a.Folder = folder
 	if a.Name == "" {
 		return errors.New("name is required")
 	}
@@ -171,6 +210,11 @@ func (a *LedgerEmailAccountUpdateInput) Validate() error {
 	a.IMAPHost = strings.TrimSpace(a.IMAPHost)
 	a.Username = strings.TrimSpace(a.Username)
 	a.ScanSince = strings.TrimSpace(a.ScanSince)
+	folder, err := normalizeEmailFolder(a.Folder)
+	if err != nil {
+		return err
+	}
+	a.Folder = folder
 	if a.Password != nil {
 		trimmed := strings.TrimSpace(*a.Password)
 		a.Password = &trimmed
