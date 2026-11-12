@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -107,12 +108,33 @@ func (c *imapClient) SearchSince(scanSince string) ([]uint32, error) {
 	return nil, nil
 }
 
+// FetchMessage downloads the whole message.
 func (c *imapClient) FetchMessage(uid uint32) ([]byte, error) {
+	return c.fetchLiteral(uid, "")
+}
+
+// FetchHeader downloads only the header block of the message.
+func (c *imapClient) FetchHeader(uid uint32) ([]byte, error) {
+	return c.fetchLiteral(uid, "HEADER")
+}
+
+// maxIMAPLiteralBytes bounds what is read into memory for one message.
+const maxIMAPLiteralBytes = 25 << 20
+
+var (
+	// errIMAPRejected marks a command the server answered with NO/BAD: the
+	// connection is still usable. Other fetch errors are I/O failures.
+	errIMAPRejected    = errors.New("imap command rejected")
+	errMessageTooLarge = errors.New("message is too large")
+)
+
+func (c *imapClient) fetchLiteral(uid uint32, section string) ([]byte, error) {
 	tag := c.nextTag()
-	if err := c.writeLine(fmt.Sprintf("%s UID FETCH %d (BODY.PEEK[])", tag, uid)); err != nil {
+	if err := c.writeLine(fmt.Sprintf("%s UID FETCH %d (BODY.PEEK[%s])", tag, uid, section)); err != nil {
 		return nil, err
 	}
 	var body []byte
+	tooLarge := false
 	for {
 		line, err := c.readLine()
 		if err != nil {
@@ -121,11 +143,19 @@ func (c *imapClient) FetchMessage(uid uint32) ([]byte, error) {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, tag+" ") {
 			if !strings.Contains(trimmed, "OK") {
-				return nil, fmt.Errorf("fetch failed: %s", trimmed)
+				return nil, fmt.Errorf("%w: %s", errIMAPRejected, trimmed)
 			}
 			break
 		}
 		literalSize, ok := parseIMAPLiteralSize(line)
+		if ok && literalSize > maxIMAPLiteralBytes {
+			c.extendDeadline()
+			if _, err := io.CopyN(io.Discard, c.r, int64(literalSize)); err != nil {
+				return nil, fmt.Errorf("skipping message literal: %w", err)
+			}
+			tooLarge = true
+			continue
+		}
 		if ok {
 			body = make([]byte, literalSize)
 			c.extendDeadline()
@@ -134,8 +164,11 @@ func (c *imapClient) FetchMessage(uid uint32) ([]byte, error) {
 			}
 		}
 	}
+	if tooLarge {
+		return nil, errMessageTooLarge
+	}
 	if len(body) == 0 {
-		return nil, fmt.Errorf("empty message body for uid %d", uid)
+		return nil, fmt.Errorf("%w: empty message data for uid %d", errIMAPRejected, uid)
 	}
 	return body, nil
 }

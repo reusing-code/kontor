@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -27,29 +28,61 @@ type ParsedEmail struct {
 	HTMLBody  string
 }
 
+// headerFields extracts the identifying header fields of a message.
+func headerFields(h mail.Header) ParsedEmail {
+	subject := strings.TrimSpace(h.Get("Subject"))
+	if decodedSubject, err := decodeHeader(subject); err == nil && decodedSubject != "" {
+		subject = decodedSubject
+	}
+	from := strings.TrimSpace(h.Get("From"))
+	if decodedFrom, err := decodeHeader(from); err == nil && decodedFrom != "" {
+		from = decodedFrom
+	}
+	parsed := ParsedEmail{
+		MessageID: strings.TrimSpace(h.Get("Message-Id")),
+		From:      from,
+		Subject:   subject,
+	}
+	if dateHeader := strings.TrimSpace(h.Get("Date")); dateHeader != "" {
+		if parsedDate, err := mail.ParseDate(dateHeader); err == nil {
+			parsed.Date = parsedDate.UTC()
+		}
+	}
+	return parsed
+}
+
+var errMessageHeaders = errors.New("could not parse message headers")
+
+// parseHeader reads the header fields of a raw header block (or a whole
+// message). Its error is fixed text: net/mail errors can quote header lines.
+func parseHeader(raw []byte) (ParsedEmail, error) {
+	msg, err := mail.ReadMessage(bytes.NewReader(append(headerBlock(raw), '\n', '\n')))
+	if err != nil {
+		return ParsedEmail{}, errMessageHeaders
+	}
+	return headerFields(msg.Header), nil
+}
+
+// headerBlock returns the bytes before the first blank line, without it.
+func headerBlock(raw []byte) []byte {
+	for i := 0; i < len(raw); i++ {
+		if raw[i] != '\n' {
+			continue
+		}
+		rest := raw[i+1:]
+		if len(rest) > 0 && rest[0] == '\n' || len(rest) > 1 && rest[0] == '\r' && rest[1] == '\n' {
+			return bytes.TrimRight(raw[:i], "\r")
+		}
+	}
+	return bytes.TrimRight(raw, "\r\n")
+}
+
 func parseMessage(r io.Reader) (ParsedEmail, error) {
 	msg, err := mail.ReadMessage(bufio.NewReader(r))
 	if err != nil {
 		return ParsedEmail{}, fmt.Errorf("reading message: %w", err)
 	}
-	subject := strings.TrimSpace(msg.Header.Get("Subject"))
-	if decodedSubject, err := decodeHeader(subject); err == nil && decodedSubject != "" {
-		subject = decodedSubject
-	}
-	from := strings.TrimSpace(msg.Header.Get("From"))
-	if decodedFrom, err := decodeHeader(from); err == nil && decodedFrom != "" {
-		from = decodedFrom
-	}
-	parsed := ParsedEmail{
-		MessageID: strings.TrimSpace(msg.Header.Get("Message-Id")),
-		From:      from,
-		Subject:   subject,
-	}
-	if dateHeader := strings.TrimSpace(msg.Header.Get("Date")); dateHeader != "" {
-		if parsedDate, err := mail.ParseDate(dateHeader); err == nil {
-			parsed.Date = parsedDate.UTC()
-		}
-	}
+	parsed := headerFields(msg.Header)
 	bodyBytes, err := io.ReadAll(msg.Body)
 	if err != nil {
 		return ParsedEmail{}, fmt.Errorf("reading body: %w", err)

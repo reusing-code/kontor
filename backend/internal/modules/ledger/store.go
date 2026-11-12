@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -149,6 +150,22 @@ func ledEmailOrderKey(userID string, id uuid.UUID) []byte {
 
 func ledEmailOrderPrefix(userID string) []byte {
 	return []byte(fmt.Sprintf("u/%s/mod/ledger/eord/", userID))
+}
+
+func idxLedEmailSeenKey(userID string, accountID uuid.UUID, key string) []byte {
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/idx/eseen/%s/%s", userID, accountID, key))
+}
+
+func idxLedEmailRejectKey(userID string, accountID uuid.UUID, key string) []byte {
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/idx/erej/%s/%s", userID, accountID, key))
+}
+
+func idxLedEmailRejectPrefix(userID string, accountID uuid.UUID) []byte {
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/idx/erej/%s/", userID, accountID))
+}
+
+func idxLedEmailSeenPrefix(userID string, accountID uuid.UUID) []byte {
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/idx/eseen/%s/", userID, accountID))
 }
 
 func idxLedEmailAccOrderKey(userID string, accountID uuid.UUID, orderID uuid.UUID) []byte {
@@ -1348,6 +1365,34 @@ func (s *Store) ModifyLedgerEmailAccount(_ context.Context, userID string, id uu
 	return updated, err
 }
 
+// RecordLedgerEmailRejection counts how often the server refused to deliver a
+// message and returns the new count.
+func (s *Store) RecordLedgerEmailRejection(_ context.Context, userID string, accountID uuid.UUID, key string) (int, error) {
+	count := 0
+	err := retryOnConflict(func() error {
+		return s.e.Update(func(txn *badger.Txn) error {
+			k := idxLedEmailRejectKey(userID, accountID, key)
+			count = 0
+			item, err := txn.Get(k)
+			switch {
+			case errors.Is(err, badger.ErrKeyNotFound):
+			case err != nil:
+				return err
+			default:
+				if err := item.Value(func(val []byte) error {
+					count, _ = strconv.Atoi(string(val))
+					return nil
+				}); err != nil {
+					return err
+				}
+			}
+			count++
+			return txn.Set(k, []byte(strconv.Itoa(count)))
+		})
+	})
+	return count, err
+}
+
 // SetLedgerEmailAccountScanState records a scan outcome without touching any
 // other account field, so edits made while the scan ran are not reverted.
 func (s *Store) SetLedgerEmailAccountScanState(_ context.Context, userID string, id uuid.UUID, state LedgerEmailScanState) error {
@@ -1401,7 +1446,62 @@ func (s *Store) DeleteLedgerEmailAccount(_ context.Context, userID string, id uu
 				}
 			}
 		}
+		if err := deleteLedgerEmailSeen(txn, userID, id); err != nil {
+			return err
+		}
 		return txn.Delete(ledEmailAccKey(userID, id))
+	})
+}
+
+func deleteLedgerEmailSeen(txn *badger.Txn, userID string, accountID uuid.UUID) error {
+	var keys [][]byte
+	for _, prefix := range [][]byte{idxLedEmailSeenPrefix(userID, accountID), idxLedEmailRejectPrefix(userID, accountID)} {
+		it := txn.NewIterator(badger.IteratorOptions{Prefix: prefix})
+		for it.Rewind(); it.Valid(); it.Next() {
+			keys = append(keys, it.Item().KeyCopy(nil))
+		}
+		it.Close()
+	}
+	for _, key := range keys {
+		if err := txn.Delete(key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// HasLedgerEmailSeen reports whether a message of the account was processed
+// without producing an order.
+func (s *Store) HasLedgerEmailSeen(_ context.Context, userID string, accountID uuid.UUID, key string) (bool, error) {
+	seen := false
+	err := s.e.View(func(txn *badger.Txn) error {
+		_, err := txn.Get(idxLedEmailSeenKey(userID, accountID, key))
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return nil
+		}
+		seen = err == nil
+		return err
+	})
+	return seen, err
+}
+
+// MarkLedgerEmailsSeen records messages that need no further processing, in
+// one transaction.
+func (s *Store) MarkLedgerEmailsSeen(_ context.Context, userID string, accountID uuid.UUID, reason string, keys ...string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	data, err := json.Marshal(ledgerEmailSeen{Reason: reason, At: time.Now().UTC()})
+	if err != nil {
+		return err
+	}
+	return s.e.Update(func(txn *badger.Txn) error {
+		for _, key := range keys {
+			if err := txn.Set(idxLedEmailSeenKey(userID, accountID, key), data); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 

@@ -737,6 +737,74 @@ func TestLedgerEmailAccount_EncryptedPasswordSurvivesPersistence(t *testing.T) {
 	}
 }
 
+func TestLedgerEmailSeen(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	accountA, accountB := uuid.New(), uuid.New()
+	oddKey := "<a/b+c@mail.example.com>"
+
+	has := func(user string, account uuid.UUID, key string) bool {
+		t.Helper()
+		seen, err := s.HasLedgerEmailSeen(ctx, user, account, key)
+		if err != nil {
+			t.Fatalf("HasLedgerEmailSeen: %v", err)
+		}
+		return seen
+	}
+
+	if has("test-user", accountA, oddKey) {
+		t.Fatal("unmarked message reported as seen")
+	}
+	if err := s.MarkLedgerEmailsSeen(ctx, "test-user", accountA, EmailSeenNotOrder, oddKey, "nomid:abc"); err != nil {
+		t.Fatalf("MarkLedgerEmailsSeen: %v", err)
+	}
+	if err := s.MarkLedgerEmailsSeen(ctx, "test-user", accountA, EmailSeenPreClass, oddKey); err != nil {
+		t.Fatalf("marking twice: %v", err)
+	}
+	if err := s.MarkLedgerEmailsSeen(ctx, "test-user", accountA, EmailSeenNotOrder); err != nil {
+		t.Fatalf("marking nothing: %v", err)
+	}
+	if !has("test-user", accountA, oddKey) || !has("test-user", accountA, "nomid:abc") {
+		t.Error("marked messages not reported as seen")
+	}
+	if has("test-user", accountB, oddKey) {
+		t.Error("marker leaked to another account")
+	}
+	if has("other-user", accountA, oddKey) {
+		t.Error("marker leaked to another user")
+	}
+}
+
+func TestDeleteLedgerEmailAccount_RemovesOnlyItsSeenMarkers(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	newAccount := func() LedgerEmailAccount {
+		a := LedgerEmailAccount{ID: uuid.New(), Name: "M", IMAPHost: "h", IMAPPort: 993, Username: "u", CreatedAt: now, UpdatedAt: now}
+		if err := s.CreateLedgerEmailAccount(ctx, "test-user", a); err != nil {
+			t.Fatalf("CreateLedgerEmailAccount: %v", err)
+		}
+		return a
+	}
+	doomed, kept := newAccount(), newAccount()
+	for _, a := range []LedgerEmailAccount{doomed, kept} {
+		if err := s.MarkLedgerEmailsSeen(ctx, "test-user", a.ID, EmailSeenNotOrder, "k1", "k2"); err != nil {
+			t.Fatalf("MarkLedgerEmailsSeen: %v", err)
+		}
+	}
+	if err := s.DeleteLedgerEmailAccount(ctx, "test-user", doomed.ID); err != nil {
+		t.Fatalf("DeleteLedgerEmailAccount: %v", err)
+	}
+	for _, key := range []string{"k1", "k2"} {
+		if seen, _ := s.HasLedgerEmailSeen(ctx, "test-user", doomed.ID, key); seen {
+			t.Errorf("marker %s of the deleted account survived", key)
+		}
+		if seen, _ := s.HasLedgerEmailSeen(ctx, "test-user", kept.ID, key); !seen {
+			t.Errorf("marker %s of the other account was removed", key)
+		}
+	}
+}
+
 func TestSetLedgerEmailAccountScanState_DoesNotRevertConcurrentEdits(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
@@ -772,5 +840,29 @@ func TestSetLedgerEmailAccountScanState_DoesNotRevertConcurrentEdits(t *testing.
 	}
 	if err := s.SetLedgerEmailAccountScanState(ctx, "test-user", uuid.New(), LedgerEmailScanState{Status: "x"}); !errors.Is(err, storage.ErrNotFound) {
 		t.Errorf("unknown account: err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestRecordLedgerEmailRejection_CountsPerMessageAndIsDeletedWithTheAccount(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	account := LedgerEmailAccount{ID: uuid.New(), Name: "M", IMAPHost: "h", IMAPPort: 993, Username: "u", CreatedAt: now, UpdatedAt: now}
+	if err := s.CreateLedgerEmailAccount(ctx, "test-user", account); err != nil {
+		t.Fatalf("CreateLedgerEmailAccount: %v", err)
+	}
+	for want := 1; want <= 3; want++ {
+		if got, err := s.RecordLedgerEmailRejection(ctx, "test-user", account.ID, "uid:1"); err != nil || got != want {
+			t.Fatalf("count = %d, err = %v, want %d", got, err, want)
+		}
+	}
+	if got, _ := s.RecordLedgerEmailRejection(ctx, "test-user", account.ID, "uid:2"); got != 1 {
+		t.Errorf("other message count = %d, want 1", got)
+	}
+	if err := s.DeleteLedgerEmailAccount(ctx, "test-user", account.ID); err != nil {
+		t.Fatalf("DeleteLedgerEmailAccount: %v", err)
+	}
+	if got, _ := s.RecordLedgerEmailRejection(ctx, "test-user", account.ID, "uid:1"); got != 1 {
+		t.Errorf("count after account delete = %d, want 1 (counters removed)", got)
 	}
 }

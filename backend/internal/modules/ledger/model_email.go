@@ -28,6 +28,20 @@ const (
 	PaymentMethodUnknown      = "unknown"
 )
 
+const (
+	EmailSeenNotOrder   = "not_order"
+	EmailSeenPreClass   = "preclass"
+	EmailSeenTooLarge   = "too_large"
+	EmailSeenUnreadable = "unreadable"
+)
+
+// ledgerEmailSeen marks a message that was processed without producing an
+// order, so later scans skip it.
+type ledgerEmailSeen struct {
+	Reason string    `json:"reason"`
+	At     time.Time `json:"at"`
+}
+
 var paymentMethods = []string{
 	PaymentMethodPayPal,
 	PaymentMethodCard,
