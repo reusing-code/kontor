@@ -8,7 +8,9 @@ import (
 
 // Capabilities are server-wide features the frontend can toggle on.
 type Capabilities struct {
-	LLM        bool `json:"llm"`
+	LLM bool `json:"llm"`
+	// LLMVision is true when a vision model is configured, so images can be sent.
+	LLMVision  bool `json:"llmVision"`
 	BankImport bool `json:"bankImport"`
 }
 

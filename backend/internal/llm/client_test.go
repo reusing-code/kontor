@@ -190,6 +190,52 @@ func TestExtractRequestShape(t *testing.T) {
 	}
 }
 
+func TestExtractImagesUseVisionModel(t *testing.T) {
+	f := newFakeEndpoint(t, content(`{"number":"1","total":null}`), content(`{"number":"2","total":null}`))
+	c := NewClient(Config{BaseURL: f.server.URL + "/v1", Model: "kontor", VisionModel: "kontor-vision", Timeout: 5 * time.Second})
+
+	req := request("test.vision")
+	req.Images = []Image{{MediaType: "image/jpeg", Data: []byte("jpeg-bytes")}, {MediaType: "image/png", Data: []byte("png")}}
+	if _, err := c.Extract(t.Context(), req); err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+	body := f.bodies[0]
+	if body["model"] != "kontor-vision" {
+		t.Errorf("model = %v, want the vision model", body["model"])
+	}
+	user := body["messages"].([]any)[1].(map[string]any)
+	got, _ := json.Marshal(user["content"])
+	want := `[{"text":"` + secretInput + `","type":"text"},` +
+		`{"image_url":{"url":"data:image/jpeg;base64,anBlZy1ieXRlcw=="},"type":"image_url"},` +
+		`{"image_url":{"url":"data:image/png;base64,cG5n"},"type":"image_url"}]`
+	if string(got) != want {
+		t.Errorf("content = %s\nwant      %s", got, want)
+	}
+
+	req.Input = ""
+	req.Images = req.Images[:1]
+	if _, err := c.Extract(t.Context(), req); err != nil {
+		t.Fatalf("Extract without text: %v", err)
+	}
+	parts := f.bodies[1]["messages"].([]any)[1].(map[string]any)["content"].([]any)
+	if len(parts) != 1 || parts[0].(map[string]any)["type"] != "image_url" {
+		t.Errorf("content without text = %v, want only the image part", parts)
+	}
+}
+
+func TestExtractImagesWithoutVisionModel(t *testing.T) {
+	f := newFakeEndpoint(t)
+	req := request(uniqueOp(t))
+	req.Images = []Image{{MediaType: "image/jpeg", Data: []byte("x")}}
+	_, err := f.client("").Extract(t.Context(), req)
+	if !errors.Is(err, ErrVisionDisabled) {
+		t.Fatalf("err = %v, want ErrVisionDisabled", err)
+	}
+	if f.calls() != 0 {
+		t.Errorf("calls = %d, want none", f.calls())
+	}
+}
+
 func TestExtractOmitsAuthAndEmptySystem(t *testing.T) {
 	f := newFakeEndpoint(t, content(`{"number":"1","total":null}`))
 	req := request("test.noauth")

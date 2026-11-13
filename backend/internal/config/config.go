@@ -62,6 +62,8 @@ type Config struct {
 	LLMModel   string        `env:"LLM_MODEL"`
 	LLMAPIKey  string        `env:"LLM_API_KEY"`
 	LLMTimeout time.Duration `env:"LLM_TIMEOUT"  envDefault:"60s"`
+	// Model for requests with images, on the same endpoint; empty disables image input.
+	LLMVisionModel string `env:"LLM_VISION_MODEL"`
 
 	// Frankfurter-compatible API with ECB reference rates, used to convert
 	// extracted non-EUR amounts. "off" disables conversion (an empty value
@@ -133,14 +135,18 @@ func (c Config) LLMEnabled() bool {
 	return c.LLMBaseURL != ""
 }
 
+func (c Config) LLMVisionEnabled() bool {
+	return c.LLMEnabled() && c.LLMVisionModel != ""
+}
+
 func (c Config) FXRatesEnabled() bool {
 	return c.FXRatesURL != "off"
 }
 
 func (c Config) validateLLM() error {
 	switch {
-	case !c.LLMEnabled() && (c.LLMModel != "" || c.LLMAPIKey != ""):
-		return errors.New("LLM_MODEL or LLM_API_KEY is set but LLM_BASE_URL is not")
+	case !c.LLMEnabled() && (c.LLMModel != "" || c.LLMAPIKey != "" || c.LLMVisionModel != ""):
+		return errors.New("LLM_MODEL, LLM_VISION_MODEL or LLM_API_KEY is set but LLM_BASE_URL is not")
 	case c.LLMEnabled() && c.LLMModel == "":
 		return errors.New("LLM_BASE_URL is set but LLM_MODEL is not")
 	case c.LLMEnabled() && c.LLMTimeout <= 0:

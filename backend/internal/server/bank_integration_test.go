@@ -56,7 +56,7 @@ func TestBankCapability(t *testing.T) {
 	_, jwt := disabled.register(t, "cap@example.com")
 	status, body := disabled.request(t, "GET", "/api/v1/capabilities", jwt, "")
 	var caps map[string]bool
-	if status != 200 || json.Unmarshal([]byte(body), &caps) != nil || len(caps) != 2 || caps["bankImport"] {
+	if status != 200 || json.Unmarshal([]byte(body), &caps) != nil || len(caps) != 3 || caps["bankImport"] {
 		t.Fatalf("disabled capabilities = %d %s", status, body)
 	}
 	if _, ok := caps["llm"]; !ok {

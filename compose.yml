@@ -16,6 +16,8 @@ services:
       # Optional OpenAI-compatible LLM endpoint; LLM features stay off while LLM_BASE_URL is unset.
       # - LLM_BASE_URL=http://llm-gateway:8080/v1
       # - LLM_MODEL=kontor
+      # Model for images (quick add from a photo), on the same endpoint; unset disables image input.
+      # - LLM_VISION_MODEL=kontor-vision
       # - LLM_API_KEY=${LLM_API_KEY}
       # - LLM_TIMEOUT=60s
       # Paperless draft pipeline polling interval (only runs with the LLM configured); 0 disables.

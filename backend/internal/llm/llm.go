@@ -16,6 +16,9 @@ var (
 	ErrInvalidOutput = errors.New("llm: invalid output")
 	ErrRefused       = errors.New("llm: request refused")
 	ErrTruncated     = errors.New("llm: output truncated")
+	// ErrVisionDisabled is returned for a request with images while no
+	// vision model is configured.
+	ErrVisionDisabled = errors.New("llm: no vision model configured")
 )
 
 // APIError is a non-2xx response from the endpoint. Message is the upstream
@@ -38,11 +41,19 @@ type Request struct {
 	Operation string
 	System    string
 	Input     string
-	Schema    Schema
+	// Images are sent with Input to the vision model.
+	Images []Image
+	Schema Schema
 
 	// validate is set by ExtractAs so that output not decoding into the
 	// target type counts as invalid output and is retried by Client.
 	validate func(json.RawMessage) error
+}
+
+// Image is one picture of a request; MediaType is e.g. "image/jpeg".
+type Image struct {
+	MediaType string
+	Data      []byte
 }
 
 type Extractor interface {
@@ -53,8 +64,10 @@ type Extractor interface {
 type Config struct {
 	BaseURL string
 	Model   string
-	APIKey  string
-	Timeout time.Duration
+	// VisionModel serves requests with images; empty rejects them.
+	VisionModel string
+	APIKey      string
+	Timeout     time.Duration
 }
 
 // New returns a Client, or Disabled when no base URL is configured.

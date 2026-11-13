@@ -108,7 +108,7 @@ func (s *Server) buildApp() (*app, error) {
 	}
 	coreHandler := core.NewHandler(coreStore, s.logger, jwtSecret, emailClient, seeds, registry)
 
-	coreHandler.SetCapabilities(core.Capabilities{LLM: extractor.Enabled(), BankImport: ledgerMod.BankImportEnabled()})
+	coreHandler.SetCapabilities(core.Capabilities{LLM: extractor.Enabled(), LLMVision: s.cfg.LLMVisionEnabled(), BankImport: ledgerMod.BankImportEnabled()})
 	classifier := extraction.New(extractor, extractionDeps(coreStore, catStore, autoMod.Store()), s.newRates(), s.logger)
 
 	paperlessStore := paperless.NewStore(engine)
@@ -273,12 +273,13 @@ func (s *Server) newExtractor() llm.Extractor {
 	if u, err := url.Parse(baseURL); err == nil {
 		baseURL = u.Redacted()
 	}
-	s.logger.Info("llm enabled", "base_url", baseURL, "model", s.cfg.LLMModel, "timeout", s.cfg.LLMTimeout)
+	s.logger.Info("llm enabled", "base_url", baseURL, "model", s.cfg.LLMModel, "vision_model", s.cfg.LLMVisionModel, "timeout", s.cfg.LLMTimeout)
 	return llm.New(llm.Config{
-		BaseURL: s.cfg.LLMBaseURL,
-		Model:   s.cfg.LLMModel,
-		APIKey:  s.cfg.LLMAPIKey,
-		Timeout: s.cfg.LLMTimeout,
+		BaseURL:     s.cfg.LLMBaseURL,
+		Model:       s.cfg.LLMModel,
+		VisionModel: s.cfg.LLMVisionModel,
+		APIKey:      s.cfg.LLMAPIKey,
+		Timeout:     s.cfg.LLMTimeout,
 	})
 }
 

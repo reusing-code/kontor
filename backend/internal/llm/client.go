@@ -3,6 +3,7 @@ package llm
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,11 +25,12 @@ const (
 // Client calls an OpenAI-compatible chat completions endpoint with a strict
 // json_schema response format.
 type Client struct {
-	baseURL string
-	model   string
-	apiKey  string
-	timeout time.Duration
-	http    *http.Client
+	baseURL     string
+	model       string
+	visionModel string
+	apiKey      string
+	timeout     time.Duration
+	http        *http.Client
 
 	// extraBody is merged into every request body; only for the internal
 	// eval harness (provider routing, reasoning settings).
@@ -37,11 +39,12 @@ type Client struct {
 
 func NewClient(cfg Config) *Client {
 	return &Client{
-		baseURL: strings.TrimRight(cfg.BaseURL, "/"),
-		model:   cfg.Model,
-		apiKey:  cfg.APIKey,
-		timeout: cfg.Timeout,
-		http:    &http.Client{},
+		baseURL:     strings.TrimRight(cfg.BaseURL, "/"),
+		model:       cfg.Model,
+		visionModel: cfg.VisionModel,
+		apiKey:      cfg.APIKey,
+		timeout:     cfg.Timeout,
+		http:        &http.Client{},
 	}
 }
 
@@ -62,6 +65,9 @@ func (c *Client) Extract(ctx context.Context, req Request) (json.RawMessage, err
 func (c *Client) extract(ctx context.Context, op string, req Request) (json.RawMessage, error) {
 	if req.Schema.Name == "" || len(req.Schema.Definition) == 0 {
 		return nil, errors.New("llm: request has no schema")
+	}
+	if len(req.Images) > 0 && c.visionModel == "" {
+		return nil, ErrVisionDisabled
 	}
 	body, err := c.requestBody(req)
 	if err != nil {
@@ -96,9 +102,36 @@ func validateOutput(content json.RawMessage, validate func(json.RawMessage) erro
 	return trimmed, nil
 }
 
+// chatMessage content is a string, or a []contentPart for a user message
+// with images.
 type chatMessage struct {
 	Role    string `json:"role"`
-	Content string `json:"content"`
+	Content any    `json:"content"`
+}
+
+type contentPart struct {
+	Type     string    `json:"type"`
+	Text     string    `json:"text,omitempty"`
+	ImageURL *imageURL `json:"image_url,omitempty"`
+}
+
+type imageURL struct {
+	URL string `json:"url"`
+}
+
+func userContent(req Request) any {
+	if len(req.Images) == 0 {
+		return req.Input
+	}
+	parts := make([]contentPart, 0, len(req.Images)+1)
+	if req.Input != "" {
+		parts = append(parts, contentPart{Type: "text", Text: req.Input})
+	}
+	for _, img := range req.Images {
+		url := "data:" + img.MediaType + ";base64," + base64.StdEncoding.EncodeToString(img.Data)
+		parts = append(parts, contentPart{Type: "image_url", ImageURL: &imageURL{URL: url}})
+	}
+	return parts
 }
 
 func (c *Client) requestBody(req Request) ([]byte, error) {
@@ -106,9 +139,13 @@ func (c *Client) requestBody(req Request) ([]byte, error) {
 	if req.System != "" {
 		messages = append(messages, chatMessage{Role: "system", Content: req.System})
 	}
-	messages = append(messages, chatMessage{Role: "user", Content: req.Input})
+	messages = append(messages, chatMessage{Role: "user", Content: userContent(req)})
+	model := c.model
+	if len(req.Images) > 0 {
+		model = c.visionModel
+	}
 	body := map[string]any{
-		"model":    c.model,
+		"model":    model,
 		"messages": messages,
 		"response_format": map[string]any{
 			"type": "json_schema",

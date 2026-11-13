@@ -26,6 +26,7 @@ func TestLoadLLM(t *testing.T) {
 			wantEnabled: true,
 		},
 		{name: "model without base url", env: map[string]string{"LLM_MODEL": "kontor"}, wantErr: "LLM_BASE_URL is not"},
+		{name: "vision model without base url", env: map[string]string{"LLM_VISION_MODEL": "kontor-vision"}, wantErr: "LLM_BASE_URL is not"},
 		{name: "key without base url", env: map[string]string{"LLM_API_KEY": "k"}, wantErr: "LLM_BASE_URL is not"},
 		{name: "base url without model", env: map[string]string{"LLM_BASE_URL": "http://gw/v1"}, wantErr: "LLM_MODEL is not"},
 		{
@@ -42,7 +43,7 @@ func TestLoadLLM(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("JWT_SECRET", "test")
-			for _, k := range []string{"LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY", "LLM_TIMEOUT"} {
+			for _, k := range []string{"LLM_BASE_URL", "LLM_MODEL", "LLM_VISION_MODEL", "LLM_API_KEY", "LLM_TIMEOUT"} {
 				v, ok := tt.env[k]
 				t.Setenv(k, v)
 				if !ok {
