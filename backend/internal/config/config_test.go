@@ -188,6 +188,39 @@ func TestLoadLedgerSuggest(t *testing.T) {
 	}
 }
 
+func TestLoadLedgerEmailMaxExtractionFailures(t *testing.T) {
+	tests := []struct {
+		name, value string
+		want        int
+		wantErr     bool
+	}{
+		{name: "default", want: 3},
+		{name: "custom", value: "5", want: 5},
+		{name: "one", value: "1", want: 1},
+		{name: "zero", value: "0", wantErr: true},
+		{name: "negative", value: "-1", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("JWT_SECRET", "test")
+			t.Setenv("LEDGER_EMAIL_MAX_EXTRACTION_FAILURES", tt.value)
+			if tt.value == "" {
+				os.Unsetenv("LEDGER_EMAIL_MAX_EXTRACTION_FAILURES")
+			}
+			cfg, err := Load()
+			if tt.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "LEDGER_EMAIL_MAX_EXTRACTION_FAILURES") {
+					t.Fatalf("Load() error = %v, want LEDGER_EMAIL_MAX_EXTRACTION_FAILURES error", err)
+				}
+				return
+			}
+			if err != nil || cfg.LedgerEmailMaxExtractionFailures != tt.want {
+				t.Fatalf("limit = %d, err = %v, want %d", cfg.LedgerEmailMaxExtractionFailures, err, tt.want)
+			}
+		})
+	}
+}
+
 func TestLoadEnableBanking(t *testing.T) {
 	const key = "0123456789abcdef0123456789abcdef"
 	vars := []string{"ENABLE_BANKING_APP_ID", "ENABLE_BANKING_KEY_PATH", "ENABLE_BANKING_API_URL", "ENABLE_BANKING_SYNC_INTERVAL", "ENCRYPTION_KEY", "EMAIL_ENCRYPTION_KEY"}

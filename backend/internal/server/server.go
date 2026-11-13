@@ -77,9 +77,10 @@ func (s *Server) buildApp() (*app, error) {
 	}
 	draftStore := drafts.NewStore(engine)
 	ledgerMod := ledger.New(engine, links, coreStore, ledger.Config{
-		EmailScanInterval: s.cfg.LedgerEmailScanInterval,
-		EncryptionKey:     s.cfg.EncryptionKey,
-		Extractor:         extractor,
+		EmailScanInterval:          s.cfg.LedgerEmailScanInterval,
+		EmailMaxExtractionFailures: s.cfg.LedgerEmailMaxExtractionFailures,
+		EncryptionKey:              s.cfg.EncryptionKey,
+		Extractor:                  extractor,
 		Suggest: ledger.SuggestConfig{
 			BatchSize: s.cfg.LedgerSuggestBatchSize,
 			MaxPerRun: s.cfg.LedgerSuggestMaxPerRun,

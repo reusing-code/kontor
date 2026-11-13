@@ -1047,3 +1047,161 @@ func TestPipeline_RepeatedlyRejectedFullFetchIsGivenUpOn(t *testing.T) {
 		t.Errorf("a given-up message is processed again: %+v", result)
 	}
 }
+
+// extractionFailures reads the counter by recording one more failure.
+func (p *pipelineTest) extractionFailures(t *testing.T, key string) int {
+	t.Helper()
+	count, err := p.store.RecordLedgerEmailExtractionFailure(context.Background(), testUserID, p.account.ID, key)
+	if err != nil {
+		t.Fatalf("RecordLedgerEmailExtractionFailure: %v", err)
+	}
+	return count - 1
+}
+
+func TestPipeline_RepeatedlyUnusableMessageIsGivenUpOn(t *testing.T) {
+	tests := []struct {
+		name   string
+		answer llmtest.Response
+	}{
+		{"invalid output", llmtest.Error(llm.ErrInvalidOutput)},
+		{"refused", llmtest.Error(llm.ErrRefused)},
+		{"truncated", llmtest.Error(llm.ErrTruncated)},
+		{"zero total", llmtest.JSON(emailOrderExtraction{IsOrder: true, Currency: "EUR", Merchant: "X"})},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := newPipelineTest(t, llmtest.New())
+			msg := imapMessage(t, "AmazonDE-1.eml", 1)
+			for scan := 1; scan <= defaultMaxExtractionFailures; scan++ {
+				p.fake.Push(tt.answer)
+				result, err := p.process(context.Background(), msg)
+				if err != nil {
+					t.Fatalf("scan %d: %v", scan, err)
+				}
+				if len(result.Warnings) != 1 || result.Skipped != 0 || result.Partial {
+					t.Fatalf("scan %d: result = %+v", scan, result)
+				}
+				givenUp := strings.Contains(result.Warnings[0], "ignored from now on")
+				if last := scan == defaultMaxExtractionFailures; givenUp != last || p.seen(t, msg.Key) != last {
+					t.Fatalf("scan %d: warnings = %v, seen = %v", scan, result.Warnings, p.seen(t, msg.Key))
+				}
+			}
+
+			p.fake.Push(llmtest.JSON(goldenOrders[0].extraction()))
+			result, err := p.process(context.Background(), msg)
+			if err != nil || len(result.Warnings) != 0 || result.OrdersFound != 0 {
+				t.Errorf("scan after giving up: result = %+v, err = %v", result, err)
+			}
+			if got := len(p.fake.Requests()); got != defaultMaxExtractionFailures {
+				t.Errorf("LLM requests = %d, want %d", got, defaultMaxExtractionFailures)
+			}
+			if len(p.orders(t)) != 0 {
+				t.Error("a given-up message produced an order")
+			}
+			if got := p.extractionFailures(t, msg.Key); got != 0 {
+				t.Errorf("counter after giving up = %d, want 0 (replaced by the marker)", got)
+			}
+		})
+	}
+}
+
+func TestPipeline_ConfiguredExtractionFailureLimit(t *testing.T) {
+	p := newPipelineTest(t, llmtest.New(llmtest.Error(llm.ErrInvalidOutput)))
+	p.svc.SetMaxExtractionFailures(0)
+	if p.svc.maxExtractionFailures != defaultMaxExtractionFailures {
+		t.Fatalf("limit = %d, want the default", p.svc.maxExtractionFailures)
+	}
+	p.svc.SetMaxExtractionFailures(1)
+	msg := imapMessage(t, "AmazonDE-1.eml", 1)
+	result, err := p.process(context.Background(), msg)
+	if err != nil || len(result.Warnings) != 1 || !p.seen(t, msg.Key) {
+		t.Errorf("result = %+v, err = %v, seen = %v", result, err, p.seen(t, msg.Key))
+	}
+}
+
+func TestPipeline_SuccessBeforeTheLimitCreatesTheOrderAndClearsTheCounter(t *testing.T) {
+	g := goldenOrders[0]
+	bad := llmtest.Error(llm.ErrInvalidOutput)
+	tests := []struct {
+		name       string
+		final      llmtest.Response
+		wantOrders int
+	}{
+		{"order", llmtest.JSON(g.extraction()), 1},
+		{"not an order", llmtest.JSON(emailOrderExtraction{}), 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := newPipelineTest(t, llmtest.New(bad, bad, tt.final))
+			msg := imapMessage(t, g.fixture, 1)
+			for scan := 1; scan < defaultMaxExtractionFailures; scan++ {
+				if _, err := p.process(context.Background(), msg); err != nil || p.seen(t, msg.Key) {
+					t.Fatalf("scan %d: err = %v, seen = %v", scan, err, p.seen(t, msg.Key))
+				}
+			}
+			result, err := p.process(context.Background(), msg)
+			if err != nil || result.OrdersNew != tt.wantOrders || len(result.Warnings) != 0 || len(p.orders(t)) != tt.wantOrders {
+				t.Fatalf("result = %+v, err = %v", result, err)
+			}
+			if got := p.extractionFailures(t, msg.Key); got != 0 {
+				t.Errorf("counter = %d, want 0", got)
+			}
+		})
+	}
+}
+
+func TestPipeline_TransientAndRejectedRequestsDoNotCountAsExtractionFailures(t *testing.T) {
+	tests := []struct {
+		name        string
+		answer      llmtest.Response
+		wantSkipped int
+	}{
+		{"server error", llmtest.Error(&llm.APIError{StatusCode: 503}), 1},
+		{"rate limit", llmtest.Error(&llm.APIError{StatusCode: 429}), 1},
+		{"timeout", llmtest.Error(context.DeadlineExceeded), 1},
+		{"network", llmtest.Error(errors.New("connection refused")), 1},
+		{"bad request", llmtest.Error(&llm.APIError{StatusCode: 400}), 0},
+		{"unknown model", llmtest.Error(&llm.APIError{StatusCode: 404}), 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := goldenOrders[0]
+			p := newPipelineTest(t, llmtest.New())
+			msg := imapMessage(t, g.fixture, 1)
+			scans := defaultMaxExtractionFailures + 2
+			for scan := 1; scan <= scans; scan++ {
+				p.fake.Push(tt.answer)
+				result, err := p.process(context.Background(), msg)
+				if err != nil || result.Skipped != tt.wantSkipped || len(result.Warnings) != 1 {
+					t.Fatalf("scan %d: result = %+v, err = %v", scan, result, err)
+				}
+			}
+			if p.seen(t, msg.Key) {
+				t.Fatal("message was marked as processed")
+			}
+			p.fake.Push(llmtest.JSON(g.extraction()))
+			result, err := p.process(context.Background(), msg)
+			if err != nil || result.OrdersNew != 1 || len(p.fake.Requests()) != scans+1 {
+				t.Errorf("result = %+v, err = %v, requests = %d", result, err, len(p.fake.Requests()))
+			}
+		})
+	}
+
+	t.Run("mixed with unusable answers", func(t *testing.T) {
+		down := llmtest.Error(&llm.APIError{StatusCode: 503})
+		bad := llmtest.Error(llm.ErrInvalidOutput)
+		p := newPipelineTest(t, llmtest.New(bad, down, down, bad, down))
+		msg := imapMessage(t, "AmazonDE-1.eml", 1)
+		for scan := 1; scan <= 5; scan++ {
+			if _, err := p.process(context.Background(), msg); err != nil {
+				t.Fatalf("scan %d: %v", scan, err)
+			}
+		}
+		if p.seen(t, msg.Key) {
+			t.Fatal("message was given up on after 2 unusable answers")
+		}
+		if got := p.extractionFailures(t, msg.Key); got != 2 {
+			t.Errorf("counter = %d, want 2", got)
+		}
+	})
+}
