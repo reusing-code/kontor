@@ -60,7 +60,7 @@ The settings page has an "Access tokens" card (`src/components/tokens/`): create
 
 The draft inbox at `/inbox` lists entries proposed from tagged paperless documents, recurring payments detected in the ledger (as contracts, after each import or with "Detect recurring payments" on the ledger dashboard) and drafts created by agents through MCP (purchases, contracts, vehicle costs, vehicles, categories, ledger accounts); accepting opens the matching prefilled create dialog, and accepting a recurring payment links its payments to the new contract. It appears when the server has an LLM configured and paperless is connected, or as soon as any draft exists.
 
-Quick add (header button, Ctrl/Cmd+K) turns a typed note into a prefilled create dialog; it only appears when the server has an LLM configured and at least one of the purchases, contracts or auto modules is enabled.
+Quick add (header button, Ctrl/Cmd+K) turns a typed note, an attached PDF or (with a vision model on the server) a photo into a prefilled create dialog; it only appears when the server has an LLM configured and at least one of the purchases, contracts or auto modules is enabled.
 
 With the server-side bank import configured (the `bankImport` capability), Ledger → Bank connections connects banks through Enable Banking, maps their accounts to ledger accounts and syncs them; the consent banner on the ledger dashboard warns before a consent ends.
 
