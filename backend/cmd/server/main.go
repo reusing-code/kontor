@@ -26,6 +26,10 @@ func main() {
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 
+	if cfg.UsesDeprecatedEncryptionKey() {
+		logger.Warn("EMAIL_ENCRYPTION_KEY is deprecated, rename it to ENCRYPTION_KEY")
+	}
+
 	engine, err := storage.Open(cfg.DBPath, logger)
 	if err != nil {
 		logger.Error("opening database", "error", err)

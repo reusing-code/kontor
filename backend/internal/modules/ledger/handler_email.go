@@ -28,8 +28,8 @@ func (h *Handler) ListLedgerEmailAccounts(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) CreateLedgerEmailAccount(w http.ResponseWriter, r *http.Request) {
-	if len(h.emailEncryptionKey) == 0 {
-		httputil.Error(h.logger, w, http.StatusInternalServerError, "EMAIL_ENCRYPTION_KEY is not configured")
+	if len(h.encryptionKey) == 0 {
+		httputil.Error(h.logger, w, http.StatusInternalServerError, "ENCRYPTION_KEY is not configured")
 		return
 	}
 	var input LedgerEmailAccountInput
@@ -41,7 +41,7 @@ func (h *Handler) CreateLedgerEmailAccount(w http.ResponseWriter, r *http.Reques
 		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
 		return
 	}
-	encryptedPassword, err := cryptoutil.EncryptString(input.Password, h.emailEncryptionKey)
+	encryptedPassword, err := cryptoutil.EncryptString(input.Password, h.encryptionKey)
 	if err != nil {
 		httputil.Error(h.logger, w, http.StatusInternalServerError, err.Error())
 		return
@@ -99,11 +99,11 @@ func (h *Handler) UpdateLedgerEmailAccount(w http.ResponseWriter, r *http.Reques
 	}
 	encryptedPassword := ""
 	if input.Password != nil && *input.Password != "" {
-		if len(h.emailEncryptionKey) == 0 {
-			httputil.Error(h.logger, w, http.StatusInternalServerError, "EMAIL_ENCRYPTION_KEY is not configured")
+		if len(h.encryptionKey) == 0 {
+			httputil.Error(h.logger, w, http.StatusInternalServerError, "ENCRYPTION_KEY is not configured")
 			return
 		}
-		encrypted, err := cryptoutil.EncryptString(*input.Password, h.emailEncryptionKey)
+		encrypted, err := cryptoutil.EncryptString(*input.Password, h.encryptionKey)
 		if err != nil {
 			httputil.Error(h.logger, w, http.StatusInternalServerError, err.Error())
 			return
@@ -156,8 +156,8 @@ func (h *Handler) TestLedgerEmailAccount(w http.ResponseWriter, r *http.Request)
 		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid emailAccountId")
 		return
 	}
-	if len(h.emailEncryptionKey) == 0 {
-		httputil.Error(h.logger, w, http.StatusInternalServerError, "EMAIL_ENCRYPTION_KEY is not configured")
+	if len(h.encryptionKey) == 0 {
+		httputil.Error(h.logger, w, http.StatusInternalServerError, "ENCRYPTION_KEY is not configured")
 		return
 	}
 	account, err := h.store.GetLedgerEmailAccount(r.Context(), middleware.GetUserID(r.Context()), id)
@@ -169,7 +169,7 @@ func (h *Handler) TestLedgerEmailAccount(w http.ResponseWriter, r *http.Request)
 		httputil.Error(h.logger, w, http.StatusConflict, "no stored email password; edit the account and re-enter the password")
 		return
 	}
-	password, err := cryptoutil.DecryptString(account.EncryptedPassword, h.emailEncryptionKey)
+	password, err := cryptoutil.DecryptString(account.EncryptedPassword, h.encryptionKey)
 	if err != nil {
 		httputil.Error(h.logger, w, http.StatusInternalServerError, "could not decrypt stored email password")
 		return
@@ -367,15 +367,15 @@ func (h *Handler) ScanLedgerEmailAccount(w http.ResponseWriter, r *http.Request)
 		}
 		result, err = h.ledgerEmail.ScanUploadedMessages(scanCtx, userID, account, uploads)
 	} else {
-		if len(h.emailEncryptionKey) == 0 {
-			httputil.Error(h.logger, w, http.StatusInternalServerError, "EMAIL_ENCRYPTION_KEY is not configured")
+		if len(h.encryptionKey) == 0 {
+			httputil.Error(h.logger, w, http.StatusInternalServerError, "ENCRYPTION_KEY is not configured")
 			return
 		}
 		if account.EncryptedPassword == "" {
 			httputil.Error(h.logger, w, http.StatusConflict, "no stored email password; edit the account and re-enter the password")
 			return
 		}
-		password, decryptErr := cryptoutil.DecryptString(account.EncryptedPassword, h.emailEncryptionKey)
+		password, decryptErr := cryptoutil.DecryptString(account.EncryptedPassword, h.encryptionKey)
 		if decryptErr != nil {
 			httputil.Error(h.logger, w, http.StatusInternalServerError, "could not decrypt stored email password")
 			return

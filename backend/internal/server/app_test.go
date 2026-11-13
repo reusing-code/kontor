@@ -44,10 +44,10 @@ func newTestAppWithLogger(t *testing.T, logger *slog.Logger, mutate ...func(*con
 	t.Cleanup(func() { engine.Close() })
 
 	cfg := config.Config{
-		JWTSecret:          string(appJWTSecret),
-		FXRatesURL:         "off",
-		EmailEncryptionKey: testEncryptionKey,
-		AuthRateLimit:      0,
+		JWTSecret:     string(appJWTSecret),
+		FXRatesURL:    "off",
+		EncryptionKey: testEncryptionKey,
+		AuthRateLimit: 0,
 	}
 	for _, m := range mutate {
 		m(&cfg)

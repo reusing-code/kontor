@@ -540,7 +540,7 @@ func newTestHandlerWithEmailKey(t *testing.T) (*Handler, *testStores) {
 	if err != nil {
 		t.Fatalf("NormalizeEncryptionKey: %v", err)
 	}
-	h.emailEncryptionKey = key
+	h.encryptionKey = key
 	return h, s
 }
 

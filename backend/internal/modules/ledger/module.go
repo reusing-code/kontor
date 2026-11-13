@@ -22,14 +22,14 @@ import (
 const ModuleID = "ledger"
 
 type Handler struct {
-	store              *Store
-	logger             *slog.Logger
-	ledgerImport       *ImportService
-	ledgerEmail        *EmailService
-	suggester          *CategorySuggester
-	recurring          *RecurringService
-	bank               *BankService
-	emailEncryptionKey []byte
+	store         *Store
+	logger        *slog.Logger
+	ledgerImport  *ImportService
+	ledgerEmail   *EmailService
+	suggester     *CategorySuggester
+	recurring     *RecurringService
+	bank          *BankService
+	encryptionKey []byte
 	// enabled checks the module of a reference target; nil skips the check.
 	enabled module.EnablementSource
 }
@@ -53,8 +53,8 @@ type Module struct {
 
 // Config carries the ledger module's background scan settings.
 type Config struct {
-	EmailScanInterval  time.Duration
-	EmailEncryptionKey string
+	EmailScanInterval time.Duration
+	EncryptionKey     string
 	// Extractor reads order data from emails and suggests categories; nil
 	// behaves like llm.Disabled.
 	Extractor llm.Extractor
@@ -82,9 +82,9 @@ type BankConfig struct {
 func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Config, logger *slog.Logger) *Module {
 	store := NewStore(e, links)
 
-	encryptionKey, err := cryptoutil.NormalizeEncryptionKey(cfg.EmailEncryptionKey)
+	encryptionKey, err := cryptoutil.NormalizeEncryptionKey(cfg.EncryptionKey)
 	if err != nil {
-		logger.Warn("ledger email encryption key unavailable", "error", err)
+		logger.Warn("encryption key unavailable", "error", err)
 	}
 
 	extractor := cfg.Extractor
@@ -93,17 +93,17 @@ func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Con
 	}
 
 	handler := &Handler{
-		store:              store,
-		logger:             logger,
-		ledgerImport:       NewImportService(store, logger),
-		ledgerEmail:        NewEmailService(store, extractor, logger),
-		suggester:          NewCategorySuggester(store, extractor, cfg.Suggest, logger),
-		emailEncryptionKey: encryptionKey,
-		enabled:            coreStore,
+		store:         store,
+		logger:        logger,
+		ledgerImport:  NewImportService(store, logger),
+		ledgerEmail:   NewEmailService(store, extractor, logger),
+		suggester:     NewCategorySuggester(store, extractor, cfg.Suggest, logger),
+		encryptionKey: encryptionKey,
+		enabled:       coreStore,
 	}
 	if cfg.Bank.Client != nil {
 		if len(encryptionKey) == 0 {
-			logger.Warn("bank import disabled", "reason", "no valid email encryption key")
+			logger.Warn("bank import disabled", "reason", "no valid encryption key")
 		} else {
 			handler.bank = NewBankService(BankServiceConfig{
 				Client:        cfg.Bank.Client,
@@ -125,7 +125,7 @@ func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Con
 		logger.Info("ledger email scan scheduler disabled", "reason", "LEDGER_EMAIL_SCAN_INTERVAL is 0")
 		scanEnabled = false
 	} else if len(encryptionKey) == 0 {
-		logger.Info("ledger email scan scheduler disabled", "reason", "no valid email encryption key")
+		logger.Info("ledger email scan scheduler disabled", "reason", "no valid encryption key")
 		scanEnabled = false
 	}
 

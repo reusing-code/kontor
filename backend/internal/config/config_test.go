@@ -189,7 +189,7 @@ func TestLoadLedgerSuggest(t *testing.T) {
 
 func TestLoadEnableBanking(t *testing.T) {
 	const key = "0123456789abcdef0123456789abcdef"
-	vars := []string{"ENABLE_BANKING_APP_ID", "ENABLE_BANKING_KEY_PATH", "ENABLE_BANKING_API_URL", "ENABLE_BANKING_SYNC_INTERVAL", "EMAIL_ENCRYPTION_KEY"}
+	vars := []string{"ENABLE_BANKING_APP_ID", "ENABLE_BANKING_KEY_PATH", "ENABLE_BANKING_API_URL", "ENABLE_BANKING_SYNC_INTERVAL", "ENCRYPTION_KEY", "EMAIL_ENCRYPTION_KEY"}
 	tests := []struct {
 		name         string
 		env          map[string]string
@@ -201,7 +201,7 @@ func TestLoadEnableBanking(t *testing.T) {
 		{name: "both empty disables", env: map[string]string{}, wantURL: "https://api.enablebanking.com", wantInterval: 24 * time.Hour},
 		{
 			name:         "enabled with defaults",
-			env:          map[string]string{"ENABLE_BANKING_APP_ID": "app", "ENABLE_BANKING_KEY_PATH": "/k.pem", "EMAIL_ENCRYPTION_KEY": key},
+			env:          map[string]string{"ENABLE_BANKING_APP_ID": "app", "ENABLE_BANKING_KEY_PATH": "/k.pem", "ENCRYPTION_KEY": key},
 			wantEnabled:  true,
 			wantURL:      "https://api.enablebanking.com",
 			wantInterval: 24 * time.Hour,
@@ -209,7 +209,7 @@ func TestLoadEnableBanking(t *testing.T) {
 		{
 			name: "url trailing slash trimmed and zero interval",
 			env: map[string]string{
-				"ENABLE_BANKING_APP_ID": "app", "ENABLE_BANKING_KEY_PATH": "/k.pem", "EMAIL_ENCRYPTION_KEY": key,
+				"ENABLE_BANKING_APP_ID": "app", "ENABLE_BANKING_KEY_PATH": "/k.pem", "ENCRYPTION_KEY": key,
 				"ENABLE_BANKING_API_URL": "http://localhost:9/", "ENABLE_BANKING_SYNC_INTERVAL": "0",
 			},
 			wantEnabled: true,
@@ -230,12 +230,12 @@ func TestLoadEnableBanking(t *testing.T) {
 		{
 			name:    "missing encryption key",
 			env:     map[string]string{"ENABLE_BANKING_APP_ID": "app", "ENABLE_BANKING_KEY_PATH": "/k.pem"},
-			wantErr: "EMAIL_ENCRYPTION_KEY",
+			wantErr: "ENCRYPTION_KEY",
 		},
 		{
 			name:    "invalid encryption key",
-			env:     map[string]string{"ENABLE_BANKING_APP_ID": "app", "ENABLE_BANKING_KEY_PATH": "/k.pem", "EMAIL_ENCRYPTION_KEY": "short"},
-			wantErr: "EMAIL_ENCRYPTION_KEY",
+			env:     map[string]string{"ENABLE_BANKING_APP_ID": "app", "ENABLE_BANKING_KEY_PATH": "/k.pem", "ENCRYPTION_KEY": "short"},
+			wantErr: "ENCRYPTION_KEY",
 		},
 	}
 	for _, tt := range tests {
@@ -267,6 +267,67 @@ func TestLoadEnableBanking(t *testing.T) {
 			}
 			if cfg.EnableBankingSyncInterval != tt.wantInterval {
 				t.Fatalf("EnableBankingSyncInterval = %v, want %v", cfg.EnableBankingSyncInterval, tt.wantInterval)
+			}
+		})
+	}
+}
+
+func TestLoadEncryptionKey(t *testing.T) {
+	const key = "0123456789abcdef0123456789abcdef"
+	const other = "fedcba9876543210fedcba9876543210"
+	tests := []struct {
+		name           string
+		env            map[string]string
+		wantErr        string
+		wantKey        string
+		wantDeprecated bool
+	}{
+		{name: "unset", env: map[string]string{}},
+		{name: "new name only", env: map[string]string{"ENCRYPTION_KEY": key}, wantKey: key},
+		{
+			name:           "deprecated name only",
+			env:            map[string]string{"EMAIL_ENCRYPTION_KEY": key},
+			wantKey:        key,
+			wantDeprecated: true,
+		},
+		{
+			name:           "both equal",
+			env:            map[string]string{"ENCRYPTION_KEY": key, "EMAIL_ENCRYPTION_KEY": key},
+			wantKey:        key,
+			wantDeprecated: true,
+		},
+		{
+			name:    "both different",
+			env:     map[string]string{"ENCRYPTION_KEY": key, "EMAIL_ENCRYPTION_KEY": other},
+			wantErr: "different values",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("JWT_SECRET", "test")
+			for _, k := range []string{"ENCRYPTION_KEY", "EMAIL_ENCRYPTION_KEY"} {
+				v, ok := tt.env[k]
+				t.Setenv(k, v)
+				if !ok {
+					os.Unsetenv(k)
+				}
+			}
+
+			cfg, err := Load()
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("Load() error = %v, want containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if cfg.EncryptionKey != tt.wantKey {
+				t.Errorf("EncryptionKey = %q, want %q", cfg.EncryptionKey, tt.wantKey)
+			}
+			if cfg.UsesDeprecatedEncryptionKey() != tt.wantDeprecated {
+				t.Errorf("UsesDeprecatedEncryptionKey() = %v, want %v", cfg.UsesDeprecatedEncryptionKey(), tt.wantDeprecated)
 			}
 		})
 	}

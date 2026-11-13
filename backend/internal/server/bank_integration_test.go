@@ -77,7 +77,7 @@ func TestBankImportWithoutEncryptionKeyStaysDisabled(t *testing.T) {
 		c.EnableBankingAppID = fake.AppID
 		c.EnableBankingKeyPath = fake.KeyFile(t)
 		c.EnableBankingAPIURL = fake.URL
-		c.EmailEncryptionKey = ""
+		c.EncryptionKey = ""
 	})
 	_, jwt := a.register(t, "nokey@example.com")
 	_, body := a.request(t, "GET", "/api/v1/capabilities", jwt, "")
@@ -89,7 +89,7 @@ func TestBankImportWithoutEncryptionKeyStaysDisabled(t *testing.T) {
 func TestBankImportBadKeyFailsStartup(t *testing.T) {
 	fake := enablebankingtest.New(t)
 	engine := newTestApp(t).engine
-	cfg := config.Config{JWTSecret: "x", FXRatesURL: "off", EmailEncryptionKey: testEncryptionKey,
+	cfg := config.Config{JWTSecret: "x", FXRatesURL: "off", EncryptionKey: testEncryptionKey,
 		EnableBankingAppID: fake.AppID, EnableBankingKeyPath: "/nonexistent/key.pem", EnableBankingAPIURL: fake.URL}
 	if _, err := New(cfg, slog.New(slog.DiscardHandler), engine).buildApp(); err == nil {
 		t.Fatal("expected buildApp to fail for an unreadable key")

@@ -12,7 +12,7 @@ import (
 
 var (
 	ErrNotConfigured   = errors.New("paperless is not configured")
-	ErrNoEncryptionKey = errors.New("EMAIL_ENCRYPTION_KEY is not configured")
+	ErrNoEncryptionKey = errors.New("ENCRYPTION_KEY is not configured")
 	ErrTokenDecrypt    = errors.New("could not decrypt stored paperless token")
 )
 
@@ -27,7 +27,7 @@ type Service struct {
 func NewService(store *Store, logger *slog.Logger, encryptionKeyRaw string) *Service {
 	key, err := cryptoutil.NormalizeEncryptionKey(encryptionKeyRaw)
 	if err != nil {
-		logger.Warn("paperless integration requires EMAIL_ENCRYPTION_KEY", "error", err)
+		logger.Warn("paperless integration requires ENCRYPTION_KEY", "error", err)
 		key = nil
 	}
 	return &Service{store: store, logger: logger, encryptionKey: key}

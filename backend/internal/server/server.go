@@ -77,9 +77,9 @@ func (s *Server) buildApp() (*app, error) {
 	}
 	draftStore := drafts.NewStore(engine)
 	ledgerMod := ledger.New(engine, links, coreStore, ledger.Config{
-		EmailScanInterval:  s.cfg.LedgerEmailScanInterval,
-		EmailEncryptionKey: s.cfg.EmailEncryptionKey,
-		Extractor:          extractor,
+		EmailScanInterval: s.cfg.LedgerEmailScanInterval,
+		EncryptionKey:     s.cfg.EncryptionKey,
+		Extractor:         extractor,
 		Suggest: ledger.SuggestConfig{
 			BatchSize: s.cfg.LedgerSuggestBatchSize,
 			MaxPerRun: s.cfg.LedgerSuggestMaxPerRun,
@@ -112,7 +112,7 @@ func (s *Server) buildApp() (*app, error) {
 	classifier := extraction.New(extractor, extractionDeps(coreStore, catStore, autoMod.Store()), s.newRates(), s.logger)
 
 	paperlessStore := paperless.NewStore(engine)
-	paperlessService := paperless.NewService(paperlessStore, s.logger, s.cfg.EmailEncryptionKey)
+	paperlessService := paperless.NewService(paperlessStore, s.logger, s.cfg.EncryptionKey)
 	paperlessHandler := paperless.NewHandler(paperlessService, s.logger)
 	coreHandler.SetPaperlessLinks(paperlessStore)
 

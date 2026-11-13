@@ -14,7 +14,7 @@ import (
 func NormalizeEncryptionKey(raw string) ([]byte, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return nil, errors.New("EMAIL_ENCRYPTION_KEY is not configured")
+		return nil, errors.New("ENCRYPTION_KEY is not configured")
 	}
 	decoded, err := base64.StdEncoding.DecodeString(raw)
 	if err == nil && len(decoded) == 32 {
@@ -23,7 +23,7 @@ func NormalizeEncryptionKey(raw string) ([]byte, error) {
 	if len(raw) == 32 {
 		return []byte(raw), nil
 	}
-	return nil, errors.New("EMAIL_ENCRYPTION_KEY must be 32 bytes or base64 for 32 bytes")
+	return nil, errors.New("ENCRYPTION_KEY must be 32 bytes or base64 for 32 bytes")
 }
 
 func EncryptString(plain string, key []byte) (string, error) {

@@ -30,7 +30,10 @@ type Config struct {
 	SMTPPassword string `env:"SMTP_PASSWORD"`
 	SMTPFrom     string `env:"SMTP_FROM"`
 
-	EmailEncryptionKey string `env:"EMAIL_ENCRYPTION_KEY"`
+	// AES-GCM key for stored secrets (email passwords, paperless tokens, bank sessions).
+	EncryptionKey string `env:"ENCRYPTION_KEY"`
+	// Deprecated name of ENCRYPTION_KEY, used only when that is unset.
+	LegacyEncryptionKey string `env:"EMAIL_ENCRYPTION_KEY"`
 
 	// Interval between background IMAP scans of ledger email accounts. 0 disables.
 	LedgerEmailScanInterval time.Duration `env:"LEDGER_EMAIL_SCAN_INTERVAL" envDefault:"6h"`
@@ -82,6 +85,9 @@ func Load() (Config, error) {
 	if err := env.Parse(&cfg); err != nil {
 		return cfg, fmt.Errorf("parsing config: %w", err)
 	}
+	if err := cfg.resolveEncryptionKey(); err != nil {
+		return cfg, err
+	}
 	if err := cfg.validateLLM(); err != nil {
 		return cfg, err
 	}
@@ -105,6 +111,22 @@ func validPublicURL(raw string) bool {
 	u, err := url.Parse(raw)
 	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" &&
 		u.RawQuery == "" && u.Fragment == "" && !strings.Contains(raw, "?") && !strings.Contains(raw, "#")
+}
+
+func (c *Config) resolveEncryptionKey() error {
+	switch {
+	case c.LegacyEncryptionKey == "":
+	case c.EncryptionKey == "":
+		c.EncryptionKey = c.LegacyEncryptionKey
+	case strings.TrimSpace(c.EncryptionKey) != strings.TrimSpace(c.LegacyEncryptionKey):
+		return errors.New("ENCRYPTION_KEY and deprecated EMAIL_ENCRYPTION_KEY are both set with different values")
+	}
+	return nil
+}
+
+// UsesDeprecatedEncryptionKey reports whether EMAIL_ENCRYPTION_KEY is set.
+func (c Config) UsesDeprecatedEncryptionKey() bool {
+	return c.LegacyEncryptionKey != ""
 }
 
 func (c Config) LLMEnabled() bool {
@@ -144,8 +166,8 @@ func (c *Config) validateEnableBanking() error {
 	case c.EnableBankingSyncInterval < 0:
 		return errors.New("ENABLE_BANKING_SYNC_INTERVAL must not be negative")
 	case c.EnableBankingEnabled():
-		if _, err := cryptoutil.NormalizeEncryptionKey(c.EmailEncryptionKey); err != nil {
-			return errors.New("bank import needs a valid EMAIL_ENCRYPTION_KEY to store bank sessions")
+		if _, err := cryptoutil.NormalizeEncryptionKey(c.EncryptionKey); err != nil {
+			return errors.New("bank import needs a valid ENCRYPTION_KEY to store bank sessions")
 		}
 	}
 	return nil
