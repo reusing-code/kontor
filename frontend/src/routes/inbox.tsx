@@ -79,7 +79,7 @@ export function InboxPage() {
           id: draft.id,
           input: { entityType: type, entityId, entityUrl: entityUrl(type, entityId, parentId) },
         })
-        toast.success(t("drafts.accepted"))
+        toast.success(t(draft.source.kind === "ledger" ? "drafts.acceptedLedger" : "drafts.accepted"))
         res.warnings.forEach((w) => toast.warning(w))
       } catch (err) {
         toast.error(t("drafts.acceptFailed", { message: (err as Error).message }))

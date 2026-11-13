@@ -2,6 +2,7 @@ import type {
   LedgerBatchReviewItem,
   LedgerBatchReviewResult,
   LedgerReviewQueuePage,
+  LedgerRecurringRunResult,
   LedgerSuggestionRunResult,
   LedgerSuggestionStatus,
   LedgerAccount,
@@ -125,6 +126,10 @@ export async function runLedgerCategorySuggestions(): Promise<LedgerSuggestionRu
 
 export async function getLedgerCategorySuggestionStatus(): Promise<LedgerSuggestionStatus> {
   return get<LedgerSuggestionStatus>("/ledger/category-suggestions/status")
+}
+
+export async function runLedgerRecurringDetection(): Promise<LedgerRecurringRunResult> {
+  return post<LedgerRecurringRunResult>("/ledger/recurring/run", {})
 }
 
 export async function getLedgerTransactionById(id: string): Promise<LedgerTransaction> {

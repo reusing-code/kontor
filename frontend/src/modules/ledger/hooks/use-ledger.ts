@@ -27,6 +27,7 @@ import {
   reviewLedgerTransaction,
   reviewLedgerTransactionsBatch,
   runLedgerCategorySuggestions,
+  runLedgerRecurringDetection,
   scanLedgerEmailAccount,
   testLedgerEmailAccount,
   unlinkLedgerTransfer,
@@ -169,8 +170,18 @@ export function useLedgerCommitImport() {
         qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.accountId, "transactions"] }),
         qc.invalidateQueries({ queryKey: ["ledger", "review"] }),
         qc.invalidateQueries({ queryKey: ledgerSuggestionStatusKey }),
+        // the backend runs the recurring-payment detection after a commit
+        qc.invalidateQueries({ queryKey: ["drafts"] }),
       ])
     },
+  })
+}
+
+export function useRunLedgerRecurringDetection() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: runLedgerRecurringDetection,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["drafts"] }),
   })
 }
 

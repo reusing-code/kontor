@@ -12,7 +12,7 @@ export type DraftTargetType =
 export type DraftEntityType = Exclude<DraftTargetType, "none">
 // The types the LLM classifier (paperless pipeline, quick add) can propose.
 export type ClassifiedEntityType = "purchase" | "contract" | "cost"
-export type DraftSourceKind = "paperless" | "email" | "text" | "mcp"
+export type DraftSourceKind = "paperless" | "ledger" | "email" | "text" | "mcp"
 
 export interface DraftSource {
   kind: DraftSourceKind

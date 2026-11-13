@@ -319,6 +319,12 @@ export const ledgerSuggestionRunResultSchema = z.object({
 
 export type LedgerSuggestionRunResult = z.infer<typeof ledgerSuggestionRunResultSchema>
 
+export interface LedgerRecurringRunResult {
+  groups: number
+  created: number
+  skipped: number
+}
+
 export interface LedgerSuggestionStatus {
   running: boolean
 }

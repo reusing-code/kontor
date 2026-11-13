@@ -45,7 +45,12 @@ export function useAcceptDraft() {
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: DraftAcceptInput }) => acceptDraft(id, input),
     onSettled: () => qc.invalidateQueries({ queryKey: ["drafts"] }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["paperless", "links"] }),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ["paperless", "links"] }),
+        qc.invalidateQueries({ queryKey: ["ledger"] }),
+        qc.invalidateQueries({ queryKey: ["contracts"] }),
+      ]),
   })
 }
 

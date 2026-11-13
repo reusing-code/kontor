@@ -518,6 +518,15 @@
         "transfer_linked": "verknüpfte interne Umbuchung",
         "internal_error": "Serverfehler"
       }
+    },
+    "recurring": {
+      "run": "Wiederkehrende Zahlungen erkennen",
+      "running": "Erkenne…",
+      "created_one": "{{count}} wiederkehrende Zahlung als Vertrag im Eingang vorgeschlagen.",
+      "created_other": "{{count}} wiederkehrende Zahlungen als Verträge im Eingang vorgeschlagen.",
+      "none": "Keine neuen wiederkehrenden Zahlungen gefunden.",
+      "busy": "Die Erkennung wiederkehrender Zahlungen läuft bereits. Versuche es gleich noch einmal.",
+      "openInbox": "Eingang öffnen"
     }
   },
   "paperless": {
@@ -603,7 +612,8 @@
       "paperless": "Paperless",
       "email": "E-Mail",
       "text": "Schnellerfassung",
-      "mcp": "MCP"
+      "mcp": "MCP",
+      "ledger": "Ledger"
     },
     "notes": {
       "unclassified": "Das Dokument konnte keinem Typ zugeordnet werden.",
@@ -613,11 +623,14 @@
       "llm_truncated": "Die KI-Antwort wurde abgeschnitten.",
       "llm_request_rejected": "Der KI-Dienst hat das Dokument abgelehnt, eventuell ist es zu lang.",
       "currency_converted": "Der Betrag wurde zum EZB-Kurs in EUR umgerechnet; der ursprüngliche Betrag steht in den Kommentaren.",
-      "currency_not_converted": "Der Betrag ist in einer anderen Währung und konnte nicht in EUR umgerechnet werden; der ursprüngliche Betrag steht in den Kommentaren."
+      "currency_not_converted": "Der Betrag ist in einer anderen Währung und konnte nicht in EUR umgerechnet werden; der ursprüngliche Betrag steht in den Kommentaren.",
+      "recurring_payment": "Wiederkehrende Zahlung im Ledger erkannt. Wähle eine Kategorie, um den Vertrag anzulegen; die Zahlungen werden beim Übernehmen verknüpft.",
+      "recurring_payment_ended": "Wiederkehrende Zahlung im Ledger erkannt; die Zahlungen haben aufgehört, das Enddatum ist die letzte Zahlung. Wähle eine Kategorie, um den Vertrag anzulegen; die Zahlungen werden beim Übernehmen verknüpft."
     },
     "noParent": "Keine übergeordnete Kategorie",
     "parentCategory": "Übergeordnete Kategorie",
-    "currency": "Währung"
+    "currency": "Währung",
+    "acceptedLedger": "Entwurf übernommen und Zahlungen verknüpft"
   },
   "quickAdd": {
     "button": "Schnellerfassung",

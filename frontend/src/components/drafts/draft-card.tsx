@@ -28,7 +28,7 @@ interface DraftCardProps {
   onReject: () => void
 }
 
-type Field = [labelKey: string, value: unknown, kind?: "money" | "costType"]
+type Field = [labelKey: string, value: unknown, kind?: "money" | "costType" | "billingInterval"]
 
 function summaryFields(draft: Draft): Field[] {
   const input = draft.input
@@ -45,7 +45,9 @@ function summaryFields(draft: Draft): Field[] {
         ["fields.name", input.name],
         ["fields.company", input.company],
         ["fields.price", input.price, "money"],
+        ["fields.billingInterval", input.billingInterval, "billingInterval"],
         ["fields.startDate", input.startDate],
+        ["fields.endDate", input.endDate],
       ]
     case "cost":
       return [
@@ -100,6 +102,9 @@ export function DraftCard({
   function display([, value, kind]: Field): string {
     if (kind === "money" && typeof value === "number") return money.format(value)
     if (kind === "costType" && typeof value === "string") return t(`costTypes.${value}`)
+    if (kind === "billingInterval" && typeof value === "string") {
+      return t(`fields.billing${value.charAt(0).toUpperCase()}${value.slice(1)}`, { defaultValue: value })
+    }
     return String(value)
   }
 
@@ -121,7 +126,7 @@ export function DraftCard({
               <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                 <span>{t(`drafts.sources.${draft.source.kind}`)}</span>
                 <span>{new Date(draft.createdAt).toLocaleString(i18n.language)}</span>
-                {draft.source.url && (
+                {draft.source.kind === "paperless" && draft.source.url && (
                   <a
                     href={draft.source.url}
                     target="_blank"

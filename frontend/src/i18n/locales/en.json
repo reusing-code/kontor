@@ -518,6 +518,15 @@
         "transfer_linked": "linked internal transfer",
         "internal_error": "server error"
       }
+    },
+    "recurring": {
+      "run": "Detect recurring payments",
+      "running": "Detecting…",
+      "created_one": "{{count}} recurring payment proposed as a contract in the inbox.",
+      "created_other": "{{count}} recurring payments proposed as contracts in the inbox.",
+      "none": "No new recurring payments found.",
+      "busy": "Recurring payment detection is already running. Try again in a moment.",
+      "openInbox": "Open inbox"
     }
   },
   "paperless": {
@@ -603,7 +612,8 @@
       "paperless": "Paperless",
       "email": "Email",
       "text": "Quick add",
-      "mcp": "MCP"
+      "mcp": "MCP",
+      "ledger": "Ledger"
     },
     "notes": {
       "unclassified": "The document could not be assigned to a type.",
@@ -613,11 +623,14 @@
       "llm_truncated": "The AI answer was cut off.",
       "llm_request_rejected": "The AI service rejected the document, it may be too long.",
       "currency_converted": "The amount was converted to EUR at the ECB rate; the original amount is in the comments.",
-      "currency_not_converted": "The amount is in another currency and could not be converted to EUR; the original amount is in the comments."
+      "currency_not_converted": "The amount is in another currency and could not be converted to EUR; the original amount is in the comments.",
+      "recurring_payment": "Recurring payment detected in the ledger. Pick a category to create the contract; the payments are linked on accept.",
+      "recurring_payment_ended": "Recurring payment detected in the ledger; the payments have stopped, so the end date is the last payment. Pick a category to create the contract; the payments are linked on accept."
     },
     "noParent": "No parent category",
     "parentCategory": "Parent category",
-    "currency": "Currency"
+    "currency": "Currency",
+    "acceptedLedger": "Draft accepted and payments linked"
   },
   "quickAdd": {
     "button": "Quick add",
