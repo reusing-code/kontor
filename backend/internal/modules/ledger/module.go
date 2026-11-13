@@ -48,6 +48,7 @@ type Module struct {
 	emailScanEnabled bool
 	scanInterval     time.Duration
 	encryptionKey    []byte
+	bank             BankConfig
 }
 
 // Config carries the ledger module's background scan settings.
@@ -71,6 +72,11 @@ type Config struct {
 type BankConfig struct {
 	Client    *enablebanking.Client
 	PublicURL string
+	// SyncInterval between automatic syncs per account; 0 disables only the
+	// automatic sync (expiry mails and state pruning keep running).
+	SyncInterval time.Duration
+	// Mailer sends the consent expiry reminders; nil or unconfigured SMTP skips them.
+	Mailer BankMailer
 }
 
 func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Config, logger *slog.Logger) *Module {
@@ -214,6 +220,7 @@ func (m *Module) Seed(ctx context.Context, userID string) error {
 func (m *Module) StartBackground(ctx context.Context) {
 	m.handler.suggester.SetBackgroundContext(ctx)
 	m.handler.recurring.SetBackgroundContext(ctx)
+	m.startBankScheduler(ctx)
 	if !m.emailScanEnabled {
 		return
 	}
@@ -251,3 +258,21 @@ func (m *Module) Prefix(userID string) []byte {
 }
 
 func (m *Module) Migrations() []migration.Migration { return nil }
+
+func (m *Module) startBankScheduler(ctx context.Context) {
+	if m.handler.bank == nil || m.coreStore == nil {
+		return
+	}
+	if m.bank.SyncInterval <= 0 {
+		m.logger.Info("automatic bank sync disabled", "reason", "ENABLE_BANKING_SYNC_INTERVAL is 0")
+	}
+	NewBankSyncScheduler(BankSyncSchedulerConfig{
+		Service:   m.handler.bank,
+		Store:     m.store,
+		Users:     m.coreStore,
+		Mailer:    m.bank.Mailer,
+		PublicURL: m.bank.PublicURL,
+		Interval:  m.bank.SyncInterval,
+		Logger:    m.logger,
+	}).Start(ctx)
+}

@@ -1,11 +1,14 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -222,5 +225,140 @@ func TestBankConsentFlow(t *testing.T) {
 	status, body = a.request(t, "DELETE", "/api/v1/ledger/bank/connections/"+views[0].ID, jwt, "")
 	if status != 200 || !strings.Contains(body, `"remoteClosed":true`) {
 		t.Fatalf("disconnect = %d %s", status, body)
+	}
+}
+
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// TestBankFlowLogsNoSecrets runs the whole bank flow at debug level and
+// checks that neither the logs nor the API answers leak secrets or bank data.
+func TestBankFlowLogsNoSecrets(t *testing.T) {
+	const (
+		sessionID   = "SESSION-CANARY-7f3a91"
+		authCode    = "CODE-CANARY-5b2e08"
+		ownIBAN     = "DE02120300000000202051"
+		otherIBAN   = "DE44500105175407324931"
+		counterpart = "Counterparty-Canary GmbH"
+		purpose     = "Purpose-Canary invoice 4711"
+	)
+	logs := &syncBuffer{}
+	logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	fake := enablebankingtest.New(t)
+	fake.SetASPSPs([]enablebanking.ASPSP{{Name: "DKB", Country: "DE", MaximumConsentValidity: 90 * 86400}})
+	keyPath := fake.KeyFile(t)
+	a := newTestAppWithLogger(t, logger, func(c *config.Config) {
+		c.EnableBankingAppID = fake.AppID
+		c.EnableBankingKeyPath = keyPath
+		c.EnableBankingAPIURL = fake.URL
+		c.PublicURL = bankPublicURL
+	})
+	_, jwt := a.register(t, "canary@example.com")
+
+	status, body := a.request(t, "POST", "/api/v1/ledger/accounts", jwt, `{"name":"Main","bank":"DKB","iban":"`+ownIBAN+`","currency":"EUR"}`)
+	if status != http.StatusCreated && status != http.StatusOK {
+		t.Fatalf("create account = %d %s", status, body)
+	}
+
+	if status, body = a.request(t, "POST", "/api/v1/ledger/bank/connections/authorize", jwt, `{"aspspName":"DKB","aspspCountry":"DE"}`); status != 200 {
+		t.Fatalf("authorize = %d %s", status, body)
+	}
+	state := fake.AuthRequests()[0]["state"].(string)
+	fake.AllowCode(authCode, enablebanking.Session{
+		ID: sessionID, ASPSP: enablebanking.ASPSP{Name: "DKB", Country: "DE"}, ValidUntil: time.Now().Add(80 * 24 * time.Hour),
+		Accounts: []enablebanking.SessionAccount{{UID: "uid-canary", IBAN: ownIBAN, Currency: "EUR", Name: "Account-Canary"}},
+	})
+	resp := a.noFollow(t, "GET", "/api/v1/ledger/bank/callback?code="+authCode+"&state="+url.QueryEscape(state), nil)
+	if resp.Header.Get("Location") != "/ledger/bank-connections/result?bank=connected" {
+		t.Fatalf("callback location = %q", resp.Header.Get("Location"))
+	}
+
+	_, body = a.request(t, "GET", "/api/v1/ledger/bank/connections", jwt, "")
+	var views []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(body), &views); err != nil || len(views) != 1 {
+		t.Fatalf("connections = %s", body)
+	}
+	responses := []string{body}
+
+	fake.SetTransactions("uid-canary", []enablebanking.Transaction{{
+		EntryReference:        "ENTRY-CANARY",
+		TransactionAmount:     enablebanking.Amount{Currency: "EUR", Amount: "1234.56"},
+		CreditDebitIndicator:  "DBIT",
+		Status:                "BOOK",
+		BookingDate:           "2026-04-02",
+		Creditor:              &enablebanking.Party{Name: counterpart},
+		CreditorAccount:       &enablebanking.AccountRef{IBAN: otherIBAN},
+		RemittanceInformation: []string{purpose},
+	}})
+	syncPath := "/api/v1/ledger/bank/connections/" + views[0].ID + "/sync"
+	// a failing upstream call first, with a distinctive upstream message
+	fake.FailNext("/accounts", 500, "ASPSP_ERROR")
+	_, body = a.request(t, "POST", syncPath, jwt, "")
+	responses = append(responses, body)
+	status, body = a.request(t, "POST", syncPath, jwt, "")
+	if status != 200 || !strings.Contains(body, `"imported":1`) {
+		t.Fatalf("sync = %d %s", status, body)
+	}
+	responses = append(responses, body)
+
+	for _, path := range []string{"/api/v1/ledger/bank/connections", "/api/v1/export", "/api/v1/ledger/imports"} {
+		_, body = a.request(t, "GET", path, jwt, "")
+		responses = append(responses, body)
+	}
+
+	fake.FailNext("/sessions/", 500, "ASPSP_ERROR")
+	status, body = a.request(t, "DELETE", "/api/v1/ledger/bank/connections/"+views[0].ID, jwt, "")
+	if status != 200 || !strings.Contains(body, `"remoteClosed":false`) {
+		t.Fatalf("disconnect = %d %s", status, body)
+	}
+
+	pemData, err := os.ReadFile(keyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pemLines []string
+	for _, line := range strings.Split(string(pemData), "\n") {
+		if line != "" && !strings.HasPrefix(line, "-----") {
+			pemLines = append(pemLines, line)
+		}
+	}
+	secrets := map[string]string{
+		"session ID": sessionID, "authorization code": authCode, "state": state, "JWT": "eyJ",
+		"PEM body": pemLines[len(pemLines)/2], "own IBAN": ownIBAN, "counterparty IBAN": otherIBAN,
+		"counterparty": counterpart, "purpose": purpose, "entry reference": "ENTRY-CANARY",
+		"amount": "1234.56", "upstream message": enablebankingtest.FailureMessage, "bank account name": "Account-Canary",
+	}
+	logText := logs.String()
+	if !strings.Contains(logText, "bank account synced") || !strings.Contains(logText, "bank import enabled") {
+		t.Fatalf("expected log lines are missing, the test would pass vacuously:\n%s", logText)
+	}
+	for name, secret := range secrets {
+		if strings.Contains(logText, secret) {
+			t.Errorf("logs contain the %s", name)
+		}
+	}
+	for i, resp := range responses {
+		for _, secret := range []string{sessionID, authCode, state, "encryptedSessionId", "eyJ", enablebankingtest.FailureMessage} {
+			if strings.Contains(resp, secret) {
+				t.Errorf("response %d contains %q", i, secret)
+			}
+		}
 	}
 }

@@ -85,7 +85,10 @@ func (s *Server) buildApp() (*app, error) {
 			MaxPerRun: s.cfg.LedgerSuggestMaxPerRun,
 		},
 		Drafts: draftStore,
-		Bank:   ledger.BankConfig{Client: bankClient, PublicURL: s.cfg.PublicURL},
+		Bank: ledger.BankConfig{
+			Client: bankClient, PublicURL: s.cfg.PublicURL,
+			SyncInterval: s.cfg.EnableBankingSyncInterval, Mailer: emailClient,
+		},
 	}, s.logger)
 	registry := module.NewRegistry(contractsMod, purchasesMod, autoMod, ledgerMod)
 
