@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import type { LedgerCategory, LedgerReviewInput, LedgerTransaction } from "@/modules/ledger/types"
+import type { LedgerCategory, LedgerReviewInput, LedgerReviewQueueItem } from "@/modules/ledger/types"
 import { useReviewLedgerTransaction } from "@/modules/ledger/hooks/use-ledger"
 import { formatAmountMinor, formatLedgerDate, tokenizeLedgerMatchWords } from "@/modules/ledger/lib/ledger-utils"
 import { LedgerTransferManager } from "@/modules/ledger/components/ledger-transfer-manager"
+import { LedgerSuggestionBadge } from "@/modules/ledger/components/ledger-suggestion-badge"
 import { PaperlessDocumentsSection } from "@/components/paperless/paperless-documents-section"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,26 +20,30 @@ import {
 import { Input } from "@/components/ui/input"
 
 interface LedgerReviewPanelProps {
-  transaction?: LedgerTransaction
+  transaction?: LedgerReviewQueueItem
   categories: LedgerCategory[]
   onReviewed?: (transactionId: string) => void
+  showSuggestion?: boolean
 }
 
 function LedgerReviewPanelInner({
   transaction,
   categories,
   onReviewed,
+  showSuggestion,
 }: {
-  transaction: LedgerTransaction
+  transaction: LedgerReviewQueueItem
   categories: LedgerCategory[]
   onReviewed?: (transactionId: string) => void
+  showSuggestion: boolean
 }) {
   const { t, i18n } = useTranslation()
   const reviewMutation = useReviewLedgerTransaction()
   const isLinkedTransfer = Boolean(transaction.transferPairTransactionId)
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(transaction.categoryId)
+  const suggestion = showSuggestion && !transaction.categoryId ? transaction.suggestion : undefined
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(transaction.categoryId ?? suggestion?.categoryId)
   const [newCategoryName, setNewCategoryName] = useState("")
-  const [matchWords, setMatchWords] = useState("")
+  const [matchWords, setMatchWords] = useState(suggestion?.matchWord ?? "")
 
   const suggestedWords = useMemo(() => {
     return tokenizeLedgerMatchWords(transaction.counterpartyName, transaction.purpose)
@@ -127,6 +132,7 @@ function LedgerReviewPanelInner({
           {transaction.categoryId && (
             <Badge variant="outline">{t("ledger.suggestedCategory")}</Badge>
           )}
+          {suggestion && <LedgerSuggestionBadge confidence={suggestion.confidence} />}
           {isLinkedTransfer && (
             <Badge variant="outline">{t("ledger.transferLinked")}</Badge>
           )}
@@ -181,7 +187,7 @@ function LedgerReviewPanelInner({
   )
 }
 
-export function LedgerReviewPanel({ transaction, categories, onReviewed }: LedgerReviewPanelProps) {
+export function LedgerReviewPanel({ transaction, categories, onReviewed, showSuggestion = false }: LedgerReviewPanelProps) {
   const { t } = useTranslation()
 
   if (!transaction) {
@@ -197,5 +203,15 @@ export function LedgerReviewPanel({ transaction, categories, onReviewed }: Ledge
     )
   }
 
-  return <LedgerReviewPanelInner key={transaction.id} transaction={transaction} categories={categories} onReviewed={onReviewed} />
+  // Keyed by the suggestion too, so a suggestion arriving while the panel is
+  // open preselects its category.
+  return (
+    <LedgerReviewPanelInner
+      key={`${transaction.id}:${showSuggestion ? transaction.suggestion?.categoryId ?? "" : ""}`}
+      transaction={transaction}
+      categories={categories}
+      onReviewed={onReviewed}
+      showSuggestion={showSuggestion}
+    />
+  )
 }

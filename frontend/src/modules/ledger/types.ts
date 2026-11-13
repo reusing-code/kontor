@@ -283,6 +283,59 @@ export const ledgerTransactionsPageSchema = z.object({
 
 export type LedgerTransactionsPage = z.infer<typeof ledgerTransactionsPageSchema>
 
+export const ledgerSuggestionConfidences = ["high", "medium", "low"] as const
+export type LedgerSuggestionConfidence = (typeof ledgerSuggestionConfidences)[number]
+
+export const ledgerSuggestionSchema = z.object({
+  categoryId: z.string().uuid(),
+  confidence: z.enum(ledgerSuggestionConfidences),
+  matchWord: z.string().optional(),
+})
+
+export type LedgerSuggestion = z.infer<typeof ledgerSuggestionSchema>
+
+export const ledgerReviewQueueItemSchema = ledgerTransactionSchema.extend({
+  suggestion: ledgerSuggestionSchema.optional(),
+})
+
+export type LedgerReviewQueueItem = z.infer<typeof ledgerReviewQueueItemSchema>
+
+export const ledgerReviewQueuePageSchema = z.object({
+  items: z.array(ledgerReviewQueueItemSchema),
+  nextCursor: z.string().optional(),
+})
+
+export type LedgerReviewQueuePage = z.infer<typeof ledgerReviewQueuePageSchema>
+
+export const ledgerSuggestionRunResultSchema = z.object({
+  candidates: z.int(),
+  ruleMatched: z.int(),
+  suggested: z.int(),
+  noSuggestion: z.int(),
+  remaining: z.int(),
+  partial: z.boolean(),
+  warnings: z.array(z.string()),
+})
+
+export type LedgerSuggestionRunResult = z.infer<typeof ledgerSuggestionRunResultSchema>
+
+export interface LedgerSuggestionStatus {
+  running: boolean
+}
+
+export interface LedgerBatchReviewItem {
+  transactionId: string
+  categoryId: string
+  addMatchWords?: string[]
+}
+
+export type LedgerBatchReviewFailureCode = "not_found" | "transfer_linked" | "internal_error"
+
+export interface LedgerBatchReviewResult {
+  reviewed: number
+  failed: Array<{ transactionId: string; code: LedgerBatchReviewFailureCode }>
+}
+
 export const ledgerReviewResultSchema = z.object({
   transaction: ledgerTransactionSchema,
   category: ledgerCategorySchema.optional(),

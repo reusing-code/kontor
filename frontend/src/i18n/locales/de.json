@@ -479,6 +479,41 @@
       "namePlaceholder": "z. B. Girokonto",
       "bankPlaceholder": "z. B. DKB",
       "currency": "Währung"
+    },
+    "suggestions": {
+      "run": "Kategorien vorschlagen",
+      "running": "Vorschläge laufen…",
+      "runSuggested_one": "{{count}} Kategorie vorgeschlagen.",
+      "runSuggested_other": "{{count}} Kategorien vorgeschlagen.",
+      "runRuleMatched_one": "{{count}} Transaktion passt auf ein Schlüsselwort.",
+      "runRuleMatched_other": "{{count}} Transaktionen passen auf ein Schlüsselwort.",
+      "runNoSuggestion_one": "Für {{count}} Transaktion passt keine Kategorie.",
+      "runNoSuggestion_other": "Für {{count}} Transaktionen passt keine Kategorie.",
+      "runRemaining_one": "{{count}} Transaktion übrig, erneut starten für den Rest.",
+      "runRemaining_other": "{{count}} Transaktionen übrig, erneut starten für den Rest.",
+      "runNothing": "Keine unkategorisierten Transaktionen für Vorschläge.",
+      "runIncomplete": "Nicht alle Transaktionen konnten verarbeitet werden; der Rest wird beim nächsten Lauf erneut versucht.",
+      "badgeTitle": "Vom LLM vorgeschlagen",
+      "confidence": {
+        "high": "Wahrscheinlich",
+        "medium": "Möglich",
+        "low": "Vermutung"
+      },
+      "select": "Vorschlag auswählen",
+      "selectAll": "Alle Vorschläge auswählen",
+      "addMatchWord": "„{{word}}“ als Schlüsselwort hinzufügen",
+      "selectedCount": "{{count}} von {{total}} Vorschlägen ausgewählt.",
+      "acceptSelected_one": "{{count}} Vorschlag übernehmen",
+      "acceptSelected_other": "{{count}} Vorschläge übernehmen",
+      "accepted_one": "{{count}} Transaktion geprüft.",
+      "accepted_other": "{{count}} Transaktionen geprüft.",
+      "acceptFailed_one": "{{count}} Vorschlag konnte nicht übernommen werden.",
+      "acceptFailed_other": "{{count}} Vorschläge konnten nicht übernommen werden.",
+      "failure": {
+        "not_found": "Transaktion oder Kategorie existiert nicht mehr",
+        "transfer_linked": "verknüpfte interne Umbuchung",
+        "internal_error": "Serverfehler"
+      }
     }
   },
   "paperless": {

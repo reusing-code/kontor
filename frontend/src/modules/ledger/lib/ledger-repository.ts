@@ -1,4 +1,9 @@
 import type {
+  LedgerBatchReviewItem,
+  LedgerBatchReviewResult,
+  LedgerReviewQueuePage,
+  LedgerSuggestionRunResult,
+  LedgerSuggestionStatus,
   LedgerAccount,
   LedgerAccountInput,
   LedgerCategory,
@@ -102,12 +107,24 @@ export async function getLedgerTransactions(accountId: string, limit: number = 1
   return get<LedgerTransactionsPage>(`/ledger/accounts/${accountId}/transactions?${search.toString()}`)
 }
 
-export async function getLedgerReviewQueue(limit: number = 100, cursor?: string): Promise<LedgerTransactionsPage> {
+export async function getLedgerReviewQueue(limit: number = 100, cursor?: string): Promise<LedgerReviewQueuePage> {
   const search = new URLSearchParams({ limit: String(limit) })
   if (cursor) {
     search.set("cursor", cursor)
   }
-  return get<LedgerTransactionsPage>(`/ledger/transactions?${search.toString()}`)
+  return get<LedgerReviewQueuePage>(`/ledger/transactions?${search.toString()}`)
+}
+
+export async function reviewLedgerTransactionsBatch(items: LedgerBatchReviewItem[]): Promise<LedgerBatchReviewResult> {
+  return post<LedgerBatchReviewResult>("/ledger/transactions/review-batch", { items })
+}
+
+export async function runLedgerCategorySuggestions(): Promise<LedgerSuggestionRunResult> {
+  return post<LedgerSuggestionRunResult>("/ledger/category-suggestions/run", {})
+}
+
+export async function getLedgerCategorySuggestionStatus(): Promise<LedgerSuggestionStatus> {
+  return get<LedgerSuggestionStatus>("/ledger/category-suggestions/status")
 }
 
 export async function getLedgerTransactionById(id: string): Promise<LedgerTransaction> {

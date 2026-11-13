@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react"
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import {
   commitLedgerImport,
@@ -9,6 +10,7 @@ import {
   getLedgerAccountById,
   getLedgerAccounts,
   getLedgerCategories,
+  getLedgerCategorySuggestionStatus,
   getLedgerEmailAccounts,
   getLedgerEmailOrderById,
   getLedgerEmailOrderCandidates,
@@ -23,6 +25,8 @@ import {
   previewLedgerImport,
   rejectLedgerEmailOrder,
   reviewLedgerTransaction,
+  reviewLedgerTransactionsBatch,
+  runLedgerCategorySuggestions,
   scanLedgerEmailAccount,
   testLedgerEmailAccount,
   unlinkLedgerTransfer,
@@ -31,6 +35,7 @@ import {
   updateLedgerEmailAccount,
 } from "@/modules/ledger/lib/ledger-repository"
 import type {
+  LedgerBatchReviewItem,
   LedgerAccountInput,
   LedgerCategoryInput,
   LedgerCommitRequest,
@@ -48,6 +53,7 @@ export const ledgerEmailAccountsKey = ["ledger", "email-accounts"] as const
 export const ledgerImportsKey = ["ledger", "imports"] as const
 export const ledgerCategoriesKey = ["ledger", "categories"] as const
 export const ledgerReviewQueueKey = (limit: number, cursor?: string) => ["ledger", "review", { limit, cursor: cursor ?? "" }] as const
+export const ledgerSuggestionStatusKey = ["ledger", "category-suggestions", "status"] as const
 const ledgerAccountKey = (accountId: string) => ["ledger", "accounts", accountId] as const
 const ledgerTransactionKey = (transactionId: string) => ["ledger", "transactions", transactionId] as const
 const ledgerTransferCandidatesKey = (transactionId: string) => ["ledger", "transactions", transactionId, "transfer-candidates"] as const
@@ -162,6 +168,56 @@ export function useLedgerCommitImport() {
         qc.invalidateQueries({ queryKey: ledgerAccountKey(result.accountId) }),
         qc.invalidateQueries({ queryKey: ["ledger", "accounts", result.accountId, "transactions"] }),
         qc.invalidateQueries({ queryKey: ["ledger", "review"] }),
+        qc.invalidateQueries({ queryKey: ledgerSuggestionStatusKey }),
+      ])
+    },
+  })
+}
+
+// Polls while a suggestion run (manual or the background run after an import)
+// is going and refreshes the review queue once it ends.
+export function useLedgerSuggestionStatus(enabled: boolean) {
+  const qc = useQueryClient()
+  const { data } = useQuery({
+    queryKey: ledgerSuggestionStatusKey,
+    queryFn: getLedgerCategorySuggestionStatus,
+    enabled,
+    refetchInterval: (query) => (query.state.data?.running ? 5000 : false),
+  })
+  const running = enabled && (data?.running ?? false)
+  const wasRunning = useRef(running)
+  useEffect(() => {
+    if (wasRunning.current && !running) {
+      void qc.invalidateQueries({ queryKey: ["ledger", "review"] })
+    }
+    wasRunning.current = running
+  }, [running, qc])
+  return running
+}
+
+export function useRunLedgerCategorySuggestions() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: runLedgerCategorySuggestions,
+    onSettled: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["ledger", "review"] }),
+        qc.invalidateQueries({ queryKey: ledgerSuggestionStatusKey }),
+      ])
+    },
+  })
+}
+
+export function useReviewLedgerTransactionsBatch() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (items: LedgerBatchReviewItem[]) => reviewLedgerTransactionsBatch(items),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ledgerCategoriesKey }),
+        qc.invalidateQueries({ queryKey: ["ledger", "review"] }),
+        qc.invalidateQueries({ queryKey: ["ledger", "transactions"] }),
+        qc.invalidateQueries({ queryKey: ["ledger", "accounts"] }),
       ])
     },
   })

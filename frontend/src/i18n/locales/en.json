@@ -479,6 +479,41 @@
       "namePlaceholder": "e.g. Checking account",
       "bankPlaceholder": "e.g. DKB",
       "currency": "Currency"
+    },
+    "suggestions": {
+      "run": "Suggest categories",
+      "running": "Suggesting…",
+      "runSuggested_one": "{{count}} category suggested.",
+      "runSuggested_other": "{{count}} categories suggested.",
+      "runRuleMatched_one": "{{count}} transaction matched a match word.",
+      "runRuleMatched_other": "{{count}} transactions matched a match word.",
+      "runNoSuggestion_one": "No fitting category for {{count}} transaction.",
+      "runNoSuggestion_other": "No fitting category for {{count}} transactions.",
+      "runRemaining_one": "{{count}} transaction left, run again for it.",
+      "runRemaining_other": "{{count}} transactions left, run again for them.",
+      "runNothing": "No uncategorized transactions to suggest categories for.",
+      "runIncomplete": "Not every transaction could be processed; the rest is retried on the next run.",
+      "badgeTitle": "Suggested by the LLM",
+      "confidence": {
+        "high": "Likely",
+        "medium": "Possible",
+        "low": "Guess"
+      },
+      "select": "Select suggestion",
+      "selectAll": "Select all suggestions",
+      "addMatchWord": "Add \"{{word}}\" as match word",
+      "selectedCount": "{{count}} of {{total}} suggestions selected.",
+      "acceptSelected_one": "Accept {{count}} suggestion",
+      "acceptSelected_other": "Accept {{count}} suggestions",
+      "accepted_one": "{{count}} transaction reviewed.",
+      "accepted_other": "{{count}} transactions reviewed.",
+      "acceptFailed_one": "{{count}} suggestion could not be accepted.",
+      "acceptFailed_other": "{{count}} suggestions could not be accepted.",
+      "failure": {
+        "not_found": "transaction or category no longer exists",
+        "transfer_linked": "linked internal transfer",
+        "internal_error": "server error"
+      }
     }
   },
   "paperless": {
