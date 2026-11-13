@@ -432,8 +432,11 @@
       "scanWarnings_one": "{{count}} warning during the scan",
       "scanWarnings_other": "{{count}} warnings during the scan",
       "scanWarningsMore": "… and {{count}} more",
-      "scanning": "Scanning… this can take several minutes",
+      "scanning": "Scanning…",
       "scanPartial": "The scan was incomplete; skipped emails are retried on the next scan.",
+      "scanPartialResumes": "The scan was incomplete; it continues automatically in a few minutes.",
+      "scanProgress": "Scanning… {{scanned}} emails read, {{created}} new orders",
+      "scanFailed": "The scan failed: {{error}}",
       "paymentMethod": {
         "paypal": "PayPal",
         "card": "Card",

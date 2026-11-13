@@ -1,18 +1,15 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { Pencil, Play, Plus, Trash2, Wifi } from "lucide-react"
-import { useCreateLedgerEmailAccount, useDeleteLedgerEmailAccount, useLedgerEmailAccounts, useScanLedgerEmailAccount, useTestLedgerEmailAccount, useUpdateLedgerEmailAccount } from "@/modules/ledger/hooks/use-ledger"
+import { Plus } from "lucide-react"
+import { useCreateLedgerEmailAccount, useLedgerEmailAccounts, useUpdateLedgerEmailAccount } from "@/modules/ledger/hooks/use-ledger"
 import type { LedgerEmailAccount } from "@/modules/ledger/types"
+import { LedgerEmailAccountCard } from "@/modules/ledger/components/ledger-email-account-card"
 import { LedgerEmailAccountDialog } from "@/modules/ledger/components/ledger-email-account-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { useCapabilities } from "@/hooks/use-capabilities"
 import { LedgerEmailLlmNotice } from "@/modules/ledger/components/ledger-email-llm-notice"
-import type { LedgerEmailScanResult } from "@/modules/ledger/types"
-
-const MAX_SHOWN_WARNINGS = 5
 
 export function LedgerEmailAccountsPanel() {
   const { t } = useTranslation()
@@ -21,25 +18,8 @@ export function LedgerEmailAccountsPanel() {
   const { data: accounts = [] } = useLedgerEmailAccounts()
   const createAccount = useCreateLedgerEmailAccount()
   const updateAccount = useUpdateLedgerEmailAccount()
-  const deleteAccount = useDeleteLedgerEmailAccount()
-  const scanAccount = useScanLedgerEmailAccount()
-  const testAccount = useTestLedgerEmailAccount()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState<LedgerEmailAccount | null>(null)
-
-  function reportScan(result: LedgerEmailScanResult) {
-    toast.success(t("ledger.email.scanSuccess", { count: result.ordersNew }))
-    if (result.warnings?.length) {
-      const shown = result.warnings.slice(0, MAX_SHOWN_WARNINGS)
-      const more = result.warnings.length - shown.length
-      toast.warning(t("ledger.email.scanWarnings", { count: result.warnings.length }), {
-        description: <span className="whitespace-pre-line">{[...shown, ...(more > 0 ? [t("ledger.email.scanWarningsMore", { count: more })] : [])].join("\n")}</span>,
-      })
-    }
-    if (result.partial || result.skipped) {
-      toast.warning(t("ledger.email.scanPartial"))
-    }
-  }
 
   function openCreate() {
     setSelectedAccount(null)
@@ -58,62 +38,12 @@ export function LedgerEmailAccountsPanel() {
         <p className="text-sm text-muted-foreground">{t("ledger.email.scanHint")}</p>
         <div className="grid gap-4 md:grid-cols-2">
           {accounts.map((account) => (
-            <div key={account.id} className="rounded-lg border p-4 space-y-3">
-              <div>
-                <div className="font-medium">{account.name}</div>
-                <div className="text-sm text-muted-foreground">{account.username} • {account.imapHost}:{account.imapPort}{account.folder ? ` • ${account.folder}` : ""}</div>
-                {account.folder ? null : <div className="text-sm text-amber-600 dark:text-amber-400">{t("ledger.email.folderMissing")}</div>}
-                <div className="text-xs text-muted-foreground">{t("ledger.email.lastScan")}: {account.lastScanAt ?? "-"}</div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => testAccount.mutate(account.id, {
-                    onSuccess: () => toast.success(t("ledger.email.testSuccess")),
-                    onError: (error) => toast.error(error.message),
-                  })}
-                >
-                  <Wifi className="mr-2 h-4 w-4" />{t("ledger.email.testConnection")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={llmOff || !account.folder || scanAccount.isPending}
-                  onClick={() => scanAccount.mutate({ id: account.id, files: [] }, {
-                    onSuccess: reportScan,
-                    onError: (error) => toast.error(error.message),
-                  })}
-                >
-                  <Play className="mr-2 h-4 w-4" />{scanAccount.isPending && scanAccount.variables?.id === account.id ? t("ledger.email.scanning") : t("ledger.email.scanNow")}
-                </Button>
-                <label className="inline-flex">
-                  <Input
-                    type="file"
-                    multiple
-                    accept=".eml,message/rfc822"
-                    className="hidden"
-                    disabled={llmOff || scanAccount.isPending}
-                    onChange={(event) => {
-                      const files = Array.from(event.target.files ?? [])
-                      if (files.length === 0) {
-                        return
-                      }
-                      scanAccount.mutate({ id: account.id, files }, {
-                        onSuccess: reportScan,
-                        onError: (error) => toast.error(error.message),
-                      })
-                      event.target.value = ""
-                    }}
-                  />
-                  <Button type="button" variant="outline" asChild aria-disabled={llmOff} className={llmOff ? "pointer-events-none opacity-50" : undefined}>
-                    <span>{t("ledger.email.scanUpload")}</span>
-                  </Button>
-                </label>
-                <Button type="button" variant="outline" onClick={() => { setSelectedAccount(account); setDialogOpen(true) }}><Pencil className="mr-2 h-4 w-4" />{t("common.edit")}</Button>
-                <Button type="button" variant="outline" onClick={() => deleteAccount.mutate(account.id, { onSuccess: () => toast.success(t("ledger.email.accountDeleted")), onError: (error) => toast.error(error.message) })}><Trash2 className="mr-2 h-4 w-4" />{t("common.delete")}</Button>
-              </div>
-            </div>
+            <LedgerEmailAccountCard
+              key={account.id}
+              account={account}
+              llmOff={llmOff}
+              onEdit={(selected) => { setSelectedAccount(selected); setDialogOpen(true) }}
+            />
           ))}
         </div>
       </CardContent>

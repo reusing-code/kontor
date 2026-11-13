@@ -29,7 +29,9 @@ import {
   reviewLedgerTransactionsBatch,
   runLedgerCategorySuggestions,
   runLedgerRecurringDetection,
-  scanLedgerEmailAccount,
+  getLedgerEmailScanStatus,
+  startLedgerEmailScan,
+  uploadLedgerEmailMessages,
   testLedgerEmailAccount,
   unlinkLedgerTransfer,
   updateLedgerTransactionDetails,
@@ -43,6 +45,7 @@ import type {
   LedgerCommitRequest,
   LedgerEmailAccountInput,
   LedgerEmailOrderLinkInput,
+  LedgerEmailScanStatus,
   LedgerReviewInput,
   LedgerSourceType,
   LedgerTransferLinkInput,
@@ -54,6 +57,7 @@ import type {
 
 export const ledgerAccountsKey = ["ledger", "accounts"] as const
 export const ledgerEmailAccountsKey = ["ledger", "email-accounts"] as const
+export const ledgerEmailScanStatusKey = (id: string) => ["ledger", "email-scan", id] as const
 export const ledgerImportsKey = ["ledger", "imports"] as const
 export const ledgerCategoriesKey = ["ledger", "categories"] as const
 export const ledgerReviewQueueKey = (limit: number, cursor?: string) => ["ledger", "review", { limit, cursor: cursor ?? "" }] as const
@@ -385,18 +389,57 @@ export function useDeleteLedgerEmailAccount() {
   })
 }
 
-export function useScanLedgerEmailAccount() {
+function invalidateAfterEmailScan(qc: QueryClient) {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ledgerEmailAccountsKey }),
+    qc.invalidateQueries({ queryKey: ["ledger", "email-orders"] }),
+    qc.invalidateQueries({ queryKey: ["ledger", "transactions"] }),
+    qc.invalidateQueries({ queryKey: ["ledger", "accounts"] }),
+  ])
+}
+
+// Polls while a scan of the account runs (started here, by the scheduler or
+// before a page reload) and reports it once when it ends.
+export function useLedgerEmailScanStatus(id: string, onFinished: (status: LedgerEmailScanStatus) => void) {
+  const qc = useQueryClient()
+  const { data } = useQuery({
+    queryKey: ledgerEmailScanStatusKey(id),
+    queryFn: () => getLedgerEmailScanStatus(id),
+    refetchInterval: (query) => (query.state.data?.state === "running" ? 2000 : false),
+  })
+  const running = data?.state === "running"
+  const wasRunning = useRef(running)
+  const finished = useRef(onFinished)
+  useEffect(() => {
+    finished.current = onFinished
+  })
+  useEffect(() => {
+    if (wasRunning.current && !running && data) {
+      void invalidateAfterEmailScan(qc)
+      finished.current(data)
+    }
+    wasRunning.current = running
+  }, [running, data, qc])
+  return data
+}
+
+export function useStartLedgerEmailScan() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, files }: { id: string; files: File[] }) => scanLedgerEmailAccount(id, files),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ledgerEmailAccountsKey }),
-        qc.invalidateQueries({ queryKey: ["ledger", "email-orders"] }),
-        qc.invalidateQueries({ queryKey: ["ledger", "transactions"] }),
-        qc.invalidateQueries({ queryKey: ["ledger", "accounts"] }),
-      ])
+    mutationFn: (id: string) => startLedgerEmailScan(id),
+    onSuccess: (status, id) => {
+      qc.setQueryData(ledgerEmailScanStatusKey(id), status)
     },
+    // A 409 means a scan is already running: pick it up.
+    onError: (_error, id) => qc.invalidateQueries({ queryKey: ledgerEmailScanStatusKey(id) }),
+  })
+}
+
+export function useUploadLedgerEmailMessages() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, files }: { id: string; files: File[] }) => uploadLedgerEmailMessages(id, files),
+    onSuccess: () => invalidateAfterEmailScan(qc),
   })
 }
 

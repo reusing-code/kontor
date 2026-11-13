@@ -24,6 +24,7 @@ export const ledgerEmailAccountSchema = z.object({
   scanSince: z.string(),
   lastScanAt: z.string().datetime().optional(),
   lastScanStatusMessage: z.string().optional(),
+  scanResumePending: z.boolean().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 })
@@ -92,6 +93,22 @@ export const ledgerEmailScanResultSchema = z.object({
 })
 
 export type LedgerEmailScanResult = z.infer<typeof ledgerEmailScanResultSchema>
+
+export const ledgerEmailScanStatusSchema = z.object({
+  state: z.enum(["idle", "running", "done", "partial", "failed"]),
+  trigger: z.enum(["manual", "scheduled", "upload"]).optional(),
+  startedAt: z.string().datetime().optional(),
+  finishedAt: z.string().datetime().optional(),
+  emailsScanned: z.number().int(),
+  ordersNew: z.number().int(),
+  ordersLinked: z.number().int(),
+  skipped: z.number().int(),
+  warnings: z.array(z.string()),
+  error: z.string().optional(),
+  resumes: z.boolean().optional(),
+})
+
+export type LedgerEmailScanStatus = z.infer<typeof ledgerEmailScanStatusSchema>
 
 export const ledgerCategorySchema = z.object({
   id: z.string().uuid(),

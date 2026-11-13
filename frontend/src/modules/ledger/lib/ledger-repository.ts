@@ -15,6 +15,7 @@ import type {
   LedgerEmailOrderCandidatesResult,
   LedgerEmailOrderLinkInput,
   LedgerEmailScanResult,
+  LedgerEmailScanStatus,
   LedgerCommitRequest,
   LedgerCommitResult,
   LedgerImportBatch,
@@ -89,7 +90,15 @@ export async function rejectLedgerEmailOrder(id: string): Promise<LedgerEmailOrd
   return post<LedgerEmailOrder>(`/ledger/email-orders/${id}/reject`, {})
 }
 
-export async function scanLedgerEmailAccount(id: string, files: File[]): Promise<LedgerEmailScanResult> {
+export async function startLedgerEmailScan(id: string): Promise<LedgerEmailScanStatus> {
+  return post<LedgerEmailScanStatus>(`/ledger/email-accounts/${id}/scan`, {})
+}
+
+export async function getLedgerEmailScanStatus(id: string): Promise<LedgerEmailScanStatus> {
+  return get<LedgerEmailScanStatus>(`/ledger/email-accounts/${id}/scan`)
+}
+
+export async function uploadLedgerEmailMessages(id: string, files: File[]): Promise<LedgerEmailScanResult> {
   const form = new FormData()
   for (const file of files) {
     form.append("files", file)
