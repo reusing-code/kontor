@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v11"
+	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 )
 
 type Config struct {
@@ -67,6 +68,13 @@ type Config struct {
 	// Public base URL of this Kontor (no trailing slash); used for the
 	// back-links that MCP tools write into paperless. Empty = unset.
 	PublicURL string `env:"PUBLIC_URL"`
+
+	// Enable Banking (automatic bank import). Enabled when both the app ID
+	// and the path of the app's RSA private key (PEM) are set.
+	EnableBankingAppID        string        `env:"ENABLE_BANKING_APP_ID"`
+	EnableBankingKeyPath      string        `env:"ENABLE_BANKING_KEY_PATH"`
+	EnableBankingAPIURL       string        `env:"ENABLE_BANKING_API_URL"       envDefault:"https://api.enablebanking.com"`
+	EnableBankingSyncInterval time.Duration `env:"ENABLE_BANKING_SYNC_INTERVAL" envDefault:"24h"`
 }
 
 func Load() (Config, error) {
@@ -82,6 +90,9 @@ func Load() (Config, error) {
 	}
 	if cfg.FXRatesEnabled() && !isHTTPURL(cfg.FXRatesURL) {
 		return cfg, errors.New(`FX_RATES_URL must be an absolute http(s) URL or "off"`)
+	}
+	if err := cfg.validateEnableBanking(); err != nil {
+		return cfg, err
 	}
 	cfg.PublicURL = strings.TrimRight(cfg.PublicURL, "/")
 	if cfg.PublicURL != "" && !validPublicURL(cfg.PublicURL) {
@@ -115,6 +126,27 @@ func (c Config) validateLLM() error {
 	}
 	if c.LLMEnabled() && !isHTTPURL(c.LLMBaseURL) {
 		return errors.New("LLM_BASE_URL must be an absolute http(s) URL")
+	}
+	return nil
+}
+
+func (c Config) EnableBankingEnabled() bool {
+	return c.EnableBankingAppID != "" && c.EnableBankingKeyPath != ""
+}
+
+func (c *Config) validateEnableBanking() error {
+	c.EnableBankingAPIURL = strings.TrimRight(c.EnableBankingAPIURL, "/")
+	switch {
+	case (c.EnableBankingAppID == "") != (c.EnableBankingKeyPath == ""):
+		return errors.New("ENABLE_BANKING_APP_ID and ENABLE_BANKING_KEY_PATH must be set together")
+	case !isHTTPURL(c.EnableBankingAPIURL):
+		return errors.New("ENABLE_BANKING_API_URL must be an absolute http(s) URL")
+	case c.EnableBankingSyncInterval < 0:
+		return errors.New("ENABLE_BANKING_SYNC_INTERVAL must not be negative")
+	case c.EnableBankingEnabled():
+		if _, err := cryptoutil.NormalizeEncryptionKey(c.EmailEncryptionKey); err != nil {
+			return errors.New("bank import needs a valid EMAIL_ENCRYPTION_KEY to store bank sessions")
+		}
 	}
 	return nil
 }

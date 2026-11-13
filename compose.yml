@@ -5,6 +5,8 @@ services:
       - "8080:8080"
     volumes:
       - app-data:/app/data
+      # Enable Banking private key (PEM), read-only:
+      # - ./enablebanking.pem:/run/secrets/enablebanking.pem:ro
     environment:
       - PORT=8080
       - LOG_FORMAT=json
@@ -22,6 +24,12 @@ services:
       # - FX_RATES_URL=https://api.frankfurter.dev/v1
       # Public base URL of this Kontor, used for paperless back-links created through MCP.
       # - PUBLIC_URL=https://kontor.example.com
+      # Automatic bank import through Enable Banking (needs EMAIL_ENCRYPTION_KEY and PUBLIC_URL);
+      # off while the app ID and key path are unset. The redirect URL registered in the Enable
+      # Banking app is PUBLIC_URL/api/v1/ledger/bank/callback. 0 disables only the automatic sync.
+      # - ENABLE_BANKING_APP_ID=${ENABLE_BANKING_APP_ID}
+      # - ENABLE_BANKING_KEY_PATH=/run/secrets/enablebanking.pem
+      # - ENABLE_BANKING_SYNC_INTERVAL=24h
 
 volumes:
   app-data:

@@ -186,3 +186,88 @@ func TestLoadLedgerSuggest(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadEnableBanking(t *testing.T) {
+	const key = "0123456789abcdef0123456789abcdef"
+	vars := []string{"ENABLE_BANKING_APP_ID", "ENABLE_BANKING_KEY_PATH", "ENABLE_BANKING_API_URL", "ENABLE_BANKING_SYNC_INTERVAL", "EMAIL_ENCRYPTION_KEY"}
+	tests := []struct {
+		name         string
+		env          map[string]string
+		wantErr      string
+		wantEnabled  bool
+		wantURL      string
+		wantInterval time.Duration
+	}{
+		{name: "both empty disables", env: map[string]string{}, wantURL: "https://api.enablebanking.com", wantInterval: 24 * time.Hour},
+		{
+			name:         "enabled with defaults",
+			env:          map[string]string{"ENABLE_BANKING_APP_ID": "app", "ENABLE_BANKING_KEY_PATH": "/k.pem", "EMAIL_ENCRYPTION_KEY": key},
+			wantEnabled:  true,
+			wantURL:      "https://api.enablebanking.com",
+			wantInterval: 24 * time.Hour,
+		},
+		{
+			name: "url trailing slash trimmed and zero interval",
+			env: map[string]string{
+				"ENABLE_BANKING_APP_ID": "app", "ENABLE_BANKING_KEY_PATH": "/k.pem", "EMAIL_ENCRYPTION_KEY": key,
+				"ENABLE_BANKING_API_URL": "http://localhost:9/", "ENABLE_BANKING_SYNC_INTERVAL": "0",
+			},
+			wantEnabled: true,
+			wantURL:     "http://localhost:9",
+		},
+		{name: "only app id", env: map[string]string{"ENABLE_BANKING_APP_ID": "app"}, wantErr: "must be set together"},
+		{name: "only key path", env: map[string]string{"ENABLE_BANKING_KEY_PATH": "/k.pem"}, wantErr: "must be set together"},
+		{
+			name:    "invalid api url",
+			env:     map[string]string{"ENABLE_BANKING_API_URL": "api.example.com"},
+			wantErr: "ENABLE_BANKING_API_URL",
+		},
+		{
+			name:    "negative interval",
+			env:     map[string]string{"ENABLE_BANKING_SYNC_INTERVAL": "-1h"},
+			wantErr: "ENABLE_BANKING_SYNC_INTERVAL",
+		},
+		{
+			name:    "missing encryption key",
+			env:     map[string]string{"ENABLE_BANKING_APP_ID": "app", "ENABLE_BANKING_KEY_PATH": "/k.pem"},
+			wantErr: "EMAIL_ENCRYPTION_KEY",
+		},
+		{
+			name:    "invalid encryption key",
+			env:     map[string]string{"ENABLE_BANKING_APP_ID": "app", "ENABLE_BANKING_KEY_PATH": "/k.pem", "EMAIL_ENCRYPTION_KEY": "short"},
+			wantErr: "EMAIL_ENCRYPTION_KEY",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("JWT_SECRET", "test")
+			for _, k := range vars {
+				v, ok := tt.env[k]
+				t.Setenv(k, v)
+				if !ok {
+					os.Unsetenv(k)
+				}
+			}
+
+			cfg, err := Load()
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("Load() error = %v, want containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if cfg.EnableBankingEnabled() != tt.wantEnabled {
+				t.Fatalf("EnableBankingEnabled() = %v, want %v", cfg.EnableBankingEnabled(), tt.wantEnabled)
+			}
+			if cfg.EnableBankingAPIURL != tt.wantURL {
+				t.Fatalf("EnableBankingAPIURL = %q, want %q", cfg.EnableBankingAPIURL, tt.wantURL)
+			}
+			if cfg.EnableBankingSyncInterval != tt.wantInterval {
+				t.Fatalf("EnableBankingSyncInterval = %v, want %v", cfg.EnableBankingSyncInterval, tt.wantInterval)
+			}
+		})
+	}
+}
