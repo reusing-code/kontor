@@ -44,7 +44,7 @@ type ContractExtract struct {
 	CustomerNumber          string   `json:"customerNumber"`
 	Price                   *float64 `json:"price" llm:"desc=Gross price per billing interval"`
 	Currency                string   `json:"currency" llm:"desc=ISO 4217 code of the price"`
-	BillingInterval         string   `json:"billingInterval" llm:"enum=monthly|yearly"`
+	BillingInterval         string   `json:"billingInterval" llm:"enum=monthly|quarterly|yearly"`
 	StartDate               string   `json:"startDate" llm:"desc=YYYY-MM-DD or empty"`
 	EndDate                 string   `json:"endDate" llm:"desc=YYYY-MM-DD or empty"`
 	MinimumDurationMonths   int      `json:"minimumDurationMonths" llm:"desc=0 if unknown"`

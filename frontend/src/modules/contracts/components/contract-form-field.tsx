@@ -47,6 +47,7 @@ export function FormFieldRenderer<T extends FieldValues>({ config, control }: Fo
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="monthly">{t("fields.billingMonthly")}</SelectItem>
+                  <SelectItem value="quarterly">{t("fields.billingQuarterly")}</SelectItem>
                   <SelectItem value="yearly">{t("fields.billingYearly")}</SelectItem>
                 </SelectContent>
               </Select>

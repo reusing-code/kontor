@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { format } from "date-fns"
 import { ChevronRight, ExternalLink, FileText, MoreVertical } from "lucide-react"
-import type { Contract } from "@/modules/contracts/types"
+import type { BillingInterval, Contract } from "@/modules/contracts/types"
 import { contractFields } from "@/modules/contracts/config/contract-fields"
 import {
   Table,
@@ -29,6 +29,12 @@ const tableColumns = contractFields
 
 const detailFields = contractFields.filter((f) => !f.showInTable)
 
+const intervalSuffixKey: Record<BillingInterval, string> = {
+  monthly: "common.perMonth",
+  quarterly: "common.perQuarter",
+  yearly: "common.perYear",
+}
+
 interface ContractsTableProps {
   contracts: Contract[]
   onEdit: (contract: Contract) => void
@@ -40,7 +46,7 @@ function formatCellValue(contract: Contract, key: string, currency: string, t: (
   const value = contract[key as keyof Contract]
   if (value === undefined || value === null || value === "") return "-"
   if (key === "price") {
-    const interval = contract.billingInterval === "yearly" ? t("common.perYear") : t("common.perMonth")
+    const interval = t(intervalSuffixKey[contract.billingInterval] ?? "common.perMonth")
     return `${Number(value).toFixed(2)} ${currency} ${interval}`
   }
   if (key === "startDate" || key === "endDate") return format(new Date(value as string), "yyyy-MM-dd")

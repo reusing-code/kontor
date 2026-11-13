@@ -116,7 +116,9 @@ func (c *Classifier) toProposal(ctx context.Context, out Classification, cat Cat
 		k := out.Contract
 		parentID = pickOption(k.CategoryID, cat.contractCategories)
 		interval := k.BillingInterval
-		if interval != "monthly" && interval != "yearly" {
+		switch interval {
+		case "monthly", "quarterly", "yearly":
+		default:
 			interval = ""
 		}
 		in := contractInput{

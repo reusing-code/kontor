@@ -282,3 +282,14 @@ func TestClassify_Errors(t *testing.T) {
 		t.Errorf("deadline: err = %v, want timeout", err)
 	}
 }
+
+func TestClassify_ContractBillingInterval(t *testing.T) {
+	env := newTestEnv()
+	cat := env.catalog(t)
+	for interval, want := range map[string]any{"monthly": "monthly", "quarterly": "quarterly", "yearly": "yearly", "weekly": nil} {
+		p := env.classify(t, cat, Classification{Kind: "contract", Contract: &ContractExtract{Name: "Insurance", BillingInterval: interval}})
+		if got := inputOf(t, p)["billingInterval"]; got != want {
+			t.Errorf("%s: billingInterval = %v, want %v", interval, got, want)
+		}
+	}
+}

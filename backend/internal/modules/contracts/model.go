@@ -10,8 +10,9 @@ import (
 type BillingInterval string
 
 const (
-	BillingMonthly BillingInterval = "monthly"
-	BillingYearly  BillingInterval = "yearly"
+	BillingMonthly   BillingInterval = "monthly"
+	BillingQuarterly BillingInterval = "quarterly"
+	BillingYearly    BillingInterval = "yearly"
 )
 
 type Contract struct {
@@ -42,10 +43,14 @@ func (c *Contract) MonthlyPrice() float64 {
 	if c.Price == nil {
 		return 0
 	}
-	if c.BillingInterval == BillingYearly {
+	switch c.BillingInterval {
+	case BillingQuarterly:
+		return *c.Price / 3
+	case BillingYearly:
 		return *c.Price / 12
+	default:
+		return *c.Price
 	}
-	return *c.Price
 }
 
 // YearlyPrice returns the price normalized to a yearly amount.
@@ -53,10 +58,14 @@ func (c *Contract) YearlyPrice() float64 {
 	if c.Price == nil {
 		return 0
 	}
-	if c.BillingInterval == BillingYearly {
+	switch c.BillingInterval {
+	case BillingQuarterly:
+		return *c.Price * 4
+	case BillingYearly:
 		return *c.Price
+	default:
+		return *c.Price * 12
 	}
-	return *c.Price * 12
 }
 
 type ContractInput struct {
@@ -84,8 +93,10 @@ func (c *ContractInput) Validate() error {
 	if c.StartDate == "" {
 		return errors.New("startDate is required")
 	}
-	if c.BillingInterval != "" && c.BillingInterval != BillingMonthly && c.BillingInterval != BillingYearly {
-		return errors.New("billingInterval must be 'monthly' or 'yearly'")
+	switch c.BillingInterval {
+	case "", BillingMonthly, BillingQuarterly, BillingYearly:
+	default:
+		return errors.New("billingInterval must be 'monthly', 'quarterly' or 'yearly'")
 	}
 	return nil
 }

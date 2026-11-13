@@ -1,7 +1,7 @@
 import { z } from "zod/v4"
 import { numericString } from "@/lib/utils"
 
-export const billingIntervalSchema = z.enum(["monthly", "yearly"])
+export const billingIntervalSchema = z.enum(["monthly", "quarterly", "yearly"])
 export type BillingInterval = z.infer<typeof billingIntervalSchema>
 
 export const contractSchema = z.object({

@@ -50,7 +50,7 @@ type createContractDraftIn struct {
 	Key        string        `json:"key,omitempty" jsonschema:"stable idempotency key, e.g. file name or hash; repeating it while the draft is pending is rejected"`
 	Note       string        `json:"note,omitempty" jsonschema:"free text for the reviewer (at most 500 characters)"`
 	CategoryID string        `json:"categoryId" jsonschema:"UUID of the contract category (list_contract_categories)"`
-	Input      ContractInput `json:"input" jsonschema:"the contract; billingInterval is monthly or yearly, dates are YYYY-MM-DD, prices are EUR"`
+	Input      ContractInput `json:"input" jsonschema:"the contract; billingInterval is monthly, quarterly or yearly, dates are YYYY-MM-DD, prices are EUR"`
 }
 
 type createContractCategoryDraftIn struct {

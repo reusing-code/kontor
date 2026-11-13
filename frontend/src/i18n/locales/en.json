@@ -89,6 +89,7 @@
     "price": "Price",
     "billingInterval": "Billing Interval",
     "billingMonthly": "Monthly",
+    "billingQuarterly": "Quarterly",
     "billingYearly": "Yearly",
     "startDate": "Start Date",
     "endDate": "End Date (Cancelled)",
@@ -721,6 +722,7 @@
     "currency": "€",
     "months": "months",
     "perMonth": "/ mo",
+    "perQuarter": "/ qtr",
     "perYear": "/ yr",
     "viewAll": "View all"
   }

@@ -56,8 +56,9 @@ Fields
 
   billingInterval (string, optional, default "monthly")
     How often the price is billed. Must be one of:
-      - "monthly" — price is a monthly cost
-      - "yearly"  — price is a yearly cost
+      - "monthly"   — price is a monthly cost
+      - "quarterly" — price is a quarterly cost (every 3 months)
+      - "yearly"    — price is a yearly cost
 
   endDate (string, optional)
     Contract end/cancellation date in YYYY-MM-DD format.
