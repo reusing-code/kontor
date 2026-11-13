@@ -11,8 +11,8 @@ import { QuickAddDialog } from "@/components/quick-add/quick-add-dialog"
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent)
 
-// QuickAdd is the header entry point (button and Ctrl/Cmd+K). It renders
-// nothing without the LLM or when no purchases/contracts/auto module is on.
+// QuickAdd is the header entry point (button and Ctrl/Cmd+K). The note and
+// attached file are kept until an entry is created. It renders nothing without the LLM or when no purchases/contracts/auto module is on.
 export function QuickAdd() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -20,6 +20,7 @@ export function QuickAdd() {
   const available = enabledTypes.length > 0
   const [open, setOpen] = useState(false)
   const [text, setText] = useState("")
+  const [file, setFile] = useState<File | null>(null)
   const [entry, setEntry] = useState<PrefillEntry | null>(null)
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export function QuickAdd() {
     try {
       const { id } = await create()
       setText("")
+      setFile(null)
       const path = entityPath(type, id, parentId)
       toast.success(t(`quickAdd.created.${type}`), {
         action: { label: t("quickAdd.open"), onClick: () => void navigate({ to: path }) },
@@ -64,6 +66,8 @@ export function QuickAdd() {
         enabledTypes={enabledTypes}
         text={text}
         onTextChange={setText}
+        file={file}
+        onFileChange={setFile}
         onContinue={(next) => {
           setOpen(false)
           setEntry(next)

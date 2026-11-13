@@ -737,12 +737,24 @@
   "quickAdd": {
     "button": "Schnellerfassung",
     "title": "Schnellerfassung",
-    "description": "Beschreibe einen Kauf, Vertrag oder Fahrzeugkosten in eigenen Worten. Die KI füllt das Formular aus, du prüfst es.",
+    "description": "Beschreibe einen Kauf, Vertrag oder Fahrzeugkosten in eigenen Worten oder hänge eine Rechnung oder einen Beleg an. Die KI füllt das Formular aus, du prüfst es.",
     "placeholder": "z. B. Winterreifen am 2.11.2026 bei Reifen Müller gekauft, 640 €, Golf",
+    "placeholderFile": "Optional: ergänze einen Hinweis, z. B. für welches Fahrzeug",
+    "attach": "PDF oder Foto anhängen",
+    "attachPdf": "PDF anhängen",
+    "takePhoto": "Foto aufnehmen",
+    "removeFile": "Datei entfernen",
     "submit": "Vorschlagen",
     "thinking": "Denke nach…",
     "continue": "Weiter",
     "failed": "Schnellerfassung fehlgeschlagen: {{message}}",
+    "errors": {
+      "file_too_large": "Die Datei ist zu groß (höchstens 10 MB).",
+      "unsupported_file": "Dieser Dateityp wird nicht unterstützt. Verwende ein PDF oder ein Bild als JPEG, PNG oder WebP.",
+      "vision_not_configured": "Fotos sind auf diesem Server nicht verfügbar. Hänge stattdessen ein PDF an.",
+      "pdf_no_text": "Dieses PDF ist ein Scan ohne Text. Hänge stattdessen ein Foto des Dokuments an.",
+      "file_unreadable": "Das PDF konnte nicht gelesen werden. Es ist eventuell beschädigt oder passwortgeschützt."
+    },
     "open": "Öffnen",
     "created": {
       "purchase": "Kauf angelegt",
@@ -758,9 +770,9 @@
     "notes": {
       "unclassified": "Die KI konnte nicht erkennen, worum es sich handelt.",
       "llm_invalid_output": "Die KI-Antwort war nicht verwendbar.",
-      "llm_refused": "Die KI hat die Verarbeitung dieses Texts abgelehnt.",
+      "llm_refused": "Die KI hat die Verarbeitung abgelehnt.",
       "llm_truncated": "Die KI-Antwort wurde abgeschnitten.",
-      "llm_request_rejected": "Der KI-Dienst hat den Text abgelehnt."
+      "llm_request_rejected": "Der KI-Dienst hat die Anfrage abgelehnt."
     }
   },
   "tokens": {

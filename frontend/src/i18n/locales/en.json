@@ -737,12 +737,24 @@
   "quickAdd": {
     "button": "Quick add",
     "title": "Quick add",
-    "description": "Describe a purchase, contract or vehicle cost in your own words. The AI fills in the form, you check it.",
+    "description": "Describe a purchase, contract or vehicle cost in your own words, or attach an invoice or receipt. The AI fills in the form, you check it.",
     "placeholder": "e.g. bought winter tires 2026-11-02 at Reifen Müller, €640, Golf",
+    "placeholderFile": "Optional: add a hint, e.g. which vehicle this is for",
+    "attach": "Attach PDF or photo",
+    "attachPdf": "Attach PDF",
+    "takePhoto": "Take photo",
+    "removeFile": "Remove file",
     "submit": "Suggest",
     "thinking": "Thinking…",
     "continue": "Continue",
     "failed": "Quick add failed: {{message}}",
+    "errors": {
+      "file_too_large": "The file is too large (at most 10 MB).",
+      "unsupported_file": "This file type is not supported. Use a PDF, or a JPEG, PNG or WebP image.",
+      "vision_not_configured": "Photos are not available on this server. Attach a PDF instead.",
+      "pdf_no_text": "This PDF is a scan without text. Attach a photo of the document instead.",
+      "file_unreadable": "The PDF could not be read. It may be damaged or password protected."
+    },
     "open": "Open",
     "created": {
       "purchase": "Purchase created",
@@ -758,9 +770,9 @@
     "notes": {
       "unclassified": "The AI could not tell what this is.",
       "llm_invalid_output": "The AI answer could not be used.",
-      "llm_refused": "The AI refused to process this text.",
+      "llm_refused": "The AI refused to process this.",
       "llm_truncated": "The AI answer was cut off.",
-      "llm_request_rejected": "The AI service rejected the text."
+      "llm_request_rejected": "The AI service rejected the request."
     }
   },
   "tokens": {
