@@ -378,7 +378,6 @@
     "transactionLinkCopyFailed": "Transaktionslink konnte nicht kopiert werden.",
     "purchaseCategoryForCreate": "Anschaffungskategorie",
     "contractCategoryForCreate": "Vertragskategorie",
-    "createPurchaseAndLink": "Anschaffung erstellen",
     "createContractAndLink": "Vertrag erstellen",
     "createVehicleAndLink": "Fahrzeug erstellen",
     "selectCategoryFirst": "Wähle zuerst eine Kategorie aus.",
@@ -527,6 +526,22 @@
       "none": "Keine neuen wiederkehrenden Zahlungen gefunden.",
       "busy": "Die Erkennung wiederkehrender Zahlungen läuft bereits. Versuche es gleich noch einmal.",
       "openInbox": "Eingang öffnen"
+    },
+    "vehicleForCreate": "Fahrzeug",
+    "selectVehicleFirst": "Wähle zuerst ein Fahrzeug aus.",
+    "createFromTransaction": {
+      "title": "Aus dieser Transaktion erstellen",
+      "hint": "Öffnet ein vorausgefülltes Formular; der neue Eintrag wird sofort mit dieser Transaktion verknüpft.",
+      "purchase": "Anschaffung aus dieser Transaktion erstellen",
+      "cost": "Fahrzeugkosten aus dieser Transaktion erstellen",
+      "pickItemsTitle": "Welche Artikel sind Anschaffungen?",
+      "pickItemsHint": "Die verknüpfte Bestellung enthält mehrere Artikel. Pro ausgewähltem Artikel wird eine Anschaffung erstellt, jeweils in einem eigenen Formular; schließt du ein Formular, wird der Artikel übersprungen.",
+      "continue_one": "Weiter mit {{count}} Artikel",
+      "continue_other": "Weiter mit {{count}} Artikeln",
+      "purchasesCreated_one": "{{count}} Anschaffung erstellt und verknüpft.",
+      "purchasesCreated_other": "{{count}} Anschaffungen erstellt und verknüpft.",
+      "createFailed": "Der Eintrag konnte nicht erstellt werden: {{message}}",
+      "linkFailed": "Der Eintrag wurde erstellt, konnte aber nicht verknüpft werden: {{message}}. Speichere die Transaktion, um ihn zu verknüpfen."
     }
   },
   "paperless": {

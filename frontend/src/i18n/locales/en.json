@@ -378,7 +378,6 @@
     "transactionLinkCopyFailed": "Could not copy transaction link.",
     "purchaseCategoryForCreate": "Purchase category",
     "contractCategoryForCreate": "Contract category",
-    "createPurchaseAndLink": "Create purchase",
     "createContractAndLink": "Create contract",
     "createVehicleAndLink": "Create vehicle",
     "selectCategoryFirst": "Select a category first.",
@@ -527,6 +526,22 @@
       "none": "No new recurring payments found.",
       "busy": "Recurring payment detection is already running. Try again in a moment.",
       "openInbox": "Open inbox"
+    },
+    "vehicleForCreate": "Vehicle",
+    "selectVehicleFirst": "Select a vehicle first.",
+    "createFromTransaction": {
+      "title": "Create from this transaction",
+      "hint": "Opens a prefilled form; the new entry is linked to this transaction right away.",
+      "purchase": "Create purchase from this transaction",
+      "cost": "Create auto cost from this transaction",
+      "pickItemsTitle": "Which items are purchases?",
+      "pickItemsHint": "The linked order has several items. One purchase is created per selected item, each in its own form; closing a form skips that item.",
+      "continue_one": "Continue with {{count}} item",
+      "continue_other": "Continue with {{count}} items",
+      "purchasesCreated_one": "{{count}} purchase created and linked.",
+      "purchasesCreated_other": "{{count}} purchases created and linked.",
+      "createFailed": "Could not create the entry: {{message}}",
+      "linkFailed": "The entry was created but could not be linked: {{message}}. Save the transaction to link it."
     }
   },
   "paperless": {

@@ -27,6 +27,7 @@ import type {
   LedgerTransferLinkResult,
   LedgerTransaction,
   LedgerTransactionDetailsInput,
+  LedgerTransactionReference,
   LedgerTransactionsPage,
 } from "@/modules/ledger/types"
 import { del, delJson, get, post, postForm, put } from "@/lib/api"
@@ -138,6 +139,10 @@ export async function getLedgerTransactionById(id: string): Promise<LedgerTransa
 
 export async function updateLedgerTransactionDetails(id: string, data: LedgerTransactionDetailsInput): Promise<LedgerTransaction> {
   return put<LedgerTransaction>(`/ledger/transactions/${id}`, data)
+}
+
+export async function addLedgerTransactionReference(id: string, reference: LedgerTransactionReference): Promise<LedgerTransaction> {
+  return post<LedgerTransaction>(`/ledger/transactions/${id}/references`, reference)
 }
 
 export async function getLedgerTransferCandidates(id: string): Promise<LedgerTransferCandidatesResult> {

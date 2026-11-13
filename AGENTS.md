@@ -108,7 +108,7 @@ Migrations are per module: each module supplies its own `Migrations()` list, app
 | `/ledger/accounts/$accountId` | Ledger account detail with transactions |
 | `/ledger/categories` | Ledger category tree manager |
 | `/ledger/review` | Ledger review queue |
-| `/ledger/transactions/$transactionId` | Ledger transaction detail with notes, references, and transfer linking |
+| `/ledger/transactions/$transactionId` | Ledger transaction detail with notes, references, transfer linking, and creating a purchase, vehicle cost, contract or vehicle from the transaction (linked right away) |
 | `/ledger/email-accounts` | Ledger email account management |
 | `/ledger/email-orders` | Parsed email orders and matching status |
 

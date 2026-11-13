@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -7,18 +7,18 @@ import { useCategories } from "@/hooks/use-categories"
 import { useModules } from "@/hooks/use-modules"
 import { useContracts, useCreateContractByCategory } from "@/modules/contracts/hooks/use-contracts"
 import { useLedgerCategories, useLedgerEmailOrders, useUpdateLedgerTransactionDetails } from "@/modules/ledger/hooks/use-ledger"
-import { useCreatePurchaseByCategory, usePurchases } from "@/modules/purchases/hooks/use-purchases"
+import { usePurchases } from "@/modules/purchases/hooks/use-purchases"
 import { useCostEntry, useCreateVehicle, useVehicles } from "@/modules/auto/hooks/use-vehicles"
 import { moduleReferenceToPath, referenceModuleId, vehiclePath } from "@/modules/ledger/lib/module-links"
 import { emailOrderTitle, formatAmountMinor, formatLedgerDate, formatLedgerReviewStatus, formatLedgerSpecialCategory } from "@/modules/ledger/lib/ledger-utils"
 import type { ContractFormData } from "@/modules/contracts/types"
 import type { LedgerTransaction, LedgerTransactionReference } from "@/modules/ledger/types"
-import type { PurchaseFormData } from "@/modules/purchases/types"
 import type { VehicleFormData } from "@/modules/auto/types"
 import { ContractDialog } from "@/modules/contracts/components/contract-dialog"
-import { PurchaseDialog } from "@/modules/purchases/components/purchase-dialog"
 import { VehicleDialog } from "@/modules/auto/components/vehicle-dialog"
 import { LedgerTransferManager } from "@/modules/ledger/components/ledger-transfer-manager"
+import { CostFromTransaction, PurchaseFromTransaction } from "@/modules/ledger/components/ledger-transaction-create-actions"
+import { useTransactionLinker, type TransactionLinker } from "@/modules/ledger/hooks/use-transaction-linker"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -82,63 +82,32 @@ function VehicleTargetSelect(props: TargetSelectProps) {
   return <TargetSelect options={vehicles.map((vehicle) => ({ id: vehicle.id, label: vehicle.name }))} {...props} />
 }
 
-function PurchaseCreateAndLink({ onLinked }: { onLinked: (targetId: string) => void }) {
-  const { t } = useTranslation()
-  const { data: purchaseCategories = [] } = useCategories("purchases")
-  const createPurchase = useCreatePurchaseByCategory()
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [categoryId, setCategoryId] = useState("")
-
-  function handleCreate(data: PurchaseFormData) {
-    if (!categoryId) {
-      toast.error(t("ledger.selectCategoryFirst"))
-      return
-    }
-    createPurchase.mutate({ categoryId, data }, {
-      onSuccess: (purchase) => {
-        onLinked(purchase.id)
-        setDialogOpen(false)
-        toast.success(t("ledger.referenceCreatedAndLinked", { type: t("nav.purchases") }))
-      },
-      onError: (error) => toast.error(error.message),
-    })
-  }
-
-  return (
-    <>
-      <Select value={categoryId || undefined} onValueChange={setCategoryId}>
-        <SelectTrigger className="w-[14rem]">
-          <SelectValue placeholder={t("ledger.purchaseCategoryForCreate")} />
-        </SelectTrigger>
-        <SelectContent>
-          {purchaseCategories.map((category) => (
-            <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Button type="button" variant="secondary" onClick={() => setDialogOpen(true)}>{t("ledger.createPurchaseAndLink")}</Button>
-      <PurchaseDialog open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleCreate} />
-    </>
-  )
-}
-
-function ContractCreateAndLink({ onLinked }: { onLinked: (targetId: string) => void }) {
+function ContractCreateAndLink({ transaction, link }: { transaction: LedgerTransaction; link: TransactionLinker }) {
   const { t } = useTranslation()
   const { data: contractCategories = [] } = useCategories("contracts")
   const createContract = useCreateContractByCategory()
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [initialValues, setInitialValues] = useState<Partial<ContractFormData> | null>(null)
   const [categoryId, setCategoryId] = useState("")
 
-  function handleCreate(data: ContractFormData) {
+  function openDialog() {
     if (!categoryId) {
       toast.error(t("ledger.selectCategoryFirst"))
       return
     }
+    const name = transaction.counterpartyName?.trim()
+    setInitialValues({
+      ...(name ? { name, company: name } : {}),
+      ...(transaction.currency === "EUR" ? { price: Math.abs(transaction.amountMinor) / 100 } : {}),
+      startDate: transaction.bookingDate.slice(0, 10),
+    })
+  }
+
+  function handleCreate(data: ContractFormData) {
     createContract.mutate({ categoryId, data }, {
-      onSuccess: (contract) => {
-        onLinked(contract.id)
-        setDialogOpen(false)
-        toast.success(t("ledger.referenceCreatedAndLinked", { type: t("nav.contracts") }))
+      onSuccess: async (contract) => {
+        if (await link({ type: "contract", targetId: contract.id })) {
+          toast.success(t("ledger.referenceCreatedAndLinked", { type: t("nav.contracts") }))
+        }
       },
       onError: (error) => toast.error(error.message),
     })
@@ -156,23 +125,29 @@ function ContractCreateAndLink({ onLinked }: { onLinked: (targetId: string) => v
           ))}
         </SelectContent>
       </Select>
-      <Button type="button" variant="secondary" onClick={() => setDialogOpen(true)}>{t("ledger.createContractAndLink")}</Button>
-      <ContractDialog open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleCreate} />
+      <Button type="button" variant="secondary" onClick={openDialog}>{t("ledger.createContractAndLink")}</Button>
+      <ContractDialog
+        open={initialValues !== null}
+        onOpenChange={(open) => { if (!open) setInitialValues(null) }}
+        initialValues={initialValues ?? undefined}
+        onSubmit={handleCreate}
+      />
     </>
   )
 }
 
-function VehicleCreateAndLink({ onLinked }: { onLinked: (targetId: string) => void }) {
+function VehicleCreateAndLink({ link }: { link: TransactionLinker }) {
   const { t } = useTranslation()
   const createVehicle = useCreateVehicle()
   const [dialogOpen, setDialogOpen] = useState(false)
 
   function handleCreate(data: VehicleFormData) {
     createVehicle.mutate(data, {
-      onSuccess: (vehicle) => {
-        onLinked(vehicle.id)
+      onSuccess: async (vehicle) => {
         setDialogOpen(false)
-        toast.success(t("ledger.referenceCreatedAndLinked", { type: t("nav.auto") }))
+        if (await link({ type: "vehicle", targetId: vehicle.id })) {
+          toast.success(t("ledger.referenceCreatedAndLinked", { type: t("nav.auto") }))
+        }
       },
       onError: (error) => toast.error(error.message),
     })
@@ -313,7 +288,11 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
   const effectiveReferenceType = availableTypes.includes(referenceType) ? referenceType : availableTypes[0]
 
   const categoryName = transaction.categoryId ? ledgerCategories.find((category) => category.id === transaction.categoryId)?.name : undefined
-  const linkedEmailOrders = emailOrders.filter((order) => (transaction.emailOrderIds ?? []).includes(order.id))
+  const linkedEmailOrders = useMemo(
+    () => emailOrders.filter((order) => (transaction.emailOrderIds ?? []).includes(order.id)),
+    [emailOrders, transaction.emailOrderIds],
+  )
+  const canCreate = transaction.specialCategory !== "internalTransfer"
 
   function addReference(reference: LedgerTransactionReference) {
     setReferences((current) => {
@@ -324,6 +303,8 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
       return [...current, reference]
     })
   }
+
+  const link = useTransactionLinker(transaction.id, addReference)
 
   function handleAddReference() {
     if (!effectiveReferenceType || !referenceTargetId) {
@@ -478,17 +459,28 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
                   <Button type="button" variant="outline" onClick={handleAddReference}>{t("ledger.addReference")}</Button>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {isEnabled("purchases") && (
-                    <PurchaseCreateAndLink onLinked={(targetId) => addReference({ type: "purchase", targetId })} />
-                  )}
-                  {isEnabled("contracts") && (
-                    <ContractCreateAndLink onLinked={(targetId) => addReference({ type: "contract", targetId })} />
-                  )}
-                  {isEnabled("auto") && (
-                    <VehicleCreateAndLink onLinked={(targetId) => addReference({ type: "vehicle", targetId })} />
-                  )}
-                </div>
+                {canCreate && (
+                  <div className="space-y-2 rounded-md border border-dashed p-3">
+                    <div className="text-sm font-medium">{t("ledger.createFromTransaction.title")}</div>
+                    <p className="text-xs text-muted-foreground">{t("ledger.createFromTransaction.hint")}</p>
+                    {isEnabled("purchases") && (
+                      <div className="flex flex-wrap gap-2">
+                        <PurchaseFromTransaction transaction={transaction} orders={linkedEmailOrders} link={link} />
+                      </div>
+                    )}
+                    {isEnabled("auto") && (
+                      <div className="flex flex-wrap gap-2">
+                        <CostFromTransaction transaction={transaction} orders={linkedEmailOrders} link={link} />
+                      </div>
+                    )}
+                    {(isEnabled("contracts") || isEnabled("auto")) && (
+                      <div className="flex flex-wrap gap-2">
+                        {isEnabled("contracts") && <ContractCreateAndLink transaction={transaction} link={link} />}
+                        {isEnabled("auto") && <VehicleCreateAndLink link={link} />}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import {
+  addLedgerTransactionReference,
   commitLedgerImport,
   createLedgerAccount,
   createLedgerCategory,
@@ -46,7 +47,9 @@ import type {
   LedgerSourceType,
   LedgerTransferLinkInput,
   LedgerTransferLinkResult,
+  LedgerTransaction,
   LedgerTransactionDetailsInput,
+  LedgerTransactionReference,
 } from "@/modules/ledger/types"
 
 export const ledgerAccountsKey = ["ledger", "accounts"] as const
@@ -293,20 +296,32 @@ export function useReviewLedgerTransaction() {
   })
 }
 
+function invalidateTransactionDetails(qc: QueryClient, transaction: LedgerTransaction) {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ledgerTransactionKey(transaction.id) }),
+    qc.invalidateQueries({ queryKey: ledgerTransferCandidatesKey(transaction.id) }),
+    qc.invalidateQueries({ queryKey: ["ledger", "accounts", transaction.accountId, "transactions"] }),
+    qc.invalidateQueries({ queryKey: ["contracts"] }),
+    qc.invalidateQueries({ queryKey: ["purchases"] }),
+    qc.invalidateQueries({ queryKey: ["vehicles"] }),
+  ])
+}
+
 export function useUpdateLedgerTransactionDetails() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: LedgerTransactionDetailsInput }) => updateLedgerTransactionDetails(id, data),
-    onSuccess: async (transaction) => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ledgerTransactionKey(transaction.id) }),
-        qc.invalidateQueries({ queryKey: ledgerTransferCandidatesKey(transaction.id) }),
-        qc.invalidateQueries({ queryKey: ["ledger", "accounts", transaction.accountId, "transactions"] }),
-        qc.invalidateQueries({ queryKey: ["contracts"] }),
-        qc.invalidateQueries({ queryKey: ["purchases"] }),
-        qc.invalidateQueries({ queryKey: ["vehicles"] }),
-      ])
-    },
+    onSuccess: (transaction) => invalidateTransactionDetails(qc, transaction),
+  })
+}
+
+// Links one target right away (the card's Save would send the whole list).
+export function useAddLedgerTransactionReference() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, reference }: { id: string; reference: LedgerTransactionReference }) =>
+      addLedgerTransactionReference(id, reference),
+    onSuccess: (transaction) => invalidateTransactionDetails(qc, transaction),
   })
 }
 
