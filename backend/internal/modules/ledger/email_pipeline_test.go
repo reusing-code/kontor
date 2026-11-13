@@ -128,7 +128,7 @@ func newPipelineTest(t *testing.T, fake *llmtest.Fake) *pipelineTest {
 	}
 	logs := &bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	return &pipelineTest{svc: NewEmailService(s.Store, fake, logger), store: s, fake: fake, account: account, logs: logs}
+	return &pipelineTest{svc: NewEmailService(s.Store, fake, nil, logger), store: s, fake: fake, account: account, logs: logs}
 }
 
 func (p *pipelineTest) upload(t *testing.T, names ...string) (LedgerEmailScanResult, error) {

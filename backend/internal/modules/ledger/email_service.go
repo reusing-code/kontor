@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/fx"
 	"github.com/reusing-code/kontor/backend/internal/llm"
 )
 
@@ -40,15 +43,20 @@ type UploadedMessage struct {
 type EmailService struct {
 	store     *Store
 	extractor llm.Extractor
+	rates     fx.Rates
 	logger    *slog.Logger
 	scanLocks sync.Map // uuid.UUID -> *sync.Mutex
 }
 
-func NewEmailService(s *Store, extractor llm.Extractor, logger *slog.Logger) *EmailService {
+// NewEmailService accepts nil rates (no currency conversion) and a nil logger.
+func NewEmailService(s *Store, extractor llm.Extractor, rates fx.Rates, logger *slog.Logger) *EmailService {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
-	return &EmailService{store: s, extractor: extractor, logger: logger}
+	if rates == nil {
+		rates = fx.Disabled{}
+	}
+	return &EmailService{store: s, extractor: extractor, rates: rates, logger: logger}
 }
 
 // lockAccount allows one scan per account at a time, so a manual and a
@@ -224,8 +232,32 @@ func (s *EmailService) TestConnection(account LedgerEmailAccount, password strin
 	return client.SelectFolder(account.Folder)
 }
 
+// convertOrderTotal returns the absolute order total in currency at the rate
+// of the order date (today for an order without a date).
+func (s *EmailService) convertOrderTotal(ctx context.Context, order LedgerEmailOrder, currency string) (LedgerEmailOrderConversion, bool) {
+	date, err := time.Parse("2006-01-02", order.OrderDate)
+	if err != nil {
+		date = time.Now().UTC()
+	}
+	from := normalizeCurrency(order.Currency)
+	rate, err := s.rates.Rate(ctx, from, currency, date)
+	if err != nil {
+		if !errors.Is(err, fx.ErrDisabled) {
+			s.logger.Warn("email order not converted", "from", from, "to", currency, "error", err)
+		}
+		return LedgerEmailOrderConversion{}, false
+	}
+	total := int64(math.Round(float64(absMinor(order.TotalMinor)) * rate.Value))
+	if total <= 0 {
+		return LedgerEmailOrderConversion{}, false
+	}
+	return LedgerEmailOrderConversion{Currency: currency, TotalMinor: total, Rate: rate.Value, RateDate: rate.Date}, true
+}
+
 // ListOrderCandidates returns link candidates for an email order within its
-// charge window (derived from the order); afterDays > 0 overrides the window's upper bound.
+// charge window (derived from the order); afterDays > 0 overrides the window's
+// upper bound. The order total is converted into the other currencies of the
+// user's ledger accounts so amounts stay comparable.
 func (s *EmailService) ListOrderCandidates(ctx context.Context, userID string, orderID uuid.UUID, afterDays int) (LedgerEmailOrderCandidatesResult, error) {
 	order, err := s.store.GetLedgerEmailOrder(ctx, userID, orderID)
 	if err != nil {
@@ -235,9 +267,42 @@ func (s *EmailService) ListOrderCandidates(ctx context.Context, userID string, o
 	if afterDays > 0 {
 		window.AfterDays = afterDays
 	}
-	return s.store.ListLedgerEmailOrderCandidates(ctx, userID, order, window)
+	accounts, err := s.store.ListLedgerAccounts(ctx, userID)
+	if err != nil {
+		return LedgerEmailOrderCandidatesResult{}, err
+	}
+	orderCurrency := normalizeCurrency(order.Currency)
+	targets := map[string]int64{orderCurrency: absMinor(order.TotalMinor)}
+	var conversions []LedgerEmailOrderConversion
+	var unconverted []string
+	for _, account := range accounts {
+		currency := normalizeCurrency(account.Currency)
+		if _, done := targets[currency]; done || slices.Contains(unconverted, currency) {
+			continue
+		}
+		conversion, ok := s.convertOrderTotal(ctx, order, currency)
+		if !ok {
+			unconverted = append(unconverted, currency)
+			continue
+		}
+		targets[currency] = conversion.TotalMinor
+		conversions = append(conversions, conversion)
+	}
+	result, err := s.store.ListLedgerEmailOrderCandidates(ctx, userID, order, window, targets)
+	if err != nil {
+		return result, err
+	}
+	sort.Slice(conversions, func(i, j int) bool { return conversions[i].Currency < conversions[j].Currency })
+	sort.Strings(unconverted)
+	result.Conversions = conversions
+	result.UnconvertedCurrencies = unconverted
+	return result, nil
 }
 
+// autoLinkOrder links the order to the payment matching rule. Transactions in
+// the order's currency must match exactly (alone or as a split payment); only
+// when none does, transactions in another currency are compared with the
+// converted total within fxToleranceBasisPoints.
 func (s *EmailService) autoLinkOrder(ctx context.Context, userID string, rule matchRule, order *LedgerEmailOrder) (bool, []string, error) {
 	if rule.Pattern == nil {
 		return false, nil, nil
@@ -246,7 +311,9 @@ func (s *EmailService) autoLinkOrder(ctx context.Context, userID string, rule ma
 	if err != nil {
 		return false, nil, err
 	}
+	orderCurrency := normalizeCurrency(order.Currency)
 	candidates := make([]LedgerTransaction, 0)
+	foreign := make([]LedgerTransaction, 0)
 	for _, txn := range transactions.Items {
 		if txn.AmountMinor >= 0 {
 			continue
@@ -260,15 +327,21 @@ func (s *EmailService) autoLinkOrder(ctx context.Context, userID string, rule ma
 		if !rule.Window.Contains(txn.BookingDate, order.OrderDate) {
 			continue
 		}
-		candidates = append(candidates, txn)
+		if normalizeCurrency(txn.Currency) == orderCurrency {
+			candidates = append(candidates, txn)
+		} else {
+			foreign = append(foreign, txn)
+		}
 	}
-	if len(candidates) == 0 {
-		return false, nil, nil
+	link := func(txns ...LedgerTransaction) {
+		ids := make([]uuid.UUID, 0, len(txns))
+		for _, txn := range txns {
+			ids = append(ids, txn.ID)
+		}
+		order.LinkedTransactionIDs = ids
+		order.MatchStatus = LedgerEmailOrderStatusMatched
 	}
-	target := order.TotalMinor
-	if target < 0 {
-		target = -target
-	}
+	target := absMinor(order.TotalMinor)
 	exact := make([]LedgerTransaction, 0)
 	for _, candidate := range candidates {
 		if -candidate.AmountMinor == target {
@@ -276,24 +349,46 @@ func (s *EmailService) autoLinkOrder(ctx context.Context, userID string, rule ma
 		}
 	}
 	if len(exact) == 1 {
-		order.LinkedTransactionIDs = []uuid.UUID{exact[0].ID}
-		order.MatchStatus = LedgerEmailOrderStatusMatched
+		link(exact[0])
 		return true, nil, nil
 	}
 	if len(exact) > 1 {
 		return false, []string{"multiple exact transaction matches"}, nil
 	}
-	combo := findTransactionCombination(candidates, target)
-	if len(combo) > 0 {
-		ids := make([]uuid.UUID, 0, len(combo))
-		for _, txn := range combo {
-			ids = append(ids, txn.ID)
-		}
-		order.LinkedTransactionIDs = ids
-		order.MatchStatus = LedgerEmailOrderStatusMatched
+	if combo := findTransactionCombination(candidates, target); len(combo) > 0 {
+		link(combo...)
 		return true, []string{"linked split payment"}, nil
 	}
+	converted := s.convertedMatches(ctx, *order, foreign)
+	if len(converted) == 1 {
+		link(converted[0])
+		return true, []string{"linked by converted amount"}, nil
+	}
+	if len(converted) > 1 {
+		return false, []string{"multiple converted transaction matches"}, nil
+	}
 	return false, nil, nil
+}
+
+// convertedMatches returns the transactions whose amount lies within the
+// tolerance around the order total converted into their currency.
+func (s *EmailService) convertedMatches(ctx context.Context, order LedgerEmailOrder, txns []LedgerTransaction) []LedgerTransaction {
+	targets := map[string]int64{} // 0: no rate
+	var matches []LedgerTransaction
+	for _, txn := range txns {
+		currency := normalizeCurrency(txn.Currency)
+		target, known := targets[currency]
+		if !known {
+			if conversion, ok := s.convertOrderTotal(ctx, order, currency); ok {
+				target = conversion.TotalMinor
+			}
+			targets[currency] = target
+		}
+		if withinFXTolerance(-txn.AmountMinor, target) {
+			matches = append(matches, txn)
+		}
+	}
+	return matches
 }
 
 func findTransactionCombination(candidates []LedgerTransaction, target int64) []LedgerTransaction {

@@ -11,6 +11,7 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 	"github.com/reusing-code/kontor/backend/internal/drafts"
 	"github.com/reusing-code/kontor/backend/internal/enablebanking"
+	"github.com/reusing-code/kontor/backend/internal/fx"
 	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/llm"
 	"github.com/reusing-code/kontor/backend/internal/module"
@@ -58,6 +59,9 @@ type Config struct {
 	// Extractor reads order data from emails and suggests categories; nil
 	// behaves like llm.Disabled.
 	Extractor llm.Extractor
+	// Rates converts email order totals for matching against transactions in
+	// another currency; nil behaves like fx.Disabled.
+	Rates fx.Rates
 	// Suggest sizes the LLM category suggestion runs; zero values use the
 	// defaults.
 	Suggest SuggestConfig
@@ -96,7 +100,7 @@ func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Con
 		store:         store,
 		logger:        logger,
 		ledgerImport:  NewImportService(store, logger),
-		ledgerEmail:   NewEmailService(store, extractor, logger),
+		ledgerEmail:   NewEmailService(store, extractor, cfg.Rates, logger),
 		suggester:     NewCategorySuggester(store, extractor, cfg.Suggest, logger),
 		encryptionKey: encryptionKey,
 		enabled:       coreStore,

@@ -103,7 +103,7 @@ func TestBuildEmailInput_FallsBackToHTMLAndCollapsesBlankRuns(t *testing.T) {
 
 func TestExtractOrder_Request(t *testing.T) {
 	fake := llmtest.New(llmtest.JSON(emailOrderExtraction{IsOrder: true, TotalMinor: 100, Currency: "EUR"}))
-	svc := NewEmailService(nil, fake, nil)
+	svc := NewEmailService(nil, fake, nil, nil)
 	parsed := ParsedEmail{From: "shop@example.com", Subject: "Order", TextBody: "body"}
 
 	got, err := svc.extractOrder(t.Context(), parsed)
@@ -121,11 +121,11 @@ func TestExtractOrder_Request(t *testing.T) {
 }
 
 func TestExtractOrder_Errors(t *testing.T) {
-	svc := NewEmailService(nil, &llmtest.Fake{Disabled: true}, nil)
+	svc := NewEmailService(nil, &llmtest.Fake{Disabled: true}, nil, nil)
 	if _, err := svc.extractOrder(t.Context(), ParsedEmail{}); !errors.Is(err, llm.ErrDisabled) {
 		t.Errorf("disabled: err = %v", err)
 	}
-	svc = NewEmailService(nil, llmtest.New(llmtest.Response{Output: []byte(`{"isOrder":`)}), nil)
+	svc = NewEmailService(nil, llmtest.New(llmtest.Response{Output: []byte(`{"isOrder":`)}), nil, nil)
 	if _, err := svc.extractOrder(t.Context(), ParsedEmail{}); !errors.Is(err, llm.ErrInvalidOutput) {
 		t.Errorf("invalid json: err = %v", err)
 	}

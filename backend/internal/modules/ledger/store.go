@@ -1759,13 +1759,11 @@ const ledgerEmailOrderCandidateLimit = 100
 
 // ListLedgerEmailOrderCandidates returns outgoing transactions from all
 // accounts that are not linked to an email order yet and were booked within
-// window around the order date, closest amount first.
-func (s *Store) ListLedgerEmailOrderCandidates(_ context.Context, userID string, order LedgerEmailOrder, window ChargeWindow) (LedgerEmailOrderCandidatesResult, error) {
+// window around the order date, closest amount first. targets holds the
+// absolute order total per transaction currency; transactions in a currency
+// without a target are not comparable by amount and come last.
+func (s *Store) ListLedgerEmailOrderCandidates(_ context.Context, userID string, order LedgerEmailOrder, window ChargeWindow, targets map[string]int64) (LedgerEmailOrderCandidatesResult, error) {
 	result := LedgerEmailOrderCandidatesResult{Items: []LedgerEmailOrderCandidate{}, ChargeWindow: window}
-	target := order.TotalMinor
-	if target < 0 {
-		target = -target
-	}
 	err := s.e.View(func(txn *badger.Txn) error {
 		accounts, err := collectLedgerAccounts(txn, userID)
 		if err != nil {
@@ -1786,7 +1784,8 @@ func (s *Store) ListLedgerEmailOrderCandidates(_ context.Context, userID string,
 			if !window.Contains(candidate.BookingDate, order.OrderDate) {
 				continue
 			}
-			item := LedgerEmailOrderCandidate{Transaction: candidate, AccountName: accountNameByID[candidate.AccountID]}
+			_, comparable := targets[normalizeCurrency(candidate.Currency)]
+			item := LedgerEmailOrderCandidate{Transaction: candidate, AccountName: accountNameByID[candidate.AccountID], AmountComparable: comparable}
 			if delta, ok := ledgerSignedDateDeltaDays(candidate.BookingDate, order.OrderDate); ok {
 				item.DateDeltaDays = &delta
 			}
@@ -1798,11 +1797,7 @@ func (s *Store) ListLedgerEmailOrderCandidates(_ context.Context, userID string,
 		return result, err
 	}
 	amountDelta := func(c LedgerEmailOrderCandidate) int64 {
-		delta := -c.Transaction.AmountMinor - target
-		if delta < 0 {
-			return -delta
-		}
-		return delta
+		return absMinor(-c.Transaction.AmountMinor - targets[normalizeCurrency(c.Transaction.Currency)])
 	}
 	dateDelta := func(c LedgerEmailOrderCandidate) int {
 		if c.DateDeltaDays == nil {
@@ -1815,7 +1810,10 @@ func (s *Store) ListLedgerEmailOrderCandidates(_ context.Context, userID string,
 	}
 	sort.SliceStable(result.Items, func(i, j int) bool {
 		left, right := result.Items[i], result.Items[j]
-		if a, b := amountDelta(left), amountDelta(right); a != b {
+		if left.AmountComparable != right.AmountComparable {
+			return left.AmountComparable
+		}
+		if a, b := amountDelta(left), amountDelta(right); left.AmountComparable && a != b {
 			return a < b
 		}
 		if a, b := dateDelta(left), dateDelta(right); a != b {
