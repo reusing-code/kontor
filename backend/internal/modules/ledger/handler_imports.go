@@ -94,6 +94,7 @@ func (h *Handler) LedgerImportCommit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.suggester.RunInBackground(userID)
 	httputil.WriteJSON(h.logger, w, http.StatusOK, result)
 }
 

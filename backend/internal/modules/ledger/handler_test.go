@@ -34,6 +34,7 @@ func newTestHandlerWithLLM(t *testing.T, extractor llm.Extractor) (*Handler, *te
 		logger:       logger,
 		ledgerImport: NewImportService(s.Store, logger),
 		ledgerEmail:  NewEmailService(s.Store, extractor, logger),
+		suggester:    NewCategorySuggester(s.Store, extractor, SuggestConfig{}, logger),
 	}
 	return h, s
 }
@@ -59,6 +60,10 @@ func newMux(h *Handler) http.Handler {
 	mux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/transfer-link", h.LinkLedgerTransfer)
 	mux.HandleFunc("DELETE /api/v1/ledger/transactions/{transactionId}/transfer-link", h.UnlinkLedgerTransfer)
 	mux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/review", h.ReviewLedgerTransaction)
+	mux.HandleFunc("POST /api/v1/ledger/transactions/review-batch", h.ReviewLedgerTransactionsBatch)
+	mux.HandleFunc("POST /api/v1/ledger/category-suggestions/run", h.RunLedgerCategorySuggestions)
+	mux.HandleFunc("GET /api/v1/ledger/category-suggestions/status", h.GetLedgerCategorySuggestionStatus)
+	mux.HandleFunc("POST /api/v1/ledger/imports/{previewId}/commit", h.LedgerImportCommit)
 	mux.HandleFunc("POST /api/v1/ledger/email-accounts", h.CreateLedgerEmailAccount)
 	mux.HandleFunc("PUT /api/v1/ledger/email-accounts/{emailAccountId}", h.UpdateLedgerEmailAccount)
 	mux.HandleFunc("POST /api/v1/ledger/email-accounts/{emailAccountId}/scan", h.ScanLedgerEmailAccount)

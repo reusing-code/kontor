@@ -74,6 +74,10 @@ func (s *Server) buildApp() (*app, error) {
 		EmailScanInterval:  s.cfg.LedgerEmailScanInterval,
 		EmailEncryptionKey: s.cfg.EmailEncryptionKey,
 		Extractor:          extractor,
+		Suggest: ledger.SuggestConfig{
+			BatchSize: s.cfg.LedgerSuggestBatchSize,
+			MaxPerRun: s.cfg.LedgerSuggestMaxPerRun,
+		},
 	}, s.logger)
 	registry := module.NewRegistry(contractsMod, purchasesMod, autoMod, ledgerMod)
 

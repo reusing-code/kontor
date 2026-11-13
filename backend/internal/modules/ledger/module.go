@@ -24,6 +24,7 @@ type Handler struct {
 	logger             *slog.Logger
 	ledgerImport       *ImportService
 	ledgerEmail        *EmailService
+	suggester          *CategorySuggester
 	emailEncryptionKey []byte
 	// enabled checks the module of a reference target; nil skips the check.
 	enabled module.EnablementSource
@@ -43,8 +44,12 @@ type Module struct {
 type Config struct {
 	EmailScanInterval  time.Duration
 	EmailEncryptionKey string
-	// Extractor reads order data from emails; nil behaves like llm.Disabled.
+	// Extractor reads order data from emails and suggests categories; nil
+	// behaves like llm.Disabled.
 	Extractor llm.Extractor
+	// Suggest sizes the LLM category suggestion runs; zero values use the
+	// defaults.
+	Suggest SuggestConfig
 }
 
 func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Config, logger *slog.Logger) *Module {
@@ -65,6 +70,7 @@ func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Con
 		logger:             logger,
 		ledgerImport:       NewImportService(store, logger),
 		ledgerEmail:        NewEmailService(store, extractor, logger),
+		suggester:          NewCategorySuggester(store, extractor, cfg.Suggest, logger),
 		emailEncryptionKey: encryptionKey,
 		enabled:            coreStore,
 	}
@@ -127,6 +133,9 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("POST /api/v1/ledger/transactions/{transactionId}/transfer-link", h.LinkLedgerTransfer)
 	r.Handle("DELETE /api/v1/ledger/transactions/{transactionId}/transfer-link", h.UnlinkLedgerTransfer)
 	r.Handle("POST /api/v1/ledger/transactions/{transactionId}/review", h.ReviewLedgerTransaction)
+	r.Handle("POST /api/v1/ledger/transactions/review-batch", h.ReviewLedgerTransactionsBatch)
+	r.Handle("POST /api/v1/ledger/category-suggestions/run", h.RunLedgerCategorySuggestions)
+	r.Handle("GET /api/v1/ledger/category-suggestions/status", h.GetLedgerCategorySuggestionStatus)
 }
 
 func (m *Module) Seed(ctx context.Context, userID string) error {
@@ -134,6 +143,7 @@ func (m *Module) Seed(ctx context.Context, userID string) error {
 }
 
 func (m *Module) StartBackground(ctx context.Context) {
+	m.handler.suggester.SetBackgroundContext(ctx)
 	if !m.emailScanEnabled {
 		return
 	}

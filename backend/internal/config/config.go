@@ -34,6 +34,10 @@ type Config struct {
 	// Interval between background IMAP scans of ledger email accounts. 0 disables.
 	LedgerEmailScanInterval time.Duration `env:"LEDGER_EMAIL_SCAN_INTERVAL" envDefault:"6h"`
 
+	// LLM category suggestions: transactions per LLM call and per run.
+	LedgerSuggestBatchSize int `env:"LEDGER_SUGGEST_BATCH_SIZE"  envDefault:"25"`
+	LedgerSuggestMaxPerRun int `env:"LEDGER_SUGGEST_MAX_PER_RUN" envDefault:"100"`
+
 	// Interval between paperless pipeline passes (tagged documents to drafts). 0 disables.
 	PaperlessPipelineInterval time.Duration `env:"PAPERLESS_PIPELINE_INTERVAL" envDefault:"15m"`
 
@@ -73,6 +77,9 @@ func Load() (Config, error) {
 	if err := cfg.validateLLM(); err != nil {
 		return cfg, err
 	}
+	if err := cfg.validateLedgerSuggest(); err != nil {
+		return cfg, err
+	}
 	if cfg.FXRatesEnabled() && !isHTTPURL(cfg.FXRatesURL) {
 		return cfg, errors.New(`FX_RATES_URL must be an absolute http(s) URL or "off"`)
 	}
@@ -108,6 +115,16 @@ func (c Config) validateLLM() error {
 	}
 	if c.LLMEnabled() && !isHTTPURL(c.LLMBaseURL) {
 		return errors.New("LLM_BASE_URL must be an absolute http(s) URL")
+	}
+	return nil
+}
+
+func (c Config) validateLedgerSuggest() error {
+	switch {
+	case c.LedgerSuggestBatchSize < 1 || c.LedgerSuggestBatchSize > 100:
+		return errors.New("LEDGER_SUGGEST_BATCH_SIZE must be between 1 and 100")
+	case c.LedgerSuggestMaxPerRun < c.LedgerSuggestBatchSize:
+		return errors.New("LEDGER_SUGGEST_MAX_PER_RUN must be at least LEDGER_SUGGEST_BATCH_SIZE")
 	}
 	return nil
 }

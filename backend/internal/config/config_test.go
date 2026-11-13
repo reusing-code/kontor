@@ -147,3 +147,42 @@ func TestLoadPublicURL(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadLedgerSuggest(t *testing.T) {
+	tests := []struct {
+		name               string
+		batch, max         string
+		wantBatch, wantMax int
+		wantErr            bool
+	}{
+		{name: "defaults", wantBatch: 25, wantMax: 100},
+		{name: "custom", batch: "10", max: "10", wantBatch: 10, wantMax: 10},
+		{name: "batch zero", batch: "0", wantErr: true},
+		{name: "batch too large", batch: "101", max: "500", wantErr: true},
+		{name: "max below batch", batch: "20", max: "10", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("JWT_SECRET", "test")
+			for key, value := range map[string]string{"LEDGER_SUGGEST_BATCH_SIZE": tt.batch, "LEDGER_SUGGEST_MAX_PER_RUN": tt.max} {
+				t.Setenv(key, value)
+				if value == "" {
+					os.Unsetenv(key)
+				}
+			}
+			cfg, err := Load()
+			if tt.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "LEDGER_SUGGEST_") {
+					t.Fatalf("Load() error = %v, want LEDGER_SUGGEST_ error", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load(): %v", err)
+			}
+			if cfg.LedgerSuggestBatchSize != tt.wantBatch || cfg.LedgerSuggestMaxPerRun != tt.wantMax {
+				t.Errorf("batch, max = %d, %d, want %d, %d", cfg.LedgerSuggestBatchSize, cfg.LedgerSuggestMaxPerRun, tt.wantBatch, tt.wantMax)
+			}
+		})
+	}
+}

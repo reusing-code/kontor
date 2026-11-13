@@ -1403,6 +1403,9 @@ func (s *Store) ReviewLedgerTransaction(_ context.Context, userID string, id uui
 		if err := storeLedgerTransaction(txn, userID, ledgerTxn); err != nil {
 			return err
 		}
+		if err := txn.Delete(ledSugKey(userID, ledgerTxn.ID)); err != nil {
+			return err
+		}
 
 		result.Transaction = ledgerTxn
 		if selectedCategory != nil {

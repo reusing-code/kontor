@@ -140,7 +140,12 @@ func (h *Handler) ListLedgerTransactionsReviewQueue(w http.ResponseWriter, r *ht
 		h.storeError(w, err)
 		return
 	}
-	httputil.WriteJSON(h.logger, w, http.StatusOK, ledgerTransactionPageResponse(page))
+	resp, err := h.reviewQueueResponse(r.Context(), middleware.GetUserID(r.Context()), page)
+	if err != nil {
+		h.storeError(w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, resp)
 }
 
 func (h *Handler) GetLedgerTransaction(w http.ResponseWriter, r *http.Request) {
