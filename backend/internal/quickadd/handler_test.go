@@ -42,7 +42,7 @@ func newTestEnv() *testEnv {
 		},
 	}
 	logger := slog.New(slog.NewTextHandler(env.logs, nil))
-	env.handler = NewHandler(extraction.New(env.llm, deps, fx.Disabled{}, logger), logger)
+	env.handler = NewHandler(extraction.New(env.llm, deps, fx.Disabled{}, logger), true, logger)
 	env.handler.now = func() time.Time { return time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC) }
 	return env
 }

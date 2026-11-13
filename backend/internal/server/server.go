@@ -164,7 +164,7 @@ func (s *Server) buildApp() (*app, error) {
 	// draft inbox it feeds and free-text quick add
 	registerPaperlessRoutes(apiMux, paperlessHandler, pipeline)
 	registerDraftRoutes(apiMux, draftHandler)
-	apiMux.HandleFunc("POST /api/v1/quick-add", quickadd.NewHandler(classifier, s.logger).Classify)
+	apiMux.HandleFunc("POST /api/v1/quick-add", quickadd.NewHandler(classifier, s.cfg.LLMVisionEnabled(), s.logger).Classify)
 
 	mcpHandler := s.newMCPHandler(mcpDeps{
 		registry: registry, coreStore: coreStore, drafts: draftStore, paperless: paperlessService,

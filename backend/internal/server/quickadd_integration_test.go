@@ -1,9 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/reusing-code/kontor/backend/internal/categories"
@@ -65,4 +69,40 @@ func TestIntegration_QuickAddNeedsLLM(t *testing.T) {
 	resp := doJSON(t, "POST", srv.URL+"/api/v1/quick-add", quickadd.Request{Text: "x"})
 	expectStatus(t, resp, 409)
 	resp.Body.Close()
+}
+
+// TestIntegration_QuickAddUpload sends a PDF as multipart/form-data through
+// the real mux and gets a proposal from its text layer.
+func TestIntegration_QuickAddUpload(t *testing.T) {
+	fakeLLM := llmtest.New()
+	srv, _ := setupServerWithExtractor(t, fakeLLM)
+	defer srv.Close()
+
+	pdf, err := os.ReadFile("../quickadd/testdata/invoice.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	part, _ := mw.CreateFormFile("file", "invoice.pdf")
+	part.Write(pdf)
+	mw.WriteField("targetType", "purchase")
+	mw.Close()
+
+	fakeLLM.Push(llmtest.JSON(extraction.Classification{Kind: "purchase", Confident: true, Purchase: &extraction.PurchaseExtract{
+		ItemName: "Winter tires", Dealer: "Reifen Müller", Price: new(640.0), Currency: "EUR", PurchaseDate: "2026-11-02",
+	}}))
+	resp, err := http.Post(srv.URL+"/api/v1/quick-add", mw.FormDataContentType(), &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectStatus(t, resp, 200)
+	proposal := decode[quickadd.Response](t, resp)
+	if proposal.TargetType != "purchase" {
+		t.Fatalf("proposal = %+v", proposal)
+	}
+	requests := fakeLLM.Requests()
+	if len(requests) != 1 || !strings.Contains(requests[0].Input, "Gesamtbetrag inkl. 19 % MwSt.: 640,00 €") {
+		t.Errorf("the PDF text did not reach the classifier: %d requests", len(requests))
+	}
 }
