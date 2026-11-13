@@ -8,8 +8,8 @@ import { useModules } from "@/hooks/use-modules"
 import { useContracts, useCreateContractByCategory } from "@/modules/contracts/hooks/use-contracts"
 import { useLedgerCategories, useLedgerEmailOrders, useUpdateLedgerTransactionDetails } from "@/modules/ledger/hooks/use-ledger"
 import { useCreatePurchaseByCategory, usePurchases } from "@/modules/purchases/hooks/use-purchases"
-import { useCreateVehicle, useVehicles } from "@/modules/auto/hooks/use-vehicles"
-import { moduleReferenceToPath, referenceModuleId } from "@/modules/ledger/lib/module-links"
+import { useCostEntry, useCreateVehicle, useVehicles } from "@/modules/auto/hooks/use-vehicles"
+import { moduleReferenceToPath, referenceModuleId, vehiclePath } from "@/modules/ledger/lib/module-links"
 import { emailOrderTitle, formatAmountMinor, formatLedgerDate, formatLedgerReviewStatus, formatLedgerSpecialCategory } from "@/modules/ledger/lib/ledger-utils"
 import type { ContractFormData } from "@/modules/contracts/types"
 import type { LedgerTransaction, LedgerTransactionReference } from "@/modules/ledger/types"
@@ -36,6 +36,7 @@ const REFERENCE_NAV_KEY: Record<ReferenceType, string> = {
   purchase: "nav.purchases",
   contract: "nav.contracts",
   vehicle: "nav.auto",
+  cost: "ledger.referenceTypes.cost",
 }
 
 type TargetOption = { id: string; label: string }
@@ -185,27 +186,27 @@ function VehicleCreateAndLink({ onLinked }: { onLinked: (targetId: string) => vo
   )
 }
 
-function ReferenceRowShell({ reference, label, description, hint, onRemove }: {
+function ReferenceRowShell({ reference, label, description, hint, path = moduleReferenceToPath(reference), onRemove }: {
   reference: LedgerTransactionReference
   label: string
   description?: string
   hint?: string
+  path?: string | null
   onRemove: () => void
 }) {
   const { t } = useTranslation()
-  const linked = hint === undefined
 
   return (
     <div className="flex items-center gap-2 rounded-md border p-3 text-sm">
       <Link2 className="h-4 w-4 text-muted-foreground" />
       <div className="min-w-0 flex-1">
-        {linked ? (
-          <Link to={moduleReferenceToPath(reference)} className="block truncate text-primary hover:underline">
+        {hint === undefined && path !== null ? (
+          <Link to={path} className="block truncate text-primary hover:underline">
             {label}
           </Link>
         ) : (
           <div className="block truncate">
-            {label} <span className="text-muted-foreground">{hint}</span>
+            {label} {hint ? <span className="text-muted-foreground">{hint}</span> : null}
           </div>
         )}
         {description ? <div className="truncate text-xs text-muted-foreground">{description}</div> : null}
@@ -244,6 +245,30 @@ function VehicleReferenceRow({ reference, onRemove }: { reference: LedgerTransac
   return <ReferenceRowShell reference={reference} label={label} description={description} onRemove={onRemove} />
 }
 
+function CostReferenceRow({ reference, onRemove }: { reference: LedgerTransactionReference; onRemove: () => void }) {
+  const { t, i18n } = useTranslation()
+  const { data: cost } = useCostEntry(reference.targetId)
+  const { data: vehicles = [] } = useVehicles()
+  const vehicle = cost ? vehicles.find((item) => item.id === cost.vehicleId) : undefined
+  const label = cost ? cost.description || t(`costTypes.${cost.type}`) : `${t("ledger.referenceTypes.cost")} ${reference.targetId}`
+  const description = cost
+    ? [
+        vehicle?.name,
+        formatLedgerDate(cost.date),
+        cost.amount != null ? formatAmountMinor(Math.round(cost.amount * 100), "EUR", i18n.language) : undefined,
+      ].filter(Boolean).join(" • ")
+    : undefined
+  return (
+    <ReferenceRowShell
+      reference={reference}
+      label={label}
+      description={description}
+      path={cost ? vehiclePath(cost.vehicleId) : null}
+      onRemove={onRemove}
+    />
+  )
+}
+
 function ReferenceRow({ reference, enabled, onRemove }: {
   reference: LedgerTransactionReference
   enabled: boolean
@@ -263,6 +288,8 @@ function ReferenceRow({ reference, enabled, onRemove }: {
       return <ContractReferenceRow reference={reference} onRemove={onRemove} />
     case "vehicle":
       return <VehicleReferenceRow reference={reference} onRemove={onRemove} />
+    case "cost":
+      return <CostReferenceRow reference={reference} onRemove={onRemove} />
   }
 }
 

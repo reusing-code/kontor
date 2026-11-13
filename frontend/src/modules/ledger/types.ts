@@ -132,7 +132,7 @@ export const ledgerTransactionSchema = z.object({
   note: z.string().optional(),
   links: z.array(z.string().url()).optional(),
   references: z.array(z.object({
-    type: z.enum(["purchase", "contract", "vehicle"]),
+    type: z.enum(["purchase", "contract", "vehicle", "cost"]),
     targetId: z.string().uuid(),
   })).optional(),
   emailOrderIds: z.array(z.string().uuid()).optional(),
@@ -190,7 +190,7 @@ export const ledgerTransferLinkResultSchema = z.object({
 export type LedgerTransferLinkResult = z.infer<typeof ledgerTransferLinkResultSchema>
 
 export const ledgerTransactionReferenceSchema = z.object({
-  type: z.enum(["purchase", "contract", "vehicle"]),
+  type: z.enum(["purchase", "contract", "vehicle", "cost"]),
   targetId: z.string().uuid(),
 })
 

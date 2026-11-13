@@ -104,8 +104,8 @@ type createAccountDraftIn struct {
 
 type linkTransactionIn struct {
 	TransactionID string `json:"transactionId" jsonschema:"UUID of the ledger transaction"`
-	TargetType    string `json:"targetType" jsonschema:"contract, purchase or vehicle"`
-	TargetID      string `json:"targetId" jsonschema:"UUID of the contract, purchase or vehicle"`
+	TargetType    string `json:"targetType" jsonschema:"contract, purchase, vehicle or cost (a vehicle cost entry)"`
+	TargetID      string `json:"targetId" jsonschema:"UUID of the contract, purchase, vehicle or cost entry"`
 }
 
 type linkTransactionOut struct {
@@ -225,7 +225,7 @@ func (m *Module) RegisterTools(r *mcptool.Registrar) {
 		})
 
 	linkSpec := spec("link_transaction",
-		"Add a cross reference from a ledger transaction to an existing contract, purchase or vehicle. It only adds (idempotent) and never changes "+
+		"Add a cross reference from a ledger transaction to an existing contract, purchase, vehicle or vehicle cost entry. It only adds (idempotent) and never changes "+
 			"categories, notes or transfers. The target's module must be enabled.",
 		mcptool.ScopeLinks, false)
 	linkSpec.Idempotent = true

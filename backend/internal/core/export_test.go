@@ -206,11 +206,14 @@ func seedAllModules(t *testing.T, h *exportHarness) seededData {
 	if _, err := h.ledger.Store().CommitLedgerImport(ctx, exportTestUser, d.batch, []ledger.LedgerTransaction{d.transaction}); err != nil {
 		t.Fatalf("committing ledger import: %v", err)
 	}
-	// Cross-module reference: transaction -> purchase (also links back).
+	// Cross-module references: transaction -> purchase and cost entry (both link back).
 	if _, err := h.ledger.Store().UpdateLedgerTransactionDetails(ctx, exportTestUser, d.transaction.ID, ledger.LedgerTransactionDetailsInput{
-		References: []ledger.LedgerTransactionReference{{Type: ledger.LedgerReferencePurchase, TargetID: d.purchase.ID}},
+		References: []ledger.LedgerTransactionReference{
+			{Type: ledger.LedgerReferencePurchase, TargetID: d.purchase.ID},
+			{Type: ledger.LedgerReferenceCost, TargetID: d.costEntry.ID},
+		},
 	}); err != nil {
-		t.Fatalf("linking transaction to purchase: %v", err)
+		t.Fatalf("linking transaction to purchase and cost: %v", err)
 	}
 
 	d.emailAccount = ledger.LedgerEmailAccount{
@@ -347,6 +350,9 @@ func TestExportImport_FullRoundTrip(t *testing.T) {
 	if len(costs) != 1 || costs[0].ID != data.costEntry.ID {
 		t.Errorf("restored cost entries = %+v", costs)
 	}
+	if len(costs) == 1 && (len(costs[0].LinkedTransactionIDs) != 1 || costs[0].LinkedTransactionIDs[0] != data.transaction.ID) {
+		t.Errorf("cost entry linkedTransactionIds = %+v", costs[0].LinkedTransactionIDs)
+	}
 
 	// Ledger: categories with parent link, account, transaction, references.
 	ledCats, err := dst.ledger.Store().ListLedgerCategories(ctx, exportTestUser)
@@ -373,7 +379,7 @@ func TestExportImport_FullRoundTrip(t *testing.T) {
 	if txn.AmountMinor != -4200 {
 		t.Errorf("transaction amount = %d, want -4200", txn.AmountMinor)
 	}
-	if len(txn.References) != 1 || txn.References[0].TargetID != data.purchase.ID {
+	if len(txn.References) != 2 || txn.References[0].TargetID != data.purchase.ID || txn.References[1].TargetID != data.costEntry.ID {
 		t.Errorf("transaction references = %+v", txn.References)
 	}
 
@@ -612,6 +618,67 @@ func TestImport_ContractsOnly_PrunesDeadTransactionLinks(t *testing.T) {
 	}
 	if len(restored.LinkedTransactionIDs) != 0 {
 		t.Errorf("linkedTransactionIds = %+v, want pruned", restored.LinkedTransactionIDs)
+	}
+}
+
+func TestImport_AutoOnly_PrunesDeadCostLinks(t *testing.T) {
+	h := newExportHarness(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	vehicle := auto.Vehicle{ID: uuid.New(), Name: "Car", CreatedAt: now, UpdatedAt: now}
+	cost := auto.CostEntry{
+		ID: uuid.New(), VehicleID: vehicle.ID, Type: "fuel", Date: "2026-06-01",
+		LinkedTransactionIDs: []uuid.UUID{uuid.New()}, // ledger data not part of the file
+		CreatedAt:            now, UpdatedAt: now,
+	}
+	body, err := json.Marshal(map[string]any{
+		"format":        "kontor-export",
+		"formatVersion": 2,
+		"modules": map[string]any{
+			"auto": map[string]any{"schemaVersion": 0, "vehicles": []auto.Vehicle{vehicle}, "costEntries": []auto.CostEntry{cost}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal envelope: %v", err)
+	}
+
+	rec := h.do(t, "POST", "/api/v1/import", body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body: %s", rec.Code, rec.Body.String())
+	}
+	if result := decodeBody[importResultBody](t, rec); !hasWarningContaining(result.Warnings, "missing ledger transactions") {
+		t.Errorf("expected dead-link warning, got %v", result.Warnings)
+	}
+	restored, err := h.auto.Store().GetCostEntry(ctx, exportTestUser, cost.ID)
+	if err != nil {
+		t.Fatalf("restored cost entry missing: %v", err)
+	}
+	if len(restored.LinkedTransactionIDs) != 0 {
+		t.Errorf("linkedTransactionIds = %+v, want pruned", restored.LinkedTransactionIDs)
+	}
+}
+
+func TestImport_LedgerOnly_StripsCostReferences(t *testing.T) {
+	ctx := context.Background()
+	src := newExportHarness(t)
+	data := seedAllModules(t, src)
+	exported := exportFull(t, src)
+
+	dst := newExportHarness(t)
+	rec := dst.do(t, "POST", "/api/v1/modules/ledger/import", exported)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body: %s", rec.Code, rec.Body.String())
+	}
+	if result := decodeBody[importResultBody](t, rec); !hasWarningContaining(result.Warnings, "not imported") {
+		t.Errorf("expected stripped-reference warning, got %v", result.Warnings)
+	}
+	txn, err := dst.ledger.Store().GetLedgerTransaction(ctx, exportTestUser, data.transaction.ID)
+	if err != nil {
+		t.Fatalf("restored transaction missing: %v", err)
+	}
+	if len(txn.References) != 0 {
+		t.Errorf("references = %+v, want stripped", txn.References)
 	}
 }
 

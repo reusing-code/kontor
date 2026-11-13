@@ -193,6 +193,7 @@ var referenceModules = map[string]string{
 	LedgerReferenceContract: "contracts",
 	LedgerReferencePurchase: "purchases",
 	LedgerReferenceVehicle:  "auto",
+	LedgerReferenceCost:     "auto",
 }
 
 func writeModuleDisabled(w http.ResponseWriter, err error) {

@@ -58,6 +58,7 @@ export type VehicleFormData = z.infer<typeof vehicleFormSchema>
 export const costEntrySchema = z.object({
   id: z.string().uuid(),
   vehicleId: z.string().uuid(),
+  linkedTransactionIds: z.array(z.string().uuid()).optional(),
   type: costTypeSchema,
   description: z.string().optional(),
   vendor: z.string().optional(),

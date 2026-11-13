@@ -80,17 +80,18 @@ var validCostTypes = map[string]bool{
 }
 
 type CostEntry struct {
-	ID          uuid.UUID `json:"id"`
-	VehicleID   uuid.UUID `json:"vehicleId"`
-	Type        string    `json:"type"`
-	Description string    `json:"description,omitempty"`
-	Vendor      string    `json:"vendor,omitempty"`
-	Amount      *float64  `json:"amount,omitempty"`
-	Date        string    `json:"date"`
-	Mileage     *float64  `json:"mileage,omitempty"`
-	Comments    string    `json:"comments,omitempty"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID                   uuid.UUID   `json:"id"`
+	VehicleID            uuid.UUID   `json:"vehicleId"`
+	LinkedTransactionIDs []uuid.UUID `json:"linkedTransactionIds,omitempty"`
+	Type                 string      `json:"type"`
+	Description          string      `json:"description,omitempty"`
+	Vendor               string      `json:"vendor,omitempty"`
+	Amount               *float64    `json:"amount,omitempty"`
+	Date                 string      `json:"date"`
+	Mileage              *float64    `json:"mileage,omitempty"`
+	Comments             string      `json:"comments,omitempty"`
+	CreatedAt            time.Time   `json:"createdAt"`
+	UpdatedAt            time.Time   `json:"updatedAt"`
 }
 
 type CostEntryInput struct {

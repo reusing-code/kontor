@@ -363,7 +363,7 @@ func TestLinkTransaction_Errors(t *testing.T) {
 		"foreign transaction": {linkArgs(foreignTxn, "purchase", purchaseID), mcptool.CodeNotFound},
 		"unknown target":      {linkArgs(txnID, "purchase", uuid.New()), mcptool.CodeNotFound},
 		"wrong target type":   {linkArgs(txnID, "contract", purchaseID), mcptool.CodeNotFound},
-		"invalid type":        {linkArgs(txnID, "cost", purchaseID), mcptool.CodeInvalidInput},
+		"invalid type":        {linkArgs(txnID, "account", purchaseID), mcptool.CodeInvalidInput},
 		"bad transaction id":  {map[string]any{"transactionId": "x", "targetType": "purchase", "targetId": purchaseID.String()}, mcptool.CodeInvalidInput},
 		"bad target id":       {map[string]any{"transactionId": txnID.String(), "targetType": "purchase", "targetId": "x"}, mcptool.CodeInvalidInput},
 	}

@@ -10,18 +10,20 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/modules/auto"
 	"github.com/reusing-code/kontor/backend/internal/modules/contracts"
 	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 	"github.com/reusing-code/kontor/backend/internal/storage/link"
 )
 
-// testStores bundles the ledger store with the contracts and purchases stores
-// that serve as link targets, all over one temp engine.
+// testStores bundles the ledger store with the contracts, purchases and auto
+// stores that serve as link targets, all over one temp engine.
 type testStores struct {
 	*Store
 	purchases *purchases.Store
 	contracts *contracts.Store
+	auto      *auto.Store
 }
 
 func newTestStore(t *testing.T) *testStores {
@@ -36,6 +38,7 @@ func newTestStore(t *testing.T) *testStores {
 		Store:     NewStore(engine, links),
 		purchases: purchases.NewStore(engine, links),
 		contracts: contracts.NewStore(engine, links),
+		auto:      auto.NewStore(engine, links),
 	}
 }
 

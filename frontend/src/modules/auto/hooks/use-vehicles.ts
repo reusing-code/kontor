@@ -7,6 +7,7 @@ import {
   deleteVehicle,
   getVehicleSummary,
   getCostEntries,
+  getCostEntryById,
   createCostEntry,
   updateCostEntry,
   deleteCostEntry,
@@ -71,6 +72,15 @@ export function useCostEntries(vehicleId: string) {
   })
 }
 
+export const costEntryKey = (id: string) => ["vehicles", "costs", id] as const
+
+export function useCostEntry(id: string) {
+  return useQuery({
+    queryKey: costEntryKey(id),
+    queryFn: () => getCostEntryById(id),
+  })
+}
+
 export function useCreateCostEntry(vehicleId: string) {
   const qc = useQueryClient()
   return useMutation({
@@ -101,10 +111,11 @@ export function useUpdateCostEntry(vehicleId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: CostEntryFormData }) => updateCostEntry(id, data),
-    onSuccess: async () => {
+    onSuccess: async (entry) => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["vehicles", vehicleId, "costs"] }),
         qc.invalidateQueries({ queryKey: ["vehicles", vehicleId, "summary"] }),
+        qc.invalidateQueries({ queryKey: costEntryKey(entry.id) }),
       ])
     },
   })
@@ -114,10 +125,11 @@ export function useDeleteCostEntry(vehicleId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteCostEntry(id),
-    onSuccess: async () => {
+    onSuccess: async (_, id) => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["vehicles", vehicleId, "costs"] }),
         qc.invalidateQueries({ queryKey: ["vehicles", vehicleId, "summary"] }),
+        qc.invalidateQueries({ queryKey: costEntryKey(id) }),
       ])
     },
   })

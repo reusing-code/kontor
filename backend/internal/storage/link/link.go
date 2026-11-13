@@ -1,5 +1,5 @@
 // Package link connects ledger transactions with items in other modules
-// (contracts, purchases, vehicles) without the modules importing each other.
+// (contracts, purchases, vehicles, vehicle cost entries) without the modules importing each other.
 // All operations run inside the caller's badger transaction so cross-module
 // link maintenance stays atomic.
 package link
@@ -17,6 +17,7 @@ const (
 	RefContract = "contract"
 	RefPurchase = "purchase"
 	RefVehicle  = "vehicle"
+	RefCost     = "cost"
 )
 
 // Target is implemented by module stores whose items can be referenced by

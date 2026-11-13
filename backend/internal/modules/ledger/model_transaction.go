@@ -13,6 +13,7 @@ const (
 	LedgerReferencePurchase               = "purchase"
 	LedgerReferenceContract               = "contract"
 	LedgerReferenceVehicle                = "vehicle"
+	LedgerReferenceCost                   = "cost"
 	LedgerSpecialCategoryInternalTransfer = "internalTransfer"
 )
 
@@ -30,9 +31,9 @@ type LedgerTransactionReferenceInput struct {
 func (i *LedgerTransactionReferenceInput) Validate() error {
 	i.Type = strings.TrimSpace(i.Type)
 	switch i.Type {
-	case LedgerReferencePurchase, LedgerReferenceContract, LedgerReferenceVehicle:
+	case LedgerReferencePurchase, LedgerReferenceContract, LedgerReferenceVehicle, LedgerReferenceCost:
 	default:
-		return errors.New("type must be purchase, contract or vehicle")
+		return errors.New("type must be purchase, contract, vehicle or cost")
 	}
 	if i.TargetID == uuid.Nil {
 		return errors.New("targetId is required")
@@ -178,7 +179,7 @@ func (i *LedgerTransactionDetailsInput) Validate() error {
 	}
 	for _, reference := range i.References {
 		switch reference.Type {
-		case LedgerReferencePurchase, LedgerReferenceContract, LedgerReferenceVehicle:
+		case LedgerReferencePurchase, LedgerReferenceContract, LedgerReferenceVehicle, LedgerReferenceCost:
 		default:
 			return errors.New("references contain an invalid type")
 		}

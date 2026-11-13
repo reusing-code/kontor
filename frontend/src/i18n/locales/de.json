@@ -383,6 +383,9 @@
     "createVehicleAndLink": "Fahrzeug erstellen",
     "selectCategoryFirst": "Wähle zuerst eine Kategorie aus.",
     "referenceCreatedAndLinked": "{{type}} erstellt und verknüpft.",
+    "referenceTypes": {
+      "cost": "Fahrzeugkosten"
+    },
     "internalTransfer": "Interne Umbuchung",
     "specialCategory": "Sonderkategorie",
     "transferLinked": "Umbuchung verknüpft",

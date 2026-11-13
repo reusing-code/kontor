@@ -383,6 +383,9 @@
     "createVehicleAndLink": "Create vehicle",
     "selectCategoryFirst": "Select a category first.",
     "referenceCreatedAndLinked": "Created and linked {{type}}.",
+    "referenceTypes": {
+      "cost": "Vehicle cost"
+    },
     "internalTransfer": "Internal transfer",
     "specialCategory": "Special category",
     "transferLinked": "Transfer linked",

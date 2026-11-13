@@ -19,6 +19,7 @@ type Store struct {
 func NewStore(e *storage.Engine, links *link.Registry) *Store {
 	s := &Store{e: e, links: links}
 	links.RegisterTarget(link.RefVehicle, s)
+	links.RegisterTarget(link.RefCost, costLinks{s})
 	return s
 }
 
@@ -32,6 +33,10 @@ func vehPrefix(userID string) []byte {
 
 func costKey(userID string, id uuid.UUID) []byte {
 	return []byte(fmt.Sprintf("u/%s/mod/auto/cost/%s", userID, id))
+}
+
+func costPrefix(userID string) []byte {
+	return []byte(fmt.Sprintf("u/%s/mod/auto/cost/", userID))
 }
 
 func idxVehCostKey(userID string, vehicleID, costID uuid.UUID) []byte {
@@ -49,6 +54,15 @@ func normalizeVehicle(v Vehicle) Vehicle {
 
 func storeVehicle(txn *badger.Txn, userID string, v Vehicle) error {
 	return storage.SetJSON(txn, vehKey(userID, v.ID), normalizeVehicle(v))
+}
+
+func normalizeCost(c CostEntry) CostEntry {
+	c.LinkedTransactionIDs = link.NormalizeIDs(c.LinkedTransactionIDs)
+	return c
+}
+
+func storeCost(txn *badger.Txn, userID string, c CostEntry) error {
+	return storage.SetJSON(txn, costKey(userID, c.ID), normalizeCost(c))
 }
 
 func (s *Store) ListVehicles(_ context.Context, userID string) ([]Vehicle, error) {
@@ -129,6 +143,16 @@ func (s *Store) DeleteVehicle(_ context.Context, userID string, id uuid.UUID) er
 		it.Close()
 
 		for _, cID := range costIDs {
+			var c CostEntry
+			err := storage.GetJSON(txn, costKey(userID, cID), &c)
+			if err != nil && err != storage.ErrNotFound {
+				return err
+			}
+			if err == nil {
+				if err := s.links.RemoveReferencesTo(txn, userID, normalizeCost(c).LinkedTransactionIDs, link.RefCost, cID); err != nil {
+					return err
+				}
+			}
 			if err := txn.Delete(costKey(userID, cID)); err != nil {
 				return err
 			}
@@ -192,7 +216,7 @@ func (s *Store) ListCostEntries(_ context.Context, userID string, vehicleID uuid
 				}
 				return err
 			}
-			entries = append(entries, c)
+			entries = append(entries, normalizeCost(c))
 		}
 		return nil
 	})
@@ -207,18 +231,20 @@ func (s *Store) GetCostEntry(_ context.Context, userID string, id uuid.UUID) (Co
 	err := s.e.View(func(txn *badger.Txn) error {
 		return storage.GetJSON(txn, costKey(userID, id), &c)
 	})
-	return c, err
+	return normalizeCost(c), err
 }
 
 func (s *Store) CreateCostEntry(_ context.Context, userID string, c CostEntry) error {
 	return s.e.Update(func(txn *badger.Txn) error {
-		if err := storage.SetJSON(txn, costKey(userID, c.ID), c); err != nil {
+		if err := storeCost(txn, userID, c); err != nil {
 			return err
 		}
 		return txn.Set(idxVehCostKey(userID, c.VehicleID, c.ID), []byte{})
 	})
 }
 
+// UpdateCostEntry keeps the stored linked transaction IDs; they are only
+// changed through the link registry.
 func (s *Store) UpdateCostEntry(_ context.Context, userID string, c CostEntry) error {
 	return s.e.Update(func(txn *badger.Txn) error {
 		var old CostEntry
@@ -226,7 +252,8 @@ func (s *Store) UpdateCostEntry(_ context.Context, userID string, c CostEntry) e
 			return err
 		}
 
-		if err := storage.SetJSON(txn, costKey(userID, c.ID), c); err != nil {
+		c.LinkedTransactionIDs = old.LinkedTransactionIDs
+		if err := storeCost(txn, userID, c); err != nil {
 			return err
 		}
 
@@ -248,6 +275,10 @@ func (s *Store) DeleteCostEntry(_ context.Context, userID string, id uuid.UUID) 
 		if err := storage.GetJSON(txn, costKey(userID, id), &c); err != nil {
 			return err
 		}
+		c = normalizeCost(c)
+		if err := s.links.RemoveReferencesTo(txn, userID, c.LinkedTransactionIDs, link.RefCost, id); err != nil {
+			return err
+		}
 
 		if err := txn.Delete(costKey(userID, id)); err != nil {
 			return err
@@ -262,35 +293,97 @@ func (s *Store) Exists(txn *badger.Txn, userID string, targetID uuid.UUID) bool 
 	return err == nil
 }
 
-// PruneDeadTransactionLinks drops linked-transaction IDs that do not resolve
-// to an existing ledger transaction, returning how many were removed.
+// costLinks implements link.Target for cost entries; the Store itself is the
+// vehicle target.
+type costLinks struct{ s *Store }
+
+func (costLinks) AddLink(txn *badger.Txn, userID string, targetID, transactionID uuid.UUID) error {
+	var c CostEntry
+	if err := storage.GetJSON(txn, costKey(userID, targetID), &c); err != nil {
+		return err
+	}
+	c = normalizeCost(c)
+	if !link.Contains(c.LinkedTransactionIDs, transactionID) {
+		c.LinkedTransactionIDs = append(c.LinkedTransactionIDs, transactionID)
+	}
+	return storeCost(txn, userID, c)
+}
+
+func (costLinks) RemoveLink(txn *badger.Txn, userID string, targetID, transactionID uuid.UUID) error {
+	var c CostEntry
+	if err := storage.GetJSON(txn, costKey(userID, targetID), &c); err != nil {
+		if err == storage.ErrNotFound {
+			return nil
+		}
+		return err
+	}
+	c = normalizeCost(c)
+	c.LinkedTransactionIDs = link.Without(c.LinkedTransactionIDs, transactionID)
+	return storeCost(txn, userID, c)
+}
+
+func (costLinks) Exists(txn *badger.Txn, userID string, targetID uuid.UUID) bool {
+	_, err := txn.Get(costKey(userID, targetID))
+	return err == nil
+}
+
+// PruneDeadTransactionLinks drops linked-transaction IDs of vehicles and cost
+// entries that do not resolve to an existing ledger transaction, returning
+// how many were removed.
 func (s *Store) PruneDeadTransactionLinks(_ context.Context, userID string) (int, error) {
 	pruned := 0
 	err := s.e.Update(func(txn *badger.Txn) error {
-		var items []Vehicle
+		alive := func(ids []uuid.UUID) []uuid.UUID {
+			kept := ids[:0:0]
+			for _, id := range ids {
+				if s.links.TransactionExists(txn, userID, id) {
+					kept = append(kept, id)
+				}
+			}
+			pruned += len(ids) - len(kept)
+			return kept
+		}
+
+		var vehicles []Vehicle
 		if err := storage.IteratePrefix(txn, vehPrefix(userID), func(_, val []byte) error {
 			var v Vehicle
 			if err := json.Unmarshal(val, &v); err != nil {
 				return err
 			}
-			items = append(items, normalizeVehicle(v))
+			vehicles = append(vehicles, normalizeVehicle(v))
 			return nil
 		}); err != nil {
 			return err
 		}
-		for _, v := range items {
-			kept := v.LinkedTransactionIDs[:0:0]
-			for _, id := range v.LinkedTransactionIDs {
-				if s.links.TransactionExists(txn, userID, id) {
-					kept = append(kept, id)
-				}
-			}
+		for _, v := range vehicles {
+			kept := alive(v.LinkedTransactionIDs)
 			if len(kept) == len(v.LinkedTransactionIDs) {
 				continue
 			}
-			pruned += len(v.LinkedTransactionIDs) - len(kept)
 			v.LinkedTransactionIDs = kept
 			if err := storeVehicle(txn, userID, v); err != nil {
+				return err
+			}
+		}
+
+		var costs []CostEntry
+		if err := storage.IteratePrefix(txn, costPrefix(userID), func(_, val []byte) error {
+			var c CostEntry
+			if err := json.Unmarshal(val, &c); err != nil {
+				return err
+			}
+			costs = append(costs, normalizeCost(c))
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, c := range costs {
+			kept := alive(c.LinkedTransactionIDs)
+			if len(kept) == len(c.LinkedTransactionIDs) {
+				continue
+			}
+			c.LinkedTransactionIDs = kept
+			if err := storeCost(txn, userID, c); err != nil {
 				return err
 			}
 		}

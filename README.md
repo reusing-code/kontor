@@ -90,7 +90,7 @@ claude mcp add --transport http kontor https://kontor.example.com/mcp --header "
 |-------|--------|
 | `read` | Every read: list and search tools in MCP, and every `GET` of the REST API including the full data export |
 | `drafts` | Create drafts through MCP (contracts, purchases, vehicle costs, vehicles, categories, ledger accounts) and edit/accept/reject drafts through the REST API. Over REST a `drafts` token can accept drafts itself, even with an entity ID that was never created, so it can clear its own drafts from the inbox without your review; for drafts that came from paperless, accepting also stores a link for that unchecked item, writes the URL from the request as back-link and swaps the inbox tag for the done tag in paperless (rejecting removes the inbox tag), and it can edit any pending draft |
-| `links` | Link paperless documents to existing items and add references from ledger transactions to contracts, purchases and vehicles. Over REST a `links` token chooses the back-link URL that is written into paperless and skips the check that the item exists (the MCP tool derives the URL from `PUBLIC_URL` and verifies the item) |
+| `links` | Link paperless documents to existing items and add references from ledger transactions to contracts, purchases, vehicles and vehicle cost entries. Over REST a `links` token chooses the back-link URL that is written into paperless and skips the check that the item exists (the MCP tool derives the URL from `PUBLIC_URL` and verifies the item) |
 
 Agents never create or change items directly through MCP: they create drafts that you review in the inbox (the broader REST scopes are described above and in the security note). Tools of modules you disabled are hidden. Set `PUBLIC_URL` on the server so back-links written into paperless point at your Kontor.
 
@@ -124,7 +124,7 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | GET | `/ledger/transactions` | Review queue for ledger transactions |
 | GET | `/ledger/transactions/{id}` | Get ledger transaction details |
 | PUT | `/ledger/transactions/{id}` | Update note, links, and cross references |
-| POST | `/ledger/transactions/{id}/references` | Add one cross reference (`{type, targetId}`; idempotent, never removes anything; `links` scope) |
+| POST | `/ledger/transactions/{id}/references` | Add one cross reference (`{type, targetId}`, type `purchase`, `contract`, `vehicle` or `cost`; idempotent, never removes anything; `links` scope) |
 | GET/POST | `/tokens` | List / create personal access tokens (JWT only; the raw token is returned once) |
 | DELETE | `/tokens/{id}` | Revoke a personal access token (JWT only) |
 | GET | `/ledger/transactions/{id}/transfer-candidates` | List matching internal transfer candidates |

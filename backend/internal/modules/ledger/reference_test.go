@@ -119,7 +119,7 @@ func TestAddReference_Errors(t *testing.T) {
 	}{
 		{"unknown transaction", uuid.NewString(), map[string]any{"type": "purchase", "targetId": purchaseID.String()}, 404},
 		{"unknown target", txnID.String(), map[string]any{"type": "purchase", "targetId": uuid.NewString()}, 404},
-		{"invalid type", txnID.String(), map[string]any{"type": "cost", "targetId": purchaseID.String()}, 400},
+		{"invalid type", txnID.String(), map[string]any{"type": "account", "targetId": purchaseID.String()}, 400},
 		{"missing target id", txnID.String(), map[string]any{"type": "purchase"}, 400},
 		{"bad transaction id", "nope", map[string]any{"type": "purchase", "targetId": purchaseID.String()}, 400},
 		{"unknown field", txnID.String(), map[string]any{"type": "purchase", "targetId": purchaseID.String(), "note": "x"}, 400},
