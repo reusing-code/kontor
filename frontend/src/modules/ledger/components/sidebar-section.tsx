@@ -1,12 +1,14 @@
 import { Link, useMatchRoute } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { useLedgerAccounts } from "@/modules/ledger/hooks/use-ledger"
+import { useCapabilities } from "@/hooks/use-capabilities"
 import { cn } from "@/lib/utils"
 import { SidebarSection } from "@/components/sidebar"
 
 export function LedgerSidebarSection() {
   const { t } = useTranslation()
   const { data: ledgerAccounts = [] } = useLedgerAccounts()
+  const { bankImport } = useCapabilities()
   const matchRoute = useMatchRoute()
 
   return (
@@ -51,6 +53,17 @@ export function LedgerSidebarSection() {
       >
         {t("ledger.email.orders")}
       </Link>
+      {bankImport && (
+        <Link
+          to="/ledger/bank-connections"
+          className={cn(
+            "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
+            matchRoute({ to: "/ledger/bank-connections", fuzzy: true }) && "bg-accent font-medium",
+          )}
+        >
+          {t("ledger.bankImport.title")}
+        </Link>
+      )}
       {ledgerAccounts.map((account) => {
         const active = matchRoute({
           to: "/ledger/accounts/$accountId",

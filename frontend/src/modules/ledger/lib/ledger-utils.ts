@@ -25,6 +25,8 @@ export function formatSourceType(sourceType: string): string {
       return "DKB CSV"
     case "comdirect.csv":
       return "comdirect CSV"
+    case "enablebanking":
+      return "Enable Banking"
     default:
       return sourceType
   }

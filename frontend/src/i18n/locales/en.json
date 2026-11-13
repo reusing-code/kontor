@@ -542,6 +542,93 @@
       "purchasesCreated_other": "{{count}} purchases created and linked.",
       "createFailed": "Could not create the entry: {{message}}",
       "linkFailed": "The entry was created but could not be linked: {{message}}. Save the transaction to link it."
+    },
+    "bankImport": {
+      "title": "Bank connections",
+      "description": "Import transactions automatically through Enable Banking. Bank data passes through Enable Banking.",
+      "manage": "Manage connections",
+      "cardDescription": "Banks connected for automatic import.",
+      "apiSync": "Bank sync (API)",
+      "empty": "No bank connected yet.",
+      "reauthorize": "Authorize again",
+      "disconnect": "Disconnect",
+      "syncNow": "Sync now",
+      "syncing": "Syncing…",
+      "syncDone": "Sync finished: {{imported}} imported, {{duplicates}} already known.",
+      "disconnected": "{{bank}} disconnected.",
+      "remoteNotClosed": "The connection was removed here, but the bank session could not be closed. It ends by itself when the consent expires.",
+      "disconnectConfirm": "Disconnect {{bank}}? Imported transactions are kept.",
+      "validUntil": "Consent valid until {{date}}",
+      "connectionStatus": {
+        "active": "Active",
+        "expiring": "Expiring soon",
+        "expired": "Expired"
+      },
+      "mappedTo": "Mapped to {{name}}",
+      "ledgerAccount": "ledger account",
+      "mapTo": "Map to ledger account",
+      "noCandidates": "No matching ledger account",
+      "createFromThis": "Create ledger account from this",
+      "neverSynced": "Not synced yet",
+      "lastSync": "Last sync {{time}}: {{status}}",
+      "lastCounts": "{{imported}} imported, {{duplicates}} already known",
+      "status": {
+        "ok": "OK",
+        "unmapped": "Not mapped to a ledger account",
+        "consent_expired": "Consent expired, authorize again",
+        "access_denied": "The bank denied access to this account",
+        "account_not_accessible": "Account not accessible with this Enable Banking app",
+        "rate_limited": "Rate limit reached, will retry later",
+        "bank_unavailable": "Bank unavailable, will retry later",
+        "app_error": "Enable Banking rejected the app credentials",
+        "timeout": "Timed out",
+        "error": "Failed"
+      },
+      "banner": {
+        "expiring": "The consent for {{bank}} ends on {{date}}. Authorize it again to keep importing.",
+        "expired": "The consent for {{bank}} has ended. Authorize it again to resume importing."
+      },
+      "connect": {
+        "button": "Connect a bank",
+        "title": "Connect a bank",
+        "description": "Pick your bank. You will be sent there to approve read access to your accounts.",
+        "country": "Country",
+        "search": "Search banks",
+        "none": "No banks found.",
+        "verified": "Verified",
+        "confirm": "Continue to bank"
+      },
+      "result": {
+        "title": "Bank connection",
+        "connectedTitle": "Bank connected",
+        "failedTitle": "Connection failed",
+        "connected": "The bank is connected. Map its accounts to ledger accounts to start importing.",
+        "back": "Back to bank connections",
+        "reasons": {
+          "denied": "The connection was cancelled at the bank.",
+          "bank_error": "The bank reported an error. Try again.",
+          "invalid_state": "This link is invalid or has expired. Start the connection again.",
+          "missing_code": "The bank did not return an authorization. Try again.",
+          "restricted": "This Enable Banking app can only connect its owner's accounts.",
+          "failed": "The connection could not be completed. Try again.",
+          "disabled": "Bank import is not enabled on this server.",
+          "generic": "The connection could not be completed."
+        }
+      },
+      "errors": {
+        "bank_import_disabled": "Bank import is not enabled on this server.",
+        "public_url_not_configured": "The server has no PUBLIC_URL, so banks cannot be connected.",
+        "unknown_bank": "Unknown bank.",
+        "invalid_country": "Invalid country.",
+        "bank_restricted": "This Enable Banking app can only connect its owner's accounts.",
+        "bank_unavailable": "The bank service is unavailable. Try again later.",
+        "bank_rate_limited": "Rate limit reached. Try again later.",
+        "sync_running": "A sync is already running for this connection.",
+        "consent_expired": "The consent has expired. Authorize it again.",
+        "invalid_mapping": "This ledger account cannot be mapped to the bank account.",
+        "currency_mismatch": "The currencies differ.",
+        "sync_timeout": "The sync did not finish in time. Imported rows are kept; run it again."
+      }
     }
   },
   "paperless": {

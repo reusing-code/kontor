@@ -542,6 +542,93 @@
       "purchasesCreated_other": "{{count}} Anschaffungen erstellt und verknüpft.",
       "createFailed": "Der Eintrag konnte nicht erstellt werden: {{message}}",
       "linkFailed": "Der Eintrag wurde erstellt, konnte aber nicht verknüpft werden: {{message}}. Speichere die Transaktion, um ihn zu verknüpfen."
+    },
+    "bankImport": {
+      "title": "Bankverbindungen",
+      "description": "Buchungen automatisch über Enable Banking importieren. Bankdaten laufen über Enable Banking.",
+      "manage": "Verbindungen verwalten",
+      "cardDescription": "Banken für den automatischen Import.",
+      "apiSync": "Bank-Abruf (API)",
+      "empty": "Noch keine Bank verbunden.",
+      "reauthorize": "Erneut autorisieren",
+      "disconnect": "Trennen",
+      "syncNow": "Jetzt abrufen",
+      "syncing": "Rufe ab…",
+      "syncDone": "Abruf beendet: {{imported}} importiert, {{duplicates}} bereits bekannt.",
+      "disconnected": "{{bank}} getrennt.",
+      "remoteNotClosed": "Die Verbindung wurde hier entfernt, die Bank-Sitzung konnte aber nicht geschlossen werden. Sie endet von selbst mit Ablauf der Einwilligung.",
+      "disconnectConfirm": "{{bank}} trennen? Importierte Buchungen bleiben erhalten.",
+      "validUntil": "Einwilligung gültig bis {{date}}",
+      "connectionStatus": {
+        "active": "Aktiv",
+        "expiring": "Läuft bald ab",
+        "expired": "Abgelaufen"
+      },
+      "mappedTo": "Zugeordnet zu {{name}}",
+      "ledgerAccount": "Kontobuch-Konto",
+      "mapTo": "Kontobuch-Konto zuordnen",
+      "noCandidates": "Kein passendes Konto",
+      "createFromThis": "Konto daraus anlegen",
+      "neverSynced": "Noch nicht abgerufen",
+      "lastSync": "Letzter Abruf {{time}}: {{status}}",
+      "lastCounts": "{{imported}} importiert, {{duplicates}} bereits bekannt",
+      "status": {
+        "ok": "OK",
+        "unmapped": "Keinem Konto zugeordnet",
+        "consent_expired": "Einwilligung abgelaufen, erneut autorisieren",
+        "access_denied": "Die Bank verweigert den Zugriff auf dieses Konto",
+        "account_not_accessible": "Konto mit dieser Enable-Banking-App nicht erreichbar",
+        "rate_limited": "Limit erreicht, späterer Versuch",
+        "bank_unavailable": "Bank nicht erreichbar, späterer Versuch",
+        "app_error": "Enable Banking hat die App-Zugangsdaten abgelehnt",
+        "timeout": "Zeitüberschreitung",
+        "error": "Fehlgeschlagen"
+      },
+      "banner": {
+        "expiring": "Die Einwilligung für {{bank}} endet am {{date}}. Erneut autorisieren, damit der Import weiterläuft.",
+        "expired": "Die Einwilligung für {{bank}} ist abgelaufen. Erneut autorisieren, um den Import fortzusetzen."
+      },
+      "connect": {
+        "button": "Bank verbinden",
+        "title": "Bank verbinden",
+        "description": "Wähle deine Bank. Du wirst dorthin weitergeleitet, um den Lesezugriff auf deine Konten zu bestätigen.",
+        "country": "Land",
+        "search": "Banken suchen",
+        "none": "Keine Banken gefunden.",
+        "verified": "Geprüft",
+        "confirm": "Weiter zur Bank"
+      },
+      "result": {
+        "title": "Bankverbindung",
+        "connectedTitle": "Bank verbunden",
+        "failedTitle": "Verbindung fehlgeschlagen",
+        "connected": "Die Bank ist verbunden. Ordne ihre Konten Kontobuch-Konten zu, um den Import zu starten.",
+        "back": "Zurück zu den Bankverbindungen",
+        "reasons": {
+          "denied": "Die Verbindung wurde bei der Bank abgebrochen.",
+          "bank_error": "Die Bank meldet einen Fehler. Versuche es erneut.",
+          "invalid_state": "Dieser Link ist ungültig oder abgelaufen. Starte die Verbindung neu.",
+          "missing_code": "Die Bank hat keine Autorisierung zurückgegeben. Versuche es erneut.",
+          "restricted": "Diese Enable-Banking-App kann nur Konten ihres Besitzers verbinden.",
+          "failed": "Die Verbindung konnte nicht abgeschlossen werden. Versuche es erneut.",
+          "disabled": "Der Bankimport ist auf diesem Server nicht aktiviert.",
+          "generic": "Die Verbindung konnte nicht abgeschlossen werden."
+        }
+      },
+      "errors": {
+        "bank_import_disabled": "Der Bankimport ist auf diesem Server nicht aktiviert.",
+        "public_url_not_configured": "Der Server hat keine PUBLIC_URL, daher können keine Banken verbunden werden.",
+        "unknown_bank": "Unbekannte Bank.",
+        "invalid_country": "Ungültiges Land.",
+        "bank_restricted": "Diese Enable-Banking-App kann nur Konten ihres Besitzers verbinden.",
+        "bank_unavailable": "Der Bankdienst ist nicht erreichbar. Versuche es später erneut.",
+        "bank_rate_limited": "Limit erreicht. Versuche es später erneut.",
+        "sync_running": "Für diese Verbindung läuft bereits ein Abruf.",
+        "consent_expired": "Die Einwilligung ist abgelaufen. Erneut autorisieren.",
+        "invalid_mapping": "Dieses Konto kann dem Bankkonto nicht zugeordnet werden.",
+        "currency_mismatch": "Die Währungen unterscheiden sich.",
+        "sync_timeout": "Der Abruf wurde nicht rechtzeitig fertig. Importierte Buchungen bleiben erhalten; erneut starten."
+      }
     }
   },
   "paperless": {

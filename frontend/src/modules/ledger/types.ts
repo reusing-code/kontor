@@ -381,3 +381,59 @@ export type LedgerSourceType = "dkb.csv" | "comdirect.csv"
 
 export type LedgerReviewStatus = "needsReview" | "confirmed"
 export type LedgerCategorizationSource = "none" | "keyword" | "manual"
+
+export interface BankInfo {
+  name: string
+  country: string
+  logo: string
+  verified: boolean
+  maxConsentDays: number
+}
+
+export type BankConnectionStatus = "active" | "expiring" | "expired"
+
+export interface BankAccount {
+  uid: string
+  iban: string
+  currency: string
+  name: string
+  ledgerAccountId?: string
+  mapped: boolean
+  lastSyncAt?: string
+  lastSyncAttemptAt?: string
+  lastSyncStatus: string
+  statusMessage: string
+  lastImported: number
+  lastDuplicates: number
+}
+
+export interface BankConnection {
+  id: string
+  aspspName: string
+  aspspCountry: string
+  authorizedAt: string
+  expiresAt: string
+  status: BankConnectionStatus
+  accounts: BankAccount[]
+}
+
+export interface BankAuthorizeInput {
+  aspspName: string
+  aspspCountry: string
+}
+
+export interface BankSyncAccountResult {
+  uid: string
+  status: string
+  imported: number
+  duplicates: number
+  skippedNotBooked: number
+  skippedCurrency: number
+  skippedInvalid: number
+}
+
+export interface BankSyncSummary {
+  imported: number
+  duplicates: number
+  accounts: BankSyncAccountResult[]
+}

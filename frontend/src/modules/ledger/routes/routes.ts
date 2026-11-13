@@ -1,15 +1,35 @@
 import { lazy } from "react"
-import { createRoute, type AnyRoute } from "@tanstack/react-router"
+import { createRoute, isRedirect, redirect, type AnyRoute } from "@tanstack/react-router"
 import { rootRoute } from "@/routes/__root"
 import { moduleGuard } from "@/modules/guard"
+import { queryClient } from "@/lib/query-client"
+import { capabilitiesQueryOptions } from "@/hooks/use-capabilities"
+import { parseBankResult } from "@/modules/ledger/lib/bank-result"
 
 const LedgerIndexPage = lazy(() => import("./ledger.index").then((module) => ({ default: module.LedgerIndexPage })))
 const LedgerAccountPage = lazy(() => import("./ledger.accounts.$accountId").then((module) => ({ default: module.LedgerAccountPage })))
 const LedgerCategoriesPage = lazy(() => import("./ledger.categories").then((module) => ({ default: module.LedgerCategoriesPage })))
 const LedgerEmailAccountsPage = lazy(() => import("./ledger.email-accounts").then((module) => ({ default: module.LedgerEmailAccountsPage })))
 const LedgerEmailOrdersPage = lazy(() => import("./ledger.email-orders").then((module) => ({ default: module.LedgerEmailOrdersPage })))
+const LedgerBankConnectionsPage = lazy(() => import("./ledger.bank-connections").then((module) => ({ default: module.LedgerBankConnectionsPage })))
+const LedgerBankResultPage = lazy(() => import("./ledger.bank-connections.result").then((module) => ({ default: module.LedgerBankResultPage })))
 const LedgerReviewPage = lazy(() => import("./ledger.review").then((module) => ({ default: module.LedgerReviewPage })))
 const LedgerTransactionPage = lazy(() => import("./ledger.transactions.$transactionId").then((module) => ({ default: module.LedgerTransactionPage })))
+
+// Bank import routes need the ledger module and the server-side capability.
+async function bankImportGuard() {
+  await moduleGuard("ledger")()
+  try {
+    const capabilities = await queryClient.ensureQueryData(capabilitiesQueryOptions)
+    if (!capabilities.bankImport) {
+      throw redirect({ to: "/ledger" })
+    }
+  } catch (error) {
+    if (isRedirect(error)) {
+      throw error
+    }
+  }
+}
 
 export const ledgerIndexRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -46,6 +66,21 @@ export const ledgerEmailOrdersRoute = createRoute({
   component: LedgerEmailOrdersPage,
 })
 
+export const ledgerBankConnectionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/ledger/bank-connections",
+  beforeLoad: bankImportGuard,
+  component: LedgerBankConnectionsPage,
+})
+
+export const ledgerBankResultRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/ledger/bank-connections/result",
+  beforeLoad: bankImportGuard,
+  validateSearch: parseBankResult,
+  component: LedgerBankResultPage,
+})
+
 export const ledgerReviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/ledger/review",
@@ -66,6 +101,8 @@ export const ledgerRoutes: AnyRoute[] = [
   ledgerCategoriesRoute,
   ledgerEmailAccountsRoute,
   ledgerEmailOrdersRoute,
+  ledgerBankConnectionsRoute,
+  ledgerBankResultRoute,
   ledgerReviewRoute,
   ledgerTransactionRoute,
 ]

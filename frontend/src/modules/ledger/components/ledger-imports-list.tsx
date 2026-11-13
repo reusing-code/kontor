@@ -50,7 +50,7 @@ export function LedgerImportsList({ imports, accounts }: LedgerImportsListProps)
                   <TableRow key={item.id}>
                     <TableCell>{formatLedgerDate(item.createdAt)}</TableCell>
                     <TableCell>{formatSourceType(item.sourceType)}</TableCell>
-                    <TableCell>{item.filename}</TableCell>
+                    <TableCell>{item.filename || t("ledger.bankImport.apiSync")}</TableCell>
                     <TableCell>{accountNameById.get(item.accountId) ?? item.accountId}</TableCell>
                     <TableCell>{item.importedRows}</TableCell>
                     <TableCell>{item.duplicateRows}</TableCell>

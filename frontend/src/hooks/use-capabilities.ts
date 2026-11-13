@@ -12,6 +12,7 @@ export function useCapabilities() {
   const { data, isLoading } = useQuery(capabilitiesQueryOptions)
   return {
     llm: data?.llm ?? false,
+    bankImport: data?.bankImport ?? false,
     isLoading,
   }
 }

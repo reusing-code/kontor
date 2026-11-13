@@ -4,6 +4,7 @@ import { toast } from "sonner"
 import { Repeat } from "lucide-react"
 import { ApiError } from "@/lib/api"
 import { usePageTitle } from "@/hooks/use-page-title"
+import { useCapabilities } from "@/hooks/use-capabilities"
 import { useModules } from "@/hooks/use-modules"
 import {
   useLedgerAccounts,
@@ -14,6 +15,8 @@ import {
   useLedgerReviewQueue,
   useRunLedgerRecurringDetection,
 } from "@/modules/ledger/hooks/use-ledger"
+import { useBankConnections } from "@/modules/ledger/hooks/use-bank-connections"
+import { BankConsentBanner } from "@/modules/ledger/components/bank-consent-banner"
 import { LedgerAccountList } from "@/modules/ledger/components/ledger-account-list"
 import { LedgerImportPanel } from "@/modules/ledger/components/ledger-import-panel"
 import { LedgerImportsList } from "@/modules/ledger/components/ledger-imports-list"
@@ -54,6 +57,8 @@ export function LedgerIndexPage() {
   const { t } = useTranslation()
   usePageTitle(t("nav.ledger"), t("app.title"))
   const { isEnabled } = useModules()
+  const { bankImport } = useCapabilities()
+  const { data: bankConnections = [] } = useBankConnections()
 
   const { data: accounts = [] } = useLedgerAccounts()
   const { data: emailAccounts = [] } = useLedgerEmailAccounts()
@@ -71,6 +76,8 @@ export function LedgerIndexPage() {
         </div>
         {isEnabled("contracts") && <DetectRecurringButton />}
       </div>
+
+      <BankConsentBanner />
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -111,6 +118,21 @@ export function LedgerIndexPage() {
             <p className="text-sm text-muted-foreground">{t("ledger.email.ordersCount", { count: emailOrders.length })}</p>
           </CardContent>
         </Card>
+
+        {bankImport && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
+              <CardTitle>{t("ledger.bankImport.title")}</CardTitle>
+              <Button asChild variant="outline">
+                <Link to="/ledger/bank-connections">{t("ledger.bankImport.manage")}</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-semibold">{bankConnections.length}</div>
+              <p className="text-sm text-muted-foreground">{t("ledger.bankImport.cardDescription")}</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <LedgerImportPanel accounts={accounts} />
