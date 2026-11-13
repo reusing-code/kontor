@@ -84,6 +84,9 @@ type BankService struct {
 
 	cacheMu sync.Mutex
 	cache   map[string]aspspCacheEntry
+
+	syncMu  sync.Mutex
+	syncing map[string]bool
 }
 
 type aspspCacheEntry struct {
@@ -103,6 +106,7 @@ func NewBankService(cfg BankServiceConfig) *BankService {
 		logger:      cfg.Logger,
 		now:         cfg.Now,
 		cache:       map[string]aspspCacheEntry{},
+		syncing:     map[string]bool{},
 	}
 	if s.logger == nil {
 		s.logger = slog.New(slog.DiscardHandler)

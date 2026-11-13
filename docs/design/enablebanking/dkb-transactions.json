@@ -1,0 +1,83 @@
+{
+  "csvEquivalent": [
+    {
+      "entry_reference": "SYN-DKB-0001",
+      "transaction_amount": {"currency": "EUR", "amount": "800.23"},
+      "debtor": {"name": "DKB AG"},
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2026-04-07",
+      "value_date": "2026-04-02",
+      "remittance_information": ["Depot 0123 Wertpapierertrag 02.04.2026 WKN A1JX52 VANG.FTSE A.-WO.U.ETF DLD ISIN"],
+      "bank_transaction_code": {"description": "Eingang"}
+    },
+    {
+      "entry_reference": "SYN-DKB-0002",
+      "transaction_amount": {"currency": "EUR", "amount": "12345.00"},
+      "debtor": {"name": "Fred Mustermann"},
+      "debtor_account": {"iban": "DE11222233334444555566"},
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2026-04-01",
+      "value_date": "2026-04-01",
+      "remittance_information": ["Uebertrag Konto"],
+      "bank_transaction_code": {"description": "Eingang"}
+    }
+  ],
+  "other": [
+    {
+      "entry_reference": "SYN-DKB-0003",
+      "transaction_amount": {"currency": "EUR", "amount": "23.45"},
+      "creditor": {"name": "Muster Markt GmbH"},
+      "creditor_account": {"iban": "DE44500105175407324931"},
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2026-04-03",
+      "value_date": "2026-04-03",
+      "remittance_information": ["Einkauf 02.04.", "Kartenzahlung"],
+      "bank_transaction_code": {"description": "Ausgang"}
+    },
+    {
+      "entry_reference": "SYN-DKB-0004",
+      "transaction_amount": {"currency": "EUR", "amount": "9.99"},
+      "creditor": {"name": "Pending Shop"},
+      "credit_debit_indicator": "DBIT",
+      "status": "PDNG",
+      "booking_date": "2026-04-08",
+      "remittance_information": ["Not yet booked"]
+    },
+    {
+      "transaction_amount": {"currency": "EUR", "amount": "4.50"},
+      "creditor": {"name": "Baeckerei Muster"},
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2026-04-05",
+      "remittance_information": ["Kartenzahlung Baeckerei"]
+    },
+    {
+      "transaction_amount": {"currency": "EUR", "amount": "4.50"},
+      "creditor": {"name": "Baeckerei Muster"},
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2026-04-05",
+      "remittance_information": ["Kartenzahlung Baeckerei"]
+    },
+    {
+      "transaction_amount": {"currency": "USD", "amount": "15.00"},
+      "creditor": {"name": "Foreign Shop Inc"},
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2026-04-04",
+      "remittance_information": ["Online purchase"]
+    },
+    {
+      "entry_reference": "SYN-DKB-0005",
+      "transaction_amount": {"currency": "EUR", "amount": "60.00"},
+      "creditor": {"name": "Stadtwerke Muster"},
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "value_date": "2026-04-06",
+      "remittance_information": ["Abschlag April"]
+    }
+  ]
+}

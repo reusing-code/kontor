@@ -737,3 +737,24 @@ func TestCallbackMapsMessyIBANAndSkipsNonEURAccount(t *testing.T) {
 		t.Fatalf("a USD bank account was mapped to an EUR ledger account: %+v", byUID["uid-usd"])
 	}
 }
+
+// countKeys counts the keys below u/{user}/mod/ledger/idx/{sub}.
+func (f *bankFixture) countKeys(t *testing.T, sub string) int {
+	t.Helper()
+	prefix := []byte("u/" + testUserID + "/mod/ledger/idx/" + sub)
+	n := 0
+	err := f.e.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			n++
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
+}

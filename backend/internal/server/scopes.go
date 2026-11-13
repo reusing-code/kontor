@@ -82,6 +82,7 @@ var routeRules = map[string]middleware.Rule{
 	"DELETE /api/v1/contracts/{id}":                                       middleware.RuleDenied,
 	"DELETE /api/v1/costs/{id}":                                           middleware.RuleDenied,
 	"DELETE /api/v1/ledger/bank/connections/{id}":                         middleware.RuleDenied,
+	"POST /api/v1/ledger/bank/connections/{id}/sync":                      middleware.RuleDenied,
 	"POST /api/v1/ledger/bank/connections/authorize":                      middleware.RuleDenied,
 	"PUT /api/v1/ledger/bank/connections/{id}/accounts/{uid}":             middleware.RuleDenied,
 	"DELETE /api/v1/ledger/categories/{id}":                               middleware.RuleDenied,

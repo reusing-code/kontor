@@ -9,6 +9,9 @@ type SourceType string
 const (
 	SourceDKBCSV       SourceType = "dkb.csv"
 	SourceComdirectCSV SourceType = "comdirect.csv"
+	// SourceEnableBanking marks transactions synced through the Enable Banking
+	// API. It has no Provider: there is no file to parse.
+	SourceEnableBanking SourceType = "enablebanking"
 )
 
 type ParsedRow struct {

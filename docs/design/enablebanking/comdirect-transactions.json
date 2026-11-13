@@ -1,0 +1,90 @@
+{
+  "csvEquivalent": [
+    {
+      "transaction_amount": {"currency": "EUR", "amount": "123.34"},
+      "creditor": {"name": "AMAZON*"},
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2026-04-01",
+      "value_date": "2026-04-02",
+      "remittance_information": ["AMAZON* , LUXEMBOURG LU Kartenzahlung comdirect Visa-Debitkarte"],
+      "bank_transaction_code": {"description": "Kartenverfuegung"}
+    },
+    {
+      "transaction_amount": {"currency": "EUR", "amount": "23.45"},
+      "creditor": {"name": "MARKTKAUF"},
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2026-04-02",
+      "value_date": "2026-04-02",
+      "remittance_information": ["MARKTKAUF DE Kartenzahlung comdirect Visa-Debitkarte"],
+      "bank_transaction_code": {"description": "Lastschrift / Belastung"}
+    },
+    {
+      "entry_reference": "SYN-CD-0003",
+      "transaction_amount": {"currency": "EUR", "amount": "111111.11"},
+      "creditor": {"name": "Fred Mustermann"},
+      "creditor_account": {"iban": "DE11222233334444555566"},
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2026-04-01",
+      "value_date": "2026-04-01",
+      "remittance_information": ["Uebertrag Konto"],
+      "bank_transaction_code": {"description": "Ueberweisung"}
+    }
+  ],
+  "other": [
+    {
+      "transaction_amount": {"currency": "EUR", "amount": "1500.00"},
+      "debtor": {"name": "Arbeitgeber AG"},
+      "debtor_account": {"iban": "DE02120300000000202051"},
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2026-04-03",
+      "remittance_information": ["Gehalt 03/2026"],
+      "bank_transaction_code": {"description": "Gutschrift"}
+    },
+    {
+      "entry_reference": "SYN-CD-0005",
+      "transaction_amount": {"currency": "EUR", "amount": "7.00"},
+      "creditor": {"name": "Pending Kiosk"},
+      "credit_debit_indicator": "DBIT",
+      "status": "PDNG",
+      "booking_date": "2026-04-04",
+      "remittance_information": ["Pending"]
+    },
+    {
+      "transaction_amount": {"currency": "EUR", "amount": "12.80"},
+      "creditor": {"name": "Cafe Muster"},
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2026-04-06",
+      "remittance_information": ["Kartenzahlung Cafe"]
+    },
+    {
+      "transaction_amount": {"currency": "EUR", "amount": "12.80"},
+      "creditor": {"name": "Cafe Muster"},
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2026-04-06",
+      "remittance_information": ["Kartenzahlung Cafe"]
+    },
+    {
+      "transaction_amount": {"currency": "CHF", "amount": "30.00"},
+      "creditor": {"name": "Swiss Shop"},
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2026-04-05",
+      "remittance_information": ["Order CH"]
+    },
+    {
+      "entry_reference": "SYN-CD-0006",
+      "transaction_amount": {"currency": "EUR", "amount": "19.90"},
+      "creditor": {"name": "Streaming Service"},
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "value_date": "2026-04-07",
+      "remittance_information": ["Monatsabo"]
+    }
+  ]
+}

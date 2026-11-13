@@ -198,6 +198,7 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("POST /api/v1/ledger/bank/connections/authorize", h.AuthorizeBank)
 	r.Handle("DELETE /api/v1/ledger/bank/connections/{id}", h.DisconnectBank)
 	r.Handle("PUT /api/v1/ledger/bank/connections/{id}/accounts/{uid}", h.MapBankAccount)
+	r.Handle("POST /api/v1/ledger/bank/connections/{id}/sync", h.SyncBankConnection)
 }
 
 // DraftHooks returns the decision hooks of the ledger draft source

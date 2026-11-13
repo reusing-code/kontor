@@ -101,6 +101,7 @@ func TestBankRoutesDisabled(t *testing.T) {
 		{"GET", "/api/v1/ledger/bank/connections", ""},
 		{"POST", "/api/v1/ledger/bank/connections/authorize", `{"aspspName":"DKB","aspspCountry":"DE"}`},
 		{"DELETE", "/api/v1/ledger/bank/connections/00000000-0000-0000-0000-000000000001", ""},
+		{"POST", "/api/v1/ledger/bank/connections/00000000-0000-0000-0000-000000000001/sync", ""},
 		{"PUT", "/api/v1/ledger/bank/connections/00000000-0000-0000-0000-000000000001/accounts/u", `{"ledgerAccountId":"00000000-0000-0000-0000-000000000002"}`},
 	} {
 		status, body := a.request(t, tt.method, tt.path, jwt, tt.body)
@@ -136,6 +137,7 @@ func TestBankRoutesPATScopes(t *testing.T) {
 		{"GET", "/api/v1/ledger/bank/aspsps?country=DE", ""},
 		{"POST", "/api/v1/ledger/bank/connections/authorize", `{"aspspName":"DKB","aspspCountry":"DE"}`},
 		{"DELETE", "/api/v1/ledger/bank/connections/00000000-0000-0000-0000-000000000001", ""},
+		{"POST", "/api/v1/ledger/bank/connections/00000000-0000-0000-0000-000000000001/sync", ""},
 		{"PUT", "/api/v1/ledger/bank/connections/00000000-0000-0000-0000-000000000001/accounts/u", `{"ledgerAccountId":"00000000-0000-0000-0000-000000000002"}`},
 	} {
 		status, body := a.request(t, tt.method, tt.path, read, tt.body)

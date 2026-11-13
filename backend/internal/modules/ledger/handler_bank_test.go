@@ -1,13 +1,17 @@
 package ledger
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/enablebanking"
 	"github.com/reusing-code/kontor/backend/internal/enablebanking/enablebankingtest"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 )
@@ -19,6 +23,7 @@ func newBankMux(h *Handler) http.Handler {
 	mux.HandleFunc("POST /api/v1/ledger/bank/connections/authorize", h.AuthorizeBank)
 	mux.HandleFunc("DELETE /api/v1/ledger/bank/connections/{id}", h.DisconnectBank)
 	mux.HandleFunc("PUT /api/v1/ledger/bank/connections/{id}/accounts/{uid}", h.MapBankAccount)
+	mux.HandleFunc("POST /api/v1/ledger/bank/connections/{id}/sync", h.SyncBankConnection)
 	mux.HandleFunc("GET /api/v1/ledger/bank/callback", h.BankCallback)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mux.ServeHTTP(w, r.WithContext(middleware.SetUserID(r.Context(), testUserID)))
@@ -64,6 +69,7 @@ func TestBankHandlers_Disabled(t *testing.T) {
 		{"GET", "/api/v1/ledger/bank/connections", ""},
 		{"POST", "/api/v1/ledger/bank/connections/authorize", `{"aspspName":"DKB","aspspCountry":"DE"}`},
 		{"DELETE", "/api/v1/ledger/bank/connections/" + uuid.NewString(), ""},
+		{"POST", "/api/v1/ledger/bank/connections/" + uuid.NewString() + "/sync", ""},
 		{"PUT", "/api/v1/ledger/bank/connections/" + uuid.NewString() + "/accounts/uid", `{"ledgerAccountId":"` + uuid.NewString() + `"}`},
 	} {
 		assertBankError(t, bankRequest(t, mux, tt.method, tt.path, tt.body), http.StatusConflict, "bank_import_disabled")
@@ -180,4 +186,50 @@ func TestBankCallback_RedirectCarriesOnlyFixedCodes(t *testing.T) {
 
 	state = f.authorize(t, "DKB")
 	check("error=access_denied&error_description=DESCRIPTION-SECRET&state="+url.QueryEscape(state), "/ledger/bank-connections/result?bank=failed&reason=denied")
+}
+
+func TestSyncBankConnectionHandler(t *testing.T) {
+	h, f := newBankHandler(t)
+	mux := newBankMux(h)
+	f.addLedgerAccount(t, bankTestIBAN1, "EUR")
+	conn := f.connect(t, "code", bankTestSession("SESSION-SECRET", bankTestAccount("uid-1", bankTestIBAN1)))
+	f.fake.SetTransactions("uid-1", []enablebanking.Transaction{apiTxn("a", "2026-04-01", "10.00", "DBIT"), apiTxn("b", "2026-04-02", "5.00", "CRDT")})
+	path := "/api/v1/ledger/bank/connections/" + conn.ID.String() + "/sync"
+
+	assertBankError(t, bankRequest(t, mux, "POST", "/api/v1/ledger/bank/connections/"+uuid.NewString()+"/sync", ""), http.StatusNotFound, "not_found")
+	assertBankError(t, bankRequest(t, mux, "POST", "/api/v1/ledger/bank/connections/nope/sync", ""), http.StatusNotFound, "not_found")
+
+	unlock, _ := f.svc.lockSync(testUserID, conn.ID)
+	assertBankError(t, bankRequest(t, mux, "POST", path, ""), http.StatusConflict, "sync_running")
+	unlock()
+
+	rec := bankRequest(t, mux, "POST", path, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("sync = %d %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, secret := range []string{"SESSION-SECRET", bankTestIBAN1, "Shop a"} {
+		if strings.Contains(body, secret) {
+			t.Fatalf("response contains %q: %s", secret, body)
+		}
+	}
+	got := decodeJSON[BankSyncSummary](t, rec)
+	if got.Imported != 2 || len(got.Accounts) != 1 || got.Accounts[0].UID != "uid-1" || got.Accounts[0].Status != BankSyncOK {
+		t.Fatalf("summary = %+v", got)
+	}
+	for _, key := range []string{`"skippedNotBooked"`, `"skippedCurrency"`, `"skippedInvalid"`, `"duplicates"`} {
+		if !strings.Contains(body, key) {
+			t.Fatalf("missing %s in %s", key, body)
+		}
+	}
+
+	f.now = conn.ValidUntil.Add(time.Hour)
+	assertBankError(t, bankRequest(t, mux, "POST", path, ""), http.StatusConflict, "consent_expired")
+}
+
+func TestBankError_SyncTimeoutIsFixedAndNotAnInternalError(t *testing.T) {
+	h, _ := newTestHandler(t)
+	rec := httptest.NewRecorder()
+	h.bankError(rec, fmt.Errorf("sync: %w", context.DeadlineExceeded))
+	assertBankError(t, rec, http.StatusGatewayTimeout, "sync_timeout")
 }

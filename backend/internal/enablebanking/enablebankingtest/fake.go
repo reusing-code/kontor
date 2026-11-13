@@ -69,6 +69,8 @@ type Server struct {
 	transactions map[string][]enablebanking.Transaction
 	pageSize     int
 	failures     []*failure
+	txnRequests  int
+	failTxnAt    map[int]*failure
 	authRequests []map[string]any
 	sessionCalls []SessionCall
 	queries      []TransactionQuery
@@ -155,6 +157,17 @@ func (s *Server) FailAlways(pathPrefix string, status int, code string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.failures = append(s.failures, &failure{prefix: pathPrefix, status: status, code: code, always: true})
+}
+
+// FailTransactionRequest makes the n-th transactions request counted from
+// now (1 = the next one) fail once, e.g. to fail the second page.
+func (s *Server) FailTransactionRequest(n int, status int, code string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.failTxnAt == nil {
+		s.failTxnAt = map[int]*failure{}
+	}
+	s.failTxnAt[s.txnRequests+n] = &failure{status: status, code: code}
 }
 
 func (s *Server) ClearFailures() {
@@ -334,6 +347,14 @@ func (s *Server) deleteSession(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) {
 	s.record(r)
+	s.mu.Lock()
+	s.txnRequests++
+	f := s.failTxnAt[s.txnRequests]
+	s.mu.Unlock()
+	if f != nil {
+		writeError(w, f.status, f.code)
+		return
+	}
 	q := r.URL.Query()
 	from, to, strategy := q.Get("date_from"), q.Get("date_to"), q.Get("strategy")
 

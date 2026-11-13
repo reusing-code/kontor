@@ -1,16 +1,20 @@
 package ledger
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 )
+
+const bankManualSyncTimeout = 15 * time.Minute
 
 func writeBankError(h *Handler, w http.ResponseWriter, status int, code, msg string) {
 	httputil.WriteJSON(h.logger, w, status, map[string]string{"error": msg, "code": code})
@@ -36,6 +40,8 @@ func (h *Handler) bankError(w http.ResponseWriter, err error) {
 		writeBankError(h, w, http.StatusTooManyRequests, "bank_rate_limited", "the bank service rate limit was reached")
 	case errors.Is(err, ErrBankSyncRunning):
 		writeBankError(h, w, http.StatusConflict, "sync_running", "a sync is already running")
+	case errors.Is(err, context.DeadlineExceeded):
+		writeBankError(h, w, http.StatusGatewayTimeout, "sync_timeout", "the sync did not finish in time; imported rows are kept, run it again")
 	case errors.Is(err, ErrBankConsentExpired):
 		writeBankError(h, w, http.StatusConflict, "consent_expired", "the bank consent expired")
 	case errors.Is(err, ErrBankInvalidMapping):
@@ -123,6 +129,24 @@ func (h *Handler) MapBankAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httputil.WriteJSON(h.logger, w, http.StatusOK, view)
+}
+
+// SyncBankConnection runs a sync now. It is not cancelled when the client
+// disconnects, so a started import finishes.
+func (h *Handler) SyncBankConnection(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeBankError(h, w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), bankManualSyncTimeout)
+	defer cancel()
+	summary, err := h.bank.SyncConnection(ctx, middleware.GetUserID(r.Context()), id, BankSyncOptions{})
+	if err != nil {
+		h.bankError(w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, summary)
 }
 
 // BankCallback is the public redirect target of the bank consent. The state
