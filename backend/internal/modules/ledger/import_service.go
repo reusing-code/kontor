@@ -226,36 +226,7 @@ func (svc *ImportService) Commit(ctx context.Context, req CommitRequest) (*Commi
 	}
 	for _, pt := range preview.Transactions {
 		fp := Fingerprint(accountID.String(), pt.Row)
-		match := MatchFields(categories, pt.Row.CounterpartyName, pt.Row.Purpose)
-		var categoryID *uuid.UUID
-		categorizationSource := LedgerCategorizationNone
-		if match.Category != nil {
-			id := match.Category.ID
-			categoryID = &id
-			categorizationSource = LedgerCategorizationKeyword
-		}
-
-		txns = append(txns, LedgerTransaction{
-			ID:                   uuid.New(),
-			AccountID:            accountID,
-			CategoryID:           categoryID,
-			BookingDate:          pt.Row.BookingDate,
-			ValueDate:            pt.Row.ValueDate,
-			AmountMinor:          pt.Row.AmountMinor,
-			Currency:             pt.Row.Currency,
-			CounterpartyName:     pt.Row.CounterpartyName,
-			CounterpartyIBAN:     pt.Row.CounterpartyIBAN,
-			Purpose:              pt.Row.Purpose,
-			BankReference:        pt.Row.BankReference,
-			TransactionType:      pt.Row.TransactionType,
-			ReviewStatus:         LedgerTransactionReviewNeedsReview,
-			CategorizationSource: categorizationSource,
-			SourceType:           string(preview.SourceType),
-			ImportBatchID:        batchID,
-			Fingerprint:          fp,
-			CreatedAt:            now,
-			UpdatedAt:            now,
-		})
+		txns = append(txns, newLedgerTransactionFromRow(pt.Row, accountID, batchID, preview.SourceType, fp, categories, now))
 	}
 
 	batch := LedgerImportBatch{
@@ -300,6 +271,40 @@ func (svc *ImportService) Commit(ctx context.Context, req CommitRequest) (*Commi
 		ImportedRows:  commitResult.ImportedRows,
 		DuplicateRows: commitResult.DuplicateRows,
 	}, nil
+}
+
+// newLedgerTransactionFromRow builds a needs-review transaction from a parsed
+// row, applying the keyword categories.
+func newLedgerTransactionFromRow(row ParsedRow, accountID, batchID uuid.UUID, source SourceType, fingerprint string, categories []LedgerCategory, now time.Time) LedgerTransaction {
+	match := MatchFields(categories, row.CounterpartyName, row.Purpose)
+	var categoryID *uuid.UUID
+	categorizationSource := LedgerCategorizationNone
+	if match.Category != nil {
+		id := match.Category.ID
+		categoryID = &id
+		categorizationSource = LedgerCategorizationKeyword
+	}
+	return LedgerTransaction{
+		ID:                   uuid.New(),
+		AccountID:            accountID,
+		CategoryID:           categoryID,
+		BookingDate:          row.BookingDate,
+		ValueDate:            row.ValueDate,
+		AmountMinor:          row.AmountMinor,
+		Currency:             row.Currency,
+		CounterpartyName:     row.CounterpartyName,
+		CounterpartyIBAN:     row.CounterpartyIBAN,
+		Purpose:              row.Purpose,
+		BankReference:        row.BankReference,
+		TransactionType:      row.TransactionType,
+		ReviewStatus:         LedgerTransactionReviewNeedsReview,
+		CategorizationSource: categorizationSource,
+		SourceType:           string(source),
+		ImportBatchID:        batchID,
+		Fingerprint:          fingerprint,
+		CreatedAt:            now,
+		UpdatedAt:            now,
+	}
 }
 
 func isNotFound(err error) bool {

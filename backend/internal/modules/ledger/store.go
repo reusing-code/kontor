@@ -936,10 +936,12 @@ func (s *Store) CommitLedgerImport(_ context.Context, userID string, batch Ledge
 	result := LedgerImportCommitResult{}
 
 	err := s.e.Update(func(txn *badger.Txn) error {
-		if _, err := txn.Get(idxLedFileHashKey(userID, batch.FileSHA256)); err == nil {
-			return ErrLedgerFileImported
-		} else if !errors.Is(err, badger.ErrKeyNotFound) {
-			return err
+		if batch.FileSHA256 != "" {
+			if _, err := txn.Get(idxLedFileHashKey(userID, batch.FileSHA256)); err == nil {
+				return ErrLedgerFileImported
+			} else if !errors.Is(err, badger.ErrKeyNotFound) {
+				return err
+			}
 		}
 
 		for i := range txns {
@@ -951,16 +953,7 @@ func (s *Store) CommitLedgerImport(_ context.Context, userID string, batch Ledge
 				return err
 			}
 
-			if err := storeLedgerTransaction(txn, userID, t); err != nil {
-				return err
-			}
-			if err := txn.Set(idxLedAccTxnKey(userID, t.AccountID, t.BookingDate, t.ID), []byte{}); err != nil {
-				return err
-			}
-			if err := txn.Set(idxLedTxnFPKey(userID, t.Fingerprint), []byte(t.ID.String())); err != nil {
-				return err
-			}
-			if err := txn.Set(idxLedImpTxnKey(userID, batch.ID, t.ID), []byte{}); err != nil {
+			if err := insertLedgerImportedTxn(txn, userID, batch.ID, t); err != nil {
 				return err
 			}
 			result.ImportedRows++
@@ -975,8 +968,10 @@ func (s *Store) CommitLedgerImport(_ context.Context, userID string, batch Ledge
 		if err := txn.Set(ledImpKey(userID, batch.ID), batchData); err != nil {
 			return err
 		}
-		if err := txn.Set(idxLedFileHashKey(userID, batch.FileSHA256), []byte(batch.ID.String())); err != nil {
-			return err
+		if batch.FileSHA256 != "" {
+			if err := txn.Set(idxLedFileHashKey(userID, batch.FileSHA256), []byte(batch.ID.String())); err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -985,6 +980,20 @@ func (s *Store) CommitLedgerImport(_ context.Context, userID string, batch Ledge
 		return LedgerImportCommitResult{}, err
 	}
 	return result, nil
+}
+
+// insertLedgerImportedTxn writes txn/, idx/acc_txn/, idx/txn_fp/ and idx/imp_txn/ for one transaction.
+func insertLedgerImportedTxn(txn *badger.Txn, userID string, batchID uuid.UUID, t LedgerTransaction) error {
+	if err := storeLedgerTransaction(txn, userID, t); err != nil {
+		return err
+	}
+	if err := txn.Set(idxLedAccTxnKey(userID, t.AccountID, t.BookingDate, t.ID), []byte{}); err != nil {
+		return err
+	}
+	if err := txn.Set(idxLedTxnFPKey(userID, t.Fingerprint), []byte(t.ID.String())); err != nil {
+		return err
+	}
+	return txn.Set(idxLedImpTxnKey(userID, batchID, t.ID), []byte{})
 }
 
 func (s *Store) ListLedgerImports(_ context.Context, userID string) ([]LedgerImportBatch, error) {

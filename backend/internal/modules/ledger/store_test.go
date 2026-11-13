@@ -10,6 +10,7 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/module"
 	"github.com/reusing-code/kontor/backend/internal/modules/auto"
 	"github.com/reusing-code/kontor/backend/internal/modules/contracts"
 	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
@@ -900,5 +901,97 @@ func TestRecordLedgerEmailRejection_CountsPerMessageAndIsDeletedWithTheAccount(t
 	}
 	if got, _ := s.RecordLedgerEmailRejection(ctx, "test-user", account.ID, "uid:1"); got != 1 {
 		t.Errorf("count after account delete = %d, want 1 (counters removed)", got)
+	}
+}
+
+func TestCommitLedgerImport_WithoutFileHash(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	userID := "user-1"
+	accountID := uuid.New()
+	now := time.Now().UTC()
+
+	if err := s.CreateLedgerAccount(ctx, userID, LedgerAccount{ID: accountID, Name: "Main", Bank: "DKB", Currency: "EUR", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateLedgerAccount: %v", err)
+	}
+
+	for i := range 2 {
+		batch := LedgerImportBatch{ID: uuid.New(), AccountID: accountID, SourceType: "enablebanking", ParserVersion: "1", Status: ImportStatusCommitted, CreatedAt: now, UpdatedAt: now}
+		txns := []LedgerTransaction{{ID: uuid.New(), AccountID: accountID, BookingDate: "2026-04-01", Currency: "EUR", Fingerprint: fmt.Sprintf("fp-nohash-%d", i), ImportBatchID: batch.ID, CreatedAt: now, UpdatedAt: now}}
+		result, err := s.CommitLedgerImport(ctx, userID, batch, txns)
+		if err != nil {
+			t.Fatalf("commit %d: %v", i, err)
+		}
+		if result.ImportedRows != 1 {
+			t.Fatalf("commit %d imported %d, want 1", i, result.ImportedRows)
+		}
+	}
+
+	err := s.e.View(func(txn *badger.Txn) error {
+		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		defer it.Close()
+		prefix := []byte(fmt.Sprintf("u/%s/mod/ledger/idx/file_hash/", userID))
+		if it.Seek(prefix); it.ValidForPrefix(prefix) {
+			t.Fatalf("unexpected file hash key %q", it.Item().Key())
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	csv1 := LedgerImportBatch{ID: uuid.New(), AccountID: accountID, SourceType: "dkb.csv", ParserVersion: "1", Filename: "a.csv", FileSHA256: "csv-hash", Status: ImportStatusCommitted, CreatedAt: now, UpdatedAt: now}
+	csv2 := csv1
+	csv2.ID = uuid.New()
+	if _, err := s.CommitLedgerImport(ctx, userID, csv1, nil); err != nil {
+		t.Fatalf("csv commit: %v", err)
+	}
+	if _, err := s.CommitLedgerImport(ctx, userID, csv2, nil); !errors.Is(err, ErrLedgerFileImported) {
+		t.Fatalf("expected ErrLedgerFileImported, got %v", err)
+	}
+}
+
+func TestExportImportKeepsHashlessBatches(t *testing.T) {
+	src := newTestStore(t)
+	ctx := context.Background()
+	accountID := uuid.New()
+	now := time.Now().UTC()
+
+	if err := src.CreateLedgerAccount(ctx, "user-1", LedgerAccount{ID: accountID, Name: "Main", Bank: "DKB", Currency: "EUR", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateLedgerAccount: %v", err)
+	}
+	for i := range 2 {
+		batch := LedgerImportBatch{ID: uuid.New(), AccountID: accountID, SourceType: "enablebanking", ParserVersion: "1", Status: ImportStatusCommitted, CreatedAt: now.Add(time.Duration(i) * time.Second), UpdatedAt: now}
+		txns := []LedgerTransaction{{ID: uuid.New(), AccountID: accountID, BookingDate: "2026-04-01", Currency: "EUR", Fingerprint: fmt.Sprintf("fp-exp-%d", i), ImportBatchID: batch.ID, CreatedAt: now, UpdatedAt: now}}
+		if _, err := src.CommitLedgerImport(ctx, "user-1", batch, txns); err != nil {
+			t.Fatalf("commit %d: %v", i, err)
+		}
+	}
+
+	srcMod := &Module{store: src.Store}
+	data, err := srcMod.ExportSection(ctx, "user-1")
+	if err != nil {
+		t.Fatalf("ExportSection: %v", err)
+	}
+
+	dst := newTestStore(t)
+	dstMod := &Module{store: dst.Store}
+	res := module.NewImportResult()
+	if err := dstMod.ImportSection(ctx, "user-2", data, res); err != nil {
+		t.Fatalf("ImportSection: %v", err)
+	}
+	imports, err := dst.ListLedgerImports(ctx, "user-2")
+	if err != nil {
+		t.Fatalf("ListLedgerImports: %v", err)
+	}
+	if len(imports) != 2 {
+		t.Fatalf("restored %d batches, want 2", len(imports))
+	}
+	txns, err := dst.ListLedgerTransactions(ctx, "user-2", accountID)
+	if err != nil {
+		t.Fatalf("ListLedgerTransactions: %v", err)
+	}
+	if len(txns) != 2 {
+		t.Fatalf("restored %d transactions, want 2", len(txns))
 	}
 }

@@ -32,6 +32,12 @@ type Handler struct {
 	enabled module.EnablementSource
 }
 
+// afterImport starts the background runs that follow new transactions.
+func (h *Handler) afterImport(userID string) {
+	h.suggester.RunInBackground(userID)
+	h.recurring.RunInBackground(userID)
+}
+
 type Module struct {
 	store            *Store
 	coreStore        *core.Store
