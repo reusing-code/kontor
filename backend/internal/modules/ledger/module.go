@@ -128,6 +128,7 @@ func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Con
 		logger.Info("ledger email scan scheduler disabled", "reason", "no valid encryption key")
 		scanEnabled = false
 	}
+	handler.ledgerEmail.autoResume = scanEnabled
 
 	return &Module{
 		store:            store,
@@ -181,6 +182,7 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("DELETE /api/v1/ledger/email-accounts/{emailAccountId}", h.DeleteLedgerEmailAccount)
 	r.Handle("POST /api/v1/ledger/email-accounts/{emailAccountId}/test", h.TestLedgerEmailAccount)
 	r.Handle("POST /api/v1/ledger/email-accounts/{emailAccountId}/scan", h.ScanLedgerEmailAccount)
+	r.Handle("GET /api/v1/ledger/email-accounts/{emailAccountId}/scan", h.GetLedgerEmailScanStatus)
 	r.Handle("GET /api/v1/ledger/email-orders", h.ListLedgerEmailOrders)
 	r.Handle("GET /api/v1/ledger/email-orders/{emailOrderId}", h.GetLedgerEmailOrder)
 	r.Handle("GET /api/v1/ledger/email-orders/{emailOrderId}/candidates", h.ListLedgerEmailOrderCandidates)
@@ -220,6 +222,7 @@ func (m *Module) Seed(ctx context.Context, userID string) error {
 func (m *Module) StartBackground(ctx context.Context) {
 	m.handler.suggester.SetBackgroundContext(ctx)
 	m.handler.recurring.SetBackgroundContext(ctx)
+	m.handler.ledgerEmail.SetBackgroundContext(ctx)
 	m.startBankScheduler(ctx)
 	if !m.emailScanEnabled {
 		return

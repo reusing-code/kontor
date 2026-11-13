@@ -1555,6 +1555,7 @@ func (s *Store) setLedgerEmailAccountScanState(userID string, id uuid.UUID, stat
 		account.LastScanStatusMessage = state.Status
 		if state.AttemptedAt != nil {
 			account.LastScanAttemptAt = state.AttemptedAt
+			account.ScanResumePending = state.Resume
 		}
 		if state.CompletedAt != nil {
 			account.LastScanAt = state.CompletedAt

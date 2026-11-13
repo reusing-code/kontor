@@ -69,6 +69,7 @@ func (s *EmailService) processMessages(ctx context.Context, userID string, accou
 	if err != nil {
 		return err
 	}
+	s.publishScan(account.ID, result)
 	batchSize := max(len(todo), 1)
 	if preClassify {
 		batchSize = preClassifyBatchSize
@@ -91,6 +92,7 @@ func (s *EmailService) processMessages(ctx context.Context, userID string, accou
 		}
 		if preClassify {
 			batch, err = s.preClassify(ctx, userID, account, batch, result)
+			s.publishScan(account.ID, result)
 			if errors.Is(err, errTransientLLM) {
 				if transient() {
 					return nil
@@ -108,6 +110,7 @@ func (s *EmailService) processMessages(ctx context.Context, userID string, accou
 				return ctx.Err()
 			}
 			err := s.processMessage(ctx, userID, account, m, result)
+			s.publishScan(account.ID, result)
 			switch {
 			case errors.Is(err, errTransientLLM):
 				if transient() {

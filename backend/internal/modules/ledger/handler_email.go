@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -116,6 +115,7 @@ func (h *Handler) UpdateLedgerEmailAccount(w http.ResponseWriter, r *http.Reques
 		if a.IMAPHost != input.IMAPHost || a.IMAPPort != input.IMAPPort || a.Username != input.Username ||
 			a.UseTLS != input.UseTLS || a.Folder != input.Folder || encryptedPassword != "" {
 			a.LastScanAttemptAt = nil
+			a.ScanResumePending = false
 		}
 		a.Name = input.Name
 		a.IMAPHost = input.IMAPHost
@@ -166,7 +166,7 @@ func (h *Handler) TestLedgerEmailAccount(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if account.EncryptedPassword == "" {
-		httputil.Error(h.logger, w, http.StatusConflict, "no stored email password; edit the account and re-enter the password")
+		httputil.Error(h.logger, w, http.StatusConflict, ErrEmailPasswordMissing.Error())
 		return
 	}
 	password, err := cryptoutil.DecryptString(account.EncryptedPassword, h.encryptionKey)
@@ -299,6 +299,8 @@ func (h *Handler) scanError(w http.ResponseWriter, err error) {
 		httputil.Error(h.logger, w, http.StatusConflict, ErrEmailScanRunning.Error())
 	case errors.Is(err, ErrEmailLLMDisabled):
 		httputil.Error(h.logger, w, http.StatusConflict, ErrEmailLLMDisabled.Error())
+	case errors.Is(err, ErrEmailPasswordMissing):
+		httputil.Error(h.logger, w, http.StatusConflict, ErrEmailPasswordMissing.Error())
 	case errors.Is(err, ErrIMAP):
 		httputil.Error(h.logger, w, http.StatusBadGateway, err.Error())
 	default:
@@ -306,101 +308,98 @@ func (h *Handler) scanError(w http.ResponseWriter, err error) {
 	}
 }
 
-func manualScanStatus(folder string, isUpload bool, result LedgerEmailScanResult) string {
-	status := "Processed uploaded email messages"
-	if !isUpload {
-		status = fmt.Sprintf("Scanned folder %q via IMAP", folder)
+func (h *Handler) GetLedgerEmailScanStatus(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("emailAccountId"))
+	if err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid emailAccountId")
+		return
 	}
-	if !result.Complete() {
-		status += fmt.Sprintf(" (incomplete, %d warnings)", len(result.Warnings))
+	if _, err := h.store.GetLedgerEmailAccount(r.Context(), middleware.GetUserID(r.Context()), id); err != nil {
+		h.storeError(w, err)
+		return
 	}
-	return status
+	httputil.WriteJSON(h.logger, w, http.StatusOK, h.ledgerEmail.ScanStatus(id))
 }
 
+// ScanLedgerEmailAccount starts an IMAP scan as a background job (202 with
+// its status) or, for a multipart upload, processes the uploaded messages
+// within the request.
 func (h *Handler) ScanLedgerEmailAccount(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("emailAccountId"))
 	if err != nil {
 		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid emailAccountId")
 		return
 	}
-	account, err := h.store.GetLedgerEmailAccount(r.Context(), middleware.GetUserID(r.Context()), id)
+	userID := middleware.GetUserID(r.Context())
+	account, err := h.store.GetLedgerEmailAccount(r.Context(), userID, id)
 	if err != nil {
 		h.storeError(w, err)
 		return
 	}
-	userID := middleware.GetUserID(r.Context())
-	// A scan can run for minutes: it is not tied to the request, so it finishes
-	// and records its state even when the client or a proxy gives up waiting.
-	scanCtx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), emailScanTimeout)
-	defer cancel()
-	var result LedgerEmailScanResult
-	contentType := strings.TrimSpace(r.Header.Get("Content-Type"))
-	isUpload := strings.HasPrefix(contentType, "multipart/form-data")
-	if err := h.ledgerEmail.CanScan(account, !isUpload); err != nil {
+	if strings.HasPrefix(strings.TrimSpace(r.Header.Get("Content-Type")), "multipart/form-data") {
+		h.scanUploadedLedgerEmails(w, r, userID, account)
+		return
+	}
+	if err := h.ledgerEmail.CanScan(account, true); err != nil {
 		h.scanError(w, err)
 		return
 	}
-	if isUpload {
-		if err := r.ParseMultipartForm(32 << 20); err != nil {
-			httputil.Error(h.logger, w, http.StatusBadRequest, "invalid multipart form")
-			return
-		}
-		files := r.MultipartForm.File["files"]
-		if len(files) == 0 {
-			httputil.Error(h.logger, w, http.StatusBadRequest, "missing files field")
-			return
-		}
-		uploads := make([]UploadedMessage, 0, len(files))
-		for _, header := range files {
-			file, err := header.Open()
-			if err != nil {
-				httputil.Error(h.logger, w, http.StatusBadRequest, "could not open uploaded file")
-				return
-			}
-			data, err := io.ReadAll(file)
-			file.Close()
-			if err != nil {
-				httputil.Error(h.logger, w, http.StatusBadRequest, "could not read uploaded file")
-				return
-			}
-			uploads = append(uploads, UploadedMessage{Filename: header.Filename, Reader: bytes.NewReader(data)})
-		}
-		result, err = h.ledgerEmail.ScanUploadedMessages(scanCtx, userID, account, uploads)
-	} else {
-		if len(h.encryptionKey) == 0 {
-			httputil.Error(h.logger, w, http.StatusInternalServerError, "ENCRYPTION_KEY is not configured")
-			return
-		}
-		if account.EncryptedPassword == "" {
-			httputil.Error(h.logger, w, http.StatusConflict, "no stored email password; edit the account and re-enter the password")
-			return
-		}
-		password, decryptErr := cryptoutil.DecryptString(account.EncryptedPassword, h.encryptionKey)
-		if decryptErr != nil {
-			httputil.Error(h.logger, w, http.StatusInternalServerError, "could not decrypt stored email password")
-			return
-		}
-		result, err = h.ledgerEmail.ScanMailbox(scanCtx, userID, account, password)
+	if len(h.encryptionKey) == 0 {
+		httputil.Error(h.logger, w, http.StatusInternalServerError, "ENCRYPTION_KEY is not configured")
+		return
 	}
+	status, err := h.ledgerEmail.StartScan(userID, account, h.encryptionKey)
 	if err != nil {
-		switch {
-		case errors.Is(err, context.DeadlineExceeded) && scanCtx.Err() != nil:
-			result.Partial = true
-			result.Warnings = append(result.Warnings, "scan stopped at the time limit; scan again to continue")
-		default:
-			h.scanError(w, err)
+		h.scanError(w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusAccepted, status)
+}
+
+func (h *Handler) scanUploadedLedgerEmails(w http.ResponseWriter, r *http.Request, userID string, account LedgerEmailAccount) {
+	if err := h.ledgerEmail.CanScan(account, false); err != nil {
+		h.scanError(w, err)
+		return
+	}
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid multipart form")
+		return
+	}
+	files := r.MultipartForm.File["files"]
+	if len(files) == 0 {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "missing files field")
+		return
+	}
+	uploads := make([]UploadedMessage, 0, len(files))
+	for _, header := range files {
+		file, err := header.Open()
+		if err != nil {
+			httputil.Error(h.logger, w, http.StatusBadRequest, "could not open uploaded file")
 			return
 		}
-	}
-	// Only a complete IMAP scan moves the lookback start; uploads scan no mailbox.
-	state := LedgerEmailScanState{Status: manualScanStatus(account.Folder, isUpload, result)}
-	if !isUpload {
-		now := time.Now().UTC()
-		state.AttemptedAt = &now
-		if result.Complete() {
-			state.CompletedAt = &now
+		data, err := io.ReadAll(file)
+		file.Close()
+		if err != nil {
+			httputil.Error(h.logger, w, http.StatusBadRequest, "could not read uploaded file")
+			return
 		}
+		uploads = append(uploads, UploadedMessage{Filename: header.Filename, Reader: bytes.NewReader(data)})
 	}
+	// The LLM calls can take minutes: the processing is not tied to the
+	// request, so it finishes even when the client or a proxy gives up waiting.
+	scanCtx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), emailScanTimeout)
+	defer cancel()
+	result, err := h.ledgerEmail.ScanUploadedMessages(scanCtx, userID, account, uploads)
+	switch {
+	case scanTimedOut(scanCtx, err):
+		result.Partial = true
+		result.Warnings = append(result.Warnings, scanTimeLimitWarning)
+	case err != nil:
+		h.scanError(w, err)
+		return
+	}
+	// Uploads scan no mailbox, so they never move the lookback start.
+	state := LedgerEmailScanState{Status: manualScanStatus(account.Folder, true, result)}
 	if err := h.store.SetLedgerEmailAccountScanState(r.Context(), userID, account.ID, state); err != nil {
 		h.storeError(w, err)
 		return

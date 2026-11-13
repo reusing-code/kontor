@@ -65,8 +65,11 @@ type LedgerEmailAccount struct {
 	LastScanAt            *time.Time `json:"lastScanAt,omitempty"`
 	LastScanAttemptAt     *time.Time `json:"lastScanAttemptAt,omitempty"`
 	LastScanStatusMessage string     `json:"lastScanStatusMessage,omitempty"`
-	CreatedAt             time.Time  `json:"createdAt"`
-	UpdatedAt             time.Time  `json:"updatedAt"`
+	// ScanResumePending marks a partial scan that the scheduler continues
+	// after emailScanResumeDelay instead of the full interval.
+	ScanResumePending bool      `json:"scanResumePending,omitempty"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
 // storableLedgerEmailAccount includes EncryptedPassword for persistence
@@ -85,17 +88,20 @@ type storableLedgerEmailAccount struct {
 	LastScanAt            *time.Time `json:"lastScanAt,omitempty"`
 	LastScanAttemptAt     *time.Time `json:"lastScanAttemptAt,omitempty"`
 	LastScanStatusMessage string     `json:"lastScanStatusMessage,omitempty"`
+	ScanResumePending     bool       `json:"scanResumePending,omitempty"`
 	CreatedAt             time.Time  `json:"createdAt"`
 	UpdatedAt             time.Time  `json:"updatedAt"`
 }
 
 // LedgerEmailScanState is the outcome of a scan as recorded on the account.
 // CompletedAt moves the lookback anchor (LastScanAt) and must only be set for
-// complete IMAP scans; AttemptedAt schedules the next background scan.
+// complete IMAP scans; AttemptedAt schedules the next background scan, after
+// emailScanResumeDelay when Resume is set and after the interval otherwise.
 type LedgerEmailScanState struct {
 	Status      string
 	AttemptedAt *time.Time
 	CompletedAt *time.Time
+	Resume      bool
 }
 
 type LedgerEmailAccountInput struct {

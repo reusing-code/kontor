@@ -750,20 +750,22 @@ func TestScan_OnlyOneScanPerAccountAtATime(t *testing.T) {
 	}
 	other := p.account
 	other.ID = uuid.New()
-	if unlock, ok := p.svc.lockAccount(other.ID); !ok {
+	if _, ok := p.svc.beginScan(other.ID, EmailScanTriggerUpload); !ok {
 		t.Error("another account is blocked")
-	} else {
-		unlock()
+	}
+	if got := p.svc.ScanStatus(p.account.ID); got.State != EmailScanStateRunning || got.Trigger != EmailScanTriggerUpload {
+		t.Errorf("status during the scan = %+v", got)
 	}
 
 	close(release)
 	if err := <-done; err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	if unlock, ok := p.svc.lockAccount(p.account.ID); !ok {
-		t.Error("lock not released after the scan")
-	} else {
-		unlock()
+	if got := p.svc.ScanStatus(p.account.ID); got.State != EmailScanStateDone || got.OrdersNew != 1 {
+		t.Errorf("status after the scan = %+v", got)
+	}
+	if _, ok := p.svc.beginScan(p.account.ID, EmailScanTriggerUpload); !ok {
+		t.Error("scan slot not released after the scan")
 	}
 }
 

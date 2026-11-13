@@ -50,6 +50,40 @@ func TestSchedulerTickInterval(t *testing.T) {
 	}
 }
 
+func TestEmailSchedulerTick(t *testing.T) {
+	if got := emailSchedulerTick(6 * time.Hour); got != emailScanResumeDelay {
+		t.Errorf("tick for 6h interval = %v, want %v", got, emailScanResumeDelay)
+	}
+	if got := emailSchedulerTick(time.Minute); got != time.Minute {
+		t.Errorf("tick for 1m interval = %v, want 1m", got)
+	}
+}
+
+func TestAccountDue_PartialScanResumesAfterTheDelay(t *testing.T) {
+	now := time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC)
+	before := now.Add(-emailScanResumeDelay + time.Second)
+	after := now.Add(-emailScanResumeDelay)
+	for _, tc := range []struct {
+		name    string
+		attempt time.Time
+		pending bool
+		want    bool
+	}{
+		{"pending, delay not over", before, true, false},
+		{"pending, delay over", after, true, true},
+		{"not pending keeps the interval", after, false, false},
+	} {
+		account := LedgerEmailAccount{LastScanAttemptAt: &tc.attempt, ScanResumePending: tc.pending}
+		if got := accountDue(account, now, 6*time.Hour); got != tc.want {
+			t.Errorf("%s: accountDue() = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+	short := now.Add(-time.Minute)
+	if !accountDue(LedgerEmailAccount{LastScanAttemptAt: &short, ScanResumePending: true}, now, time.Minute) {
+		t.Error("an interval below the resume delay must win")
+	}
+}
+
 func TestScanStatusMessage(t *testing.T) {
 	msg := scanStatusMessage("Rechnungen", LedgerEmailScanResult{EmailsScanned: 12, OrdersNew: 3, OrdersLinked: 2})
 	want := `Background scan of folder "Rechnungen": 12 emails scanned, 3 new orders, 2 linked`
@@ -115,19 +149,19 @@ func TestFinishScan_AttemptAndCompletion(t *testing.T) {
 		return got
 	}
 
-	scheduler.finishScan(ctx, testUserID, account, "skipped", false, false)
+	scheduler.finishScan(ctx, testUserID, account, "skipped", false, false, false)
 	got := get()
 	if got.LastScanAt == nil || !got.LastScanAt.Equal(past) || got.LastScanAttemptAt != nil || got.LastScanStatusMessage != "skipped" {
 		t.Errorf("skip: %+v", got)
 	}
 
-	scheduler.finishScan(ctx, testUserID, account, "failed", true, false)
+	scheduler.finishScan(ctx, testUserID, account, "failed", true, false, false)
 	got = get()
 	if got.LastScanAt == nil || !got.LastScanAt.Equal(past) || got.LastScanAttemptAt == nil || !got.LastScanAttemptAt.After(past) {
 		t.Errorf("failed attempt must keep LastScanAt and stamp the attempt: %+v", got)
 	}
 
-	scheduler.finishScan(ctx, testUserID, account, "done", true, true)
+	scheduler.finishScan(ctx, testUserID, account, "done", true, true, false)
 	got = get()
 	if got.LastScanAt == nil || !got.LastScanAt.After(past) || got.LastScanStatusMessage != "done" {
 		t.Errorf("complete: %+v", got)
@@ -200,8 +234,8 @@ func TestScanOutcome(t *testing.T) {
 		wantAdvance bool
 	}{
 		{"complete", ok, nil, false, `Background scan of folder "F": 2 emails scanned, 1 new orders, 0 linked`, true},
-		{"repeated llm failures", partial, nil, false, `Background scan of folder "F" stopped after repeated LLM failures`, false},
-		{"timeout", partial, context.DeadlineExceeded, true, `Background scan of folder "F" timed out; it continues on the next run`, false},
+		{"repeated llm failures", partial, nil, false, `Background scan of folder "F" stopped after repeated LLM failures; it is retried shortly`, false},
+		{"timeout", partial, context.DeadlineExceeded, true, `Background scan of folder "F" timed out; it continues shortly`, false},
 		{"deadline without scan timeout", ok, context.DeadlineExceeded, false, "Background scan failed: context deadline exceeded", false},
 		{"imap failure", ok, ErrIMAP, false, "Background scan failed: imap", false},
 		{"skipped messages", LedgerEmailScanResult{EmailsScanned: 3, OrdersNew: 1, Skipped: 2}, nil, false, `Background scan of folder "F": 3 emails scanned, 1 new orders, 0 linked; 2 skipped and retried on the next run`, false},
@@ -265,7 +299,7 @@ func (x *imapSchedulerTest) assertIncomplete(t *testing.T, got LedgerEmailAccoun
 	if got.LastScanAttemptAt == nil || !got.LastScanAttemptAt.After(x.past) {
 		t.Errorf("LastScanAttemptAt = %v, want stamped", got.LastScanAttemptAt)
 	}
-	if accountDue(got, time.Now().UTC(), x.scheduler.interval) {
+	if got.ScanResumePending || accountDue(got, time.Now().UTC().Add(emailScanResumeDelay), x.scheduler.interval) {
 		t.Error("an incomplete scan must keep the normal retry interval")
 	}
 }

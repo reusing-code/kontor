@@ -21,10 +21,11 @@ import (
 var errMessageParse = errors.New("could not parse message")
 
 var (
-	ErrEmailFolderMissing = errors.New("choose a folder to scan")
-	ErrEmailLLMDisabled   = errors.New("the LLM is not configured")
-	ErrEmailScanRunning   = errors.New("a scan of this account is already running")
-	ErrIMAP               = errors.New("imap")
+	ErrEmailFolderMissing   = errors.New("choose a folder to scan")
+	ErrEmailLLMDisabled     = errors.New("the LLM is not configured")
+	ErrEmailScanRunning     = errors.New("a scan of this account is already running")
+	ErrEmailPasswordMissing = errors.New("no stored email password; edit the account and re-enter the password")
+	ErrIMAP                 = errors.New("imap")
 )
 
 func imapError(err error) error {
@@ -41,25 +42,22 @@ type EmailService struct {
 	store     *Store
 	extractor llm.Extractor
 	logger    *slog.Logger
-	scanLocks sync.Map // uuid.UUID -> *sync.Mutex
+
+	scanMu  sync.Mutex
+	scans   map[uuid.UUID]LedgerEmailScanStatus
+	baseCtx context.Context
+	// autoResume is set when the scheduler runs and continues partial scans.
+	autoResume bool
 }
 
 func NewEmailService(s *Store, extractor llm.Extractor, logger *slog.Logger) *EmailService {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
-	return &EmailService{store: s, extractor: extractor, logger: logger}
-}
-
-// lockAccount allows one scan per account at a time, so a manual and a
-// scheduled scan cannot extract the same messages twice.
-func (s *EmailService) lockAccount(id uuid.UUID) (unlock func(), ok bool) {
-	lock, _ := s.scanLocks.LoadOrStore(id, &sync.Mutex{})
-	mu := lock.(*sync.Mutex)
-	if !mu.TryLock() {
-		return nil, false
+	return &EmailService{
+		store: s, extractor: extractor, logger: logger,
+		scans: map[uuid.UUID]LedgerEmailScanStatus{}, baseCtx: context.Background(),
 	}
-	return mu.Unlock, true
 }
 
 // CanScan reports why a scan cannot start, before anything is downloaded.
@@ -78,22 +76,26 @@ func (s *EmailService) ScanUploadedMessages(ctx context.Context, userID string, 
 	if err := s.CanScan(account, false); err != nil {
 		return result, err
 	}
-	unlock, ok := s.lockAccount(account.ID)
-	if !ok {
+	if _, ok := s.beginScan(account.ID, EmailScanTriggerUpload); !ok {
 		return result, ErrEmailScanRunning
 	}
-	defer unlock()
+	err := s.processUploads(ctx, userID, account, files, &result)
+	s.endScan(ctx, account.ID, result, err)
+	return result, err
+}
+
+func (s *EmailService) processUploads(ctx context.Context, userID string, account LedgerEmailAccount, files []UploadedMessage, result *LedgerEmailScanResult) error {
 	msgs := make([]emailMessage, 0, len(files))
 	for _, file := range files {
 		result.EmailsScanned++
 		raw, err := io.ReadAll(file.Reader)
 		if err != nil {
-			warn(&result, file.Filename, "could not read file")
+			warn(result, file.Filename, "could not read file")
 			continue
 		}
 		parsed, err := parseMessage(bytes.NewReader(raw))
 		if err != nil {
-			warn(&result, file.Filename, "could not parse message")
+			warn(result, file.Filename, "could not parse message")
 			continue
 		}
 		if parsed.MessageID == "" {
@@ -106,20 +108,28 @@ func (s *EmailService) ScanUploadedMessages(ctx context.Context, userID string, 
 			Load:   func() (ParsedEmail, error) { return parsed, nil },
 		})
 	}
-	err := s.processMessages(ctx, userID, account, msgs, false, &result)
-	return result, err
+	return s.processMessages(ctx, userID, account, msgs, false, result)
 }
 
+// ScanMailbox scans the account's folder and blocks until the scan ended.
 func (s *EmailService) ScanMailbox(ctx context.Context, userID string, account LedgerEmailAccount, password string) (LedgerEmailScanResult, error) {
-	result := newScanResult()
+	return s.scanMailbox(ctx, userID, account, password, nil)
+}
+
+// scanMailbox is ScanMailbox with a callback that records the outcome while
+// the account's scan slot is still held (see runScan).
+func (s *EmailService) scanMailbox(ctx context.Context, userID string, account LedgerEmailAccount, password string, record func(LedgerEmailScanResult, error)) (LedgerEmailScanResult, error) {
 	if err := s.CanScan(account, true); err != nil {
-		return result, err
+		return newScanResult(), err
 	}
-	unlock, ok := s.lockAccount(account.ID)
-	if !ok {
-		return result, ErrEmailScanRunning
+	if _, ok := s.beginScan(account.ID, EmailScanTriggerScheduled); !ok {
+		return newScanResult(), ErrEmailScanRunning
 	}
-	defer unlock()
+	return s.runScan(ctx, userID, account, password, record)
+}
+
+func (s *EmailService) scanFolder(ctx context.Context, userID string, account LedgerEmailAccount, password string) (LedgerEmailScanResult, error) {
+	result := newScanResult()
 	client, err := newIMAPClient(account.IMAPHost, account.IMAPPort, account.UseTLS)
 	if err != nil {
 		return result, imapError(err)
@@ -182,6 +192,7 @@ func (s *EmailService) ScanMailbox(ctx context.Context, userID string, account L
 			return result, imapError(err)
 		}
 		result.EmailsScanned++
+		s.publishScan(account.ID, &result)
 		header, err := parseHeader(raw)
 		if err != nil {
 			warn(&result, label, "could not read message headers")
