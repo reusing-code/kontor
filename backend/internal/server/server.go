@@ -19,6 +19,7 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/core"
 	"github.com/reusing-code/kontor/backend/internal/drafts"
 	"github.com/reusing-code/kontor/backend/internal/email"
+	"github.com/reusing-code/kontor/backend/internal/enablebanking"
 	"github.com/reusing-code/kontor/backend/internal/extraction"
 	"github.com/reusing-code/kontor/backend/internal/fx"
 	"github.com/reusing-code/kontor/backend/internal/llm"
@@ -70,6 +71,10 @@ func (s *Server) buildApp() (*app, error) {
 	purchasesMod := purchases.New(engine, links, catStore, s.logger)
 	autoMod := auto.New(engine, links, s.logger)
 	extractor := s.newExtractor()
+	bankClient, err := s.newBankClient()
+	if err != nil {
+		return nil, err
+	}
 	draftStore := drafts.NewStore(engine)
 	ledgerMod := ledger.New(engine, links, coreStore, ledger.Config{
 		EmailScanInterval:  s.cfg.LedgerEmailScanInterval,
@@ -80,6 +85,7 @@ func (s *Server) buildApp() (*app, error) {
 			MaxPerRun: s.cfg.LedgerSuggestMaxPerRun,
 		},
 		Drafts: draftStore,
+		Bank:   ledger.BankConfig{Client: bankClient, PublicURL: s.cfg.PublicURL},
 	}, s.logger)
 	registry := module.NewRegistry(contractsMod, purchasesMod, autoMod, ledgerMod)
 
@@ -99,7 +105,7 @@ func (s *Server) buildApp() (*app, error) {
 	}
 	coreHandler := core.NewHandler(coreStore, s.logger, jwtSecret, emailClient, seeds, registry)
 
-	coreHandler.SetCapabilities(core.Capabilities{LLM: extractor.Enabled()})
+	coreHandler.SetCapabilities(core.Capabilities{LLM: extractor.Enabled(), BankImport: ledgerMod.BankImportEnabled()})
 	classifier := extraction.New(extractor, extractionDeps(coreStore, catStore, autoMod.Store()), s.newRates(), s.logger)
 
 	paperlessStore := paperless.NewStore(engine)
@@ -181,6 +187,8 @@ func (s *Server) buildApp() (*app, error) {
 	mux.Handle("POST /api/v1/auth/register", authRateLimit(http.HandlerFunc(coreHandler.Register)))
 	mux.Handle("POST /api/v1/auth/login", authRateLimit(http.HandlerFunc(coreHandler.Login)))
 	mux.HandleFunc("GET /api/version", version.Handler)
+	// Redirect target of the bank consent; authenticated by its state only.
+	mux.HandleFunc("GET /api/v1/ledger/bank/callback", ledgerMod.BankCallback)
 
 	// Mount protected API routes
 	mux.Handle("/api/v1/", protectedAPI)
@@ -269,6 +277,36 @@ func (s *Server) newExtractor() llm.Extractor {
 		APIKey:  s.cfg.LLMAPIKey,
 		Timeout: s.cfg.LLMTimeout,
 	})
+}
+
+// newBankClient builds the Enable Banking client, or returns nil while the
+// feature is not configured.
+func (s *Server) newBankClient() (*enablebanking.Client, error) {
+	if !s.cfg.EnableBankingEnabled() {
+		s.logger.Info("bank import disabled", "reason", "ENABLE_BANKING_APP_ID or ENABLE_BANKING_KEY_PATH is not set")
+		return nil, nil
+	}
+	key, err := enablebanking.LoadPrivateKey(s.cfg.EnableBankingKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("loading Enable Banking key: %w", err)
+	}
+	client, err := enablebanking.New(enablebanking.Config{
+		BaseURL: s.cfg.EnableBankingAPIURL,
+		AppID:   s.cfg.EnableBankingAppID,
+		Key:     key,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("creating Enable Banking client: %w", err)
+	}
+	host := s.cfg.EnableBankingAPIURL
+	if u, err := url.Parse(host); err == nil {
+		host = u.Host
+	}
+	s.logger.Info("bank import enabled", "api_host", host)
+	if s.cfg.PublicURL == "" {
+		s.logger.Warn("bank import cannot connect banks", "reason", "PUBLIC_URL is not set")
+	}
+	return client, nil
 }
 
 func (s *Server) newRates() fx.Rates {

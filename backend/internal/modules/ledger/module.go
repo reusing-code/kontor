@@ -10,6 +10,7 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/core"
 	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 	"github.com/reusing-code/kontor/backend/internal/drafts"
+	"github.com/reusing-code/kontor/backend/internal/enablebanking"
 	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/llm"
 	"github.com/reusing-code/kontor/backend/internal/module"
@@ -27,6 +28,7 @@ type Handler struct {
 	ledgerEmail        *EmailService
 	suggester          *CategorySuggester
 	recurring          *RecurringService
+	bank               *BankService
 	emailEncryptionKey []byte
 	// enabled checks the module of a reference target; nil skips the check.
 	enabled module.EnablementSource
@@ -61,6 +63,14 @@ type Config struct {
 	// Drafts receives recurring payments proposed as contracts; nil disables
 	// the detection.
 	Drafts *drafts.Store
+	// Bank enables the Enable Banking import; a nil client disables it.
+	Bank BankConfig
+}
+
+// BankConfig wires the Enable Banking client into the module.
+type BankConfig struct {
+	Client    *enablebanking.Client
+	PublicURL string
 }
 
 func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Config, logger *slog.Logger) *Module {
@@ -85,6 +95,21 @@ func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Con
 		emailEncryptionKey: encryptionKey,
 		enabled:            coreStore,
 	}
+	if cfg.Bank.Client != nil {
+		if len(encryptionKey) == 0 {
+			logger.Warn("bank import disabled", "reason", "no valid email encryption key")
+		} else {
+			handler.bank = NewBankService(BankServiceConfig{
+				Client:        cfg.Bank.Client,
+				Store:         store,
+				Enabled:       enablement(coreStore),
+				EncryptionKey: encryptionKey,
+				PublicURL:     cfg.Bank.PublicURL,
+				AfterImport:   handler.afterImport,
+				Logger:        logger,
+			})
+		}
+	}
 	if cfg.Drafts != nil {
 		handler.recurring = NewRecurringService(store, cfg.Drafts, coreStore, logger)
 	}
@@ -107,6 +132,23 @@ func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Con
 		scanInterval:     cfg.EmailScanInterval,
 		encryptionKey:    encryptionKey,
 	}
+}
+
+// enablement returns nil for a nil store, so the typed nil never reaches an interface.
+func enablement(s *core.Store) module.EnablementSource {
+	if s == nil {
+		return nil
+	}
+	return s
+}
+
+// BankImportEnabled reports whether the Enable Banking import is usable.
+func (m *Module) BankImportEnabled() bool { return m.handler.bank != nil }
+
+// BankCallback is the public redirect target of the bank consent; the server
+// mounts it outside the authenticated API.
+func (m *Module) BankCallback(w http.ResponseWriter, r *http.Request) {
+	m.handler.BankCallback(w, r)
 }
 
 func (m *Module) ID() string { return ModuleID }
@@ -151,6 +193,11 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("POST /api/v1/ledger/category-suggestions/run", h.RunLedgerCategorySuggestions)
 	r.Handle("GET /api/v1/ledger/category-suggestions/status", h.GetLedgerCategorySuggestionStatus)
 	r.Handle("POST /api/v1/ledger/recurring/run", h.RunLedgerRecurringDetection)
+	r.Handle("GET /api/v1/ledger/bank/aspsps", h.ListBankASPSPs)
+	r.Handle("GET /api/v1/ledger/bank/connections", h.ListBankConnections)
+	r.Handle("POST /api/v1/ledger/bank/connections/authorize", h.AuthorizeBank)
+	r.Handle("DELETE /api/v1/ledger/bank/connections/{id}", h.DisconnectBank)
+	r.Handle("PUT /api/v1/ledger/bank/connections/{id}/accounts/{uid}", h.MapBankAccount)
 }
 
 // DraftHooks returns the decision hooks of the ledger draft source

@@ -290,9 +290,9 @@ func TestBankConnectionStatus(t *testing.T) {
 
 func TestNormalizeIBAN(t *testing.T) {
 	for in, want := range map[string]string{
-		"de02 1203 0000 0000 2020 51":  "DE02120300000000202051",
-		" de02120300000000202051\t": "DE02120300000000202051",
-		"":                          "",
+		"de02 1203 0000 0000 2020 51": "DE02120300000000202051",
+		" de02120300000000202051\t":   "DE02120300000000202051",
+		"":                            "",
 	} {
 		if got := normalizeIBAN(in); got != want {
 			t.Errorf("normalizeIBAN(%q) = %q, want %q", in, got, want)

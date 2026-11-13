@@ -134,7 +134,7 @@ func TestRouteRulesCoverRoutes(t *testing.T) {
 
 	jwtOnly := []string{
 		"GET /api/v1/tokens", "POST /api/v1/tokens", "DELETE /api/v1/tokens/{id}",
-		"PUT /api/v1/settings/password",
+		"PUT /api/v1/settings/password", "GET /api/v1/ledger/bank/aspsps",
 	}
 	drafts := []string{
 		"PUT /api/v1/drafts/{id}", "POST /api/v1/drafts/{id}/accept", "POST /api/v1/drafts/{id}/reject",

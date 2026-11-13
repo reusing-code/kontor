@@ -7,9 +7,9 @@ import (
 )
 
 func TestGetCapabilities(t *testing.T) {
-	for _, llm := range []bool{false, true} {
+	for _, on := range []bool{false, true} {
 		h, _ := newTestHandler(t)
-		h.SetCapabilities(Capabilities{LLM: llm})
+		h.SetCapabilities(Capabilities{LLM: on, BankImport: !on})
 
 		rec := httptest.NewRecorder()
 		h.GetCapabilities(rec, httptest.NewRequest(http.MethodGet, "/api/v1/capabilities", nil))
@@ -18,8 +18,8 @@ func TestGetCapabilities(t *testing.T) {
 			t.Fatalf("status = %d", rec.Code)
 		}
 		got := decodeJSON[map[string]any](t, rec)
-		if len(got) != 1 || got["llm"] != llm {
-			t.Errorf("body = %v, want {llm: %v}", got, llm)
+		if len(got) != 2 || got["llm"] != on || got["bankImport"] != !on {
+			t.Errorf("body = %v, want {llm: %v, bankImport: %v}", got, on, !on)
 		}
 	}
 }

@@ -19,6 +19,8 @@ var routeRules = map[string]middleware.Rule{
 	"GET /api/v1/tokens":            middleware.RuleJWTOnly,
 	"POST /api/v1/tokens":           middleware.RuleJWTOnly,
 	"PUT /api/v1/settings/password": middleware.RuleJWTOnly,
+	// spends Enable Banking quota
+	"GET /api/v1/ledger/bank/aspsps": middleware.RuleJWTOnly,
 
 	// drafts scope
 	"POST /api/v1/drafts/{id}/accept": middleware.RuleDrafts,
@@ -45,6 +47,7 @@ var routeRules = map[string]middleware.Rule{
 	"GET /api/v1/ledger/accounts":                                         middleware.RuleRead,
 	"GET /api/v1/ledger/accounts/{accountId}":                             middleware.RuleRead,
 	"GET /api/v1/ledger/accounts/{accountId}/transactions":                middleware.RuleRead,
+	"GET /api/v1/ledger/bank/connections":                                 middleware.RuleRead,
 	"GET /api/v1/ledger/categories":                                       middleware.RuleRead,
 	"GET /api/v1/ledger/category-suggestions/status":                      middleware.RuleRead,
 	"GET /api/v1/ledger/categories/{id}":                                  middleware.RuleRead,
@@ -78,6 +81,9 @@ var routeRules = map[string]middleware.Rule{
 	// never reachable with a token
 	"DELETE /api/v1/contracts/{id}":                                       middleware.RuleDenied,
 	"DELETE /api/v1/costs/{id}":                                           middleware.RuleDenied,
+	"DELETE /api/v1/ledger/bank/connections/{id}":                         middleware.RuleDenied,
+	"POST /api/v1/ledger/bank/connections/authorize":                      middleware.RuleDenied,
+	"PUT /api/v1/ledger/bank/connections/{id}/accounts/{uid}":             middleware.RuleDenied,
 	"DELETE /api/v1/ledger/categories/{id}":                               middleware.RuleDenied,
 	"DELETE /api/v1/ledger/email-accounts/{emailAccountId}":               middleware.RuleDenied,
 	"DELETE /api/v1/ledger/transactions/{transactionId}/transfer-link":    middleware.RuleDenied,
