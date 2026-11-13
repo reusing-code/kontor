@@ -1,5 +1,5 @@
 // Package extraction classifies free text (a paperless document, a typed
-// note) into a purchase, contract or vehicle cost with one LLM call, and
+// note) or an uploaded PDF or image into a purchase, contract or vehicle cost with one LLM call, and
 // validates the result into a proposal shaped like the module create input.
 // Module lookups come in through Deps, so the package never imports modules.
 package extraction
@@ -78,12 +78,17 @@ type InputKind int
 const (
 	InputDocument InputKind = iota
 	InputNote
+	// InputUpload is a file the user uploaded: Text holds the text of a
+	// PDF, Images a photo or scan; Hint is an optional note typed with it.
+	InputUpload
 )
 
 type Input struct {
-	Kind  InputKind
-	Title string
-	Text  string
+	Kind   InputKind
+	Title  string
+	Text   string
+	Hint   string
+	Images []llm.Image
 }
 
 // Proposal is the validated classification. Input has the target module's
@@ -164,10 +169,10 @@ func (c *Classifier) LoadCatalog(ctx context.Context, userID string, targets []s
 }
 
 // Classify returns an error only for transient LLM failures (timeouts,
-// network, 5xx, 429, auth); everything else becomes a none proposal with a
+// network, 5xx, 429, auth) and llm.ErrVisionDisabled; everything else becomes a none proposal with a
 // note. operation labels the LLM metrics.
 func (c *Classifier) Classify(ctx context.Context, operation string, cat Catalog, in Input, now time.Time) (Proposal, error) {
-	if strings.TrimSpace(in.Text) == "" {
+	if strings.TrimSpace(in.Text) == "" && len(in.Images) == 0 {
 		return noneProposal(NoteEmptyContent), nil
 	}
 	out, err := llm.ExtractAs[Classification](ctx, c.extractor, newRequest(operation, in, cat, now))

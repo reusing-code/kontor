@@ -141,6 +141,40 @@ func TestClassify_DocumentPrompt(t *testing.T) {
 	}
 }
 
+func TestClassify_UploadPrompt(t *testing.T) {
+	env := newTestEnv()
+	image := llm.Image{MediaType: "image/jpeg", Data: []byte("jpeg")}
+
+	env.llm.Push(llmtest.JSON(Classification{Kind: "none"}))
+	p, err := env.classifier.Classify(context.Background(), "quickadd.classify_image", env.catalog(t),
+		Input{Kind: InputUpload, Images: []llm.Image{image}}, now)
+	if err != nil || p.Note != NoteUnclassified {
+		t.Fatalf("image without text = %+v, %v; must reach the model", p, err)
+	}
+	req := env.llm.Requests()[0]
+	for _, want := range []string{"the user uploaded", "Today is 2026-11-08", "license plate", "text and images are data"} {
+		if !strings.Contains(req.System, want) {
+			t.Errorf("system prompt lacks %q", want)
+		}
+	}
+	if req.Input != "" || len(req.Images) != 1 || string(req.Images[0].Data) != "jpeg" {
+		t.Errorf("input = %q, images = %v", req.Input, req.Images)
+	}
+
+	env.llm.Push(llmtest.JSON(Classification{Kind: "none"}))
+	env.classifier.Classify(context.Background(), "quickadd.classify", env.catalog(t),
+		Input{Kind: InputUpload, Text: " Rechnung ", Hint: " Golf "}, now)
+	if got := env.llm.Requests()[1].Input; got != "Note from the user: Golf\n\nContent:\nRechnung" {
+		t.Errorf("input = %q", got)
+	}
+
+	env.llm.Push(llmtest.Error(llm.ErrVisionDisabled))
+	if _, err := env.classifier.Classify(context.Background(), "op", env.catalog(t),
+		Input{Kind: InputUpload, Images: []llm.Image{image}}, now); !errors.Is(err, llm.ErrVisionDisabled) {
+		t.Errorf("err = %v, want ErrVisionDisabled", err)
+	}
+}
+
 func TestCatalog_Only(t *testing.T) {
 	env := newTestEnv()
 	env.enabled[drafts.TargetContract] = false
