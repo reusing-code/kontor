@@ -18,6 +18,7 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 - **MCP endpoint for agents** — `POST /mcp` (stateless streamable HTTP, official Go SDK) lets agents such as Claude Code or OpenCode work with your data using a personal access token (`kpat_…`, PAT only, no JWT). Agents can only read reference data, search paperless and create drafts that you review in the inbox (and link paperless documents); they cannot create or change entities. Tools are filtered by the token's scopes and by your enabled modules. Set `PUBLIC_URL` (e.g. `https://kontor.example.com`) so the back-link Kontor writes into paperless points at the right address; without it `attach_paperless_documents` reports `public_url_not_configured`
 - **Foreign currencies** — Kontor stores amounts in EUR. When the LLM finds another currency (quick add, paperless drafts), the amount is converted at the ECB reference rate of the entry's date via the Frankfurter API (`FX_RATES_URL`, default `https://api.frankfurter.dev/v1`, `off` disables) and the original amount is kept in the comments; without a rate the amount is left empty for you to fill in
 - **LLM endpoint (optional)** — Server-wide OpenAI-compatible endpoint for structured extraction (`LLM_BASE_URL`, `LLM_MODEL`, optional `LLM_API_KEY`, `LLM_TIMEOUT` default `60s`); off while `LLM_BASE_URL` is unset, and the UI only offers LLM features when `/api/v1/capabilities` reports them. Used by quick add, the paperless pipeline, ledger email order extraction and ledger category suggestions. Prompts and model output are never logged
+- **Automatic bank import (optional)** — Connect DKB, comdirect or any bank that Enable Banking lists (`GET /ledger/bank/aspsps`; DKB and comdirect are the ones this was built for and are marked "verified") and Kontor imports new transactions in the background (`ENABLE_BANKING_SYNC_INTERVAL`, default `24h`, `0` = manual "Sync now" only). Imports use the same keyword categories and review queue as CSV imports; transactions that an earlier CSV import already holds are recognized and not duplicated. Consents last at most 180 days; Kontor warns in the UI and, with SMTP configured, by mail 14 and 3 days before the end. See "Bank import (Enable Banking)" below
 - **Category organization** — Per-module categories (e.g. insurance/telecom for contracts, PC hardware/tools for purchases)
 - **Homepage overview** — Dashboard at `/` with summary cards and stats across all modules
 - **Renewal monitoring** — Upcoming renewals with color-coded urgency indicators
@@ -73,6 +74,25 @@ Every push to `main` adds a `sha-*` tag on Forgejo. A package cleanup rule set i
 
 The remove pattern limits the rule to the `sha-*` tags of `kontor` (not `kontor-ci`); the preview in the rule editor shows what would be deleted.
 
+## Bank import (Enable Banking)
+
+The bank import is off until you configure it; the UI shows nothing about it while `/api/v1/capabilities` reports `bankImport: false`.
+
+**Privacy.** Bank data passes through [Enable Banking](https://enablebanking.com) (an account-information provider licensed under PSD2); Kontor has no other path to your bank (FinTS is not used). What Kontor sends to Enable Banking: the bank you pick, the consent validity and scope (read access to accounts and transactions, with extended history), the redirect URL, the bank's own account UIDs and date ranges when it fetches transactions. It never sends your ledger data, categories or notes. What Kontor stores from the bank: an encrypted session ID (AES-GCM with `EMAIL_ENCRYPTION_KEY`; it is never returned by the API or written to logs), the consent's validity, the account list (UID, IBAN, name, currency) and the transactions the bank returns, in the same form as CSV-imported ones. Consents, mappings and sync state are not part of the export; after restoring a backup, connect the banks again (re-authorize). The integration is operator-only: a restricted-mode Enable Banking app can only access its owner's accounts, which is the expected setup for a personal install.
+
+**Setup.**
+
+1. Register an application at Enable Banking, generate an RSA key pair, upload the certificate and keep the private key (PEM). Link your own bank accounts to the application (restricted mode).
+2. Register the redirect URL **exactly** `PUBLIC_URL/api/v1/ledger/bank/callback` in the application (for example `https://kontor.example.com/api/v1/ledger/bank/callback`).
+3. Set `ENABLE_BANKING_APP_ID`, `ENABLE_BANKING_KEY_PATH` (mount the key file read-only into the container, see `compose.yml`), `PUBLIC_URL` and `EMAIL_ENCRYPTION_KEY`. Optional: `ENABLE_BANKING_SYNC_INTERVAL` (default `24h`; `0` disables only the automatic sync, expiry mails keep working), `ENABLE_BANKING_API_URL` (default `https://api.enablebanking.com`). Configure SMTP for the expiry mails.
+4. Open Ledger → Bank connections, connect a bank, approve at the bank, then map each bank account to a ledger account (matched by IBAN automatically; or create the ledger account from the bank account).
+
+**Two residual risks of the public callback.** The callback is public by design, so its `state` is not bound to the browser that started the consent: if someone gets you to finish a consent that was started from *their* Kontor session, your bank session would be attached to their user. Restricted mode and a single-owner install make this very unlikely, but do not open bank-consent links you did not start yourself. And `code` and `state` are part of the callback URL, so a reverse proxy's access log will contain them; both are single use and short lived (the state lives 15 minutes), but do not keep those access logs longer than needed.
+
+Start with a CSV import for the history you already have and connect the bank afterwards; a CSV imported over API-synced history is not matched against it. How CSV and API data differ and how duplicates are avoided is described in `docs/design/enablebanking/README.md`.
+
+**Development.** The consent redirects the browser to `PUBLIC_URL`, so for local development set `PUBLIC_URL=http://localhost:5173` (the Vite dev server proxies `/api` to the backend) and register that origin's callback URL in the Enable Banking application. Tests use an in-memory fake API (`internal/enablebanking/enablebankingtest`) and never contact Enable Banking.
+
 ## Using Kontor from an agent (MCP)
 
 Create a personal access token in **Settings → Access tokens** (shown once; optional expiry, 90 days by default), then point an MCP client at `https://<your-kontor>/mcp` with the header `Authorization: Bearer <token>`:
@@ -118,6 +138,13 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 |--------|------|-------------|
 | POST | `/auth/register` | Register user |
 | POST | `/auth/login` | Login (returns JWT) |
+| GET | `/ledger/bank/aspsps` | Banks Enable Banking offers for `?country=DE` (JWT only) |
+| GET | `/ledger/bank/connections` | Bank connections with account mapping and sync status (never the session) |
+| POST | `/ledger/bank/connections/authorize` | Start a bank consent (`{aspspName, aspspCountry}` → `{url}`) |
+| DELETE | `/ledger/bank/connections/{id}` | Disconnect a bank (`{remoteClosed}`) |
+| PUT | `/ledger/bank/connections/{id}/accounts/{uid}` | Map a bank account to a ledger account (`{ledgerAccountId}`) |
+| POST | `/ledger/bank/connections/{id}/sync` | Sync a connection now (409 `sync_running` / `consent_expired`) |
+| GET | `/ledger/bank/callback` | Public redirect target of the consent (state is the credential; answers `303` to the result page) |
 | GET | `/ledger/accounts` | List tracked ledger accounts |
 | POST | `/ledger/accounts` | Create a ledger account (`{name, bank, iban?, currency?}`, IBAN checksum validated, duplicate IBAN 409; JWT only) |
 | GET | `/ledger/accounts/{id}` | Get ledger account details |

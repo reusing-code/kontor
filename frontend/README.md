@@ -62,4 +62,6 @@ The draft inbox at `/inbox` lists entries proposed from tagged paperless documen
 
 Quick add (header button, Ctrl/Cmd+K) turns a typed note into a prefilled create dialog; it only appears when the server has an LLM configured and at least one of the purchases, contracts or auto modules is enabled.
 
+With the server-side bank import configured (the `bankImport` capability), Ledger → Bank connections connects banks through Enable Banking, maps their accounts to ledger accounts and syncs them; the consent banner on the ledger dashboard warns before a consent ends.
+
 Ledger transactions can be reviewed from `/ledger/review`, linked to other modules via references, and explicitly linked/unlinked as internal transfers on the review and detail screens. The detail screen can also create a purchase (one per item of a linked email order), a vehicle cost, a contract or a vehicle prefilled from the transaction and links it right away.
