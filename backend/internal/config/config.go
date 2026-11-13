@@ -37,6 +37,8 @@ type Config struct {
 
 	// Interval between background IMAP scans of ledger email accounts. 0 disables.
 	LedgerEmailScanInterval time.Duration `env:"LEDGER_EMAIL_SCAN_INTERVAL" envDefault:"6h"`
+	// Unusable LLM answers for one email message before it is ignored.
+	LedgerEmailMaxExtractionFailures int `env:"LEDGER_EMAIL_MAX_EXTRACTION_FAILURES" envDefault:"3"`
 
 	// LLM category suggestions: transactions per LLM call and per run.
 	LedgerSuggestBatchSize int `env:"LEDGER_SUGGEST_BATCH_SIZE"  envDefault:"25"`
@@ -95,6 +97,9 @@ func Load() (Config, error) {
 	}
 	if err := cfg.validateLedgerSuggest(); err != nil {
 		return cfg, err
+	}
+	if cfg.LedgerEmailMaxExtractionFailures < 1 {
+		return cfg, errors.New("LEDGER_EMAIL_MAX_EXTRACTION_FAILURES must be at least 1")
 	}
 	if cfg.FXRatesEnabled() && !isHTTPURL(cfg.FXRatesURL) {
 		return cfg, errors.New(`FX_RATES_URL must be an absolute http(s) URL or "off"`)

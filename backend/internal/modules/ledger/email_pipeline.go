@@ -199,9 +199,12 @@ func (s *EmailService) processMessage(ctx context.Context, userID string, accoun
 		s.logger.Warn("email extraction failed", "message", m.Label, "class", class)
 		result.Skipped++
 		return errTransientLLM
-	case err != nil:
-		warn(result, m.Label, "LLM output was unusable")
+	case err != nil && isUnusableLLMOutput(err):
 		s.logger.Warn("email extraction failed", "message", m.Label, "class", "unusable")
+		return s.handleFailedExtraction(ctx, userID, account, m, "LLM output was unusable", result)
+	case err != nil:
+		warn(result, m.Label, "LLM request was rejected")
+		s.logger.Warn("email extraction failed", "message", m.Label, "class", "rejected")
 		return nil
 	}
 	if !ext.IsOrder {
@@ -209,9 +212,8 @@ func (s *EmailService) processMessage(ctx context.Context, userID string, accoun
 	}
 	extracted, err := validateExtraction(ext, parsed.Date)
 	if err != nil {
-		warn(result, m.Label, "extraction result was incomplete")
 		s.logger.Warn("email extraction failed", "message", m.Label, "class", "incomplete")
-		return nil
+		return s.handleFailedExtraction(ctx, userID, account, m, "extraction result was incomplete", result)
 	}
 	return s.storeOrder(ctx, userID, account, m, parsed, extracted, result)
 }
@@ -284,6 +286,25 @@ func (s *EmailService) handleRejectedFetch(ctx context.Context, userID string, a
 	return nil
 }
 
+// defaultMaxExtractionFailures is how often the model may give no usable
+// answer for the same message before it is ignored.
+const defaultMaxExtractionFailures = 3
+
+// handleFailedExtraction counts an answer that is unusable for this message.
+// Below the limit the message stays unmarked and is retried by the next scan.
+func (s *EmailService) handleFailedExtraction(ctx context.Context, userID string, account LedgerEmailAccount, m emailMessage, reason string, result *LedgerEmailScanResult) error {
+	count, err := s.store.RecordLedgerEmailExtractionFailure(ctx, userID, account.ID, m.Key)
+	if err != nil {
+		return err
+	}
+	if count >= s.maxExtractionFailures {
+		warn(result, m.Label, "message could not be extracted repeatedly and is ignored from now on")
+		return s.store.MarkLedgerEmailsSeen(ctx, userID, account.ID, EmailSeenUnusable, m.Key)
+	}
+	warn(result, m.Label, reason)
+	return nil
+}
+
 // useExistingOrder handles a message that another scan stored in the meantime.
 func (s *EmailService) useExistingOrder(ctx context.Context, userID string, m emailMessage, result *LedgerEmailScanResult) error {
 	existing, err := s.store.GetLedgerEmailOrderByMessageID(ctx, userID, m.Key)
@@ -299,7 +320,7 @@ func (s *EmailService) useExistingOrder(ctx context.Context, userID string, m em
 // (timeouts, network, rate limits, server and auth errors) from answers that
 // are unusable for this message. Callers check the scan context first.
 func isTransientLLMError(err error) bool {
-	if errors.Is(err, llm.ErrInvalidOutput) || errors.Is(err, llm.ErrRefused) || errors.Is(err, llm.ErrTruncated) {
+	if isUnusableLLMOutput(err) {
 		return false
 	}
 	if apiErr, ok := errors.AsType[*llm.APIError](err); ok {
@@ -311,4 +332,11 @@ func isTransientLLMError(err error) bool {
 		}
 	}
 	return true
+}
+
+// isUnusableLLMOutput reports a model answer that cannot be used for this
+// message. Only these count towards the per-message failure limit: a rejected
+// request (4xx) may be a configuration error that says nothing about the message.
+func isUnusableLLMOutput(err error) bool {
+	return errors.Is(err, llm.ErrInvalidOutput) || errors.Is(err, llm.ErrRefused) || errors.Is(err, llm.ErrTruncated)
 }

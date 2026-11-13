@@ -181,14 +181,26 @@ export const ledgerEmailOrderCandidateSchema = z.object({
   transaction: ledgerTransactionSchema,
   accountName: z.string(),
   dateDeltaDays: z.number().int().optional(),
+  amountComparable: z.boolean(),
 })
 
 export type LedgerEmailOrderCandidate = z.infer<typeof ledgerEmailOrderCandidateSchema>
+
+export const ledgerEmailOrderConversionSchema = z.object({
+  currency: z.string(),
+  totalMinor: z.number().int(),
+  rate: z.number(),
+  rateDate: z.string(),
+})
+
+export type LedgerEmailOrderConversion = z.infer<typeof ledgerEmailOrderConversionSchema>
 
 export const ledgerEmailOrderCandidatesResultSchema = z.object({
   items: z.array(ledgerEmailOrderCandidateSchema),
   beforeDays: z.number().int(),
   afterDays: z.number().int(),
+  conversions: z.array(ledgerEmailOrderConversionSchema).optional(),
+  unconvertedCurrencies: z.array(z.string()).optional(),
 })
 
 export type LedgerEmailOrderCandidatesResult = z.infer<typeof ledgerEmailOrderCandidatesResultSchema>

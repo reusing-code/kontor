@@ -182,6 +182,14 @@ func idxLedEmailRejectPrefix(userID string, accountID uuid.UUID) []byte {
 	return []byte(fmt.Sprintf("u/%s/mod/ledger/idx/erej/%s/", userID, accountID))
 }
 
+func idxLedEmailExtractFailKey(userID string, accountID uuid.UUID, key string) []byte {
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/idx/efail/%s/%s", userID, accountID, key))
+}
+
+func idxLedEmailExtractFailPrefix(userID string, accountID uuid.UUID) []byte {
+	return []byte(fmt.Sprintf("u/%s/mod/ledger/idx/efail/%s/", userID, accountID))
+}
+
 func idxLedEmailSeenPrefix(userID string, accountID uuid.UUID) []byte {
 	return []byte(fmt.Sprintf("u/%s/mod/ledger/idx/eseen/%s/", userID, accountID))
 }
@@ -1512,10 +1520,19 @@ func (s *Store) ModifyLedgerEmailAccount(_ context.Context, userID string, id uu
 // RecordLedgerEmailRejection counts how often the server refused to deliver a
 // message and returns the new count.
 func (s *Store) RecordLedgerEmailRejection(_ context.Context, userID string, accountID uuid.UUID, key string) (int, error) {
+	return s.incrementCounter(idxLedEmailRejectKey(userID, accountID, key))
+}
+
+// RecordLedgerEmailExtractionFailure counts how often the model gave no
+// usable answer for a message and returns the new count.
+func (s *Store) RecordLedgerEmailExtractionFailure(_ context.Context, userID string, accountID uuid.UUID, key string) (int, error) {
+	return s.incrementCounter(idxLedEmailExtractFailKey(userID, accountID, key))
+}
+
+func (s *Store) incrementCounter(k []byte) (int, error) {
 	count := 0
 	err := retryOnConflict(func() error {
 		return s.e.Update(func(txn *badger.Txn) error {
-			k := idxLedEmailRejectKey(userID, accountID, key)
 			count = 0
 			item, err := txn.Get(k)
 			switch {
@@ -1600,7 +1617,12 @@ func (s *Store) DeleteLedgerEmailAccount(_ context.Context, userID string, id uu
 
 func deleteLedgerEmailSeen(txn *badger.Txn, userID string, accountID uuid.UUID) error {
 	var keys [][]byte
-	for _, prefix := range [][]byte{idxLedEmailSeenPrefix(userID, accountID), idxLedEmailRejectPrefix(userID, accountID)} {
+	prefixes := [][]byte{
+		idxLedEmailSeenPrefix(userID, accountID),
+		idxLedEmailRejectPrefix(userID, accountID),
+		idxLedEmailExtractFailPrefix(userID, accountID),
+	}
+	for _, prefix := range prefixes {
 		it := txn.NewIterator(badger.IteratorOptions{Prefix: prefix})
 		for it.Rewind(); it.Valid(); it.Next() {
 			keys = append(keys, it.Item().KeyCopy(nil))
@@ -1631,7 +1653,7 @@ func (s *Store) HasLedgerEmailSeen(_ context.Context, userID string, accountID u
 }
 
 // MarkLedgerEmailsSeen records messages that need no further processing, in
-// one transaction.
+// one transaction, and drops their extraction failure counters.
 func (s *Store) MarkLedgerEmailsSeen(_ context.Context, userID string, accountID uuid.UUID, reason string, keys ...string) error {
 	if len(keys) == 0 {
 		return nil
@@ -1645,9 +1667,23 @@ func (s *Store) MarkLedgerEmailsSeen(_ context.Context, userID string, accountID
 			if err := txn.Set(idxLedEmailSeenKey(userID, accountID, key), data); err != nil {
 				return err
 			}
+			if err := deleteIfPresent(txn, idxLedEmailExtractFailKey(userID, accountID, key)); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
+}
+
+func deleteIfPresent(txn *badger.Txn, key []byte) error {
+	_, err := txn.Get(key)
+	if errors.Is(err, badger.ErrKeyNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return txn.Delete(key)
 }
 
 func collectLedgerEmailOrders(txn *badger.Txn, userID string) ([]LedgerEmailOrder, error) {
@@ -1760,13 +1796,11 @@ const ledgerEmailOrderCandidateLimit = 100
 
 // ListLedgerEmailOrderCandidates returns outgoing transactions from all
 // accounts that are not linked to an email order yet and were booked within
-// window around the order date, closest amount first.
-func (s *Store) ListLedgerEmailOrderCandidates(_ context.Context, userID string, order LedgerEmailOrder, window ChargeWindow) (LedgerEmailOrderCandidatesResult, error) {
+// window around the order date, closest amount first. targets holds the
+// absolute order total per transaction currency; transactions in a currency
+// without a target are not comparable by amount and come last.
+func (s *Store) ListLedgerEmailOrderCandidates(_ context.Context, userID string, order LedgerEmailOrder, window ChargeWindow, targets map[string]int64) (LedgerEmailOrderCandidatesResult, error) {
 	result := LedgerEmailOrderCandidatesResult{Items: []LedgerEmailOrderCandidate{}, ChargeWindow: window}
-	target := order.TotalMinor
-	if target < 0 {
-		target = -target
-	}
 	err := s.e.View(func(txn *badger.Txn) error {
 		accounts, err := collectLedgerAccounts(txn, userID)
 		if err != nil {
@@ -1787,7 +1821,8 @@ func (s *Store) ListLedgerEmailOrderCandidates(_ context.Context, userID string,
 			if !window.Contains(candidate.BookingDate, order.OrderDate) {
 				continue
 			}
-			item := LedgerEmailOrderCandidate{Transaction: candidate, AccountName: accountNameByID[candidate.AccountID]}
+			_, comparable := targets[normalizeCurrency(candidate.Currency)]
+			item := LedgerEmailOrderCandidate{Transaction: candidate, AccountName: accountNameByID[candidate.AccountID], AmountComparable: comparable}
 			if delta, ok := ledgerSignedDateDeltaDays(candidate.BookingDate, order.OrderDate); ok {
 				item.DateDeltaDays = &delta
 			}
@@ -1799,11 +1834,7 @@ func (s *Store) ListLedgerEmailOrderCandidates(_ context.Context, userID string,
 		return result, err
 	}
 	amountDelta := func(c LedgerEmailOrderCandidate) int64 {
-		delta := -c.Transaction.AmountMinor - target
-		if delta < 0 {
-			return -delta
-		}
-		return delta
+		return absMinor(-c.Transaction.AmountMinor - targets[normalizeCurrency(c.Transaction.Currency)])
 	}
 	dateDelta := func(c LedgerEmailOrderCandidate) int {
 		if c.DateDeltaDays == nil {
@@ -1816,7 +1847,10 @@ func (s *Store) ListLedgerEmailOrderCandidates(_ context.Context, userID string,
 	}
 	sort.SliceStable(result.Items, func(i, j int) bool {
 		left, right := result.Items[i], result.Items[j]
-		if a, b := amountDelta(left), amountDelta(right); a != b {
+		if left.AmountComparable != right.AmountComparable {
+			return left.AmountComparable
+		}
+		if a, b := amountDelta(left), amountDelta(right); left.AmountComparable && a != b {
 			return a < b
 		}
 		if a, b := dateDelta(left), dateDelta(right); a != b {
@@ -1873,6 +1907,9 @@ func (s *Store) createScannedLedgerEmailOrder(userID string, order LedgerEmailOr
 			} else if !errors.Is(err, badger.ErrKeyNotFound) {
 				return err
 			}
+		}
+		if err := deleteIfPresent(txn, idxLedEmailExtractFailKey(userID, order.EmailAccountID, order.EmailMessageID)); err != nil {
+			return err
 		}
 		return storeLedgerEmailOrder(txn, userID, order)
 	})

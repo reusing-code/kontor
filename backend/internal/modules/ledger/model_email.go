@@ -33,6 +33,7 @@ const (
 	EmailSeenPreClass   = "preclass"
 	EmailSeenTooLarge   = "too_large"
 	EmailSeenUnreadable = "unreadable"
+	EmailSeenUnusable   = "unusable"
 )
 
 // ledgerEmailSeen marks a message that was processed without producing an
@@ -139,11 +140,27 @@ type LedgerEmailOrderCandidate struct {
 	Transaction   LedgerTransaction `json:"transaction"`
 	AccountName   string            `json:"accountName"`
 	DateDeltaDays *int              `json:"dateDeltaDays,omitempty"`
+	// AmountComparable is false when the transaction's currency differs from
+	// the order's and no exchange rate was available.
+	AmountComparable bool `json:"amountComparable"`
+}
+
+// LedgerEmailOrderConversion is the order total in another currency at the
+// ECB reference rate published on RateDate.
+type LedgerEmailOrderConversion struct {
+	Currency   string  `json:"currency"`
+	TotalMinor int64   `json:"totalMinor"`
+	Rate       float64 `json:"rate"`
+	RateDate   string  `json:"rateDate"`
 }
 
 type LedgerEmailOrderCandidatesResult struct {
 	Items []LedgerEmailOrderCandidate `json:"items"`
 	ChargeWindow
+	// Conversions holds the order total in each ledger account currency that
+	// differs from the order's; UnconvertedCurrencies lists those without a rate.
+	Conversions           []LedgerEmailOrderConversion `json:"conversions,omitempty"`
+	UnconvertedCurrencies []string                     `json:"unconvertedCurrencies,omitempty"`
 }
 
 type LedgerEmailOrder struct {

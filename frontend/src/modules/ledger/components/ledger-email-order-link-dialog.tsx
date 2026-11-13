@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useLedgerEmailOrderCandidates } from "@/modules/ledger/hooks/use-ledger"
 import { emailOrderTitle, formatAmountMinor, formatLedgerDate, tokenizeLedgerMatchWords } from "@/modules/ledger/lib/ledger-utils"
-import type { LedgerEmailOrder, LedgerEmailOrderCandidate } from "@/modules/ledger/types"
+import type { LedgerEmailOrder, LedgerEmailOrderCandidate, LedgerEmailOrderConversion } from "@/modules/ledger/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -26,17 +26,42 @@ interface LedgerEmailOrderLinkDialogProps {
 
 type ScoredCandidate = LedgerEmailOrderCandidate & { score: number }
 
-function scoreCandidate(order: LedgerEmailOrder, orderTokens: string[], candidate: LedgerEmailOrderCandidate, windowDays: number): number {
-  const { transaction, dateDeltaDays } = candidate
-  let score = 0
-  const delta = Math.abs(Math.abs(transaction.amountMinor) - Math.abs(order.totalMinor))
-  if (delta === 0) {
-    score += 100
-  } else if (delta <= 200) {
-    score += 50
-  } else if (delta <= 1000) {
-    score += 20
+// A payment in another currency deviates from the converted order total by
+// conversion fees, so it is scored by the relative difference.
+function scoreConvertedAmount(amountMinor: number, targetMinor: number): number {
+  const deviation = Math.abs(amountMinor - targetMinor) / Math.max(targetMinor, 1)
+  if (deviation <= 0.01) {
+    return 80
   }
+  if (deviation <= 0.05) {
+    return 50
+  }
+  return deviation <= 0.1 ? 20 : 0
+}
+
+function scoreAmount(order: LedgerEmailOrder, candidate: LedgerEmailOrderCandidate, conversions: LedgerEmailOrderConversion[]): number {
+  const { transaction, amountComparable } = candidate
+  if (!amountComparable) {
+    return 0
+  }
+  const amount = Math.abs(transaction.amountMinor)
+  if (transaction.currency !== order.currency) {
+    const conversion = conversions.find((item) => item.currency === transaction.currency)
+    return conversion ? scoreConvertedAmount(amount, conversion.totalMinor) : 0
+  }
+  const delta = Math.abs(amount - Math.abs(order.totalMinor))
+  if (delta === 0) {
+    return 100
+  }
+  if (delta <= 200) {
+    return 50
+  }
+  return delta <= 1000 ? 20 : 0
+}
+
+function scoreCandidate(order: LedgerEmailOrder, orderTokens: string[], candidate: LedgerEmailOrderCandidate, conversions: LedgerEmailOrderConversion[], windowDays: number): number {
+  const { transaction, dateDeltaDays } = candidate
+  let score = scoreAmount(order, candidate, conversions)
 
   if (dateDeltaDays !== undefined) {
     score += Math.round(30 * Math.max(0, 1 - Math.abs(dateDeltaDays) / Math.max(windowDays, 1)))
@@ -68,7 +93,7 @@ export function LedgerEmailOrderLinkDialog({ open, onOpenChange, order, onConfir
     }
     const orderTokens = tokenizeLedgerMatchWords(order.externalOrderId, order.emailSubject, ...(order.items ?? []).map((item) => item.name))
     return result.items
-      .map((candidate): ScoredCandidate => ({ ...candidate, score: scoreCandidate(order, orderTokens, candidate, result.afterDays) }))
+      .map((candidate): ScoredCandidate => ({ ...candidate, score: scoreCandidate(order, orderTokens, candidate, result.conversions ?? [], result.afterDays) }))
       .sort((left, right) => right.score - left.score)
       .slice(0, maxShownCandidates)
   }, [order, result])
@@ -90,6 +115,17 @@ export function LedgerEmailOrderLinkDialog({ open, onOpenChange, order, onConfir
             <div className="rounded-md border p-4 space-y-2">
               <div className="font-medium">{emailOrderTitle(order)}</div>
               <div className="text-sm text-muted-foreground">{formatLedgerDate(order.orderDate)} • {formatAmountMinor(order.totalMinor, order.currency, i18n.language)}</div>
+              {(result?.conversions ?? []).map((conversion) => (
+                <div key={conversion.currency} className="text-sm text-muted-foreground">
+                  {t("ledger.email.convertedTotal", {
+                    amount: formatAmountMinor(conversion.totalMinor, conversion.currency, i18n.language),
+                    date: formatLedgerDate(conversion.rateDate),
+                  })}
+                </div>
+              ))}
+              {(result?.unconvertedCurrencies ?? []).length > 0 ? (
+                <div className="text-sm text-amber-700 dark:text-amber-400">{t("ledger.email.amountNotComparable", { currency: order.currency })}</div>
+              ) : null}
               <div className="space-y-1 text-sm text-muted-foreground">
                 {(order.items ?? []).map((item, index) => (
                   <div key={`${order.id}-${index}`}>{item.quantity}x {item.name}</div>
@@ -108,7 +144,7 @@ export function LedgerEmailOrderLinkDialog({ open, onOpenChange, order, onConfir
 
             <div className="space-y-2 max-h-[24rem] overflow-auto">
               {!isLoading && candidates.length === 0 ? <p className="text-sm text-muted-foreground">{t("ledger.email.noCandidates")}</p> : null}
-              {candidates.map(({ transaction, accountName, dateDeltaDays, score }) => {
+              {candidates.map(({ transaction, accountName, dateDeltaDays, amountComparable, score }) => {
                 const checked = selectedIds.includes(transaction.id)
                 return (
                   <button key={transaction.id} type="button" className="flex w-full items-start gap-3 rounded-md border p-3 text-left" onClick={() => toggle(transaction.id, !checked)}>
@@ -124,6 +160,7 @@ export function LedgerEmailOrderLinkDialog({ open, onOpenChange, order, onConfir
                           {dateDeltaDays !== undefined ? ` (${t("ledger.email.dayDelta", { delta: formatDayDelta(dateDeltaDays) })})` : null}
                         </span>
                         {accountName ? <Badge variant="secondary">{accountName}</Badge> : null}
+                        {amountComparable ? null : <Badge variant="outline">{t("ledger.email.candidateNotComparable")}</Badge>}
                       </div>
                       <div className="text-sm">{transaction.counterpartyName || t("ledger.noCounterparty")}</div>
                       <div className="text-sm text-muted-foreground break-words">{transaction.purpose || "-"}</div>

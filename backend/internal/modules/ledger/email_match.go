@@ -94,6 +94,34 @@ func matchRuleForOrder(o LedgerEmailOrder) matchRule {
 	}
 }
 
+// fxToleranceBasisPoints is how far a payment in another currency may deviate
+// from the order total converted at the ECB rate (conversion fees, rate drift
+// between order and charge).
+const fxToleranceBasisPoints = 500
+
+func withinFXTolerance(amount, target int64) bool {
+	delta := amount - target
+	if delta < 0 {
+		delta = -delta
+	}
+	return target > 0 && delta*10000 <= target*fxToleranceBasisPoints
+}
+
+func normalizeCurrency(currency string) string {
+	currency = strings.ToUpper(strings.TrimSpace(currency))
+	if currency == "" {
+		return "EUR"
+	}
+	return currency
+}
+
+func absMinor(v int64) int64 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
 func collapseSpaces(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }

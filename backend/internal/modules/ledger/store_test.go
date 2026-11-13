@@ -904,6 +904,51 @@ func TestRecordLedgerEmailRejection_CountsPerMessageAndIsDeletedWithTheAccount(t
 	}
 }
 
+func TestRecordLedgerEmailExtractionFailure_CountsPerMessageAndAccountUntilTheMessageIsFinal(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	newAccount := func() LedgerEmailAccount {
+		a := LedgerEmailAccount{ID: uuid.New(), Name: "M", IMAPHost: "h", IMAPPort: 993, Username: uuid.NewString(), CreatedAt: now, UpdatedAt: now}
+		if err := s.CreateLedgerEmailAccount(ctx, "test-user", a); err != nil {
+			t.Fatalf("CreateLedgerEmailAccount: %v", err)
+		}
+		return a
+	}
+	record := func(account LedgerEmailAccount, key string, want int) {
+		t.Helper()
+		if got, err := s.RecordLedgerEmailExtractionFailure(ctx, "test-user", account.ID, key); err != nil || got != want {
+			t.Fatalf("count = %d, err = %v, want %d", got, err, want)
+		}
+	}
+	a, b := newAccount(), newAccount()
+	record(a, "<m1@example.com>", 1)
+	record(a, "<m1@example.com>", 2)
+	record(a, "<m2@example.com>", 1)
+	record(b, "<m1@example.com>", 1)
+	if got, _ := s.RecordLedgerEmailRejection(ctx, "test-user", a.ID, "<m1@example.com>"); got != 1 {
+		t.Errorf("refusal counter shares the extraction counter: %d", got)
+	}
+
+	if err := s.MarkLedgerEmailsSeen(ctx, "test-user", a.ID, EmailSeenUnusable, "<m1@example.com>"); err != nil {
+		t.Fatalf("MarkLedgerEmailsSeen: %v", err)
+	}
+	record(a, "<m1@example.com>", 1)
+	record(a, "<m2@example.com>", 2)
+
+	order := LedgerEmailOrder{ID: uuid.New(), EmailAccountID: a.ID, EmailMessageID: "<m2@example.com>", TotalMinor: 100, Currency: "EUR", CreatedAt: now, UpdatedAt: now}
+	if err := s.CreateScannedLedgerEmailOrder(ctx, "test-user", order); err != nil {
+		t.Fatalf("CreateScannedLedgerEmailOrder: %v", err)
+	}
+	record(a, "<m2@example.com>", 1)
+
+	if err := s.DeleteLedgerEmailAccount(ctx, "test-user", a.ID); err != nil {
+		t.Fatalf("DeleteLedgerEmailAccount: %v", err)
+	}
+	record(a, "<m1@example.com>", 1)
+	record(b, "<m1@example.com>", 2)
+}
+
 func TestCommitLedgerImport_WithoutFileHash(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()

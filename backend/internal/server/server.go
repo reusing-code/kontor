@@ -71,15 +71,18 @@ func (s *Server) buildApp() (*app, error) {
 	purchasesMod := purchases.New(engine, links, catStore, s.logger)
 	autoMod := auto.New(engine, links, s.logger)
 	extractor := s.newExtractor()
+	rates := s.newRates()
 	bankClient, err := s.newBankClient()
 	if err != nil {
 		return nil, err
 	}
 	draftStore := drafts.NewStore(engine)
 	ledgerMod := ledger.New(engine, links, coreStore, ledger.Config{
-		EmailScanInterval: s.cfg.LedgerEmailScanInterval,
-		EncryptionKey:     s.cfg.EncryptionKey,
-		Extractor:         extractor,
+		EmailScanInterval:          s.cfg.LedgerEmailScanInterval,
+		EmailMaxExtractionFailures: s.cfg.LedgerEmailMaxExtractionFailures,
+		EncryptionKey:              s.cfg.EncryptionKey,
+		Extractor:                  extractor,
+		Rates:                      rates,
 		Suggest: ledger.SuggestConfig{
 			BatchSize: s.cfg.LedgerSuggestBatchSize,
 			MaxPerRun: s.cfg.LedgerSuggestMaxPerRun,
@@ -109,7 +112,7 @@ func (s *Server) buildApp() (*app, error) {
 	coreHandler := core.NewHandler(coreStore, s.logger, jwtSecret, emailClient, seeds, registry)
 
 	coreHandler.SetCapabilities(core.Capabilities{LLM: extractor.Enabled(), LLMVision: s.cfg.LLMVisionEnabled(), BankImport: ledgerMod.BankImportEnabled()})
-	classifier := extraction.New(extractor, extractionDeps(coreStore, catStore, autoMod.Store()), s.newRates(), s.logger)
+	classifier := extraction.New(extractor, extractionDeps(coreStore, catStore, autoMod.Store()), rates, s.logger)
 
 	paperlessStore := paperless.NewStore(engine)
 	paperlessService := paperless.NewService(paperlessStore, s.logger, s.cfg.EncryptionKey)

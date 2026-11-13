@@ -105,7 +105,7 @@ func TestScanAccount_WithoutFolderIsSkippedAndStaysDue(t *testing.T) {
 	}
 	scheduler := &EmailScanScheduler{
 		store:    s.Store,
-		service:  NewEmailService(s.Store, llm.Disabled{}, slog.New(slog.DiscardHandler)),
+		service:  NewEmailService(s.Store, llm.Disabled{}, nil, slog.New(slog.DiscardHandler)),
 		interval: time.Hour,
 		logger:   slog.New(slog.DiscardHandler),
 	}
@@ -204,7 +204,7 @@ func TestScanAccount_LLMDisabledIsSkippedAndStaysDue(t *testing.T) {
 	}
 	scheduler := &EmailScanScheduler{
 		store:    s.Store,
-		service:  NewEmailService(s.Store, llm.Disabled{}, slog.New(slog.DiscardHandler)),
+		service:  NewEmailService(s.Store, llm.Disabled{}, nil, slog.New(slog.DiscardHandler)),
 		interval: time.Hour,
 		logger:   slog.New(slog.DiscardHandler),
 	}
@@ -276,7 +276,7 @@ func newIMAPSchedulerTest(t *testing.T, server *fakeIMAP, fake llm.Extractor) *i
 	}
 	logger := slog.New(slog.DiscardHandler)
 	return &imapSchedulerTest{
-		scheduler: &EmailScanScheduler{store: s.Store, service: NewEmailService(s.Store, fake, logger), encryptionKey: key, interval: 6 * time.Hour, logger: logger},
+		scheduler: &EmailScanScheduler{store: s.Store, service: NewEmailService(s.Store, fake, nil, logger), encryptionKey: key, interval: 6 * time.Hour, logger: logger},
 		store:     s, account: account, past: past,
 	}
 }

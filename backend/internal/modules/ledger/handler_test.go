@@ -33,7 +33,7 @@ func newTestHandlerWithLLM(t *testing.T, extractor llm.Extractor) (*Handler, *te
 		store:        s.Store,
 		logger:       logger,
 		ledgerImport: NewImportService(s.Store, logger),
-		ledgerEmail:  NewEmailService(s.Store, extractor, logger),
+		ledgerEmail:  NewEmailService(s.Store, extractor, nil, logger),
 		suggester:    NewCategorySuggester(s.Store, extractor, SuggestConfig{}, logger),
 	}
 	return h, s
