@@ -397,3 +397,23 @@ func TestDraftSummaryRoute(t *testing.T) {
 		t.Fatalf("drafts-only token = %d, want 403", status)
 	}
 }
+
+func TestLedgerRecurringRunRoute(t *testing.T) {
+	a := newTestApp(t)
+	userID, jwt := a.register(t, "recur@example.com")
+	_, allTok := a.newPAT(t, userID, nil, pat.ScopeRead, pat.ScopeDrafts, pat.ScopeLinks)
+
+	if status, resp := a.request(t, "POST", "/api/v1/ledger/recurring/run", jwt, ""); status != 200 || strings.TrimSpace(resp) != `{"groups":0,"created":0,"skipped":0}` {
+		t.Fatalf("run = %d %s", status, resp)
+	}
+	if status, resp := a.request(t, "POST", "/api/v1/ledger/recurring/run", allTok, ""); status != http.StatusForbidden || !strings.Contains(resp, "insufficient_scope") {
+		t.Fatalf("pat run = %d %s", status, resp)
+	}
+	status, resp := a.request(t, "PUT", "/api/v1/settings", jwt, `{"renewalDays":90,"reminderFrequency":"disabled","enabledModules":["purchases","auto","ledger"]}`)
+	if status != 200 {
+		t.Fatalf("settings = %d %s", status, resp)
+	}
+	if status, resp := a.request(t, "POST", "/api/v1/ledger/recurring/run", jwt, ""); status != http.StatusForbidden || !strings.Contains(resp, "module_disabled") {
+		t.Fatalf("contracts disabled = %d %s", status, resp)
+	}
+}

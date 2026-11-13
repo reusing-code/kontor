@@ -70,6 +70,7 @@ func (s *Server) buildApp() (*app, error) {
 	purchasesMod := purchases.New(engine, links, catStore, s.logger)
 	autoMod := auto.New(engine, links, s.logger)
 	extractor := s.newExtractor()
+	draftStore := drafts.NewStore(engine)
 	ledgerMod := ledger.New(engine, links, coreStore, ledger.Config{
 		EmailScanInterval:  s.cfg.LedgerEmailScanInterval,
 		EmailEncryptionKey: s.cfg.EmailEncryptionKey,
@@ -78,6 +79,7 @@ func (s *Server) buildApp() (*app, error) {
 			BatchSize: s.cfg.LedgerSuggestBatchSize,
 			MaxPerRun: s.cfg.LedgerSuggestMaxPerRun,
 		},
+		Drafts: draftStore,
 	}, s.logger)
 	registry := module.NewRegistry(contractsMod, purchasesMod, autoMod, ledgerMod)
 
@@ -105,9 +107,9 @@ func (s *Server) buildApp() (*app, error) {
 	paperlessHandler := paperless.NewHandler(paperlessService, s.logger)
 	coreHandler.SetPaperlessLinks(paperlessStore)
 
-	draftStore := drafts.NewStore(engine)
 	draftHandler := drafts.NewHandler(draftStore, s.logger)
 	draftHandler.RegisterSource(drafts.SourcePaperless, paperless.NewDraftHooks(paperlessService))
+	draftHandler.RegisterSource(drafts.SourceLedger, ledgerMod.DraftHooks())
 	pipeline := paperless.NewPipeline(paperlessService, draftStore, classifier,
 		userIDs(coreStore), s.cfg.PaperlessPipelineInterval, s.logger)
 

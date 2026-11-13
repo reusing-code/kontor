@@ -42,6 +42,7 @@ const (
 	SourceEmail     = "email"
 	SourceText      = "text"
 	SourceMCP       = "mcp"
+	SourceLedger    = "ledger"
 )
 
 func ValidTarget(t string) bool {
@@ -66,7 +67,7 @@ func parentAllowed(t string) bool {
 
 func validSource(kind string) bool {
 	switch kind {
-	case SourcePaperless, SourceEmail, SourceText, SourceMCP:
+	case SourcePaperless, SourceEmail, SourceText, SourceMCP, SourceLedger:
 		return true
 	}
 	return false

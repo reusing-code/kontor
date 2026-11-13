@@ -100,6 +100,7 @@ var routeRules = map[string]middleware.Rule{
 	"POST /api/v1/ledger/email-orders/{emailOrderId}/reject":              middleware.RuleDenied,
 	"POST /api/v1/ledger/imports/preview":                                 middleware.RuleDenied,
 	"POST /api/v1/ledger/imports/{previewId}/commit":                      middleware.RuleDenied,
+	"POST /api/v1/ledger/recurring/run":                                   middleware.RuleDenied,
 	"POST /api/v1/ledger/transactions/{transactionId}/review":             middleware.RuleDenied,
 	"POST /api/v1/ledger/transactions/review-batch":                       middleware.RuleDenied,
 	"POST /api/v1/ledger/transactions/{transactionId}/transfer-link":      middleware.RuleDenied,

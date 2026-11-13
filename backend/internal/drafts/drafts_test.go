@@ -315,6 +315,17 @@ func TestNew_ParentRules(t *testing.T) {
 	}
 }
 
+func TestNew_SourceKinds(t *testing.T) {
+	for _, kind := range []string{SourcePaperless, SourceEmail, SourceText, SourceMCP, SourceLedger} {
+		if _, err := New(Source{Kind: kind, Ref: "r"}, TargetContract, "", nil, ""); err != nil {
+			t.Errorf("%s: %v", kind, err)
+		}
+	}
+	if _, err := New(Source{Kind: "bank", Ref: "r"}, TargetContract, "", nil, ""); err == nil {
+		t.Error("unknown source kind accepted")
+	}
+}
+
 func TestNew_UnknownTargetListsValidValues(t *testing.T) {
 	_, err := New(Source{Kind: SourceMCP, Ref: "r"}, "car", "", nil, "")
 	if err == nil || !strings.Contains(err.Error(), "ledger_account") || !strings.Contains(err.Error(), "none") {
