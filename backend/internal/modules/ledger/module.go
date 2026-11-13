@@ -55,7 +55,10 @@ type Module struct {
 // Config carries the ledger module's background scan settings.
 type Config struct {
 	EmailScanInterval time.Duration
-	EncryptionKey     string
+	// EmailMaxExtractionFailures is how often the model may give no usable
+	// answer for a message before it is ignored; zero uses the default.
+	EmailMaxExtractionFailures int
+	EncryptionKey              string
 	// Extractor reads order data from emails and suggests categories; nil
 	// behaves like llm.Disabled.
 	Extractor llm.Extractor
@@ -96,11 +99,14 @@ func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Con
 		extractor = llm.Disabled{}
 	}
 
+	emailService := NewEmailService(store, extractor, cfg.Rates, logger)
+	emailService.SetMaxExtractionFailures(cfg.EmailMaxExtractionFailures)
+
 	handler := &Handler{
 		store:         store,
 		logger:        logger,
 		ledgerImport:  NewImportService(store, logger),
-		ledgerEmail:   NewEmailService(store, extractor, cfg.Rates, logger),
+		ledgerEmail:   emailService,
 		suggester:     NewCategorySuggester(store, extractor, cfg.Suggest, logger),
 		encryptionKey: encryptionKey,
 		enabled:       coreStore,

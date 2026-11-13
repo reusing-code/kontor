@@ -33,6 +33,7 @@ const (
 	EmailSeenPreClass   = "preclass"
 	EmailSeenTooLarge   = "too_large"
 	EmailSeenUnreadable = "unreadable"
+	EmailSeenUnusable   = "unusable"
 )
 
 // ledgerEmailSeen marks a message that was processed without producing an

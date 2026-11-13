@@ -46,6 +46,9 @@ type EmailService struct {
 	rates     fx.Rates
 	logger    *slog.Logger
 	scanLocks sync.Map // uuid.UUID -> *sync.Mutex
+	// maxExtractionFailures is the number of unusable answers after which a
+	// message is ignored.
+	maxExtractionFailures int
 }
 
 // NewEmailService accepts nil rates (no currency conversion) and a nil logger.
@@ -56,7 +59,14 @@ func NewEmailService(s *Store, extractor llm.Extractor, rates fx.Rates, logger *
 	if rates == nil {
 		rates = fx.Disabled{}
 	}
-	return &EmailService{store: s, extractor: extractor, rates: rates, logger: logger}
+	return &EmailService{store: s, extractor: extractor, rates: rates, logger: logger, maxExtractionFailures: defaultMaxExtractionFailures}
+}
+
+// SetMaxExtractionFailures overrides the default limit; values below 1 are ignored.
+func (s *EmailService) SetMaxExtractionFailures(n int) {
+	if n >= 1 {
+		s.maxExtractionFailures = n
+	}
 }
 
 // lockAccount allows one scan per account at a time, so a manual and a
