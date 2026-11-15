@@ -1,5 +1,5 @@
 // Package extraction classifies free text (a paperless document, a typed
-// note) or an uploaded PDF or image into a purchase, contract or vehicle cost with one LLM call, and
+// note, an email) or an uploaded PDF or image into a purchase, contract or vehicle cost with one LLM call, and
 // validates the result into a proposal shaped like the module create input.
 // Module lookups come in through Deps, so the package never imports modules.
 package extraction
@@ -81,6 +81,9 @@ const (
 	// InputUpload is a file the user uploaded: Text holds the text of a
 	// PDF, Images a photo or scan; Hint is an optional note typed with it.
 	InputUpload
+	// InputEmail is one email: Text holds what the caller prepared from it
+	// (sender, subject, date and the plain-text body), sent unchanged.
+	InputEmail
 )
 
 type Input struct {
