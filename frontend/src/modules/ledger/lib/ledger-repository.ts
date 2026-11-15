@@ -61,6 +61,20 @@ export async function testLedgerEmailAccount(id: string): Promise<{ ok: boolean 
   return post<{ ok: boolean }>(`/ledger/email-accounts/${id}/test`, {})
 }
 
+export interface LedgerEmailFoldersRequest {
+  accountId?: string
+  imapHost: string
+  imapPort: number
+  username: string
+  password?: string
+  useTls: boolean
+}
+
+export async function listLedgerEmailFolders(data: LedgerEmailFoldersRequest): Promise<string[]> {
+  const res = await post<{ folders: string[] }>("/ledger/email-accounts/folders", data)
+  return res.folders
+}
+
 export async function getLedgerEmailOrders(emailAccountId?: string, status?: string): Promise<LedgerEmailOrder[]> {
   const params = new URLSearchParams()
   if (emailAccountId) {

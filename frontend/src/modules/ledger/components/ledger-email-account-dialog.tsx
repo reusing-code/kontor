@@ -24,6 +24,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { useCapabilities } from "@/hooks/use-capabilities"
+import { useLedgerEmailFolders } from "@/modules/ledger/hooks/use-ledger"
+import { LedgerEmailFolderList } from "@/modules/ledger/components/ledger-email-folder-list"
 
 interface LedgerEmailAccountDialogProps {
   open: boolean
@@ -50,6 +52,18 @@ export function LedgerEmailAccountDialog({ open, onOpenChange, account, onSubmit
       scanSince: account?.scanSince ?? today,
     },
   })
+  const folders = useLedgerEmailFolders()
+  const loadFolders = () => {
+    const { imapHost, imapPort, username, password, useTls } = form.getValues()
+    folders.mutate({
+      imapHost,
+      imapPort,
+      username,
+      useTls,
+      ...(password ? { password } : {}),
+      ...(account ? { accountId: account.id } : {}),
+    })
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -97,7 +111,18 @@ export function LedgerEmailAccountDialog({ open, onOpenChange, account, onSubmit
             <FormField control={form.control} name="folder" render={({ field }) => (
               <FormItem>
                 <FormLabel>{t("ledger.email.folder")}</FormLabel>
-                <FormControl><Input placeholder="INBOX" {...field} /></FormControl>
+                <div className="flex gap-2">
+                  <FormControl><Input placeholder="INBOX" {...field} /></FormControl>
+                  <Button type="button" variant="outline" disabled={folders.isPending} onClick={loadFolders}>
+                    {folders.isPending ? t("common.loading") : t("ledger.email.loadFolders")}
+                  </Button>
+                </div>
+                <LedgerEmailFolderList
+                  folders={folders.data}
+                  error={folders.error}
+                  value={field.value}
+                  onSelect={(folder) => form.setValue("folder", folder, { shouldDirty: true, shouldValidate: true })}
+                />
                 <FormDescription>{t("ledger.email.folderHint")}</FormDescription>
                 <FormMessage />
               </FormItem>

@@ -33,6 +33,8 @@ import {
   startLedgerEmailScan,
   uploadLedgerEmailMessages,
   testLedgerEmailAccount,
+  listLedgerEmailFolders,
+  type LedgerEmailFoldersRequest,
   unlinkLedgerTransfer,
   updateLedgerTransactionDetails,
   updateLedgerCategory,
@@ -446,6 +448,12 @@ export function useUploadLedgerEmailMessages() {
 export function useTestLedgerEmailAccount() {
   return useMutation({
     mutationFn: (id: string) => testLedgerEmailAccount(id),
+  })
+}
+
+export function useLedgerEmailFolders() {
+  return useMutation({
+    mutationFn: (data: LedgerEmailFoldersRequest) => listLedgerEmailFolders(data),
   })
 }
 

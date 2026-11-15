@@ -117,6 +117,42 @@ type LedgerEmailAccountInput struct {
 	ScanSince   string `json:"scanSince"`
 }
 
+// LedgerEmailFoldersInput holds the connection as entered in the account
+// dialog. Without a password the stored one of AccountID is used.
+type LedgerEmailFoldersInput struct {
+	AccountID *uuid.UUID `json:"accountId,omitempty"`
+	IMAPHost  string     `json:"imapHost"`
+	IMAPPort  int        `json:"imapPort"`
+	Username  string     `json:"username"`
+	Password  string     `json:"password,omitempty"`
+	UseTLS    bool       `json:"useTls"`
+}
+
+func (a *LedgerEmailFoldersInput) Validate() error {
+	a.IMAPHost = strings.TrimSpace(a.IMAPHost)
+	a.Username = strings.TrimSpace(a.Username)
+	a.Password = strings.TrimSpace(a.Password)
+	if a.IMAPHost == "" {
+		return errors.New("imapHost is required")
+	}
+	if a.IMAPPort <= 0 {
+		a.IMAPPort = 993
+	}
+	if a.IMAPPort > 65535 {
+		return errors.New("imapPort is invalid")
+	}
+	if a.Username == "" {
+		return errors.New("username is required")
+	}
+	// these go into IMAP commands; a line break would start another command
+	for _, value := range []string{a.IMAPHost, a.Username, a.Password} {
+		if strings.IndexFunc(value, unicode.IsControl) >= 0 {
+			return errors.New("connection settings must not contain control characters")
+		}
+	}
+	return nil
+}
+
 type LedgerEmailAccountUpdateInput struct {
 	Name        string  `json:"name"`
 	IMAPHost    string  `json:"imapHost"`

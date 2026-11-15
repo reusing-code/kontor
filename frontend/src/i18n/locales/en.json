@@ -426,6 +426,15 @@
       "folder": "Folder / label",
       "folderHint": "IMAP folder or Gmail label that contains your order emails, e.g. INBOX or Orders. Only emails in this folder are sent to the LLM.",
       "folderMissing": "No folder chosen, scans are skipped. Edit the account to choose one.",
+      "loadFolders": "Load folders",
+      "foldersNone": "The mail server lists no folders. Enter the folder name by hand.",
+      "foldersNoMatch": "No folder matches. A name the list does not show can still be saved.",
+      "foldersErrors": {
+        "imap_login_failed": "The mail server refused the login. Check username and password, or enter the folder name by hand.",
+        "imap_unavailable": "The folders could not be loaded from the mail server. Check host, port and TLS, or enter the folder name by hand.",
+        "password_missing": "Enter the password to load the folders.",
+        "generic": "The folders could not be loaded. Enter the folder name by hand."
+      },
       "preClassify": "Pre-select by sender and subject",
       "preClassifyHint": "One cheap LLM call per batch looks only at sender and subject and skips emails that are clearly not orders. Cheaper, but a missed order is not looked at again.",
       "llmRequired": "Email orders are extracted with the LLM. Configure the LLM endpoint on the server (LLM_BASE_URL) to scan emails.",

@@ -187,6 +187,7 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("GET /api/v1/ledger/accounts/{accountId}/transactions", h.ListLedgerTransactions)
 	r.Handle("GET /api/v1/ledger/email-accounts", h.ListLedgerEmailAccounts)
 	r.Handle("POST /api/v1/ledger/email-accounts", h.CreateLedgerEmailAccount)
+	r.Handle("POST /api/v1/ledger/email-accounts/folders", h.ListLedgerEmailFolders)
 	r.Handle("GET /api/v1/ledger/email-accounts/{emailAccountId}", h.GetLedgerEmailAccount)
 	r.Handle("PUT /api/v1/ledger/email-accounts/{emailAccountId}", h.UpdateLedgerEmailAccount)
 	r.Handle("DELETE /api/v1/ledger/email-accounts/{emailAccountId}", h.DeleteLedgerEmailAccount)

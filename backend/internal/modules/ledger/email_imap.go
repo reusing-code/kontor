@@ -188,7 +188,7 @@ func (c *imapClient) command(command string) ([]string, error) {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, tag+" ") {
 			if !strings.Contains(trimmed, "OK") {
-				return lines, fmt.Errorf("imap command failed: %s", trimmed)
+				return lines, fmt.Errorf("%w: %s", errIMAPCommandFailed, trimmed)
 			}
 			return lines, nil
 		}
@@ -199,6 +199,157 @@ func (c *imapClient) command(command string) ([]string, error) {
 			}
 		}
 	}
+}
+
+// errIMAPCommandFailed marks a tagged NO/BAD answer to a plain command, as
+// opposed to an I/O failure.
+var errIMAPCommandFailed = errors.New("imap command failed")
+
+const (
+	maxIMAPFolders         = 2000
+	maxIMAPFolderNameBytes = 1024
+)
+
+// ListFolders returns the selectable mailboxes with their names decoded from
+// modified UTF-7. The names contain the server's hierarchy delimiter as is.
+func (c *imapClient) ListFolders() ([]string, error) {
+	tag := c.nextTag()
+	if err := c.writeLine(tag + ` LIST "" "*"`); err != nil {
+		return nil, err
+	}
+	folders := make([]string, 0)
+	for {
+		line, err := c.readLine()
+		if err != nil {
+			return nil, err
+		}
+		trimmed := strings.TrimRight(line, "\r\n")
+		if strings.HasPrefix(trimmed, tag+" ") {
+			if !strings.HasPrefix(strings.ToUpper(trimmed), tag+" OK") {
+				return nil, fmt.Errorf("%w: %s", errIMAPCommandFailed, trimmed)
+			}
+			return folders, nil
+		}
+		// a server may send the mailbox name as a literal
+		if size, ok := parseIMAPLiteralSize(line); ok {
+			c.extendDeadline()
+			if size > maxIMAPFolderNameBytes {
+				if _, err := io.CopyN(io.Discard, c.r, int64(size)); err != nil {
+					return nil, err
+				}
+				continue
+			}
+			name := make([]byte, size)
+			if _, err := io.ReadFull(c.r, name); err != nil {
+				return nil, err
+			}
+			if _, err := c.readLine(); err != nil {
+				return nil, err
+			}
+			trimmed = trimmed[:strings.LastIndex(trimmed, "{")] + imapQuote(string(name))
+		}
+		if name, ok := parseIMAPListLine(trimmed); ok && len(folders) < maxIMAPFolders {
+			folders = append(folders, name)
+		}
+	}
+}
+
+// parseIMAPListLine reads one untagged LIST response,
+// `* LIST (flags) delimiter mailbox`, and returns the decoded mailbox name.
+// Mailboxes that cannot be selected and names the account could not store
+// are left out.
+func parseIMAPListLine(line string) (string, bool) {
+	const prefix = "* LIST "
+	if len(line) < len(prefix) || !strings.EqualFold(line[:len(prefix)], prefix) {
+		return "", false
+	}
+	rest := strings.TrimLeft(line[len(prefix):], " ")
+	if !strings.HasPrefix(rest, "(") {
+		return "", false
+	}
+	end := strings.Index(rest, ")")
+	if end == -1 {
+		return "", false
+	}
+	for _, flag := range strings.Fields(strings.ToLower(rest[1:end])) {
+		if flag == `\noselect` || flag == `\nonexistent` {
+			return "", false
+		}
+	}
+	_, rest, ok := parseIMAPAString(rest[end+1:])
+	if !ok {
+		return "", false
+	}
+	raw, rest, ok := parseIMAPAString(rest)
+	if !ok || strings.TrimSpace(rest) != "" {
+		return "", false
+	}
+	name, err := normalizeEmailFolder(decodeIMAPMailboxName(raw))
+	if err != nil {
+		return "", false
+	}
+	return name, true
+}
+
+// parseIMAPAString reads a quoted string or an atom (which covers NIL) and
+// returns it with the remainder of the line.
+func parseIMAPAString(s string) (value string, rest string, ok bool) {
+	s = strings.TrimLeft(s, " ")
+	if s == "" {
+		return "", "", false
+	}
+	if s[0] != '"' {
+		value, rest, _ = strings.Cut(s, " ")
+		return value, rest, true
+	}
+	var out strings.Builder
+	for i := 1; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			i++
+			if i == len(s) {
+				return "", "", false
+			}
+			out.WriteByte(s[i])
+		case '"':
+			return out.String(), s[i+1:], true
+		default:
+			out.WriteByte(s[i])
+		}
+	}
+	return "", "", false
+}
+
+// decodeIMAPMailboxName is the inverse of imapMailboxName. A name that is
+// not valid modified UTF-7 is returned unchanged.
+func decodeIMAPMailboxName(name string) string {
+	var out strings.Builder
+	for i := 0; i < len(name); i++ {
+		if name[i] != '&' {
+			out.WriteByte(name[i])
+			continue
+		}
+		end := strings.IndexByte(name[i:], '-')
+		if end == -1 {
+			return name
+		}
+		encoded := name[i+1 : i+end]
+		i += end
+		if encoded == "" {
+			out.WriteByte('&')
+			continue
+		}
+		buf, err := base64.RawStdEncoding.DecodeString(strings.ReplaceAll(encoded, ",", "/"))
+		if err != nil || len(buf)%2 != 0 {
+			return name
+		}
+		units := make([]uint16, 0, len(buf)/2)
+		for j := 0; j < len(buf); j += 2 {
+			units = append(units, uint16(buf[j])<<8|uint16(buf[j+1]))
+		}
+		out.WriteString(string(utf16.Decode(units)))
+	}
+	return out.String()
 }
 
 func (c *imapClient) nextTag() string {

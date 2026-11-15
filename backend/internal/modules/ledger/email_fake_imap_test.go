@@ -17,6 +17,12 @@ type fakeIMAP struct {
 	ln       net.Listener
 	messages map[uint32][]byte
 
+	// listLines are the raw untagged LIST responses; password, when set, is
+	// the only one LOGIN accepts. logins records the LOGIN commands.
+	listLines []string
+	password  string
+	logins    []string
+
 	mu           sync.Mutex
 	rejectHeader map[uint32]bool
 	dropOnHeader map[uint32]bool
@@ -80,7 +86,21 @@ func (f *fakeIMAP) serve(conn net.Conn) {
 		}
 		tag, command, _ := strings.Cut(strings.TrimSpace(line), " ")
 		switch {
-		case strings.HasPrefix(command, "LOGIN"), strings.HasPrefix(command, "SELECT"):
+		case strings.HasPrefix(command, "LOGIN"):
+			f.mu.Lock()
+			f.logins = append(f.logins, command)
+			f.mu.Unlock()
+			if f.password != "" && !strings.HasSuffix(command, ` "`+f.password+`"`) {
+				write("%s NO [AUTHENTICATIONFAILED] Invalid credentials\r\n", tag)
+				continue
+			}
+			write("%s OK done\r\n", tag)
+		case strings.HasPrefix(command, "SELECT"):
+			write("%s OK done\r\n", tag)
+		case strings.HasPrefix(command, "LIST"):
+			for _, l := range f.listLines {
+				write("%s\r\n", l)
+			}
 			write("%s OK done\r\n", tag)
 		case strings.HasPrefix(command, "UID SEARCH"):
 			uids := make([]string, 0, len(f.messages))

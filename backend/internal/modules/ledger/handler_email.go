@@ -181,6 +181,64 @@ func (h *Handler) TestLedgerEmailAccount(w http.ResponseWriter, r *http.Request)
 	httputil.WriteJSON(h.logger, w, http.StatusOK, map[string]any{"ok": true})
 }
 
+func (h *Handler) emailFolderError(w http.ResponseWriter, status int, code, msg string) {
+	httputil.WriteJSON(h.logger, w, status, map[string]string{"error": msg, "code": code})
+}
+
+// ListLedgerEmailFolders lists the IMAP folders of a connection that may not
+// be saved yet. IMAP server text never reaches the client or the log.
+func (h *Handler) ListLedgerEmailFolders(w http.ResponseWriter, r *http.Request) {
+	var input LedgerEmailFoldersInput
+	if err := httputil.ReadJSON(r, &input); err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := input.Validate(); err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+		return
+	}
+	password := input.Password
+	if password == "" {
+		if input.AccountID == nil {
+			h.emailFolderError(w, http.StatusConflict, "password_missing", "enter the password to list the folders")
+			return
+		}
+		account, err := h.store.GetLedgerEmailAccount(r.Context(), middleware.GetUserID(r.Context()), *input.AccountID)
+		if err != nil {
+			h.storeError(w, err)
+			return
+		}
+		if account.EncryptedPassword == "" {
+			h.emailFolderError(w, http.StatusConflict, "password_missing", ErrEmailPasswordMissing.Error())
+			return
+		}
+		if len(h.encryptionKey) == 0 {
+			httputil.Error(h.logger, w, http.StatusInternalServerError, "ENCRYPTION_KEY is not configured")
+			return
+		}
+		password, err = cryptoutil.DecryptString(account.EncryptedPassword, h.encryptionKey)
+		if err != nil {
+			httputil.Error(h.logger, w, http.StatusInternalServerError, "could not decrypt stored email password")
+			return
+		}
+	}
+	folders, err := h.ledgerEmail.ListFolders(LedgerEmailAccount{
+		IMAPHost: input.IMAPHost,
+		IMAPPort: input.IMAPPort,
+		Username: input.Username,
+		UseTLS:   input.UseTLS,
+	}, password)
+	switch {
+	case errors.Is(err, ErrIMAPLogin):
+		h.emailFolderError(w, http.StatusBadGateway, "imap_login_failed", "the mail server refused the login")
+	case err != nil:
+		h.logger.Warn("listing imap folders failed")
+		h.emailFolderError(w, http.StatusBadGateway, "imap_unavailable", "could not list the folders of the mail server")
+	default:
+		httputil.WriteJSON(h.logger, w, http.StatusOK, map[string]any{"folders": folders})
+	}
+}
+
 func (h *Handler) ListLedgerEmailOrders(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	accountIDStr := r.URL.Query().Get("emailAccountId")

@@ -102,6 +102,7 @@ var routeRules = map[string]middleware.Rule{
 	"POST /api/v1/ledger/categories":                                      middleware.RuleDenied,
 	"POST /api/v1/ledger/category-suggestions/run":                        middleware.RuleDenied,
 	"POST /api/v1/ledger/email-accounts":                                  middleware.RuleDenied,
+	"POST /api/v1/ledger/email-accounts/folders":                          middleware.RuleDenied,
 	"POST /api/v1/ledger/email-accounts/{emailAccountId}/scan":            middleware.RuleDenied,
 	"POST /api/v1/ledger/email-accounts/{emailAccountId}/test":            middleware.RuleDenied,
 	"POST /api/v1/ledger/email-orders/{emailOrderId}/link":                middleware.RuleDenied,

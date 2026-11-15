@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -29,6 +30,7 @@ var (
 	ErrEmailScanRunning     = errors.New("a scan of this account is already running")
 	ErrEmailPasswordMissing = errors.New("no stored email password; edit the account and re-enter the password")
 	ErrIMAP                 = errors.New("imap")
+	ErrIMAPLogin            = errors.New("imap login failed")
 )
 
 func imapError(err error) error {
@@ -251,6 +253,37 @@ func (s *EmailService) TestConnection(account LedgerEmailAccount, password strin
 		return nil
 	}
 	return client.SelectFolder(account.Folder)
+}
+
+// ListFolders returns the account's selectable IMAP folders, INBOX first.
+// A refused login is ErrIMAPLogin, everything else that fails is ErrIMAP.
+func (s *EmailService) ListFolders(account LedgerEmailAccount, password string) ([]string, error) {
+	client, err := newIMAPClient(account.IMAPHost, account.IMAPPort, account.UseTLS)
+	if err != nil {
+		return nil, imapError(err)
+	}
+	defer client.Close()
+	if err := client.Login(account.Username, password); err != nil {
+		if errors.Is(err, errIMAPCommandFailed) {
+			return nil, ErrIMAPLogin
+		}
+		return nil, imapError(err)
+	}
+	defer client.Logout()
+	folders, err := client.ListFolders()
+	if err != nil {
+		return nil, imapError(err)
+	}
+	slices.SortFunc(folders, func(a, b string) int {
+		if ia, ib := strings.EqualFold(a, "INBOX"), strings.EqualFold(b, "INBOX"); ia != ib {
+			if ia {
+				return -1
+			}
+			return 1
+		}
+		return cmp.Or(cmp.Compare(strings.ToLower(a), strings.ToLower(b)), cmp.Compare(a, b))
+	})
+	return slices.Compact(folders), nil
 }
 
 // convertOrderTotal returns the absolute order total in currency at the rate
