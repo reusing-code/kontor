@@ -249,10 +249,15 @@ func (s *EmailService) TestConnection(account LedgerEmailAccount, password strin
 		return err
 	}
 	defer client.Logout()
-	if account.Folder == "" {
-		return nil
+	for _, folder := range []string{account.Folder, account.DraftsFolder} {
+		if folder == "" {
+			continue
+		}
+		if err := client.SelectFolder(folder); err != nil {
+			return err
+		}
 	}
-	return client.SelectFolder(account.Folder)
+	return nil
 }
 
 // ListFolders returns the account's selectable IMAP folders, INBOX first.

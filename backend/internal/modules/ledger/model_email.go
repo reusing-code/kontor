@@ -53,14 +53,17 @@ var paymentMethods = []string{
 }
 
 type LedgerEmailAccount struct {
-	ID                    uuid.UUID  `json:"id"`
-	Name                  string     `json:"name"`
-	IMAPHost              string     `json:"imapHost"`
-	IMAPPort              int        `json:"imapPort"`
-	Username              string     `json:"username"`
-	EncryptedPassword     string     `json:"-"`
-	UseTLS                bool       `json:"useTls"`
-	Folder                string     `json:"folder"`
+	ID                uuid.UUID `json:"id"`
+	Name              string    `json:"name"`
+	IMAPHost          string    `json:"imapHost"`
+	IMAPPort          int       `json:"imapPort"`
+	Username          string    `json:"username"`
+	EncryptedPassword string    `json:"-"`
+	UseTLS            bool      `json:"useTls"`
+	Folder            string    `json:"folder"`
+	// DraftsFolder is the optional folder whose messages are proposed as
+	// drafts in the draft inbox; it differs from Folder.
+	DraftsFolder          string     `json:"draftsFolder,omitempty"`
 	PreClassify           bool       `json:"preClassify"`
 	ScanSince             string     `json:"scanSince"`
 	LastScanAt            *time.Time `json:"lastScanAt,omitempty"`
@@ -84,6 +87,7 @@ type storableLedgerEmailAccount struct {
 	EncryptedPassword     string     `json:"encryptedPassword"`
 	UseTLS                bool       `json:"useTls"`
 	Folder                string     `json:"folder"`
+	DraftsFolder          string     `json:"draftsFolder,omitempty"`
 	PreClassify           bool       `json:"preClassify"`
 	ScanSince             string     `json:"scanSince"`
 	LastScanAt            *time.Time `json:"lastScanAt,omitempty"`
@@ -106,15 +110,16 @@ type LedgerEmailScanState struct {
 }
 
 type LedgerEmailAccountInput struct {
-	Name        string `json:"name"`
-	IMAPHost    string `json:"imapHost"`
-	IMAPPort    int    `json:"imapPort"`
-	Username    string `json:"username"`
-	Password    string `json:"password,omitempty"`
-	UseTLS      bool   `json:"useTls"`
-	Folder      string `json:"folder"`
-	PreClassify bool   `json:"preClassify"`
-	ScanSince   string `json:"scanSince"`
+	Name         string `json:"name"`
+	IMAPHost     string `json:"imapHost"`
+	IMAPPort     int    `json:"imapPort"`
+	Username     string `json:"username"`
+	Password     string `json:"password,omitempty"`
+	UseTLS       bool   `json:"useTls"`
+	Folder       string `json:"folder"`
+	DraftsFolder string `json:"draftsFolder"`
+	PreClassify  bool   `json:"preClassify"`
+	ScanSince    string `json:"scanSince"`
 }
 
 // LedgerEmailFoldersInput holds the connection as entered in the account
@@ -154,15 +159,16 @@ func (a *LedgerEmailFoldersInput) Validate() error {
 }
 
 type LedgerEmailAccountUpdateInput struct {
-	Name        string  `json:"name"`
-	IMAPHost    string  `json:"imapHost"`
-	IMAPPort    int     `json:"imapPort"`
-	Username    string  `json:"username"`
-	Password    *string `json:"password,omitempty"`
-	UseTLS      bool    `json:"useTls"`
-	Folder      string  `json:"folder"`
-	PreClassify bool    `json:"preClassify"`
-	ScanSince   string  `json:"scanSince"`
+	Name         string  `json:"name"`
+	IMAPHost     string  `json:"imapHost"`
+	IMAPPort     int     `json:"imapPort"`
+	Username     string  `json:"username"`
+	Password     *string `json:"password,omitempty"`
+	UseTLS       bool    `json:"useTls"`
+	Folder       string  `json:"folder"`
+	DraftsFolder string  `json:"draftsFolder"`
+	PreClassify  bool    `json:"preClassify"`
+	ScanSince    string  `json:"scanSince"`
 }
 
 type LedgerEmailOrderItem struct {
@@ -254,6 +260,22 @@ func normalizeEmailFolder(folder string) (string, error) {
 	return folder, nil
 }
 
+// normalizeEmailDraftsFolder validates the optional drafts folder, which
+// must not be the folder scanned for orders.
+func normalizeEmailDraftsFolder(draftsFolder, folder string) (string, error) {
+	if strings.TrimSpace(draftsFolder) == "" {
+		return "", nil
+	}
+	draftsFolder, err := normalizeEmailFolder(draftsFolder)
+	if err != nil {
+		return "", errors.New("draftsFolder is invalid")
+	}
+	if draftsFolder == folder {
+		return "", errors.New("draftsFolder must differ from folder")
+	}
+	return draftsFolder, nil
+}
+
 func (a *LedgerEmailAccountInput) Validate() error {
 	a.Name = strings.TrimSpace(a.Name)
 	a.IMAPHost = strings.TrimSpace(a.IMAPHost)
@@ -265,6 +287,9 @@ func (a *LedgerEmailAccountInput) Validate() error {
 		return err
 	}
 	a.Folder = folder
+	if a.DraftsFolder, err = normalizeEmailDraftsFolder(a.DraftsFolder, folder); err != nil {
+		return err
+	}
 	if a.Name == "" {
 		return errors.New("name is required")
 	}
@@ -299,6 +324,9 @@ func (a *LedgerEmailAccountUpdateInput) Validate() error {
 		return err
 	}
 	a.Folder = folder
+	if a.DraftsFolder, err = normalizeEmailDraftsFolder(a.DraftsFolder, folder); err != nil {
+		return err
+	}
 	if a.Password != nil {
 		trimmed := strings.TrimSpace(*a.Password)
 		a.Password = &trimmed

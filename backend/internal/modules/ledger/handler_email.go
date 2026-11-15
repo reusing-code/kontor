@@ -55,6 +55,7 @@ func (h *Handler) CreateLedgerEmailAccount(w http.ResponseWriter, r *http.Reques
 		EncryptedPassword: encryptedPassword,
 		UseTLS:            input.UseTLS,
 		Folder:            input.Folder,
+		DraftsFolder:      input.DraftsFolder,
 		PreClassify:       input.PreClassify,
 		ScanSince:         input.ScanSince,
 		CreatedAt:         now,
@@ -123,6 +124,7 @@ func (h *Handler) UpdateLedgerEmailAccount(w http.ResponseWriter, r *http.Reques
 		a.Username = input.Username
 		a.UseTLS = input.UseTLS
 		a.Folder = input.Folder
+		a.DraftsFolder = input.DraftsFolder
 		a.PreClassify = input.PreClassify
 		a.ScanSince = input.ScanSince
 		if encryptedPassword != "" {

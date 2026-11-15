@@ -665,7 +665,7 @@ func TestLedgerEmailAccount_FolderSettingsSurvivePersistence(t *testing.T) {
 
 	account := LedgerEmailAccount{
 		ID: uuid.New(), Name: "Mailbox", IMAPHost: "imap.example.com", IMAPPort: 993, Username: "user",
-		EncryptedPassword: "x", Folder: "Rechnungen", PreClassify: true, CreatedAt: now, UpdatedAt: now,
+		EncryptedPassword: "x", Folder: "Rechnungen", DraftsFolder: "Kontor", PreClassify: true, CreatedAt: now, UpdatedAt: now,
 	}
 	if err := s.CreateLedgerEmailAccount(ctx, "test-user", account); err != nil {
 		t.Fatalf("CreateLedgerEmailAccount: %v", err)
@@ -674,8 +674,8 @@ func TestLedgerEmailAccount_FolderSettingsSurvivePersistence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetLedgerEmailAccount: %v", err)
 	}
-	if got.Folder != "Rechnungen" || !got.PreClassify {
-		t.Errorf("folder = %q, preClassify = %v, want Rechnungen/true", got.Folder, got.PreClassify)
+	if got.Folder != "Rechnungen" || got.DraftsFolder != "Kontor" || !got.PreClassify {
+		t.Errorf("folder = %q, draftsFolder = %q, preClassify = %v, want Rechnungen/Kontor/true", got.Folder, got.DraftsFolder, got.PreClassify)
 	}
 }
 

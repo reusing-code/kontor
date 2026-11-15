@@ -59,3 +59,35 @@ func TestEmailAccountInputsValidateFolder(t *testing.T) {
 		t.Fatalf("update: %v", err)
 	}
 }
+
+func TestEmailAccountInputsValidateDraftsFolder(t *testing.T) {
+	for _, tc := range []struct {
+		name, drafts, want, wantErr string
+	}{
+		{"none", "  ", "", ""},
+		{"trimmed", " Kontor ", "Kontor", ""},
+		{"same as the order folder", "Orders", "", "draftsFolder must differ from folder"},
+		{"control character", "Kon\ntor", "", "draftsFolder is invalid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			create := LedgerEmailAccountInput{Name: "n", IMAPHost: "h", Username: "u", Password: "p",
+				ScanSince: "2026-01-01", Folder: "Orders", DraftsFolder: tc.drafts}
+			update := LedgerEmailAccountUpdateInput{Name: "n", IMAPHost: "h", Username: "u",
+				ScanSince: "2026-01-01", Folder: "Orders", DraftsFolder: tc.drafts}
+			for _, got := range []struct {
+				err    error
+				folder string
+			}{{create.Validate(), create.DraftsFolder}, {update.Validate(), update.DraftsFolder}} {
+				if tc.wantErr != "" {
+					if got.err == nil || got.err.Error() != tc.wantErr {
+						t.Fatalf("err = %v, want %q", got.err, tc.wantErr)
+					}
+					continue
+				}
+				if got.err != nil || got.folder != tc.want {
+					t.Fatalf("draftsFolder = %q, err = %v; want %q", got.folder, got.err, tc.want)
+				}
+			}
+		})
+	}
+}

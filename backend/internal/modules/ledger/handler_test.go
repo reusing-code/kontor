@@ -600,6 +600,39 @@ func TestEmailAccountHandlers_Folder(t *testing.T) {
 	}
 }
 
+func TestEmailAccountHandlers_DraftsFolder(t *testing.T) {
+	h, _ := newTestHandlerWithEmailKey(t)
+	mux := newMux(h)
+	body := func(draftsFolder string) map[string]any {
+		return map[string]any{
+			"name": "Mail", "imapHost": "imap.example.com", "imapPort": 993, "username": "u", "password": "p",
+			"useTls": true, "scanSince": "2026-01-01", "folder": "Orders", "draftsFolder": draftsFolder,
+		}
+	}
+	send := func(method, path, draftsFolder string) (*httptest.ResponseRecorder, LedgerEmailAccount) {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(method, path, jsonBody(body(draftsFolder))))
+		var account LedgerEmailAccount
+		_ = json.Unmarshal(rec.Body.Bytes(), &account)
+		return rec, account
+	}
+
+	if rec, _ := send(http.MethodPost, "/api/v1/ledger/email-accounts", "Orders"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("create with the order folder as drafts folder: status = %d, want 400", rec.Code)
+	}
+	rec, created := send(http.MethodPost, "/api/v1/ledger/email-accounts", " Kontor ")
+	if rec.Code != http.StatusCreated || created.DraftsFolder != "Kontor" {
+		t.Fatalf("create: status = %d, draftsFolder = %q", rec.Code, created.DraftsFolder)
+	}
+	path := "/api/v1/ledger/email-accounts/" + created.ID.String()
+	if rec, _ := send(http.MethodPut, path, "Orders"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("update with the order folder as drafts folder: status = %d, want 400", rec.Code)
+	}
+	if rec, updated := send(http.MethodPut, path, ""); rec.Code != http.StatusOK || updated.DraftsFolder != "" {
+		t.Fatalf("update: status = %d, draftsFolder = %q", rec.Code, updated.DraftsFolder)
+	}
+}
+
 func TestScanLedgerEmailAccount_WithoutFolderIs409(t *testing.T) {
 	h, s := newTestHandlerWithEmailKey(t)
 	now := time.Now().UTC()
