@@ -2,11 +2,15 @@ package email
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"mime"
 	"net"
+	"net/mail"
 	"net/smtp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/reusing-code/kontor/backend/internal/config"
 )
@@ -33,15 +37,32 @@ func NewClient(cfg config.Config) *Client {
 
 func (c *Client) IsConfigured() bool { return c.host != "" }
 
+var (
+	ErrInvalidRecipient = errors.New("invalid recipient address")
+	ErrInvalidSubject   = errors.New("invalid subject")
+	ErrInvalidSender    = errors.New("invalid sender address")
+)
+
+// Send refuses header values with control characters instead of writing them:
+// a CR or LF would end the header and let the value add headers of its own.
+// Errors never carry an address.
 func (c *Client) Send(to []string, subject, body string) error {
 	if c.host == "" {
 		return fmt.Errorf("SMTP host not configured")
 	}
 
+	recipients, err := parseRecipients(to)
+	if err != nil {
+		return err
+	}
+	message, err := buildMessage(c.from, recipients, subject, body)
+	if err != nil {
+		return err
+	}
+
 	addr := fmt.Sprintf("%s:%d", c.host, c.port)
 
 	var conn net.Conn
-	var err error
 
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: false,
@@ -82,9 +103,9 @@ func (c *Client) Send(to []string, subject, body string) error {
 		return fmt.Errorf("failed to set MAIL FROM: %w", err)
 	}
 
-	for _, addr := range to {
-		if err = client.Rcpt(addr); err != nil {
-			return fmt.Errorf("failed to set RCPT TO for %s: %w", addr, err)
+	for _, rcpt := range recipients {
+		if err = client.Rcpt(rcpt); err != nil {
+			return fmt.Errorf("failed to set RCPT TO: %w", err)
 		}
 	}
 
@@ -93,21 +114,7 @@ func (c *Client) Send(to []string, subject, body string) error {
 		return fmt.Errorf("failed to open DATA writer: %w", err)
 	}
 
-	// Simple email headers
-	headers := make(map[string]string)
-	headers["From"] = c.from
-	headers["To"] = strings.Join(to, ",")
-	headers["Subject"] = subject
-	headers["MIME-Version"] = "1.0"
-	headers["Content-Type"] = "text/plain; charset=\"utf-8\""
-
-	message := ""
-	for k, v := range headers {
-		message += fmt.Sprintf("%s: %s\r\n", k, v)
-	}
-	message += "\r\n" + body
-
-	if _, err = w.Write([]byte(message)); err != nil {
+	if _, err = w.Write(message); err != nil {
 		return fmt.Errorf("failed to write message body: %w", err)
 	}
 
@@ -116,4 +123,50 @@ func (c *Client) Send(to []string, subject, body string) error {
 	}
 
 	return nil
+}
+
+func hasControl(s string) bool {
+	return strings.ContainsFunc(s, unicode.IsControl)
+}
+
+// parseRecipients returns the bare addresses, which is what both RCPT TO and
+// the To header get.
+func parseRecipients(to []string) ([]string, error) {
+	if len(to) == 0 {
+		return nil, ErrInvalidRecipient
+	}
+	recipients := make([]string, 0, len(to))
+	for _, raw := range to {
+		if hasControl(raw) {
+			return nil, ErrInvalidRecipient
+		}
+		// the parser's error can quote its input, so it is not wrapped
+		addr, err := mail.ParseAddress(raw)
+		if err != nil || hasControl(addr.Address) {
+			return nil, ErrInvalidRecipient
+		}
+		recipients = append(recipients, addr.Address)
+	}
+	return recipients, nil
+}
+
+func buildMessage(from string, recipients []string, subject, body string) ([]byte, error) {
+	if hasControl(from) {
+		return nil, ErrInvalidSender
+	}
+	if hasControl(subject) {
+		return nil, ErrInvalidSubject
+	}
+	var b strings.Builder
+	for _, h := range [][2]string{
+		{"From", from},
+		{"To", strings.Join(recipients, ", ")},
+		{"Subject", mime.QEncoding.Encode("utf-8", subject)},
+		{"MIME-Version", "1.0"},
+		{"Content-Type", `text/plain; charset="utf-8"`},
+	} {
+		b.WriteString(h[0] + ": " + h[1] + "\r\n")
+	}
+	b.WriteString("\r\n" + body)
+	return []byte(b.String()), nil
 }

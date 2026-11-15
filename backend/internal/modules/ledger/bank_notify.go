@@ -34,8 +34,8 @@ func dueExpiryReminder(c LedgerBankConnection, now time.Time) (days int, mark []
 // bankExpiryMail is the reminder text: the bank, the end date and where to
 // renew. Nothing else about the connection goes into it.
 func bankExpiryMail(bankName string, validUntil time.Time, publicURL string) (subject, body string) {
-	// the subject is written as a raw mail header by email.Client.Send, so the
-	// upstream bank name must not carry control characters (CR/LF would inject headers)
+	// email.Client.Send refuses a subject with control characters, so they are
+	// dropped from the upstream bank name here and the reminder is still sent
 	bankName = strings.TrimSpace(strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
 			return -1
