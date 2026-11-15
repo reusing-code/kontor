@@ -9,7 +9,14 @@ import type { Draft, DraftTargetType } from "@/types/drafts"
 import { DraftCard } from "@/components/drafts/draft-card"
 import { PrefilledCreateDialogs } from "@/components/drafts/prefilled-create-dialogs"
 import { useParentOptions } from "@/components/drafts/use-parent-options"
+import type { DraftSourceKind } from "@/types/drafts"
 import { convertInput, draftEntityTypes, draftTargetModule, entityUrl, parentRequired, type PrefillEntry } from "@/components/drafts/draft-input"
+
+// what accepting linked, per source; other sources link a document
+const acceptedKeys: Partial<Record<DraftSourceKind, string>> = {
+  ledger: "drafts.acceptedLedger",
+  email: "drafts.acceptedEmail",
+}
 
 export function InboxPage() {
   const { t } = useTranslation()
@@ -79,7 +86,7 @@ export function InboxPage() {
           id: draft.id,
           input: { entityType: type, entityId, entityUrl: entityUrl(type, entityId, parentId) },
         })
-        toast.success(t(draft.source.kind === "ledger" ? "drafts.acceptedLedger" : "drafts.accepted"))
+        toast.success(t(acceptedKeys[draft.source.kind] ?? "drafts.accepted"))
         res.warnings.forEach((w) => toast.warning(w))
       } catch (err) {
         toast.error(t("drafts.acceptFailed", { message: (err as Error).message }))

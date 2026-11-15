@@ -6,6 +6,7 @@ import { usePageTitle } from "@/hooks/use-page-title"
 import { useContract, useUpdateContractById } from "@/modules/contracts/hooks/use-contracts"
 import { LinkedTransactionsList } from "@/components/linked-transactions-list"
 import { PaperlessDocumentsSection } from "@/components/paperless/paperless-documents-section"
+import { EmailSourceSection } from "@/components/email-source-section"
 import { ContractDialog } from "@/modules/contracts/components/contract-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -57,6 +58,8 @@ export function ContractDetailPage() {
         entityId={contract.id}
         entityUrl={`${window.location.origin}/contracts/${contract.id}`}
       />
+
+      <EmailSourceSection entityType="contract" entityId={contract.id} />
 
       <Card>
         <CardHeader>

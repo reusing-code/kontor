@@ -6,6 +6,7 @@ import { usePageTitle } from "@/hooks/use-page-title"
 import { usePurchase, useUpdatePurchaseById } from "@/modules/purchases/hooks/use-purchases"
 import { LinkedTransactionsList } from "@/components/linked-transactions-list"
 import { PaperlessDocumentsSection } from "@/components/paperless/paperless-documents-section"
+import { EmailSourceSection } from "@/components/email-source-section"
 import { PurchaseDialog } from "@/modules/purchases/components/purchase-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -57,6 +58,8 @@ export function PurchaseDetailPage() {
         entityId={purchase.id}
         entityUrl={`${window.location.origin}/purchases/${purchase.id}`}
       />
+
+      <EmailSourceSection entityType="purchase" entityId={purchase.id} />
 
       <Card>
         <CardHeader>

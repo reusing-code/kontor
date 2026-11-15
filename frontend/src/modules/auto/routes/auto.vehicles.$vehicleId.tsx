@@ -24,6 +24,7 @@ import { VehicleDialog } from "@/modules/auto/components/vehicle-dialog"
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 import { LinkedTransactionsList } from "@/components/linked-transactions-list"
 import { PaperlessDocumentsSection } from "@/components/paperless/paperless-documents-section"
+import { EmailSourceSection } from "@/components/email-source-section"
 import { usePaperlessConfig } from "@/hooks/use-paperless"
 import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -149,6 +150,7 @@ function AutoVehicleDetailPage() {
               variant="inline"
             />
           )}
+          {documentsEntry && <EmailSourceSection entityType="cost" entityId={documentsEntry.id} variant="inline" />}
         </DialogContent>
       </Dialog>
 
