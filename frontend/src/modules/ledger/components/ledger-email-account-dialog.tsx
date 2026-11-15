@@ -48,6 +48,7 @@ export function LedgerEmailAccountDialog({ open, onOpenChange, account, onSubmit
       password: "",
       useTls: account?.useTls ?? true,
       folder: account ? account.folder : "INBOX",
+      draftsFolder: account?.draftsFolder ?? "",
       preClassify: account?.preClassify ?? false,
       scanSince: account?.scanSince ?? today,
     },
@@ -134,6 +135,23 @@ export function LedgerEmailAccountDialog({ open, onOpenChange, account, onSubmit
                 <FormMessage />
               </FormItem>
             )} />
+            {llm ? (
+              <FormField control={form.control} name="draftsFolder" render={({ field, fieldState }) => (
+                <FormItem>
+                  <FormLabel>{t("ledger.email.draftsFolder")}</FormLabel>
+                  <FormControl><Input {...field} value={field.value ?? ""} /></FormControl>
+                  <LedgerEmailFolderList
+                    folders={folders.data}
+                    error={null}
+                    value={field.value ?? ""}
+                    label={t("ledger.email.draftsFolder")}
+                    onSelect={(folder) => form.setValue("draftsFolder", folder, { shouldDirty: true, shouldValidate: true })}
+                  />
+                  <FormDescription>{t("ledger.email.draftsFolderHint")}</FormDescription>
+                  {fieldState.error ? <p role="alert" className="text-sm text-destructive">{t(fieldState.error.message ?? "")}</p> : null}
+                </FormItem>
+              )} />
+            ) : null}
             {llm ? (
               <FormField control={form.control} name="preClassify" render={({ field }) => (
                 <FormItem>

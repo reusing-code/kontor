@@ -20,6 +20,7 @@ export const ledgerEmailAccountSchema = z.object({
   username: z.string().min(1),
   useTls: z.boolean(),
   folder: z.string(),
+  draftsFolder: z.string().optional(),
   preClassify: z.boolean(),
   scanSince: z.string(),
   lastScanAt: z.string().datetime().optional(),
@@ -40,8 +41,13 @@ export const ledgerEmailAccountInputSchema = z.object({
   password: z.string().optional(),
   useTls: z.boolean().default(true),
   folder: z.string().trim().min(1),
+  // optional second folder whose emails are proposed in the draft inbox
+  draftsFolder: z.string().trim().default(""),
   preClassify: z.boolean().default(false),
   scanSince: z.string().min(1),
+}).refine((data) => !data.draftsFolder || data.draftsFolder !== data.folder, {
+  path: ["draftsFolder"],
+  message: "ledger.email.draftsFolderSame",
 })
 
 export type LedgerEmailAccountInput = z.infer<typeof ledgerEmailAccountInputSchema>
@@ -94,6 +100,29 @@ export const ledgerEmailScanResultSchema = z.object({
 })
 
 export type LedgerEmailScanResult = z.infer<typeof ledgerEmailScanResultSchema>
+
+export interface LedgerEmailDraftRunResult {
+  found: number
+  created: number
+  skipped: number
+  failed: number
+  warnings: string[]
+}
+
+export type LedgerEmailLinkEntityType = "contract" | "purchase" | "cost"
+
+// The email an entity was created from (through the draft inbox).
+export interface LedgerEmailLink {
+  entityType: LedgerEmailLinkEntityType
+  entityId: string
+  emailAccountId: string
+  accountName: string
+  messageId?: string
+  subject?: string
+  from?: string
+  date?: string
+  createdAt: string
+}
 
 export const ledgerEmailScanStatusSchema = z.object({
   state: z.enum(["idle", "running", "done", "partial", "failed"]),

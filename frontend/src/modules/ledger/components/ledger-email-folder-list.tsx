@@ -7,9 +7,11 @@ interface LedgerEmailFolderListProps {
   error: unknown
   value: string
   onSelect: (folder: string) => void
+  // accessible name of the list; defaults to the order folder's label
+  label?: string
 }
 
-export function LedgerEmailFolderList({ folders, error, value, onSelect }: LedgerEmailFolderListProps) {
+export function LedgerEmailFolderList({ folders, error, value, onSelect, label }: LedgerEmailFolderListProps) {
   const { t } = useTranslation()
   if (error) {
     return <p role="alert" className="text-sm text-destructive">{t(folderErrorKey(error))}</p>
@@ -23,7 +25,7 @@ export function LedgerEmailFolderList({ folders, error, value, onSelect }: Ledge
     return <p className="text-sm text-muted-foreground">{t("ledger.email.foldersNoMatch")}</p>
   }
   return (
-    <ul className="max-h-40 space-y-1 overflow-y-auto" aria-label={t("ledger.email.folder")}>
+    <ul className="max-h-40 space-y-1 overflow-y-auto" aria-label={label ?? t("ledger.email.folder")}>
       {visible.map((folder) => (
         <li key={folder}>
           <button

@@ -1,8 +1,8 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { Plus } from "lucide-react"
-import { useCreateLedgerEmailAccount, useLedgerEmailAccounts, useUpdateLedgerEmailAccount } from "@/modules/ledger/hooks/use-ledger"
+import { Inbox, Plus } from "lucide-react"
+import { useCreateLedgerEmailAccount, useLedgerEmailAccounts, useRunLedgerEmailDrafts, useUpdateLedgerEmailAccount } from "@/modules/ledger/hooks/use-ledger"
 import type { LedgerEmailAccount } from "@/modules/ledger/types"
 import { LedgerEmailAccountCard } from "@/modules/ledger/components/ledger-email-account-card"
 import { LedgerEmailAccountDialog } from "@/modules/ledger/components/ledger-email-account-dialog"
@@ -18,8 +18,23 @@ export function LedgerEmailAccountsPanel() {
   const { data: accounts = [] } = useLedgerEmailAccounts()
   const createAccount = useCreateLedgerEmailAccount()
   const updateAccount = useUpdateLedgerEmailAccount()
+  const runDrafts = useRunLedgerEmailDrafts()
+  const hasDraftsFolder = accounts.some((account) => account.draftsFolder)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState<LedgerEmailAccount | null>(null)
+
+  function checkDraftsFolders() {
+    runDrafts.mutate(undefined, {
+      onSuccess: (result) => {
+        toast.success(t("ledger.email.draftsRunSuccess", { count: result.created }))
+        if (result.failed > 0) {
+          toast.warning(t("ledger.email.draftsRunFailed", { count: result.failed }))
+        }
+        result.warnings.forEach((warning) => toast.warning(warning))
+      },
+      onError: (error) => toast.error(error.message),
+    })
+  }
 
   function openCreate() {
     setSelectedAccount(null)
@@ -30,7 +45,14 @@ export function LedgerEmailAccountsPanel() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <CardTitle>{t("ledger.email.accounts")}</CardTitle>
-        <Button type="button" onClick={openCreate}><Plus className="mr-2 h-4 w-4" />{t("ledger.email.addAccount")}</Button>
+        <div className="flex flex-wrap justify-end gap-2">
+          {hasDraftsFolder ? (
+            <Button type="button" variant="outline" disabled={llmOff || runDrafts.isPending} onClick={checkDraftsFolders}>
+              <Inbox className="mr-2 h-4 w-4" />{runDrafts.isPending ? t("ledger.email.draftsRunning") : t("ledger.email.draftsRun")}
+            </Button>
+          ) : null}
+          <Button type="button" onClick={openCreate}><Plus className="mr-2 h-4 w-4" />{t("ledger.email.addAccount")}</Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <LedgerEmailLlmNotice />

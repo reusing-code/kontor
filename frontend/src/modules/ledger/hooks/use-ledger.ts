@@ -31,6 +31,8 @@ import {
   runLedgerRecurringDetection,
   getLedgerEmailScanStatus,
   startLedgerEmailScan,
+  runLedgerEmailDrafts,
+  getLedgerEmailLinks,
   uploadLedgerEmailMessages,
   testLedgerEmailAccount,
   listLedgerEmailFolders,
@@ -46,6 +48,7 @@ import type {
   LedgerCategoryInput,
   LedgerCommitRequest,
   LedgerEmailAccountInput,
+  LedgerEmailLinkEntityType,
   LedgerEmailOrderLinkInput,
   LedgerEmailScanStatus,
   LedgerReviewInput,
@@ -448,6 +451,23 @@ export function useUploadLedgerEmailMessages() {
 export function useTestLedgerEmailAccount() {
   return useMutation({
     mutationFn: (id: string) => testLedgerEmailAccount(id),
+  })
+}
+
+// Checks the drafts folders of all accounts; new drafts show up in the inbox.
+export function useRunLedgerEmailDrafts() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => runLedgerEmailDrafts(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["drafts"] }),
+  })
+}
+
+export function useLedgerEmailLinks(entityType: LedgerEmailLinkEntityType, entityId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["ledger", "email-links", entityType, entityId],
+    queryFn: () => getLedgerEmailLinks(entityType, entityId),
+    enabled,
   })
 }
 

@@ -11,6 +11,9 @@ import type {
   LedgerCategoryInput,
   LedgerEmailAccount,
   LedgerEmailAccountInput,
+  LedgerEmailDraftRunResult,
+  LedgerEmailLink,
+  LedgerEmailLinkEntityType,
   LedgerEmailOrder,
   LedgerEmailOrderCandidatesResult,
   LedgerEmailOrderLinkInput,
@@ -102,6 +105,14 @@ export async function linkLedgerEmailOrder(id: string, data: LedgerEmailOrderLin
 
 export async function rejectLedgerEmailOrder(id: string): Promise<LedgerEmailOrder> {
   return post<LedgerEmailOrder>(`/ledger/email-orders/${id}/reject`, {})
+}
+
+export async function runLedgerEmailDrafts(): Promise<LedgerEmailDraftRunResult> {
+  return post<LedgerEmailDraftRunResult>("/ledger/email-drafts/run", {})
+}
+
+export async function getLedgerEmailLinks(entityType: LedgerEmailLinkEntityType, entityId: string): Promise<LedgerEmailLink[]> {
+  return get<LedgerEmailLink[]>(`/ledger/email-links/${entityType}/${entityId}`)
 }
 
 export async function startLedgerEmailScan(id: string): Promise<LedgerEmailScanStatus> {

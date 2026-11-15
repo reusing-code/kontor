@@ -62,6 +62,7 @@ export function LedgerEmailAccountCard({ account, llmOff, onEdit }: LedgerEmailA
         <div className="font-medium">{account.name}</div>
         <div className="text-sm text-muted-foreground">{account.username} • {account.imapHost}:{account.imapPort}{account.folder ? ` • ${account.folder}` : ""}</div>
         {account.folder ? null : <div className="text-sm text-amber-600 dark:text-amber-400">{t("ledger.email.folderMissing")}</div>}
+        {account.draftsFolder ? <div className="text-sm text-muted-foreground">{t("ledger.email.draftsFolderShown", { folder: account.draftsFolder })}</div> : null}
         <div className="text-xs text-muted-foreground">{t("ledger.email.lastScan")}: {account.lastScanAt ?? "-"}</div>
         {scanning ? (
           <div className="text-sm" role="status">{t("ledger.email.scanProgress", { scanned: scan.emailsScanned, created: scan.ordersNew })}</div>

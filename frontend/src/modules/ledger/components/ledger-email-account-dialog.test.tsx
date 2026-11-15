@@ -128,3 +128,41 @@ describe("LedgerEmailAccountDialog folder list", () => {
     expect(await screen.findByText(/lists no folders/)).toBeInTheDocument()
   })
 })
+
+describe("LedgerEmailAccountDialog Kontor inbox folder", () => {
+  const withLlm = { "GET /capabilities": { llm: true, llmVision: false, bankImport: false } }
+  const draftsInput = () => screen.findByRole<HTMLInputElement>("textbox", { name: "Folder for the Kontor inbox (optional)" })
+
+  it("is hidden without the LLM and keeps the stored value", async () => {
+    const { user, onSubmit } = renderDialog({}, { ...account, draftsFolder: "Kontor" })
+    expect(screen.queryByRole("textbox", { name: "Folder for the Kontor inbox (optional)" })).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ folder: "Orders", draftsFolder: "Kontor" })
+  })
+
+  it("refuses the order folder and saves another one picked from the list", async () => {
+    const { user, onSubmit } = renderDialog({ ...withLlm, [foldersRoute]: { folders } }, account)
+    await user.type(await draftsInput(), "Orders")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    expect(await screen.findByText("Choose a folder other than the one for order emails.")).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole("button", { name: "Load folders" }))
+    const list = await screen.findByRole("list", { name: "Folder for the Kontor inbox (optional)" })
+    await user.clear(await draftsInput())
+    await user.click(within(list).getByRole("button", { name: "archive" }))
+    expect(await draftsInput()).toHaveValue("archive")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ folder: "Orders", draftsFolder: "archive" })
+  })
+
+  it("can be left empty", async () => {
+    const { user, onSubmit } = renderDialog(withLlm, { ...account, draftsFolder: "Kontor" })
+    await user.clear(await draftsInput())
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ draftsFolder: "" })
+  })
+})
