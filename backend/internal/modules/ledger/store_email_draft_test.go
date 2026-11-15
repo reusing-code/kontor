@@ -68,7 +68,7 @@ func TestLedgerEmailDraft_RejectAndMissingAccount(t *testing.T) {
 	if err := s.putLedgerEmailDraftMessage("test-user", account.ID, "k", ledgerEmailDraftMessage{Subject: "s"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.RejectLedgerEmailDraft(ctx, "test-user", account.ID, "k"); err != nil {
+	if err := s.DecideLedgerEmailDraft(ctx, "test-user", account.ID, "k", EmailDraftSeenRejected); err != nil {
 		t.Fatal(err)
 	}
 	if seen, _ := s.HasLedgerEmailDraftSeen(ctx, "test-user", account.ID, "k"); !seen {
@@ -82,7 +82,7 @@ func TestLedgerEmailDraft_RejectAndMissingAccount(t *testing.T) {
 	if linked, err := s.AcceptLedgerEmailDraft(ctx, "test-user", gone, "k", EmailLinkCost, uuid.NewString()); err != nil || linked {
 		t.Errorf("accept for a deleted account = %v, %v", linked, err)
 	}
-	if err := s.RejectLedgerEmailDraft(ctx, "test-user", gone, "k"); err != nil {
+	if err := s.DecideLedgerEmailDraft(ctx, "test-user", gone, "k", EmailDraftSeenRejected); err != nil {
 		t.Errorf("reject for a deleted account: %v", err)
 	}
 	if seen, _ := s.HasLedgerEmailDraftSeen(ctx, "test-user", gone, "k"); seen {

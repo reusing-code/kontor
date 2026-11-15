@@ -11,6 +11,7 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 	"github.com/reusing-code/kontor/backend/internal/drafts"
 	"github.com/reusing-code/kontor/backend/internal/enablebanking"
+	"github.com/reusing-code/kontor/backend/internal/extraction"
 	"github.com/reusing-code/kontor/backend/internal/fx"
 	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/llm"
@@ -29,6 +30,7 @@ type Handler struct {
 	ledgerEmail   *EmailService
 	suggester     *CategorySuggester
 	recurring     *RecurringService
+	emailDrafts   *EmailDraftPipeline
 	bank          *BankService
 	encryptionKey []byte
 	// enabled checks the module of a reference target; nil skips the check.
@@ -71,6 +73,9 @@ type Config struct {
 	// Drafts receives recurring payments proposed as contracts; nil disables
 	// the detection.
 	Drafts *drafts.Store
+	// Classifier turns the messages of the accounts' drafts folders into
+	// drafts; nil (or no Drafts store) disables that source.
+	Classifier *extraction.Classifier
 	// Bank enables the Enable Banking import; a nil client disables it.
 	Bank BankConfig
 }
@@ -128,6 +133,9 @@ func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Con
 	}
 	if cfg.Drafts != nil {
 		handler.recurring = NewRecurringService(store, cfg.Drafts, coreStore, logger)
+	}
+	if cfg.Drafts != nil && cfg.Classifier != nil && coreStore != nil {
+		handler.emailDrafts = NewEmailDraftPipeline(store, cfg.Drafts, cfg.Classifier, coreStore, encryptionKey, cfg.EmailScanInterval, logger)
 	}
 
 	scanEnabled := true
@@ -199,6 +207,8 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("GET /api/v1/ledger/email-orders/{emailOrderId}/candidates", h.ListLedgerEmailOrderCandidates)
 	r.Handle("POST /api/v1/ledger/email-orders/{emailOrderId}/link", h.LinkLedgerEmailOrder)
 	r.Handle("POST /api/v1/ledger/email-orders/{emailOrderId}/reject", h.RejectLedgerEmailOrder)
+	r.Handle("POST /api/v1/ledger/email-drafts/run", h.RunLedgerEmailDrafts)
+	r.Handle("GET /api/v1/ledger/email-links/{entityType}/{entityId}", h.ListLedgerEmailLinks)
 	r.Handle("GET /api/v1/ledger/imports", h.ListLedgerImports)
 	r.Handle("GET /api/v1/ledger/transactions", h.ListLedgerTransactionsReviewQueue)
 	r.Handle("GET /api/v1/ledger/transactions/{transactionId}", h.GetLedgerTransaction)
@@ -220,6 +230,11 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("POST /api/v1/ledger/bank/connections/{id}/sync", h.SyncBankConnection)
 }
 
+// EmailDraftHooks returns the decision hooks of the email draft source.
+func (m *Module) EmailDraftHooks() drafts.SourceHooks {
+	return EmailDraftHooks{store: m.store, logger: m.logger}
+}
+
 // DraftHooks returns the decision hooks of the ledger draft source
 // (recurring payments proposed as contracts).
 func (m *Module) DraftHooks() drafts.SourceHooks {
@@ -235,6 +250,9 @@ func (m *Module) StartBackground(ctx context.Context) {
 	m.handler.recurring.SetBackgroundContext(ctx)
 	m.handler.ledgerEmail.SetBackgroundContext(ctx)
 	m.startBankScheduler(ctx)
+	if m.handler.emailDrafts != nil {
+		m.handler.emailDrafts.Start(ctx)
+	}
 	if !m.emailScanEnabled {
 		return
 	}

@@ -114,6 +114,12 @@ func (s *Store) putLedgerEmailDraftMessage(userID string, accountID uuid.UUID, k
 	})
 }
 
+func (s *Store) deleteLedgerEmailDraftMessage(userID string, accountID uuid.UUID, key string) error {
+	return s.e.Update(func(txn *badger.Txn) error {
+		return deleteIfPresent(txn, ledEmailDraftMsgKey(userID, accountID, key))
+	})
+}
+
 // AcceptLedgerEmailDraft links the message to the entity created from its
 // draft and marks it as done, in one transaction. linked is false when the
 // account or the stored message data is gone: then there is nothing to link.
@@ -153,8 +159,9 @@ func (s *Store) AcceptLedgerEmailDraft(ctx context.Context, userID string, accou
 	return linked, err
 }
 
-// RejectLedgerEmailDraft marks the message so it is not proposed again.
-func (s *Store) RejectLedgerEmailDraft(ctx context.Context, userID string, accountID uuid.UUID, key string) error {
+// DecideLedgerEmailDraft marks the message with the reason (accepted without
+// a link, or rejected) so it is not proposed again.
+func (s *Store) DecideLedgerEmailDraft(ctx context.Context, userID string, accountID uuid.UUID, key, reason string) error {
 	return storage.RetryConflicts(ctx, referenceRetries, func() error {
 		return s.e.Update(func(txn *badger.Txn) error {
 			if _, err := loadLedgerEmailAccount(txn, userID, accountID); errors.Is(err, storage.ErrNotFound) {
@@ -162,7 +169,7 @@ func (s *Store) RejectLedgerEmailDraft(ctx context.Context, userID string, accou
 			} else if err != nil {
 				return err
 			}
-			if err := setLedgerEmailDraftSeen(txn, userID, accountID, key, EmailDraftSeenRejected); err != nil {
+			if err := setLedgerEmailDraftSeen(txn, userID, accountID, key, reason); err != nil {
 				return err
 			}
 			return deleteIfPresent(txn, ledEmailDraftMsgKey(userID, accountID, key))

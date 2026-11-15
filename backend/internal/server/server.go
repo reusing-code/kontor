@@ -77,6 +77,7 @@ func (s *Server) buildApp() (*app, error) {
 		return nil, err
 	}
 	draftStore := drafts.NewStore(engine)
+	classifier := extraction.New(extractor, extractionDeps(coreStore, catStore, autoMod.Store()), rates, s.logger)
 	ledgerMod := ledger.New(engine, links, coreStore, ledger.Config{
 		EmailScanInterval:          s.cfg.LedgerEmailScanInterval,
 		EmailMaxExtractionFailures: s.cfg.LedgerEmailMaxExtractionFailures,
@@ -87,7 +88,8 @@ func (s *Server) buildApp() (*app, error) {
 			BatchSize: s.cfg.LedgerSuggestBatchSize,
 			MaxPerRun: s.cfg.LedgerSuggestMaxPerRun,
 		},
-		Drafts: draftStore,
+		Drafts:     draftStore,
+		Classifier: classifier,
 		Bank: ledger.BankConfig{
 			Client: bankClient, PublicURL: s.cfg.PublicURL,
 			SyncInterval: s.cfg.EnableBankingSyncInterval, Mailer: emailClient,
@@ -112,7 +114,6 @@ func (s *Server) buildApp() (*app, error) {
 	coreHandler := core.NewHandler(coreStore, s.logger, jwtSecret, emailClient, seeds, registry)
 
 	coreHandler.SetCapabilities(core.Capabilities{LLM: extractor.Enabled(), LLMVision: s.cfg.LLMVisionEnabled(), BankImport: ledgerMod.BankImportEnabled()})
-	classifier := extraction.New(extractor, extractionDeps(coreStore, catStore, autoMod.Store()), rates, s.logger)
 
 	paperlessStore := paperless.NewStore(engine)
 	paperlessService := paperless.NewService(paperlessStore, s.logger, s.cfg.EncryptionKey)
@@ -122,6 +123,7 @@ func (s *Server) buildApp() (*app, error) {
 	draftHandler := drafts.NewHandler(draftStore, s.logger)
 	draftHandler.RegisterSource(drafts.SourcePaperless, paperless.NewDraftHooks(paperlessService))
 	draftHandler.RegisterSource(drafts.SourceLedger, ledgerMod.DraftHooks())
+	draftHandler.RegisterSource(drafts.SourceEmail, ledgerMod.EmailDraftHooks())
 	pipeline := paperless.NewPipeline(paperlessService, draftStore, classifier,
 		userIDs(coreStore), s.cfg.PaperlessPipelineInterval, s.logger)
 
