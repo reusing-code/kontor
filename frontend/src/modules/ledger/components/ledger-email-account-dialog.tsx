@@ -52,6 +52,13 @@ export function LedgerEmailAccountDialog({ open, onOpenChange, account, onSubmit
       scanSince: account?.scanSince ?? today,
     },
   })
+  const submit = ({ password, ...data }: LedgerEmailAccountInput) => {
+    if (!account && !password) {
+      form.setError("password", { message: t("ledger.email.passwordRequired") })
+      return
+    }
+    onSubmit(password ? { ...data, password } : data)
+  }
   const folders = useLedgerEmailFolders()
   const loadFolders = () => {
     const { imapHost, imapPort, username, password, useTls } = form.getValues()
@@ -72,7 +79,7 @@ export function LedgerEmailAccountDialog({ open, onOpenChange, account, onSubmit
           <DialogTitle>{account ? t("ledger.email.editAccount") : t("ledger.email.createAccount")}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+          <form className="space-y-4" onSubmit={form.handleSubmit(submit)}>
             <FormField control={form.control} name="name" render={({ field }) => (
               <FormItem>
                 <FormLabel>{t("ledger.email.accountName")}</FormLabel>

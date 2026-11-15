@@ -423,6 +423,7 @@
       "username": "Benutzername",
       "password": "Passwort",
       "passwordOptional": "Passwort (leer lassen zum Beibehalten)",
+      "passwordRequired": "Gib das Passwort ein.",
       "folder": "Ordner / Label",
       "folderHint": "IMAP-Ordner oder Gmail-Label mit deinen Bestell-E-Mails, z. B. INBOX oder Bestellungen. Nur E-Mails aus diesem Ordner gehen an das LLM.",
       "folderMissing": "Kein Ordner gewählt, Scans werden übersprungen. Bearbeite das Konto, um einen zu wählen.",

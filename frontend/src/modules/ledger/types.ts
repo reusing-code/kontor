@@ -36,7 +36,8 @@ export const ledgerEmailAccountInputSchema = z.object({
   imapHost: z.string().min(1),
   imapPort: z.number().int().positive().default(993),
   username: z.string().min(1),
-  password: z.string().min(1).optional(),
+  // empty when editing: the stored password is kept
+  password: z.string().optional(),
   useTls: z.boolean().default(true),
   folder: z.string().trim().min(1),
   preClassify: z.boolean().default(false),

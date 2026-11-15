@@ -423,6 +423,7 @@
       "username": "Username",
       "password": "Password",
       "passwordOptional": "Password (leave empty to keep)",
+      "passwordRequired": "Enter the password.",
       "folder": "Folder / label",
       "folderHint": "IMAP folder or Gmail label that contains your order emails, e.g. INBOX or Orders. Only emails in this folder are sent to the LLM.",
       "folderMissing": "No folder chosen, scans are skipped. Edit the account to choose one.",
