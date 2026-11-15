@@ -1611,6 +1611,9 @@ func (s *Store) DeleteLedgerEmailAccount(_ context.Context, userID string, id uu
 		if err := deleteLedgerEmailSeen(txn, userID, id); err != nil {
 			return err
 		}
+		if err := deleteLedgerEmailDraftData(txn, userID, id); err != nil {
+			return err
+		}
 		return txn.Delete(ledEmailAccKey(userID, id))
 	})
 }
