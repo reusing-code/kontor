@@ -150,18 +150,12 @@ func (s *EmailService) scanMailbox(ctx context.Context, userID string, account L
 
 func (s *EmailService) scanFolder(ctx context.Context, userID string, account LedgerEmailAccount, password string) (LedgerEmailScanResult, error) {
 	result := newScanResult()
-	client, err := newIMAPClient(account.IMAPHost, account.IMAPPort, account.UseTLS)
+	client, err := openMailbox(account, password, account.Folder)
 	if err != nil {
-		return result, imapError(err)
+		return result, err
 	}
 	defer client.Close()
-	if err := client.Login(account.Username, password); err != nil {
-		return result, imapError(err)
-	}
 	defer client.Logout()
-	if err := client.SelectFolder(account.Folder); err != nil {
-		return result, imapError(err)
-	}
 	searchSince := account.ScanSince
 	if account.LastScanAt != nil {
 		lastScan := account.LastScanAt.Add(-48 * time.Hour).Format("2006-01-02")
@@ -180,18 +174,75 @@ func (s *EmailService) scanFolder(ctx context.Context, userID string, account Le
 		result.Warnings = append(result.Warnings, fmt.Sprintf("scan limited to the newest %d matching messages in the selected folder", maxFetchedMessages))
 		uids = uids[len(uids)-maxFetchedMessages:]
 	}
+	msgs, err := listMessages(ctx, client, uids, headerListing{
+		ignored: func(uidKey string) (bool, error) {
+			return s.store.HasLedgerEmailSeen(ctx, userID, account.ID, uidKey)
+		},
+		rejected: func(uidKey, label string) error {
+			return s.handleRejectedFetch(ctx, userID, account, uidKey, label, "could not read message headers", &result)
+		},
+		warn: func(label, reason string) { warn(&result, label, reason) },
+		fetched: func() {
+			result.EmailsScanned++
+			s.publishScan(account.ID, &result)
+		},
+	})
+	if err != nil {
+		if ctx.Err() != nil || errors.Is(err, ErrIMAP) {
+			result.Partial = true
+		}
+		return result, err
+	}
+	err = s.processMessages(ctx, userID, account, msgs, account.PreClassify, &result)
+	return result, err
+}
+
+// openMailbox connects, logs in and selects the folder. The caller logs out
+// and closes the client.
+func openMailbox(account LedgerEmailAccount, password, folder string) (*imapClient, error) {
+	client, err := newIMAPClient(account.IMAPHost, account.IMAPPort, account.UseTLS)
+	if err != nil {
+		return nil, imapError(err)
+	}
+	if err := client.Login(account.Username, password); err != nil {
+		client.Close()
+		return nil, imapError(err)
+	}
+	if err := client.SelectFolder(folder); err != nil {
+		client.Logout()
+		client.Close()
+		return nil, imapError(err)
+	}
+	return client, nil
+}
+
+// headerListing are the scan-specific steps of listMessages. uidKey
+// ("uid:N") identifies a message before its headers are known.
+type headerListing struct {
+	// ignored reports a message whose headers the server keeps refusing.
+	ignored func(uidKey string) (bool, error)
+	// rejected handles a header fetch the server answered with NO.
+	rejected func(uidKey, label string) error
+	warn     func(label, reason string)
+	// fetched runs after each header that was read.
+	fetched func()
+}
+
+// listMessages fetches only the headers of the given messages, newest first,
+// and returns them as candidates whose body is downloaded on Load. An IMAP
+// I/O error ends the listing (the connection is unusable) and is an ErrIMAP.
+func listMessages(ctx context.Context, client *imapClient, uids []uint32, h headerListing) ([]emailMessage, error) {
 	msgs := make([]emailMessage, 0, len(uids))
 	for i := len(uids) - 1; i >= 0; i-- {
 		if ctx.Err() != nil {
-			result.Partial = true
-			return result, ctx.Err()
+			return nil, ctx.Err()
 		}
 		uid := uids[i]
 		label := fmt.Sprintf("uid %d", uid)
 		uidKey := fmt.Sprintf("uid:%d", uid)
-		ignored, err := s.store.HasLedgerEmailSeen(ctx, userID, account.ID, uidKey)
+		ignored, err := h.ignored(uidKey)
 		if err != nil {
-			return result, err
+			return nil, err
 		}
 		if ignored {
 			continue
@@ -199,23 +250,20 @@ func (s *EmailService) scanFolder(ctx context.Context, userID string, account Le
 		raw, err := client.FetchHeader(uid)
 		switch {
 		case errors.Is(err, errMessageTooLarge):
-			warn(&result, label, "message is too large")
+			h.warn(label, "message is too large")
 			continue
 		case errors.Is(err, errIMAPRejected):
-			if err := s.handleRejectedFetch(ctx, userID, account, uidKey, label, "could not read message headers", &result); err != nil {
-				return result, err
+			if err := h.rejected(uidKey, label); err != nil {
+				return nil, err
 			}
 			continue
 		case err != nil:
-			// The connection is unusable after an I/O error.
-			result.Partial = true
-			return result, imapError(err)
+			return nil, imapError(err)
 		}
-		result.EmailsScanned++
-		s.publishScan(account.ID, &result)
+		h.fetched()
 		header, err := parseHeader(raw)
 		if err != nil {
-			warn(&result, label, "could not read message headers")
+			h.warn(label, "could not read message headers")
 			continue
 		}
 		msgs = append(msgs, emailMessage{
@@ -235,8 +283,7 @@ func (s *EmailService) scanFolder(ctx context.Context, userID string, account Le
 			},
 		})
 	}
-	err = s.processMessages(ctx, userID, account, msgs, account.PreClassify, &result)
-	return result, err
+	return msgs, nil
 }
 
 func (s *EmailService) TestConnection(account LedgerEmailAccount, password string) error {
