@@ -99,8 +99,9 @@ func (r *Registrar) ModuleEnabled(ctx context.Context, userID, moduleID string) 
 }
 
 // Add registers a typed tool. The handler returns the output or a *ToolError;
-// any other error (and any panic) is logged and reaches the agent as the
-// fixed internal_error.
+// exhausted conflict retries and a request that ended early become the
+// retryable conflict and cancelled; any other error (and any panic) is logged
+// and reaches the agent as the fixed internal_error.
 func Add[In, Out any](r *Registrar, spec Spec, h func(ctx context.Context, c Call, in In) (Out, error)) {
 	if !slices.Contains([]string{ScopeRead, ScopeDrafts, ScopeLinks}, spec.Scope) {
 		panic(fmt.Sprintf("mcptool: tool %q has invalid scope %q", spec.Name, spec.Scope))
@@ -120,7 +121,7 @@ func Add[In, Out any](r *Registrar, spec Spec, h func(ctx context.Context, c Cal
 		}
 		mcp.AddTool(srv, tool, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
 			var zero Out
-			out, err := run(r, spec, call, func() (Out, error) { return h(ctx, call, in) })
+			out, err := run(ctx, r, spec, call, func() (Out, error) { return h(ctx, call, in) })
 			if err != nil {
 				return nil, zero, err
 			}
@@ -130,7 +131,7 @@ func Add[In, Out any](r *Registrar, spec Spec, h func(ctx context.Context, c Cal
 	r.tools = append(r.tools, registered{spec: spec, install: install})
 }
 
-func run[Out any](r *Registrar, spec Spec, call Call, fn func() (Out, error)) (out Out, err error) {
+func run[Out any](ctx context.Context, r *Registrar, spec Spec, call Call, fn func() (Out, error)) (out Out, err error) {
 	start := time.Now()
 	outcome := outcomeOK
 	defer func() {
@@ -152,6 +153,11 @@ func run[Out any](r *Registrar, spec Spec, call Call, fn func() (Out, error)) (o
 	if errors.As(err, &te) {
 		outcome = outcomeToolErr
 		return out, te
+	}
+	if te := retryable(ctx, err); te != nil {
+		outcome = outcomeToolErr
+		var zero Out
+		return zero, te
 	}
 	r.env.Logger.Error("mcp tool failed", "tool", spec.Name, "tokenId", call.TokenID, "error", err)
 	outcome = outcomeInternal

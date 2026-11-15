@@ -5,11 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/dgraph-io/badger/v4"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/reusing-code/kontor/backend/internal/drafts"
@@ -75,6 +78,10 @@ func newFixture(t *testing.T) *fixture {
 	Add(f.reg, Spec{Name: "internal_fail", Description: "e", Scope: ScopeRead},
 		func(_ context.Context, _ Call, in echoIn) (echoOut, error) {
 			return echoOut{}, errors.New("secret database detail " + in.Text)
+		})
+	Add(f.reg, Spec{Name: "conflict_fail", Description: "e", Scope: ScopeRead},
+		func(ctx context.Context, _ Call, _ echoIn) (echoOut, error) {
+			return echoOut{}, storage.RetryConflicts(ctx, 2, func() error { return badger.ErrConflict })
 		})
 	Add(f.reg, Spec{Name: "panics", Description: "e", Scope: ScopeRead},
 		func(_ context.Context, _ Call, in echoIn) (echoOut, error) { panic("boom " + in.Text) })
@@ -152,7 +159,7 @@ func TestListFilteredByScope(t *testing.T) {
 		scopes []string
 		want   []string
 	}{
-		{[]string{ScopeRead}, []string{"read_tool", "tool_error", "internal_fail", "panics"}},
+		{[]string{ScopeRead}, []string{"read_tool", "tool_error", "internal_fail", "conflict_fail", "panics"}},
 		{[]string{ScopeDrafts}, []string{"draft_tool"}},
 		{[]string{ScopeLinks}, []string{"links_tool"}},
 		{nil, nil},
@@ -487,5 +494,58 @@ func TestToolAnnotations(t *testing.T) {
 		if w, ok := want[tool.Name]; ok && (a.ReadOnlyHint != w.readOnly || a.IdempotentHint != w.idempotent) {
 			t.Errorf("%s: readOnly=%v idempotent=%v, want %+v", tool.Name, a.ReadOnlyHint, a.IdempotentHint, w)
 		}
+	}
+}
+
+func TestExhaustedConflictRetriesAreRetryable(t *testing.T) {
+	f := newFixture(t)
+	before := testutil.ToFloat64(toolCalls.WithLabelValues("conflict_fail", "tool_error"))
+	res := callTool(t, f.connect(t, ScopeRead), "conflict_fail", map[string]any{"text": "x"})
+	if !res.IsError || text(res) != "conflict: concurrent update, try again" {
+		t.Fatalf("result = %q", text(res))
+	}
+	if got := testutil.ToFloat64(toolCalls.WithLabelValues("conflict_fail", "tool_error")); got != before+1 {
+		t.Fatalf("tool_error count = %v, want %v", got, before+1)
+	}
+	if strings.Contains(f.logs.String(), "mcp tool failed") {
+		t.Fatalf("a retryable failure is not an internal error: %s", f.logs)
+	}
+}
+
+func TestRetryableErrorMapping(t *testing.T) {
+	f := newFixture(t)
+	live := t.Context()
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+	expired, stop := context.WithDeadline(t.Context(), time.Unix(0, 0))
+	defer stop()
+
+	for name, c := range map[string]struct {
+		ctx  context.Context
+		err  error
+		want string
+	}{
+		"retries exhausted":           {live, storage.ErrRetriesExhausted, CodeConflict},
+		"wrapped retries exhausted":   {live, fmt.Errorf("linking: %w", storage.ErrRetriesExhausted), CodeConflict},
+		"raw badger conflict":         {live, fmt.Errorf("commit: %w", badger.ErrConflict), CodeConflict},
+		"request cancelled":           {cancelled, fmt.Errorf("read: %w", cancelled.Err()), CodeCancelled},
+		"request deadline":            {expired, expired.Err(), CodeCancelled},
+		"cancelled between retries":   {cancelled, storage.RetryConflicts(cancelled, 3, func() error { return nil }), CodeCancelled},
+		"other conflict":              {live, storage.ErrConflict, CodeInternal},
+		"upstream timeout":            {live, context.DeadlineExceeded, CodeInternal},
+		"upstream cancel":             {live, context.Canceled, CodeInternal},
+		"other error, request ended":  {cancelled, errors.New("db down"), CodeInternal},
+		"tool error wins over cancel": {cancelled, Errorf(CodeNotFound, "gone"), CodeNotFound},
+	} {
+		t.Run(name, func(t *testing.T) {
+			out, err := run(c.ctx, f.reg, Spec{Name: "t"}, Call{}, func() (echoOut, error) { return echoOut{Echo: "partial"}, c.err })
+			var te *ToolError
+			if !errors.As(err, &te) || te.Code != c.want {
+				t.Fatalf("err = %v, want code %s", err, c.want)
+			}
+			if (c.want == CodeConflict || c.want == CodeCancelled) && out.Echo != "" {
+				t.Fatalf("output kept: %+v", out)
+			}
+		})
 	}
 }

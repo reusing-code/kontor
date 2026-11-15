@@ -185,6 +185,6 @@ func (h *Handler) sendWelcomeEmail(to string) {
 	body := "Hello,\n\nWelcome to Kontor! You have successfully registered your account.\n\nBest regards,\nYour Kontor Team"
 
 	if err := h.emailClient.Send([]string{to}, subject, body); err != nil {
-		h.logger.Error("sending welcome email", "to", to, "error", err)
+		h.logger.Error("sending welcome email", "error", err)
 	}
 }

@@ -709,25 +709,41 @@ func TestMCPHostileToolArguments(t *testing.T) {
 	_, raw := a.newPAT(t, userID, nil, pat.ScopeRead, pat.ScopeDrafts, pat.ScopeLinks)
 	cs := a.mcpClient(t, raw)
 
+	id := uuid.NewString()
+	doc := func(ids ...int) []map[string]any {
+		docs := make([]map[string]any, 0, len(ids))
+		for _, n := range ids {
+			docs = append(docs, map[string]any{"id": n})
+		}
+		return docs
+	}
+	// want names the validator a schema-valid call must reach; without it a
+	// protocol-level rejection of the arguments is fine as well.
 	calls := []struct {
 		name string
 		args map[string]any
+		want string
 	}{
-		{"create_contract_draft", map[string]any{}},
-		{"create_contract_draft", map[string]any{"title": strings.Repeat("x", 100000), "input": map[string]any{}}},
-		{"create_contract_draft", map[string]any{"title": "t", "input": "not an object"}},
-		{"create_contract_draft", map[string]any{"title": "t", "key": strings.Repeat("k", 100000), "input": map[string]any{}}},
-		{"attach_paperless_documents", map[string]any{"entityType": "../../etc", "entityId": "x", "documentIds": []int{1}}},
-		{"attach_paperless_documents", map[string]any{"entityType": "contract", "entityId": "not-a-uuid", "documentIds": []int{}}},
-		{"attach_paperless_documents", map[string]any{"entityType": "contract", "entityId": "x", "documentIds": []int{-1}}},
-		{"link_transaction", map[string]any{"transactionId": "' or 1=1", "targetType": "contract", "targetId": "x"}},
-		{"link_transaction", map[string]any{}},
-		{"search_paperless_documents", map[string]any{"query": strings.Repeat("q", 100000)}},
+		{"create_contract_draft", map[string]any{}, ""},
+		{"create_contract_draft", map[string]any{"title": strings.Repeat("x", 100000), "input": map[string]any{}}, ""},
+		{"create_contract_draft", map[string]any{"title": "t", "input": "not an object"}, ""},
+		{"create_contract_draft", map[string]any{"title": "t", "key": strings.Repeat("k", 100000), "input": map[string]any{}}, ""},
+		{"attach_paperless_documents", map[string]any{"entityType": "../../etc", "entityId": id, "documents": doc(1)}, "invalid_input: entityType must be one of"},
+		{"attach_paperless_documents", map[string]any{"entityType": "contract", "entityId": "not-a-uuid", "documents": doc(1)}, "invalid_input: entityId must be a UUID"},
+		{"attach_paperless_documents", map[string]any{"entityType": "contract", "entityId": id, "documents": doc()}, "invalid_input: documents must contain"},
+		{"attach_paperless_documents", map[string]any{"entityType": "contract", "entityId": id, "documents": doc(1, -1)}, "invalid_input: document ids must be positive"},
+		{"attach_paperless_documents", map[string]any{"entityType": "contract", "entityId": id, "documentIds": []int{1}}, ""},
+		{"link_transaction", map[string]any{"transactionId": "' or 1=1", "targetType": "contract", "targetId": "x"}, ""},
+		{"link_transaction", map[string]any{}, ""},
+		{"search_paperless_documents", map[string]any{"query": strings.Repeat("q", 100000)}, ""},
 	}
 	for _, c := range calls {
 		res, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: c.name, Arguments: c.args})
 		if err != nil {
-			continue // protocol-level rejection of the arguments is fine
+			if c.want != "" {
+				t.Errorf("%s(%v) did not reach its validator: %v", c.name, c.args, err)
+			}
+			continue
 		}
 		if !res.IsError {
 			t.Errorf("%s(%v) succeeded", c.name, c.args)
@@ -736,6 +752,9 @@ func TestMCPHostileToolArguments(t *testing.T) {
 		b, _ := json.Marshal(res.Content)
 		if strings.Contains(string(b), "goroutine") || strings.Contains(string(b), ".go:") {
 			t.Errorf("%s leaks internals: %s", c.name, b)
+		}
+		if !strings.Contains(string(b), c.want) {
+			t.Errorf("%s(%v) = %s, want %q", c.name, c.args, b, c.want)
 		}
 	}
 	listModules(t, cs)
@@ -844,8 +863,9 @@ func TestMCPInvalidDraftInputIsRejectedBeforeCreation(t *testing.T) {
 			}
 		})
 	}
-	status, body := a.request(t, "GET", "/api/v1/drafts", jwt, "")
-	if status != 200 || strings.TrimSpace(body) != "[]" && !strings.Contains(body, "null") {
-		t.Fatalf("invalid input created drafts: %d %s", status, body)
+	status, body := a.request(t, "GET", "/api/v1/drafts?status=all", jwt, "")
+	var stored []json.RawMessage
+	if err := json.Unmarshal([]byte(body), &stored); status != 200 || err != nil || len(stored) != 0 {
+		t.Fatalf("invalid input created drafts: %d %v %s", status, err, body)
 	}
 }
