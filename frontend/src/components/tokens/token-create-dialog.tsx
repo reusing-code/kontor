@@ -1,34 +1,20 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { addDays, endOfDay, format, parse } from "date-fns"
+import { addDays, format } from "date-fns"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { expiryFor, type ExpiryChoice } from "@/components/tokens/token-expiry"
 import { tokenScopes, type TokenCreateInput, type TokenScope } from "@/types/token"
-
-type ExpiryChoice = "30" | "90" | "365" | "custom" | "never"
 
 interface TokenCreateDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   pending: boolean
   onSubmit: (input: TokenCreateInput) => void
-}
-
-function expiryFor(choice: ExpiryChoice, customDate: string): string | undefined {
-  switch (choice) {
-    case "never":
-      return undefined
-    case "custom":
-      // "yyyy-MM-dd" must be read as a local date: new Date("2026-12-01") is
-      // midnight UTC, the previous evening west of Greenwich.
-      return endOfDay(parse(customDate, "yyyy-MM-dd", new Date())).toISOString()
-    default:
-      return addDays(new Date(), Number(choice)).toISOString()
-  }
 }
 
 export function TokenCreateDialog({ open, onOpenChange, pending, onSubmit }: TokenCreateDialogProps) {

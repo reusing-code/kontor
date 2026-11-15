@@ -82,6 +82,7 @@ jobs:
           git checkout -qf FETCH_HEAD
       - run: ../ci/retry bun install --frozen-lockfile
       - run: bun run lint
+      - run: bun run test
       - run: bun run build
 
   backend:

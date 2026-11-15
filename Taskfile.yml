@@ -15,10 +15,11 @@ tasks:
       - task lint
 
   ci:frontend:
-    desc: Run frontend lint and build checks
+    desc: Run frontend lint, test and build checks
     dir: frontend
     cmds:
       - bun run lint
+      - bun run test
       - bun run build
 
   dev:
