@@ -277,10 +277,7 @@ describe("TokensSettingsCard reveal", () => {
     expect(cached()).not.toContain(rawToken)
   })
 
-  // Known gap: createToken.reset() only detaches the observer. The finished
-  // mutation, with the raw token as its data, stays in the MutationCache
-  // until it is garbage collected (gcTime, 5 minutes by default).
-  it.fails("drops the raw token from the mutation cache once the dialog is closed", async () => {
+  it("drops the raw token from the mutation cache once the dialog is closed", async () => {
     tokenServer()
     const { user, queryClient } = renderWithProviders(<TokensSettingsCard />)
 
@@ -288,8 +285,7 @@ describe("TokensSettingsCard reveal", () => {
     await user.click(footerClose(reveal))
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
 
-    const mutations = queryClient.getMutationCache().getAll().map((m) => m.state.data)
-    expect(JSON.stringify(mutations)).not.toContain(rawToken)
+    await waitFor(() => expect(queryClient.getMutationCache().getAll()).toHaveLength(0))
   })
 
   it("stays open on Escape and on a click outside", async () => {

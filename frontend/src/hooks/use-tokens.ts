@@ -18,6 +18,9 @@ export function useCreateToken() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (input: TokenCreateInput) => createToken(input),
+    // the response holds the raw token: drop it from the mutation cache as
+    // soon as the card resets the mutation instead of after the default 5 minutes
+    gcTime: 0,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tokens"] }),
   })
 }
