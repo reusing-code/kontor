@@ -1008,7 +1008,7 @@ func TestPipeline_MessageStoredByAnotherScanMeanwhileIsNotDuplicated(t *testing.
 		// A scan of another account with the same mailbox stores the message first.
 		now := time.Now().UTC()
 		other := LedgerEmailOrder{ID: uuid.New(), EmailAccountID: uuid.New(), ImporterID: LedgerEmailImporterLLM, OrderDate: g.date, TotalMinor: g.totalMinor, Currency: "EUR", EmailMessageID: msg.Key, MatchStatus: LedgerEmailOrderStatusUnmatched, CreatedAt: now, UpdatedAt: now}
-		if err := p.store.CreateScannedLedgerEmailOrder(context.Background(), testUserID, other); err != nil {
+		if err := p.store.CreateScannedLedgerEmailOrder(context.Background(), testUserID, other, nil); err != nil {
 			t.Errorf("other scan: %v", err)
 		}
 		return json.Marshal(g.extraction())

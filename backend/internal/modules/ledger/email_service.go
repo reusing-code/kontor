@@ -267,9 +267,10 @@ func listMessages(ctx context.Context, client *imapClient, uids []uint32, h head
 			continue
 		}
 		msgs = append(msgs, emailMessage{
-			Label:  label,
-			Key:    emailDedupKey(header.MessageID, headerBlock(raw)),
-			Header: header,
+			Label:   label,
+			Key:     emailDedupKey(header.MessageID, headerBlock(raw)),
+			Header:  header,
+			Mailbox: &emailMailboxRef{UID: uid, UIDValidity: client.UIDValidity()},
 			Load: func() (ParsedEmail, error) {
 				full, err := client.FetchMessage(uid)
 				if err != nil {

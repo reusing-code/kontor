@@ -1624,6 +1624,7 @@ func deleteLedgerEmailSeen(txn *badger.Txn, userID string, accountID uuid.UUID) 
 		idxLedEmailSeenPrefix(userID, accountID),
 		idxLedEmailRejectPrefix(userID, accountID),
 		idxLedEmailExtractFailPrefix(userID, accountID),
+		idxLedEmailPendingPrefix(userID, accountID),
 	}
 	for _, prefix := range prefixes {
 		it := txn.NewIterator(badger.IteratorOptions{Prefix: prefix})
@@ -1658,23 +1659,40 @@ func (s *Store) HasLedgerEmailSeen(_ context.Context, userID string, accountID u
 // MarkLedgerEmailsSeen records messages that need no further processing, in
 // one transaction, and drops their extraction failure counters.
 func (s *Store) MarkLedgerEmailsSeen(_ context.Context, userID string, accountID uuid.UUID, reason string, keys ...string) error {
-	if len(keys) == 0 {
+	msgs := make([]emailProcessed, 0, len(keys))
+	for _, key := range keys {
+		msgs = append(msgs, emailProcessed{Key: key})
+	}
+	return s.markLedgerEmailsSeen(userID, accountID, reason, msgs)
+}
+
+// MarkLedgerEmailsProcessed is MarkLedgerEmailsSeen for messages the scan
+// dealt with as intended (not an order): in the same transaction it queues
+// the mailbox action the account has configured for its order folder.
+func (s *Store) MarkLedgerEmailsProcessed(_ context.Context, userID string, accountID uuid.UUID, reason string, msgs ...emailProcessed) error {
+	return s.markLedgerEmailsSeen(userID, accountID, reason, msgs)
+}
+
+func (s *Store) markLedgerEmailsSeen(userID string, accountID uuid.UUID, reason string, msgs []emailProcessed) error {
+	if len(msgs) == 0 {
 		return nil
 	}
 	data, err := json.Marshal(ledgerEmailSeen{Reason: reason, At: time.Now().UTC()})
 	if err != nil {
 		return err
 	}
-	return s.e.Update(func(txn *badger.Txn) error {
-		for _, key := range keys {
-			if err := txn.Set(idxLedEmailSeenKey(userID, accountID, key), data); err != nil {
-				return err
+	return retryOnConflict(func() error {
+		return s.e.Update(func(txn *badger.Txn) error {
+			for _, m := range msgs {
+				if err := txn.Set(idxLedEmailSeenKey(userID, accountID, m.Key), data); err != nil {
+					return err
+				}
+				if err := deleteIfPresent(txn, idxLedEmailExtractFailKey(userID, accountID, m.Key)); err != nil {
+					return err
+				}
 			}
-			if err := deleteIfPresent(txn, idxLedEmailExtractFailKey(userID, accountID, key)); err != nil {
-				return err
-			}
-		}
-		return nil
+			return queueLedgerEmailActions(txn, userID, accountID, emailSourceOrders, msgs)
+		})
 	})
 }
 
@@ -1893,11 +1911,13 @@ func retryOnConflict(fn func() error) error {
 // CreateScannedLedgerEmailOrder stores an order found by a scan. Unlike
 // CreateLedgerEmailOrder it refuses (ErrConflict) a message ID that already
 // has an order, so two scans sharing a mailbox cannot store a message twice.
-func (s *Store) CreateScannedLedgerEmailOrder(_ context.Context, userID string, order LedgerEmailOrder) error {
-	return retryOnConflict(func() error { return s.createScannedLedgerEmailOrder(userID, order) })
+// With mailbox (the message came from the account's folder, not an upload)
+// the mailbox action configured for the order folder is queued with it.
+func (s *Store) CreateScannedLedgerEmailOrder(_ context.Context, userID string, order LedgerEmailOrder, mailbox *emailMailboxRef) error {
+	return retryOnConflict(func() error { return s.createScannedLedgerEmailOrder(userID, order, mailbox) })
 }
 
-func (s *Store) createScannedLedgerEmailOrder(userID string, order LedgerEmailOrder) error {
+func (s *Store) createScannedLedgerEmailOrder(userID string, order LedgerEmailOrder, mailbox *emailMailboxRef) error {
 	return s.e.Update(func(txn *badger.Txn) error {
 		if _, err := txn.Get(ledEmailOrderKey(userID, order.ID)); err == nil {
 			return storage.ErrConflict
@@ -1912,6 +1932,10 @@ func (s *Store) createScannedLedgerEmailOrder(userID string, order LedgerEmailOr
 			}
 		}
 		if err := deleteIfPresent(txn, idxLedEmailExtractFailKey(userID, order.EmailAccountID, order.EmailMessageID)); err != nil {
+			return err
+		}
+		if err := queueLedgerEmailActions(txn, userID, order.EmailAccountID, emailSourceOrders,
+			[]emailProcessed{{Key: order.EmailMessageID, Mailbox: mailbox}}); err != nil {
 			return err
 		}
 		return storeLedgerEmailOrder(txn, userID, order)

@@ -28,6 +28,12 @@ type emailMessage struct {
 	Key    string                      // emailDedupKey
 	Header ParsedEmail                 // MessageID, From, Subject, Date only
 	Load   func() (ParsedEmail, error) // full message, called only when extraction is needed
+	// Mailbox is where the scan saw the message; nil for an upload.
+	Mailbox *emailMailboxRef
+}
+
+func (m emailMessage) processed() emailProcessed {
+	return emailProcessed{Key: m.Key, Mailbox: m.Mailbox}
 }
 
 func newScanResult() LedgerEmailScanResult {
@@ -208,7 +214,7 @@ func (s *EmailService) processMessage(ctx context.Context, userID string, accoun
 		return nil
 	}
 	if !ext.IsOrder {
-		return s.store.MarkLedgerEmailsSeen(ctx, userID, account.ID, EmailSeenNotOrder, m.Key)
+		return s.store.MarkLedgerEmailsProcessed(ctx, userID, account.ID, EmailSeenNotOrder, m.processed())
 	}
 	extracted, err := validateExtraction(ext, parsed.Date)
 	if err != nil {
@@ -244,7 +250,7 @@ func (s *EmailService) storeOrder(ctx context.Context, userID string, account Le
 	for _, w := range linkWarnings {
 		warn(result, m.Label, w)
 	}
-	if err := s.store.CreateScannedLedgerEmailOrder(ctx, userID, order); err != nil {
+	if err := s.store.CreateScannedLedgerEmailOrder(ctx, userID, order, m.Mailbox); err != nil {
 		if errors.Is(err, storage.ErrConflict) {
 			return s.useExistingOrder(ctx, userID, m, result)
 		}

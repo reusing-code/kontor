@@ -860,7 +860,7 @@ func TestCreateScannedLedgerEmailOrder_ConcurrentCreatesStoreOneOrder(t *testing
 			go func() {
 				order := LedgerEmailOrder{ID: uuid.New(), EmailAccountID: uuid.New(), ImporterID: LedgerEmailImporterLLM, OrderDate: "2026-04-01", TotalMinor: 100, Currency: "EUR", EmailMessageID: key, CreatedAt: now, UpdatedAt: now}
 				<-start
-				errs <- s.CreateScannedLedgerEmailOrder(ctx, "test-user", order)
+				errs <- s.CreateScannedLedgerEmailOrder(ctx, "test-user", order, nil)
 			}()
 		}
 		close(start)
@@ -937,7 +937,7 @@ func TestRecordLedgerEmailExtractionFailure_CountsPerMessageAndAccountUntilTheMe
 	record(a, "<m2@example.com>", 2)
 
 	order := LedgerEmailOrder{ID: uuid.New(), EmailAccountID: a.ID, EmailMessageID: "<m2@example.com>", TotalMinor: 100, Currency: "EUR", CreatedAt: now, UpdatedAt: now}
-	if err := s.CreateScannedLedgerEmailOrder(ctx, "test-user", order); err != nil {
+	if err := s.CreateScannedLedgerEmailOrder(ctx, "test-user", order, nil); err != nil {
 		t.Fatalf("CreateScannedLedgerEmailOrder: %v", err)
 	}
 	record(a, "<m2@example.com>", 1)

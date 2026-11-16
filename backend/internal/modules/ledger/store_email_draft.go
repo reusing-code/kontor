@@ -37,6 +37,8 @@ type ledgerEmailDraftMessage struct {
 	Subject   string     `json:"subject,omitempty"`
 	From      string     `json:"from,omitempty"`
 	Date      *time.Time `json:"date,omitempty"`
+	// where the pass saw the message, for the mailbox action on the decision
+	emailMailboxRef
 }
 
 // LedgerEmailLink is the reference from an entity to the email it was
@@ -139,11 +141,16 @@ func (s *Store) AcceptLedgerEmailDraft(ctx context.Context, userID string, accou
 			}
 			var msg ledgerEmailDraftMessage
 			err = storage.GetJSON(txn, ledEmailDraftMsgKey(userID, accountID, key), &msg)
-			if errors.Is(err, storage.ErrNotFound) {
-				return nil
-			}
-			if err != nil {
+			if err != nil && !errors.Is(err, storage.ErrNotFound) {
 				return err
+			}
+			missing := err != nil
+			// without message data the action finds the message by its Message-ID
+			if err := queueLedgerEmailAction(txn, account, userID, emailSourceDrafts, key, msg.emailMailboxRef); err != nil {
+				return err
+			}
+			if missing {
+				return nil
 			}
 			linked = true
 			link := LedgerEmailLink{
@@ -160,16 +167,27 @@ func (s *Store) AcceptLedgerEmailDraft(ctx context.Context, userID string, accou
 }
 
 // DecideLedgerEmailDraft marks the message with the reason (accepted without
-// a link, or rejected) so it is not proposed again.
+// a link, or rejected) so it is not proposed again. Like
+// AcceptLedgerEmailDraft it queues the mailbox action configured for the
+// drafts folder in the same transaction.
 func (s *Store) DecideLedgerEmailDraft(ctx context.Context, userID string, accountID uuid.UUID, key, reason string) error {
 	return storage.RetryConflicts(ctx, referenceRetries, func() error {
 		return s.e.Update(func(txn *badger.Txn) error {
-			if _, err := loadLedgerEmailAccount(txn, userID, accountID); errors.Is(err, storage.ErrNotFound) {
+			account, err := loadLedgerEmailAccount(txn, userID, accountID)
+			if errors.Is(err, storage.ErrNotFound) {
 				return nil
-			} else if err != nil {
+			}
+			if err != nil {
 				return err
 			}
 			if err := setLedgerEmailDraftSeen(txn, userID, accountID, key, reason); err != nil {
+				return err
+			}
+			var msg ledgerEmailDraftMessage
+			if err := storage.GetJSON(txn, ledEmailDraftMsgKey(userID, accountID, key), &msg); err != nil && !errors.Is(err, storage.ErrNotFound) {
+				return err
+			}
+			if err := queueLedgerEmailAction(txn, account, userID, emailSourceDrafts, key, msg.emailMailboxRef); err != nil {
 				return err
 			}
 			return deleteIfPresent(txn, ledEmailDraftMsgKey(userID, accountID, key))

@@ -103,15 +103,15 @@ func (s *EmailService) preClassify(ctx context.Context, userID string, account L
 		return batch, nil
 	}
 	kept := make([]emailMessage, 0, len(batch))
-	var rejected []string
+	var rejected []emailProcessed
 	for i, m := range batch {
 		if keep[i] {
 			kept = append(kept, m)
 		} else {
-			rejected = append(rejected, m.Key)
+			rejected = append(rejected, m.processed())
 		}
 	}
-	if err := s.store.MarkLedgerEmailsSeen(ctx, userID, account.ID, EmailSeenPreClass, rejected...); err != nil {
+	if err := s.store.MarkLedgerEmailsProcessed(ctx, userID, account.ID, EmailSeenPreClass, rejected...); err != nil {
 		return nil, err
 	}
 	return kept, nil

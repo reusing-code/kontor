@@ -362,6 +362,9 @@ func (p *EmailDraftPipeline) processMessage(ctx context.Context, run *emailDraft
 	if !parsed.Date.IsZero() {
 		msg.Date = &parsed.Date
 	}
+	if m.Mailbox != nil {
+		msg.emailMailboxRef = *m.Mailbox
+	}
 	if err := p.store.putLedgerEmailDraftMessage(run.userID, account.ID, m.Key, msg); err != nil {
 		return err
 	}
