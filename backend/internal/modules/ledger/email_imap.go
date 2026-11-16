@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +25,11 @@ type imapClient struct {
 	r      *bufio.Reader
 	w      *bufio.Writer
 	tagNum int
+
+	// uidValidity and folder describe the selected mailbox.
+	uidValidity uint32
+	folder      string
+	caps        map[string]bool
 }
 
 func newIMAPClient(host string, port int, useTLS bool) (*imapClient, error) {
@@ -74,22 +80,125 @@ func (c *imapClient) Logout() {
 }
 
 func (c *imapClient) SelectFolder(name string) error {
-	_, err := c.command("SELECT " + imapQuote(imapMailboxName(name)))
+	c.uidValidity, c.folder = 0, ""
+	lines, err := c.command("SELECT " + imapQuote(imapMailboxName(name)))
 	if err != nil {
 		return fmt.Errorf("selecting folder: %w", err)
+	}
+	c.folder = name
+	for _, line := range lines {
+		if value, ok := imapResponseCode(line, "UIDVALIDITY"); ok {
+			if n, err := strconv.ParseUint(value, 10, 32); err == nil {
+				c.uidValidity = uint32(n)
+			}
+		}
 	}
 	return nil
 }
 
-func (c *imapClient) SearchSince(scanSince string) ([]uint32, error) {
-	date, err := time.Parse("2006-01-02", scanSince)
-	if err != nil {
-		return nil, fmt.Errorf("invalid scan start date: %w", err)
+// UIDValidity is the UIDVALIDITY of the selected folder, 0 when the server
+// sent none. A UID is only meaningful together with it.
+func (c *imapClient) UIDValidity() uint32 {
+	return c.uidValidity
+}
+
+// imapResponseCode returns the argument of an untagged `* OK [NAME arg]`.
+func imapResponseCode(line, name string) (string, bool) {
+	trimmed := strings.TrimSpace(line)
+	const prefix = "* OK ["
+	if len(trimmed) < len(prefix) || !strings.EqualFold(trimmed[:len(prefix)], prefix) {
+		return "", false
 	}
-	lines, err := c.command(fmt.Sprintf("UID SEARCH SINCE %s", date.Format("2-Jan-2006")))
+	code, _, ok := strings.Cut(trimmed[len(prefix):], "]")
+	if !ok {
+		return "", false
+	}
+	key, value, _ := strings.Cut(code, " ")
+	if !strings.EqualFold(key, name) {
+		return "", false
+	}
+	return strings.TrimSpace(value), true
+}
+
+// Capabilities asks the server once per connection; call it after Login.
+func (c *imapClient) Capabilities() (map[string]bool, error) {
+	if c.caps != nil {
+		return c.caps, nil
+	}
+	lines, err := c.command("CAPABILITY")
+	if err != nil {
+		return nil, fmt.Errorf("reading capabilities: %w", err)
+	}
+	caps := map[string]bool{}
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 2 || fields[0] != "*" || !strings.EqualFold(fields[1], "CAPABILITY") {
+			continue
+		}
+		for _, name := range fields[2:] {
+			caps[strings.ToUpper(name)] = true
+		}
+	}
+	c.caps = caps
+	return caps, nil
+}
+
+// errIMAPNotExpunged reports a message that was flagged \Deleted but is
+// still in the folder: without UIDPLUS only a plain EXPUNGE could remove it,
+// and that would also remove every other message the user flagged.
+var errIMAPNotExpunged = errors.New("message is flagged as deleted but was not expunged")
+
+// Move moves a message of the selected folder: UID MOVE (RFC 6851) when the
+// server has it, else copy, flag and expunge. The server's NO/BAD is an
+// errIMAPCommandFailed and leaves the message where it was.
+func (c *imapClient) Move(uid uint32, folder string) error {
+	caps, err := c.Capabilities()
+	if err != nil {
+		return err
+	}
+	target := imapQuote(imapMailboxName(folder))
+	if caps["MOVE"] {
+		if _, err := c.command(fmt.Sprintf("UID MOVE %d %s", uid, target)); err != nil {
+			return fmt.Errorf("moving message: %w", err)
+		}
+		return nil
+	}
+	if _, err := c.command(fmt.Sprintf("UID COPY %d %s", uid, target)); err != nil {
+		return fmt.Errorf("copying message: %w", err)
+	}
+	return c.Delete(uid)
+}
+
+// Delete flags a message of the selected folder as \Deleted and expunges
+// exactly that message. Without UIDPLUS it stays flagged: errIMAPNotExpunged.
+func (c *imapClient) Delete(uid uint32) error {
+	caps, err := c.Capabilities()
+	if err != nil {
+		return err
+	}
+	if _, err := c.command(fmt.Sprintf(`UID STORE %d +FLAGS.SILENT (\Deleted)`, uid)); err != nil {
+		return fmt.Errorf("flagging message: %w", err)
+	}
+	if !caps["UIDPLUS"] {
+		return errIMAPNotExpunged
+	}
+	if _, err := c.command(fmt.Sprintf("UID EXPUNGE %d", uid)); err != nil {
+		return fmt.Errorf("expunging message: %w", err)
+	}
+	return nil
+}
+
+// SearchHeader returns the UIDs of the selected folder whose header field
+// contains the value. The value must not contain control characters.
+func (c *imapClient) SearchHeader(field, value string) ([]uint32, error) {
+	lines, err := c.command(fmt.Sprintf("UID SEARCH HEADER %s %s", field, imapQuote(value)))
 	if err != nil {
 		return nil, fmt.Errorf("searching mailbox: %w", err)
 	}
+	return parseIMAPSearch(lines), nil
+}
+
+func parseIMAPSearch(lines []string) []uint32 {
 	for _, line := range lines {
 		if !strings.HasPrefix(line, "* SEARCH") {
 			continue
@@ -103,9 +212,21 @@ func (c *imapClient) SearchSince(scanSince string) ([]uint32, error) {
 			}
 			result = append(result, uint32(value))
 		}
-		return result, nil
+		return result
 	}
-	return nil, nil
+	return nil
+}
+
+func (c *imapClient) SearchSince(scanSince string) ([]uint32, error) {
+	date, err := time.Parse("2006-01-02", scanSince)
+	if err != nil {
+		return nil, fmt.Errorf("invalid scan start date: %w", err)
+	}
+	lines, err := c.command(fmt.Sprintf("UID SEARCH SINCE %s", date.Format("2-Jan-2006")))
+	if err != nil {
+		return nil, fmt.Errorf("searching mailbox: %w", err)
+	}
+	return parseIMAPSearch(lines), nil
 }
 
 // FetchMessage downloads the whole message.
@@ -142,7 +263,7 @@ func (c *imapClient) fetchLiteral(uid uint32, section string) ([]byte, error) {
 		}
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, tag+" ") {
-			if !strings.Contains(trimmed, "OK") {
+			if !imapTaggedOK(trimmed, tag) {
 				return nil, fmt.Errorf("%w: %s", errIMAPRejected, trimmed)
 			}
 			break
@@ -187,7 +308,7 @@ func (c *imapClient) command(command string) ([]string, error) {
 		lines = append(lines, line)
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, tag+" ") {
-			if !strings.Contains(trimmed, "OK") {
+			if !imapTaggedOK(trimmed, tag) {
 				return lines, fmt.Errorf("%w: %s", errIMAPCommandFailed, trimmed)
 			}
 			return lines, nil
@@ -201,6 +322,13 @@ func (c *imapClient) command(command string) ([]string, error) {
 	}
 }
 
+// imapTaggedOK reports whether the tagged response line is an OK. The text
+// after the status is the server's and may itself contain "OK".
+func imapTaggedOK(line, tag string) bool {
+	status, _, _ := strings.Cut(strings.TrimPrefix(line, tag+" "), " ")
+	return strings.EqualFold(status, "OK")
+}
+
 // errIMAPCommandFailed marks a tagged NO/BAD answer to a plain command, as
 // opposed to an I/O failure.
 var errIMAPCommandFailed = errors.New("imap command failed")
@@ -210,14 +338,47 @@ const (
 	maxIMAPFolderNameBytes = 1024
 )
 
+// imapMailbox is one selectable mailbox with its lower-cased LIST flags.
+type imapMailbox struct {
+	Name  string
+	Flags []string
+}
+
 // ListFolders returns the selectable mailboxes with their names decoded from
 // modified UTF-7. The names contain the server's hierarchy delimiter as is.
 func (c *imapClient) ListFolders() ([]string, error) {
+	boxes, err := c.listMailboxes()
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(boxes))
+	for _, box := range boxes {
+		names = append(names, box.Name)
+	}
+	return names, nil
+}
+
+// TrashFolder returns the mailbox the server marks as \Trash (RFC 6154), or
+// "" when it marks none.
+func (c *imapClient) TrashFolder() (string, error) {
+	boxes, err := c.listMailboxes()
+	if err != nil {
+		return "", err
+	}
+	for _, box := range boxes {
+		if slices.Contains(box.Flags, `\trash`) {
+			return box.Name, nil
+		}
+	}
+	return "", nil
+}
+
+func (c *imapClient) listMailboxes() ([]imapMailbox, error) {
 	tag := c.nextTag()
 	if err := c.writeLine(tag + ` LIST "" "*"`); err != nil {
 		return nil, err
 	}
-	folders := make([]string, 0)
+	folders := make([]imapMailbox, 0)
 	for {
 		line, err := c.readLine()
 		if err != nil {
@@ -225,7 +386,7 @@ func (c *imapClient) ListFolders() ([]string, error) {
 		}
 		trimmed := strings.TrimRight(line, "\r\n")
 		if strings.HasPrefix(trimmed, tag+" ") {
-			if !strings.HasPrefix(strings.ToUpper(trimmed), tag+" OK") {
+			if !imapTaggedOK(trimmed, tag) {
 				return nil, fmt.Errorf("%w: %s", errIMAPCommandFailed, trimmed)
 			}
 			return folders, nil
@@ -248,8 +409,8 @@ func (c *imapClient) ListFolders() ([]string, error) {
 			}
 			trimmed = trimmed[:strings.LastIndex(trimmed, "{")] + imapQuote(string(name))
 		}
-		if name, ok := parseIMAPListLine(trimmed); ok && len(folders) < maxIMAPFolders {
-			folders = append(folders, name)
+		if box, ok := parseIMAPListEntry(trimmed); ok && len(folders) < maxIMAPFolders {
+			folders = append(folders, box)
 		}
 	}
 }
@@ -259,36 +420,40 @@ func (c *imapClient) ListFolders() ([]string, error) {
 // Mailboxes that cannot be selected and names the account could not store
 // are left out.
 func parseIMAPListLine(line string) (string, bool) {
+	box, ok := parseIMAPListEntry(line)
+	return box.Name, ok
+}
+
+func parseIMAPListEntry(line string) (imapMailbox, bool) {
 	const prefix = "* LIST "
 	if len(line) < len(prefix) || !strings.EqualFold(line[:len(prefix)], prefix) {
-		return "", false
+		return imapMailbox{}, false
 	}
 	rest := strings.TrimLeft(line[len(prefix):], " ")
 	if !strings.HasPrefix(rest, "(") {
-		return "", false
+		return imapMailbox{}, false
 	}
 	end := strings.Index(rest, ")")
 	if end == -1 {
-		return "", false
+		return imapMailbox{}, false
 	}
-	for _, flag := range strings.Fields(strings.ToLower(rest[1:end])) {
-		if flag == `\noselect` || flag == `\nonexistent` {
-			return "", false
-		}
+	flags := strings.Fields(strings.ToLower(rest[1:end]))
+	if slices.Contains(flags, `\noselect`) || slices.Contains(flags, `\nonexistent`) {
+		return imapMailbox{}, false
 	}
 	_, rest, ok := parseIMAPAString(rest[end+1:])
 	if !ok {
-		return "", false
+		return imapMailbox{}, false
 	}
 	raw, rest, ok := parseIMAPAString(rest)
 	if !ok || strings.TrimSpace(rest) != "" {
-		return "", false
+		return imapMailbox{}, false
 	}
 	name, err := normalizeEmailFolder(decodeIMAPMailboxName(raw))
 	if err != nil {
-		return "", false
+		return imapMailbox{}, false
 	}
-	return name, true
+	return imapMailbox{Name: name, Flags: flags}, true
 }
 
 // parseIMAPAString reads a quoted string or an atom (which covers NIL) and

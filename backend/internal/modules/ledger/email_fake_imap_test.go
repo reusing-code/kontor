@@ -2,9 +2,12 @@ package ledger
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"maps"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,6 +34,16 @@ type fakeIMAP struct {
 	mu           sync.Mutex
 	rejectHeader map[uint32]bool
 	dropOnHeader map[uint32]bool
+
+	// capabilities is the CAPABILITY answer, uidValidity what SELECT reports.
+	// refuse answers commands starting with a key (e.g. "UID MOVE") with NO.
+	// deleted holds the \Deleted flags per folder ("" is the default folder),
+	// commands everything the clients sent.
+	capabilities string
+	uidValidity  uint32
+	refuse       map[string]bool
+	deleted      map[string]map[uint32]bool
+	commands     []string
 }
 
 func newFakeIMAP(t *testing.T, fixtures ...string) *fakeIMAP {
@@ -39,7 +52,8 @@ func newFakeIMAP(t *testing.T, fixtures ...string) *fakeIMAP {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	f := &fakeIMAP{ln: ln, messages: map[uint32][]byte{}, rejectHeader: map[uint32]bool{}, rejectBody: map[uint32]bool{}, dropOnHeader: map[uint32]bool{}}
+	f := &fakeIMAP{ln: ln, messages: map[uint32][]byte{}, rejectHeader: map[uint32]bool{}, rejectBody: map[uint32]bool{}, dropOnHeader: map[uint32]bool{},
+		capabilities: "IMAP4rev1 UIDPLUS MOVE", uidValidity: 1, refuse: map[string]bool{}, deleted: map[string]map[uint32]bool{}}
 	for i, name := range fixtures {
 		raw, err := os.ReadFile(fixturePath(name))
 		if err != nil {
@@ -77,10 +91,40 @@ func (f *fakeIMAP) set(m map[uint32]bool, uid uint32) {
 	m[uid] = true
 }
 
-func (f *fakeIMAP) flag(m map[uint32]bool, uid uint32) bool {
+// box returns the messages of a folder; any folder without its own messages
+// is the default one. Callers hold f.mu.
+func (f *fakeIMAP) box(name string) (string, map[uint32][]byte) {
+	if msgs, ok := f.folders[name]; ok {
+		return name, msgs
+	}
+	return "", f.messages
+}
+
+// uids lists the messages of a folder ("" for the default folder).
+func (f *fakeIMAP) uids(folder string) []uint32 {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return m[uid]
+	_, msgs := f.box(folder)
+	return slices.Sorted(maps.Keys(msgs))
+}
+
+// sent returns the recorded commands that start with the prefix.
+func (f *fakeIMAP) sent(prefix string) []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []string
+	for _, c := range f.commands {
+		if strings.HasPrefix(c, prefix) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func (f *fakeIMAP) setRefuse(prefix string, on bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.refuse[prefix] = on
 }
 
 func (f *fakeIMAP) accept() {
@@ -93,72 +137,139 @@ func (f *fakeIMAP) accept() {
 	}
 }
 
+// fakeUIDArg reads the uid of `UID <VERB> <uid> ...`.
+func fakeUIDArg(command string) uint32 {
+	fields := strings.Fields(command)
+	if len(fields) < 3 {
+		return 0
+	}
+	n, _ := strconv.ParseUint(fields[2], 10, 32)
+	return uint32(n)
+}
+
+func fakeLastQuoted(command string) string {
+	command = strings.TrimSuffix(command, `"`)
+	return command[strings.LastIndex(command, `"`)+1:]
+}
+
 func (f *fakeIMAP) serve(conn net.Conn) {
 	defer conn.Close()
 	r := bufio.NewReader(conn)
 	write := func(format string, args ...any) { _, _ = fmt.Fprintf(conn, format, args...) }
 	write("* OK ready\r\n")
-	messages := f.messages
+	selected := ""
 	for {
 		line, err := r.ReadString('\n')
 		if err != nil {
 			return
 		}
 		tag, command, _ := strings.Cut(strings.TrimSpace(line), " ")
-		switch {
-		case strings.HasPrefix(command, "LOGIN"):
-			f.mu.Lock()
-			f.logins = append(f.logins, command)
-			f.mu.Unlock()
-			if f.password != "" && !strings.HasSuffix(command, ` "`+f.password+`"`) {
-				write("%s NO [AUTHENTICATIONFAILED] Invalid credentials\r\n", tag)
-				continue
-			}
-			write("%s OK done\r\n", tag)
-		case strings.HasPrefix(command, "SELECT"):
-			messages = f.messages
-			f.mu.Lock()
-			if selected, ok := f.folders[strings.Trim(strings.TrimPrefix(command, "SELECT "), `"`)]; ok {
-				messages = selected
-			}
-			f.mu.Unlock()
-			write("%s OK done\r\n", tag)
-		case strings.HasPrefix(command, "LIST"):
-			for _, l := range f.listLines {
-				write("%s\r\n", l)
-			}
-			write("%s OK done\r\n", tag)
-		case strings.HasPrefix(command, "UID SEARCH"):
-			uids := make([]string, 0, len(messages))
-			for i := 1; i <= len(messages); i++ {
-				uids = append(uids, strconv.Itoa(i))
-			}
-			write("* SEARCH %s\r\n%s OK done\r\n", strings.Join(uids, " "), tag)
-		case strings.HasPrefix(command, "UID FETCH"):
-			fields := strings.Fields(command)
-			n, _ := strconv.ParseUint(fields[2], 10, 32)
-			uid := uint32(n)
-			raw, ok := messages[uid]
-			header := strings.Contains(command, "HEADER")
-			switch {
-			case !ok, header && f.flag(f.rejectHeader, uid), !header && f.flag(f.rejectBody, uid):
-				write("%s NO fetch failed\r\n", tag)
-			case header && f.flag(f.dropOnHeader, uid):
-				return
-			default:
-				data := raw
-				if header {
-					data = append(headerBlock(raw), '\r', '\n', '\r', '\n')
-				}
-				write("* %d FETCH (UID %d BODY[] {%d}\r\n", uid, uid, len(data))
-				_, _ = conn.Write(data)
-				write(")\r\n%s OK done\r\n", tag)
-			}
-		case strings.HasPrefix(command, "LOGOUT"):
-			write("* BYE\r\n%s OK done\r\n", tag)
+		if f.handle(conn, write, tag, command, &selected) {
 			return
-		default:
-			write("%s BAD unknown\r\n", tag)
 		}
 	}
+}
+
+// handle answers one command and reports whether the connection ends.
+func (f *fakeIMAP) handle(conn net.Conn, write func(string, ...any), tag, command string, selected *string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !strings.HasPrefix(command, "LOGIN") {
+		f.commands = append(f.commands, command)
+	}
+	for prefix, on := range f.refuse {
+		if on && strings.HasPrefix(command, prefix) {
+			write("%s NO refused, not OK\r\n", tag)
+			return false
+		}
+	}
+	name, messages := f.box(*selected)
+	switch {
+	case strings.HasPrefix(command, "LOGIN"):
+		f.logins = append(f.logins, command)
+		if f.password != "" && !strings.HasSuffix(command, ` "`+f.password+`"`) {
+			write("%s NO [AUTHENTICATIONFAILED] Invalid credentials\r\n", tag)
+			return false
+		}
+		write("%s OK done\r\n", tag)
+	case strings.HasPrefix(command, "CAPABILITY"):
+		write("* CAPABILITY %s\r\n%s OK done\r\n", f.capabilities, tag)
+	case strings.HasPrefix(command, "SELECT"):
+		*selected = fakeLastQuoted(command)
+		write("* OK [UIDVALIDITY %d] UIDs valid\r\n%s OK [READ-WRITE] done\r\n", f.uidValidity, tag)
+	case strings.HasPrefix(command, "LIST"):
+		for _, l := range f.listLines {
+			write("%s\r\n", l)
+		}
+		write("%s OK done\r\n", tag)
+	case strings.HasPrefix(command, "UID SEARCH"):
+		uids := make([]string, 0, len(messages))
+		for _, uid := range slices.Sorted(maps.Keys(messages)) {
+			if strings.HasPrefix(command, "UID SEARCH HEADER") && !bytes.Contains(headerBlock(messages[uid]), []byte(fakeLastQuoted(command))) {
+				continue
+			}
+			uids = append(uids, strconv.Itoa(int(uid)))
+		}
+		write("* SEARCH %s\r\n%s OK done\r\n", strings.Join(uids, " "), tag)
+	case strings.HasPrefix(command, "UID FETCH"):
+		uid := fakeUIDArg(command)
+		raw, ok := messages[uid]
+		header := strings.Contains(command, "HEADER")
+		switch {
+		case !ok, header && f.rejectHeader[uid], !header && f.rejectBody[uid]:
+			write("%s NO fetch failed\r\n", tag)
+		case header && f.dropOnHeader[uid]:
+			return true
+		default:
+			data := raw
+			if header {
+				data = append(headerBlock(raw), '\r', '\n', '\r', '\n')
+			}
+			write("* %d FETCH (UID %d BODY[] {%d}\r\n", uid, uid, len(data))
+			_, _ = conn.Write(data)
+			write(")\r\n%s OK done\r\n", tag)
+		}
+	case strings.HasPrefix(command, "UID MOVE"), strings.HasPrefix(command, "UID COPY"):
+		uid := fakeUIDArg(command)
+		target, ok := f.folders[fakeLastQuoted(command)]
+		if !ok {
+			write("%s NO [TRYCREATE] no such mailbox\r\n", tag)
+			return false
+		}
+		if raw, ok := messages[uid]; ok {
+			next := uint32(1)
+			for existing := range target {
+				next = max(next, existing+1)
+			}
+			target[next] = raw
+			if strings.HasPrefix(command, "UID MOVE") {
+				delete(messages, uid)
+			}
+		}
+		write("%s OK done\r\n", tag)
+	case strings.HasPrefix(command, "UID STORE"):
+		if f.deleted[name] == nil {
+			f.deleted[name] = map[uint32]bool{}
+		}
+		f.deleted[name][fakeUIDArg(command)] = strings.Contains(command, `+FLAGS.SILENT (\Deleted)`)
+		write("%s OK done\r\n", tag)
+	case strings.HasPrefix(command, "UID EXPUNGE"):
+		if uid := fakeUIDArg(command); f.deleted[name][uid] {
+			delete(messages, uid)
+			delete(f.deleted[name], uid)
+		}
+		write("%s OK done\r\n", tag)
+	case strings.HasPrefix(command, "EXPUNGE"):
+		for uid := range f.deleted[name] {
+			delete(messages, uid)
+		}
+		delete(f.deleted, name)
+		write("%s OK done\r\n", tag)
+	case strings.HasPrefix(command, "LOGOUT"):
+		write("* BYE\r\n%s OK done\r\n", tag)
+		return true
+	default:
+		write("%s BAD unknown\r\n", tag)
+	}
+	return false
 }
