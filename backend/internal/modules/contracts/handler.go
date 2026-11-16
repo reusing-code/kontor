@@ -56,32 +56,7 @@ func (h *Handler) CreateContractInCategory(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	now := time.Now().UTC()
-	bi := input.BillingInterval
-	if bi == "" {
-		bi = BillingMonthly
-	}
-	con := Contract{
-		ID:                      uuid.New(),
-		CategoryID:              catID,
-		Name:                    input.Name,
-		ProductName:             input.ProductName,
-		Company:                 input.Company,
-		ContractNumber:          input.ContractNumber,
-		CustomerNumber:          input.CustomerNumber,
-		Price:                   input.Price,
-		BillingInterval:         bi,
-		StartDate:               input.StartDate,
-		EndDate:                 input.EndDate,
-		MinimumDurationMonths:   input.MinimumDurationMonths,
-		ExtensionDurationMonths: input.ExtensionDurationMonths,
-		NoticePeriodMonths:      input.NoticePeriodMonths,
-		CustomerPortalURL:       input.CustomerPortalURL,
-		PaperlessURL:            input.PaperlessURL,
-		Comments:                input.Comments,
-		CreatedAt:               now,
-		UpdatedAt:               now,
-	}
+	con := newContract(uuid.New(), catID, input, time.Now().UTC())
 
 	if err := h.store.Create(r.Context(), middleware.GetUserID(r.Context()), con); err != nil {
 		httputil.StoreError(h.logger, w, err)
@@ -168,4 +143,34 @@ func (h *Handler) DeleteContract(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// newContract builds the contract a create request stores; input must be
+// validated.
+func newContract(id, catID uuid.UUID, input ContractInput, now time.Time) Contract {
+	bi := input.BillingInterval
+	if bi == "" {
+		bi = BillingMonthly
+	}
+	return Contract{
+		ID:                      id,
+		CategoryID:              catID,
+		Name:                    input.Name,
+		ProductName:             input.ProductName,
+		Company:                 input.Company,
+		ContractNumber:          input.ContractNumber,
+		CustomerNumber:          input.CustomerNumber,
+		Price:                   input.Price,
+		BillingInterval:         bi,
+		StartDate:               input.StartDate,
+		EndDate:                 input.EndDate,
+		MinimumDurationMonths:   input.MinimumDurationMonths,
+		ExtensionDurationMonths: input.ExtensionDurationMonths,
+		NoticePeriodMonths:      input.NoticePeriodMonths,
+		CustomerPortalURL:       input.CustomerPortalURL,
+		PaperlessURL:            input.PaperlessURL,
+		Comments:                input.Comments,
+		CreatedAt:               now,
+		UpdatedAt:               now,
+	}
 }

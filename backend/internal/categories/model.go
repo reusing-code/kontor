@@ -31,3 +31,8 @@ type Default struct {
 	Name    string
 	NameKey string
 }
+
+// New builds the category a create request stores; input must be validated.
+func New(id uuid.UUID, input CategoryInput, now time.Time) Category {
+	return Category{ID: id, Name: input.Name, CreatedAt: now, UpdatedAt: now}
+}

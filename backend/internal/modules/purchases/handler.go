@@ -55,25 +55,7 @@ func (h *Handler) CreatePurchaseInCategory(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	now := time.Now().UTC()
-	p := Purchase{
-		ID:             uuid.New(),
-		CategoryID:     catID,
-		Type:           input.Type,
-		ItemName:       input.ItemName,
-		Brand:          input.Brand,
-		ArticleNumber:  input.ArticleNumber,
-		Dealer:         input.Dealer,
-		Price:          input.Price,
-		PurchaseDate:   input.PurchaseDate,
-		DescriptionURL: input.DescriptionURL,
-		InvoiceURL:     input.InvoiceURL,
-		HandbookURL:    input.HandbookURL,
-		Consumables:    input.Consumables,
-		Comments:       input.Comments,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-	}
+	p := newPurchase(uuid.New(), catID, input, time.Now().UTC())
 
 	if err := h.store.Create(r.Context(), middleware.GetUserID(r.Context()), p); err != nil {
 		httputil.StoreError(h.logger, w, err)
@@ -153,4 +135,27 @@ func (h *Handler) DeletePurchase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// newPurchase builds the purchase a create request stores; input must be
+// validated.
+func newPurchase(id, catID uuid.UUID, input PurchaseInput, now time.Time) Purchase {
+	return Purchase{
+		ID:             id,
+		CategoryID:     catID,
+		Type:           input.Type,
+		ItemName:       input.ItemName,
+		Brand:          input.Brand,
+		ArticleNumber:  input.ArticleNumber,
+		Dealer:         input.Dealer,
+		Price:          input.Price,
+		PurchaseDate:   input.PurchaseDate,
+		DescriptionURL: input.DescriptionURL,
+		InvoiceURL:     input.InvoiceURL,
+		HandbookURL:    input.HandbookURL,
+		Consumables:    input.Consumables,
+		Comments:       input.Comments,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
 }

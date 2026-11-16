@@ -57,13 +57,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now().UTC()
-	cat := Category{
-		ID:        uuid.New(),
-		Name:      input.Name,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
+	cat := New(uuid.New(), input, time.Now().UTC())
 
 	if err := h.store.Create(r.Context(), middleware.GetUserID(r.Context()), module, cat); err != nil {
 		httputil.StoreError(h.logger, w, err)

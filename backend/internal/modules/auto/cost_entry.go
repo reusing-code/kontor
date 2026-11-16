@@ -46,20 +46,7 @@ func (h *Handler) CreateCostEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now().UTC()
-	c := CostEntry{
-		ID:          uuid.New(),
-		VehicleID:   vehicleID,
-		Type:        input.Type,
-		Description: input.Description,
-		Vendor:      input.Vendor,
-		Amount:      input.Amount,
-		Date:        input.Date,
-		Mileage:     input.Mileage,
-		Comments:    input.Comments,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
+	c := newCostEntry(uuid.New(), vehicleID, input, time.Now().UTC())
 
 	if err := h.store.CreateCostEntry(r.Context(), middleware.GetUserID(r.Context()), c); err != nil {
 		httputil.StoreError(h.logger, w, err)
@@ -134,4 +121,22 @@ func (h *Handler) DeleteCostEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// newCostEntry builds the cost entry a create request stores; input must be
+// validated.
+func newCostEntry(id, vehicleID uuid.UUID, input CostEntryInput, now time.Time) CostEntry {
+	return CostEntry{
+		ID:          id,
+		VehicleID:   vehicleID,
+		Type:        input.Type,
+		Description: input.Description,
+		Vendor:      input.Vendor,
+		Amount:      input.Amount,
+		Date:        input.Date,
+		Mileage:     input.Mileage,
+		Comments:    input.Comments,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
 }

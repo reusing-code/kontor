@@ -44,26 +44,7 @@ func (h *Handler) CreateVehicle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now().UTC()
-	v := Vehicle{
-		ID:                uuid.New(),
-		Name:              input.Name,
-		Make:              input.Make,
-		Model:             input.Model,
-		Year:              input.Year,
-		LicensePlate:      input.LicensePlate,
-		PurchaseDate:      input.PurchaseDate,
-		PurchasePrice:     input.PurchasePrice,
-		PurchaseMileage:   input.PurchaseMileage,
-		TargetMileage:     input.TargetMileage,
-		TargetMonths:      input.TargetMonths,
-		AnnualInsurance:   input.AnnualInsurance,
-		AnnualTax:         input.AnnualTax,
-		MaintenanceFactor: input.MaintenanceFactor,
-		Comments:          input.Comments,
-		CreatedAt:         now,
-		UpdatedAt:         now,
-	}
+	v := newVehicle(uuid.New(), input, time.Now().UTC())
 
 	if err := h.store.CreateVehicle(r.Context(), middleware.GetUserID(r.Context()), v); err != nil {
 		httputil.StoreError(h.logger, w, err)
@@ -130,4 +111,28 @@ func (h *Handler) DeleteVehicle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// newVehicle builds the vehicle a create request stores; input must be
+// validated.
+func newVehicle(id uuid.UUID, input VehicleInput, now time.Time) Vehicle {
+	return Vehicle{
+		ID:                id,
+		Name:              input.Name,
+		Make:              input.Make,
+		Model:             input.Model,
+		Year:              input.Year,
+		LicensePlate:      input.LicensePlate,
+		PurchaseDate:      input.PurchaseDate,
+		PurchasePrice:     input.PurchasePrice,
+		PurchaseMileage:   input.PurchaseMileage,
+		TargetMileage:     input.TargetMileage,
+		TargetMonths:      input.TargetMonths,
+		AnnualInsurance:   input.AnnualInsurance,
+		AnnualTax:         input.AnnualTax,
+		MaintenanceFactor: input.MaintenanceFactor,
+		Comments:          input.Comments,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
 }

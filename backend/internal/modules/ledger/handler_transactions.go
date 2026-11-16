@@ -47,15 +47,7 @@ func (h *Handler) CreateLedgerCategory(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
 		return
 	}
-	now := time.Now().UTC()
-	category := LedgerCategory{
-		ID:         uuid.New(),
-		Name:       input.Name,
-		ParentID:   input.ParentID,
-		MatchWords: input.MatchWords,
-		CreatedAt:  now,
-		UpdatedAt:  now,
-	}
+	category := newLedgerCategory(uuid.New(), input, time.Now().UTC())
 	if err := h.store.CreateLedgerCategory(r.Context(), middleware.GetUserID(r.Context()), category); err != nil {
 		h.storeError(w, err)
 		return
@@ -314,4 +306,17 @@ func (h *Handler) ReviewLedgerTransaction(w http.ResponseWriter, r *http.Request
 		return
 	}
 	httputil.WriteJSON(h.logger, w, http.StatusOK, ledgerReviewResponse(result))
+}
+
+// newLedgerCategory builds the category a create request stores; input must
+// be validated.
+func newLedgerCategory(id uuid.UUID, input LedgerCategoryInput, now time.Time) LedgerCategory {
+	return LedgerCategory{
+		ID:         id,
+		Name:       input.Name,
+		ParentID:   input.ParentID,
+		MatchWords: input.MatchWords,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
 }

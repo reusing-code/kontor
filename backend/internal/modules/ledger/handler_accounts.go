@@ -19,9 +19,19 @@ func (h *Handler) CreateLedgerAccount(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
 		return
 	}
-	now := time.Now().UTC()
-	account := LedgerAccount{
-		ID:        uuid.New(),
+	account := newLedgerAccount(uuid.New(), input, time.Now().UTC())
+	if err := h.store.CreateLedgerAccount(r.Context(), middleware.GetUserID(r.Context()), account); err != nil {
+		h.storeError(w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusCreated, account)
+}
+
+// newLedgerAccount builds the account a create request stores; input must
+// have passed ValidateForCreate.
+func newLedgerAccount(id uuid.UUID, input LedgerAccountInput, now time.Time) LedgerAccount {
+	return LedgerAccount{
+		ID:        id,
 		Name:      input.Name,
 		Bank:      input.Bank,
 		IBAN:      input.IBAN,
@@ -29,9 +39,4 @@ func (h *Handler) CreateLedgerAccount(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	if err := h.store.CreateLedgerAccount(r.Context(), middleware.GetUserID(r.Context()), account); err != nil {
-		h.storeError(w, err)
-		return
-	}
-	httputil.WriteJSON(h.logger, w, http.StatusCreated, account)
 }
