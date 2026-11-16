@@ -1,5 +1,5 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { acceptDraft, getDraftSummary, listDrafts, rejectDraft, updateDraft } from "@/lib/drafts-repository"
+import { acceptDraft, acceptDraftsBatch, getDraftSummary, listDrafts, rejectDraft, updateDraft } from "@/lib/drafts-repository"
 import { useCapabilities } from "@/hooks/use-capabilities"
 import { usePaperlessConfig } from "@/hooks/use-paperless"
 import type { DraftAcceptInput, DraftUpdateInput } from "@/types/drafts"
@@ -59,5 +59,16 @@ export function useRejectDraft() {
   return useMutation({
     mutationFn: (id: string) => rejectDraft(id),
     onSettled: () => qc.invalidateQueries({ queryKey: ["drafts"] }),
+  })
+}
+
+// Bulk accept creates entries of any module on the server, so everything is
+// refetched afterwards instead of listing every module's query keys.
+export function useAcceptDraftsBatch() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ids, onProgress }: { ids: string[]; onProgress?: (done: number) => void }) =>
+      acceptDraftsBatch(ids, window.location.origin, onProgress),
+    onSettled: () => qc.invalidateQueries(),
   })
 }

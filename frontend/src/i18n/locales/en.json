@@ -787,7 +787,41 @@
     "noParent": "No parent category",
     "parentCategory": "Parent category",
     "currency": "Currency",
-    "acceptedLedger": "Draft accepted and payments linked"
+    "acceptedLedger": "Draft accepted and payments linked",
+    "bulk": {
+      "selectDraft": "Select {{title}}",
+      "selectAll": "Select all ({{count}})",
+      "filterType": "Show",
+      "allTypes": "All types ({{count}})",
+      "typeCount": "{{type}} ({{count}})",
+      "selected_one": "{{count}} selected",
+      "selected_other": "{{count}} selected",
+      "accept": "Accept selected",
+      "progress": "Accepting {{done}} of {{total}}…",
+      "confirmTitle_one": "Accept {{count}} draft?",
+      "confirmTitle_other": "Accept {{count}} drafts?",
+      "confirmDescription": "The entries are created from the draft data as it is, without opening each form. Drafts that cannot be created stay in the inbox with the reason.",
+      "confirm": "Accept",
+      "accepted_one": "{{count}} draft accepted",
+      "accepted_other": "{{count}} drafts accepted",
+      "failed_one": "{{count}} draft could not be accepted, see the reason on the draft",
+      "failed_other": "{{count}} drafts could not be accepted, see the reason on each draft",
+      "requestFailed": "The request failed, the remaining drafts were not processed: {{message}}",
+      "moreWarnings_one": "{{count}} more warning",
+      "moreWarnings_other": "{{count}} more warnings",
+      "errors": {
+        "not_found": "This draft no longer exists.",
+        "rejected": "This draft was rejected.",
+        "no_type": "Choose what this draft is first.",
+        "module_disabled": "The module of this draft is disabled.",
+        "parent_missing": "Choose a category or vehicle first.",
+        "parent_not_found": "The category or vehicle of this draft no longer exists.",
+        "invalid_input": "The entry could not be created: {{message}}",
+        "conflict": "The entry already exists: {{message}}",
+        "source_link_failed": "The entry was created, but its source could not be linked. Accept the draft again to retry; no second entry is created.",
+        "internal_error": "Something went wrong. Try again."
+      }
+    }
   },
   "quickAdd": {
     "button": "Quick add",

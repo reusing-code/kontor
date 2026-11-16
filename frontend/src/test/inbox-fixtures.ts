@@ -1,5 +1,5 @@
 import type { ApiCall } from "@/test/api-mock"
-import type { Draft, DraftEntityType, DraftTargetType } from "@/types/drafts"
+import type { Draft, DraftBatchResult, DraftEntityType, DraftTargetType } from "@/types/drafts"
 import type { ModuleId } from "@/types/modules"
 
 export const ids = {
@@ -135,10 +135,17 @@ interface InboxServerOptions {
   drafts: Draft[]
   enabledModules?: ModuleId[]
   purchaseCategories?: boolean
+  // Batch accept failures by draft ID; every other draft is accepted.
+  batchFailures?: Record<string, Pick<DraftBatchResult, "code" | "error">>
 }
 
 // The endpoints the inbox page reads, plus create and decision endpoints.
-export function inboxRoutes({ drafts, enabledModules = allModules, purchaseCategories = true }: InboxServerOptions) {
+export function inboxRoutes({
+  drafts,
+  enabledModules = allModules,
+  purchaseCategories = true,
+  batchFailures = {},
+}: InboxServerOptions) {
   let pending = drafts
   const decide = (call: ApiCall) => {
     const id = call.path.split("/")[2]
@@ -147,6 +154,16 @@ export function inboxRoutes({ drafts, enabledModules = allModules, purchaseCateg
     return { draft: decided, warnings: [] }
   }
   const created = () => ({ id: ids.created })
+  const acceptBatch = (call: ApiCall) => {
+    const requested = (call.body as { ids: string[] }).ids
+    const results = requested.map((id): DraftBatchResult => {
+      if (id in batchFailures) return { id, status: "failed", ...batchFailures[id] }
+      const type = pending.find((d) => d.id === id)?.targetType
+      return { id, status: "accepted", entityType: type as DraftEntityType, entityId: `entity-${id}` }
+    })
+    pending = pending.filter((d) => !results.some((r) => r.id === d.id && r.status === "accepted"))
+    return { results }
+  }
   return {
     "GET /settings": { renewalDays: 30, reminderFrequency: "weekly", enabledModules },
     "GET /drafts?status=pending": () => pending,
@@ -157,6 +174,7 @@ export function inboxRoutes({ drafts, enabledModules = allModules, purchaseCateg
     "GET /vehicles": [{ id: ids.vehicle, name: "Golf", createdAt: stamp, updatedAt: stamp }],
     "GET /ledger/categories": [{ id: ids.ledgerCategory, name: "Household", matchWords: [], createdAt: stamp, updatedAt: stamp }],
     ...Object.fromEntries(acceptCases.map((c) => [`POST ${c.createPath}`, created])),
+    "POST /drafts/accept-batch": acceptBatch,
     ...Object.fromEntries(drafts.flatMap((d) => [[`POST /drafts/${d.id}/accept`, decide], [`POST /drafts/${d.id}/reject`, decide]])),
   }
 }

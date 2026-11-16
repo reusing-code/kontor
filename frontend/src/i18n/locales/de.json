@@ -787,7 +787,41 @@
     "noParent": "Keine übergeordnete Kategorie",
     "parentCategory": "Übergeordnete Kategorie",
     "currency": "Währung",
-    "acceptedLedger": "Entwurf übernommen und Zahlungen verknüpft"
+    "acceptedLedger": "Entwurf übernommen und Zahlungen verknüpft",
+    "bulk": {
+      "selectDraft": "{{title}} auswählen",
+      "selectAll": "Alle auswählen ({{count}})",
+      "filterType": "Anzeigen",
+      "allTypes": "Alle Typen ({{count}})",
+      "typeCount": "{{type}} ({{count}})",
+      "selected_one": "{{count}} ausgewählt",
+      "selected_other": "{{count}} ausgewählt",
+      "accept": "Auswahl übernehmen",
+      "progress": "Übernehme {{done}} von {{total}}…",
+      "confirmTitle_one": "{{count}} Entwurf übernehmen?",
+      "confirmTitle_other": "{{count}} Entwürfe übernehmen?",
+      "confirmDescription": "Die Einträge werden mit den Daten der Entwürfe angelegt, ohne jedes Formular zu öffnen. Entwürfe, die sich nicht anlegen lassen, bleiben mit dem Grund im Eingang.",
+      "confirm": "Übernehmen",
+      "accepted_one": "{{count}} Entwurf übernommen",
+      "accepted_other": "{{count}} Entwürfe übernommen",
+      "failed_one": "{{count}} Entwurf konnte nicht übernommen werden, der Grund steht am Entwurf",
+      "failed_other": "{{count}} Entwürfe konnten nicht übernommen werden, der Grund steht am jeweiligen Entwurf",
+      "requestFailed": "Die Anfrage ist fehlgeschlagen, die übrigen Entwürfe wurden nicht verarbeitet: {{message}}",
+      "moreWarnings_one": "{{count}} weitere Warnung",
+      "moreWarnings_other": "{{count}} weitere Warnungen",
+      "errors": {
+        "not_found": "Diesen Entwurf gibt es nicht mehr.",
+        "rejected": "Dieser Entwurf wurde verworfen.",
+        "no_type": "Wähle zuerst, worum es sich bei diesem Entwurf handelt.",
+        "module_disabled": "Das Modul dieses Entwurfs ist deaktiviert.",
+        "parent_missing": "Wähle zuerst eine Kategorie oder ein Fahrzeug.",
+        "parent_not_found": "Die Kategorie oder das Fahrzeug dieses Entwurfs gibt es nicht mehr.",
+        "invalid_input": "Der Eintrag konnte nicht angelegt werden: {{message}}",
+        "conflict": "Den Eintrag gibt es bereits: {{message}}",
+        "source_link_failed": "Der Eintrag wurde angelegt, aber die Quelle konnte nicht verknüpft werden. Übernimm den Entwurf erneut; es wird kein zweiter Eintrag angelegt.",
+        "internal_error": "Etwas ist schiefgegangen. Versuche es erneut."
+      }
+    }
   },
   "quickAdd": {
     "button": "Schnellerfassung",

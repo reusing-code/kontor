@@ -4,6 +4,7 @@ import type { Draft, DraftEntityType, DraftTargetType } from "@/types/drafts"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { PaperlessThumbnail } from "@/components/paperless/paperless-thumbnail"
 import { targetProblem, type DraftOption, type TargetProblem } from "@/components/drafts/draft-input"
 import { TargetPicker } from "@/components/drafts/target-picker"
@@ -22,6 +23,11 @@ interface DraftCardProps {
   enabledTypes: DraftEntityType[]
   parentOptions: Record<DraftEntityType, DraftOption[]>
   busy: boolean
+  // Bulk selection; only drafts that could be accepted as they are can be selected.
+  selected: boolean
+  onSelectedChange: (selected: boolean) => void
+  // Why the last bulk accept left this draft pending.
+  error?: string
   onChangeType: (type: DraftTargetType) => void
   onChangeParent: (parentId: string) => void
   onAccept: () => void
@@ -88,6 +94,9 @@ export function DraftCard({
   enabledTypes,
   parentOptions,
   busy,
+  selected,
+  onSelectedChange,
+  error,
   onChangeType,
   onChangeParent,
   onAccept,
@@ -111,18 +120,27 @@ export function DraftCard({
   const problem = targetProblem(target, draft.parentId, enabledTypes, parentOptions)
   const hint = problem && t(hintKeys[problem])
 
+  const title = draft.source.title || `#${draft.source.ref}`
+
   const fields = summaryFields(draft).filter(([, value]) => value !== undefined && value !== null && value !== "")
 
   return (
     <Card>
       <CardContent className="flex gap-4">
+        <Checkbox
+          className="mt-1"
+          aria-label={t("drafts.bulk.selectDraft", { title })}
+          checked={selected}
+          disabled={busy || problem !== null}
+          onCheckedChange={(checked) => onSelectedChange(checked === true)}
+        />
         {Number.isInteger(documentId) && documentId > 0 && (
           <PaperlessThumbnail documentId={documentId} className="h-32 w-24 shrink-0" />
         )}
         <div className="min-w-0 flex-1 space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="truncate font-medium">{draft.source.title || `#${draft.source.ref}`}</p>
+              <p className="truncate font-medium">{title}</p>
               <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                 <span>{t(`drafts.sources.${draft.source.kind}`)}</span>
                 <span>{new Date(draft.createdAt).toLocaleString(i18n.language)}</span>
@@ -180,6 +198,11 @@ export function DraftCard({
             </div>
           </div>
           {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>

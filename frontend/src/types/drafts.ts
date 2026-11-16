@@ -58,3 +58,31 @@ export interface DraftSummary {
   pending: number
   total: number
 }
+
+export type DraftBatchFailureCode =
+  | "not_found"
+  | "rejected"
+  | "no_type"
+  | "module_disabled"
+  | "parent_missing"
+  | "parent_not_found"
+  | "invalid_input"
+  | "conflict"
+  | "source_link_failed"
+  | "internal_error"
+
+// One draft of a batch accept. Failed drafts stay pending.
+export interface DraftBatchResult {
+  id: string
+  status: "accepted" | "already_accepted" | "failed"
+  code?: DraftBatchFailureCode
+  // Message of the backend (English), set for failed drafts.
+  error?: string
+  entityType?: DraftEntityType
+  entityId?: string
+  warnings?: string[]
+}
+
+export interface DraftBatchResponse {
+  results: DraftBatchResult[]
+}
