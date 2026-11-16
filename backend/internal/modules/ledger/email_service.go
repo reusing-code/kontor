@@ -57,6 +57,8 @@ type EmailService struct {
 	// maxExtractionFailures is the number of unusable answers after which a
 	// message is ignored.
 	maxExtractionFailures int
+	// actions moves or deletes processed messages in the mailbox.
+	actions *emailActions
 }
 
 // NewEmailService accepts nil rates (no currency conversion) and a nil logger.
@@ -70,6 +72,7 @@ func NewEmailService(s *Store, extractor llm.Extractor, rates fx.Rates, logger *
 	return &EmailService{
 		store: s, extractor: extractor, rates: rates, logger: logger, maxExtractionFailures: defaultMaxExtractionFailures,
 		scans: map[uuid.UUID]LedgerEmailScanStatus{}, baseCtx: context.Background(),
+		actions: newEmailActions(s, logger),
 	}
 }
 
@@ -156,6 +159,23 @@ func (s *EmailService) scanFolder(ctx context.Context, userID string, account Le
 	}
 	defer client.Close()
 	defer client.Logout()
+	err = s.scanSelected(ctx, client, userID, account, &result)
+	// the connection is still usable: act on what this and earlier scans
+	// processed; a failure is a warning and does not change the scan's outcome
+	if ctx.Err() == nil && !errors.Is(err, ErrIMAP) {
+		warnings, actionErr := s.actions.drain(ctx, client, userID, account.ID, emailSourceOrders)
+		result.Warnings = append(result.Warnings, warnings...)
+		if actionErr != nil {
+			s.logger.Warn("mailbox actions stopped early", "userID", userID, "accountID", account.ID)
+			result.Warnings = append(result.Warnings, "processed messages could not all be moved or deleted in the mailbox; tried again next time")
+		}
+		s.publishScan(account.ID, &result)
+	}
+	return result, err
+}
+
+// scanSelected scans the selected order folder of the account.
+func (s *EmailService) scanSelected(ctx context.Context, client *imapClient, userID string, account LedgerEmailAccount, result *LedgerEmailScanResult) error {
 	searchSince := account.ScanSince
 	if account.LastScanAt != nil {
 		lastScan := account.LastScanAt.Add(-48 * time.Hour).Format("2006-01-02")
@@ -165,10 +185,10 @@ func (s *EmailService) scanFolder(ctx context.Context, userID string, account Le
 	}
 	uids, err := client.SearchSince(searchSince)
 	if err != nil {
-		return result, imapError(err)
+		return imapError(err)
 	}
 	if len(uids) == 0 {
-		return result, nil
+		return nil
 	}
 	if len(uids) > maxFetchedMessages {
 		result.Warnings = append(result.Warnings, fmt.Sprintf("scan limited to the newest %d matching messages in the selected folder", maxFetchedMessages))
@@ -179,22 +199,21 @@ func (s *EmailService) scanFolder(ctx context.Context, userID string, account Le
 			return s.store.HasLedgerEmailSeen(ctx, userID, account.ID, uidKey)
 		},
 		rejected: func(uidKey, label string) error {
-			return s.handleRejectedFetch(ctx, userID, account, uidKey, label, "could not read message headers", &result)
+			return s.handleRejectedFetch(ctx, userID, account, uidKey, label, "could not read message headers", result)
 		},
-		warn: func(label, reason string) { warn(&result, label, reason) },
+		warn: func(label, reason string) { warn(result, label, reason) },
 		fetched: func() {
 			result.EmailsScanned++
-			s.publishScan(account.ID, &result)
+			s.publishScan(account.ID, result)
 		},
 	})
 	if err != nil {
 		if ctx.Err() != nil || errors.Is(err, ErrIMAP) {
 			result.Partial = true
 		}
-		return result, err
+		return err
 	}
-	err = s.processMessages(ctx, userID, account, msgs, account.PreClassify, &result)
-	return result, err
+	return s.processMessages(ctx, userID, account, msgs, account.PreClassify, result)
 }
 
 // openMailbox connects, logs in and selects the folder. The caller logs out

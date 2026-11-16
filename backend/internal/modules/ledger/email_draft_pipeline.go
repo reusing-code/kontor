@@ -56,6 +56,8 @@ type EmailDraftPipeline struct {
 	interval      time.Duration
 	logger        *slog.Logger
 	now           func() time.Time
+	// actions moves or deletes decided messages in the mailbox; nil: never.
+	actions *emailActions
 
 	mu      sync.Mutex
 	running map[string]bool
@@ -243,6 +245,23 @@ func (p *EmailDraftPipeline) runAccount(ctx context.Context, run *emailDraftRun,
 	}
 	defer client.Close()
 	defer client.Logout()
+	err = p.runFolder(ctx, run, account, client)
+	// the connection is still usable: act on the drafts decided since the last pass
+	if p.actions != nil && ctx.Err() == nil && !errors.Is(err, ErrIMAP) {
+		warnings, actionErr := p.actions.drain(ctx, client, run.userID, account.ID, emailSourceDrafts)
+		for _, w := range warnings {
+			run.warn(account, w)
+		}
+		if actionErr != nil {
+			p.logger.Warn("email draft pipeline: mailbox actions stopped early", "userID", run.userID, "accountID", account.ID)
+			run.warn(account, "processed messages could not all be moved or deleted in the mailbox; tried again next time")
+		}
+	}
+	return err
+}
+
+// runFolder proposes the new messages of the selected drafts folder.
+func (p *EmailDraftPipeline) runFolder(ctx context.Context, run *emailDraftRun, account LedgerEmailAccount, client *imapClient) error {
 	uids, err := client.SearchSince(account.ScanSince)
 	if err != nil {
 		return imapError(err)

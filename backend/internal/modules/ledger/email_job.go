@@ -56,6 +56,7 @@ func (st *LedgerEmailScanStatus) setCounts(result LedgerEmailScanResult) {
 
 // SetBackgroundContext bounds manual scan jobs by the server's lifetime.
 func (s *EmailService) SetBackgroundContext(ctx context.Context) {
+	s.actions.setBackgroundContext(ctx)
 	s.scanMu.Lock()
 	defer s.scanMu.Unlock()
 	s.baseCtx = ctx

@@ -22,7 +22,12 @@ func newPendingTestAccount(t *testing.T, s *Store, action, draftsAction string) 
 
 func pendingKeys(t *testing.T, s *Store, account LedgerEmailAccount, source string) []ledgerEmailPendingEntry {
 	t.Helper()
-	entries, err := s.ListLedgerEmailPending(context.Background(), "test-user", account.ID, source)
+	return pendingKeysOf(t, s, "test-user", account, source)
+}
+
+func pendingKeysOf(t *testing.T, s *Store, userID string, account LedgerEmailAccount, source string) []ledgerEmailPendingEntry {
+	t.Helper()
+	entries, err := s.ListLedgerEmailPending(context.Background(), userID, account.ID, source)
 	if err != nil {
 		t.Fatalf("ListLedgerEmailPending: %v", err)
 	}

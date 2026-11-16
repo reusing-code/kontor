@@ -106,6 +106,7 @@ func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Con
 
 	emailService := NewEmailService(store, extractor, cfg.Rates, logger)
 	emailService.SetMaxExtractionFailures(cfg.EmailMaxExtractionFailures)
+	emailService.actions.setEncryptionKey(encryptionKey)
 
 	handler := &Handler{
 		store:         store,
@@ -136,6 +137,7 @@ func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Con
 	}
 	if cfg.Drafts != nil && cfg.Classifier != nil && coreStore != nil {
 		handler.emailDrafts = NewEmailDraftPipeline(store, cfg.Drafts, cfg.Classifier, coreStore, encryptionKey, cfg.EmailScanInterval, logger)
+		handler.emailDrafts.actions = emailService.actions
 	}
 
 	scanEnabled := true
@@ -232,7 +234,7 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 
 // EmailDraftHooks returns the decision hooks of the email draft source.
 func (m *Module) EmailDraftHooks() drafts.SourceHooks {
-	return EmailDraftHooks{store: m.store, logger: m.logger}
+	return EmailDraftHooks{store: m.store, logger: m.logger, actions: m.handler.ledgerEmail.actions}
 }
 
 // DraftHooks returns the decision hooks of the ledger draft source
