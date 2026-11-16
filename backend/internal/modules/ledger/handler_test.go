@@ -633,6 +633,45 @@ func TestEmailAccountHandlers_DraftsFolder(t *testing.T) {
 	}
 }
 
+func TestEmailAccountHandlers_ProcessedActions(t *testing.T) {
+	h, _ := newTestHandlerWithEmailKey(t)
+	mux := newMux(h)
+	send := func(method, path string, actions map[string]any) (*httptest.ResponseRecorder, LedgerEmailAccount) {
+		body := map[string]any{
+			"name": "Mail", "imapHost": "imap.example.com", "imapPort": 993, "username": "u", "password": "p",
+			"useTls": true, "scanSince": "2026-01-01", "folder": "Orders", "draftsFolder": "Kontor",
+		}
+		for k, v := range actions {
+			body[k] = v
+		}
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(method, path, jsonBody(body)))
+		var account LedgerEmailAccount
+		_ = json.Unmarshal(rec.Body.Bytes(), &account)
+		return rec, account
+	}
+
+	rec, created := send(http.MethodPost, "/api/v1/ledger/email-accounts", nil)
+	if rec.Code != http.StatusCreated || created.ProcessedAction != EmailActionKeep || created.DraftsProcessedAction != EmailActionKeep {
+		t.Fatalf("create: status = %d, actions = %q/%q, want keep", rec.Code, created.ProcessedAction, created.DraftsProcessedAction)
+	}
+	path := "/api/v1/ledger/email-accounts/" + created.ID.String()
+	if rec, _ := send(http.MethodPut, path, map[string]any{"processedAction": "move", "processedFolder": "Kontor"}); rec.Code != http.StatusBadRequest {
+		t.Fatalf("move into the drafts folder: status = %d, want 400", rec.Code)
+	}
+	rec, updated := send(http.MethodPut, path, map[string]any{
+		"processedAction": "move", "processedFolder": "Done", "draftsProcessedAction": "delete",
+	})
+	if rec.Code != http.StatusOK || updated.ProcessedAction != EmailActionMove || updated.ProcessedFolder != "Done" ||
+		updated.DraftsProcessedAction != EmailActionDelete {
+		t.Fatalf("update: status = %d, account = %+v", rec.Code, updated)
+	}
+	stored, err := h.store.GetLedgerEmailAccount(t.Context(), testUserID, created.ID)
+	if err != nil || stored.ProcessedFolder != "Done" || stored.DraftsProcessedAction != EmailActionDelete {
+		t.Fatalf("stored = %+v, err = %v", stored, err)
+	}
+}
+
 func TestScanLedgerEmailAccount_WithoutFolderIs409(t *testing.T) {
 	h, s := newTestHandlerWithEmailKey(t)
 	now := time.Now().UTC()

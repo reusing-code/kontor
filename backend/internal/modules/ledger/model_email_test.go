@@ -91,3 +91,69 @@ func TestEmailAccountInputsValidateDraftsFolder(t *testing.T) {
 		})
 	}
 }
+
+func TestEmailAccountInputsValidateProcessedActions(t *testing.T) {
+	keep := EmailProcessedActions{ProcessedAction: EmailActionKeep, DraftsProcessedAction: EmailActionKeep}
+	for _, tc := range []struct {
+		name    string
+		drafts  string
+		in      EmailProcessedActions
+		want    EmailProcessedActions
+		wantErr string
+	}{
+		{"default", "Kontor", EmailProcessedActions{}, keep, ""},
+		{"move", "Kontor",
+			EmailProcessedActions{ProcessedAction: "move", ProcessedFolder: " Done ", DraftsProcessedAction: "move", DraftsProcessedFolder: "Archive"},
+			EmailProcessedActions{ProcessedAction: "move", ProcessedFolder: "Done", DraftsProcessedAction: "move", DraftsProcessedFolder: "Archive"}, ""},
+		{"delete drops the target", "Kontor",
+			EmailProcessedActions{ProcessedAction: "delete", ProcessedFolder: "Done", DraftsProcessedAction: "delete"},
+			EmailProcessedActions{ProcessedAction: "delete", DraftsProcessedAction: "delete"}, ""},
+		{"keep drops the target", "Kontor", EmailProcessedActions{ProcessedAction: "keep", ProcessedFolder: "Done"}, keep, ""},
+		{"no drafts folder resets its action", "",
+			EmailProcessedActions{DraftsProcessedAction: "bogus", DraftsProcessedFolder: "Done"}, keep, ""},
+		{"unknown action", "Kontor", EmailProcessedActions{ProcessedAction: "archive"}, keep, "processedAction is invalid"},
+		{"unknown drafts action", "Kontor", EmailProcessedActions{DraftsProcessedAction: "flag"}, keep, "draftsProcessedAction is invalid"},
+		{"move without target", "Kontor", EmailProcessedActions{ProcessedAction: "move", ProcessedFolder: " "}, keep, "processedFolder is required"},
+		{"move with control character", "Kontor", EmailProcessedActions{DraftsProcessedAction: "move", DraftsProcessedFolder: "Do\nne"}, keep, "draftsProcessedFolder is invalid"},
+		{"move into its own folder", "Kontor", EmailProcessedActions{ProcessedAction: "move", ProcessedFolder: "Orders"}, keep,
+			"processedFolder must differ from folder and draftsFolder"},
+		{"move into the other scanned folder", "Kontor", EmailProcessedActions{ProcessedAction: "move", ProcessedFolder: "Kontor"}, keep,
+			"processedFolder must differ from folder and draftsFolder"},
+		{"drafts move into the order folder", "Kontor", EmailProcessedActions{DraftsProcessedAction: "move", DraftsProcessedFolder: "Orders"}, keep,
+			"draftsProcessedFolder must differ from folder and draftsFolder"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			create := LedgerEmailAccountInput{Name: "n", IMAPHost: "h", Username: "u", Password: "p",
+				ScanSince: "2026-01-01", Folder: "Orders", DraftsFolder: tc.drafts, EmailProcessedActions: tc.in}
+			update := LedgerEmailAccountUpdateInput{Name: "n", IMAPHost: "h", Username: "u",
+				ScanSince: "2026-01-01", Folder: "Orders", DraftsFolder: tc.drafts, EmailProcessedActions: tc.in}
+			for _, got := range []struct {
+				err     error
+				actions EmailProcessedActions
+			}{{create.Validate(), create.EmailProcessedActions}, {update.Validate(), update.EmailProcessedActions}} {
+				if tc.wantErr != "" {
+					if got.err == nil || got.err.Error() != tc.wantErr {
+						t.Fatalf("err = %v, want %q", got.err, tc.wantErr)
+					}
+					continue
+				}
+				if got.err != nil || got.actions != tc.want {
+					t.Fatalf("actions = %+v, err = %v; want %+v", got.actions, got.err, tc.want)
+				}
+			}
+		})
+	}
+}
+
+func TestLedgerEmailAccountProcessedAction(t *testing.T) {
+	account := LedgerEmailAccount{Folder: "Orders", DraftsFolder: "Kontor", DraftsProcessedAction: EmailActionMove, DraftsProcessedFolder: "Done"}
+	if action, target := account.processedAction(emailSourceOrders); action != EmailActionKeep || target != "" {
+		t.Errorf("orders = %q, %q; want keep for an account stored before the setting existed", action, target)
+	}
+	if action, target := account.processedAction(emailSourceDrafts); action != EmailActionMove || target != "Done" {
+		t.Errorf("drafts = %q, %q; want move, Done", action, target)
+	}
+	if account.sourceFolder(emailSourceOrders) != "Orders" || account.sourceFolder(emailSourceDrafts) != "Kontor" {
+		t.Errorf("source folders = %q, %q", account.sourceFolder(emailSourceOrders), account.sourceFolder(emailSourceDrafts))
+	}
+}

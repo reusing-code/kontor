@@ -61,6 +61,7 @@ func (h *Handler) CreateLedgerEmailAccount(w http.ResponseWriter, r *http.Reques
 		CreatedAt:         now,
 		UpdatedAt:         now,
 	}
+	input.apply(&account)
 	if err := h.store.CreateLedgerEmailAccount(r.Context(), middleware.GetUserID(r.Context()), account); err != nil {
 		h.storeError(w, err)
 		return
@@ -125,6 +126,7 @@ func (h *Handler) UpdateLedgerEmailAccount(w http.ResponseWriter, r *http.Reques
 		a.UseTLS = input.UseTLS
 		a.Folder = input.Folder
 		a.DraftsFolder = input.DraftsFolder
+		input.EmailProcessedActions.apply(a)
 		a.PreClassify = input.PreClassify
 		a.ScanSince = input.ScanSince
 		if encryptedPassword != "" {
