@@ -428,9 +428,33 @@
       "folderHint": "IMAP folder or Gmail label that contains your order emails, e.g. INBOX or Orders. Only emails in this folder are sent to the LLM.",
       "folderMissing": "No folder chosen, scans are skipped. Edit the account to choose one.",
       "draftsFolder": "Folder for the Kontor inbox (optional)",
-      "draftsFolderHint": "A second folder or label for emails such as contract confirmations, subscription notices or bills. Its emails are sent to the LLM and proposed as contracts, purchases or vehicle costs in the Kontor inbox. Nothing is changed in the mailbox.",
+      "draftsFolderHint": "A second folder or label for emails such as contract confirmations, subscription notices or bills. Its emails are sent to the LLM and proposed as contracts, purchases or vehicle costs in the Kontor inbox. The mailbox is only changed if you choose below to move or delete decided emails.",
       "draftsFolderSame": "Choose a folder other than the one for order emails.",
       "draftsFolderShown": "Kontor inbox folder: {{folder}}",
+      "processed": {
+        "orders": "Processed order emails",
+        "drafts": "Decided emails of the Kontor inbox folder",
+        "keep": "Keep",
+        "move": "Move",
+        "delete": "Delete",
+        "keepHint": "Nothing is changed in the mailbox; Kontor only remembers what it has processed.",
+        "moveHint": "Kontor moves each email to the chosen folder once it is processed. Emails it could not read or extract stay where they are.",
+        "deleteHint": "Kontor moves each email to the mailbox's trash once it is processed, or deletes it for good if the server has no trash folder. Emails it could not read or extract stay where they are.",
+        "target": "Target folder: {{label}}",
+        "targetPlaceholder": "Target folder",
+        "targetRequired": "Choose the folder the emails are moved to.",
+        "targetSame": "Choose a folder that Kontor does not read.",
+        "confirmDelete": "Kontor will delete emails from this mailbox once it has processed them: order emails after the scan, emails of the Kontor inbox folder after you accept or reject their draft. Where the mail server has no trash folder they are gone for good.",
+        "confirmDeleteAction": "Delete processed emails",
+        "ordersShown": {
+          "move": "Processed order emails are moved to {{folder}}",
+          "delete": "Processed order emails are deleted"
+        },
+        "draftsShown": {
+          "move": "Decided Kontor inbox emails are moved to {{folder}}",
+          "delete": "Decided Kontor inbox emails are deleted"
+        }
+      },
       "draftsRun": "Check Kontor inbox folders",
       "draftsRunning": "Checking…",
       "draftsRunSuccess_one": "{{count}} new draft in the inbox.",

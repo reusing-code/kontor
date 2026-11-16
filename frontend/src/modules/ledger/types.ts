@@ -12,6 +12,10 @@ export const ledgerAccountSchema = z.object({
 
 export type LedgerAccount = z.infer<typeof ledgerAccountSchema>
 
+export const emailProcessedActions = ["keep", "move", "delete"] as const
+export const emailProcessedActionSchema = z.enum(emailProcessedActions)
+export type EmailProcessedAction = z.infer<typeof emailProcessedActionSchema>
+
 export const ledgerEmailAccountSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
@@ -21,6 +25,11 @@ export const ledgerEmailAccountSchema = z.object({
   useTls: z.boolean(),
   folder: z.string(),
   draftsFolder: z.string().optional(),
+  // what happens in the mailbox to processed emails of folder / draftsFolder
+  processedAction: emailProcessedActionSchema.optional(),
+  processedFolder: z.string().optional(),
+  draftsProcessedAction: emailProcessedActionSchema.optional(),
+  draftsProcessedFolder: z.string().optional(),
   preClassify: z.boolean(),
   scanSince: z.string(),
   lastScanAt: z.string().datetime().optional(),
@@ -43,11 +52,30 @@ export const ledgerEmailAccountInputSchema = z.object({
   folder: z.string().trim().min(1),
   // optional second folder whose emails are proposed in the draft inbox
   draftsFolder: z.string().trim().default(""),
+  processedAction: emailProcessedActionSchema.default("keep"),
+  processedFolder: z.string().trim().default(""),
+  draftsProcessedAction: emailProcessedActionSchema.default("keep"),
+  draftsProcessedFolder: z.string().trim().default(""),
   preClassify: z.boolean().default(false),
   scanSince: z.string().min(1),
 }).refine((data) => !data.draftsFolder || data.draftsFolder !== data.folder, {
   path: ["draftsFolder"],
   message: "ledger.email.draftsFolderSame",
+}).superRefine((data, ctx) => {
+  // a move target is neither of the scanned folders; the drafts action only
+  // counts while there is a drafts folder
+  const targets = [
+    { path: "processedFolder", active: data.processedAction === "move", folder: data.processedFolder },
+    { path: "draftsProcessedFolder", active: data.draftsProcessedAction === "move" && !!data.draftsFolder, folder: data.draftsProcessedFolder },
+  ]
+  for (const target of targets) {
+    if (!target.active) continue
+    if (!target.folder) {
+      ctx.addIssue({ code: "custom", path: [target.path], message: "ledger.email.processed.targetRequired" })
+    } else if (target.folder === data.folder || target.folder === data.draftsFolder) {
+      ctx.addIssue({ code: "custom", path: [target.path], message: "ledger.email.processed.targetSame" })
+    }
+  }
 })
 
 export type LedgerEmailAccountInput = z.infer<typeof ledgerEmailAccountInputSchema>

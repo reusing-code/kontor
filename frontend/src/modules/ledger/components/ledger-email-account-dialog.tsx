@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useForm, type Resolver } from "react-hook-form"
+import { useForm, useWatch, type Resolver } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { useTranslation } from "react-i18next"
 import type { LedgerEmailAccount, LedgerEmailAccountInput } from "@/modules/ledger/types"
@@ -26,6 +26,8 @@ import { Switch } from "@/components/ui/switch"
 import { useCapabilities } from "@/hooks/use-capabilities"
 import { useLedgerEmailFolders } from "@/modules/ledger/hooks/use-ledger"
 import { LedgerEmailFolderList } from "@/modules/ledger/components/ledger-email-folder-list"
+import { LedgerEmailProcessedAction } from "@/modules/ledger/components/ledger-email-processed-action"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 
 interface LedgerEmailAccountDialogProps {
   open: boolean
@@ -49,17 +51,44 @@ export function LedgerEmailAccountDialog({ open, onOpenChange, account, onSubmit
       useTls: account?.useTls ?? true,
       folder: account ? account.folder : "INBOX",
       draftsFolder: account?.draftsFolder ?? "",
+      processedAction: account?.processedAction ?? "keep",
+      processedFolder: account?.processedFolder ?? "",
+      draftsProcessedAction: account?.draftsProcessedAction ?? "keep",
+      draftsProcessedFolder: account?.draftsProcessedFolder ?? "",
       preClassify: account?.preClassify ?? false,
       scanSince: account?.scanSince ?? today,
     },
   })
-  const submit = ({ password, ...data }: LedgerEmailAccountInput) => {
+  // an account about to start deleting emails, waiting for the confirmation
+  const [confirmDelete, setConfirmDelete] = useState<LedgerEmailAccountInput | null>(null)
+  const submit = ({ password, ...values }: LedgerEmailAccountInput) => {
     if (!account && !password) {
       form.setError("password", { message: t("ledger.email.passwordRequired") })
       return
     }
-    onSubmit(password ? { ...data, password } : data)
+    const draftsAction = values.draftsFolder ? values.draftsProcessedAction : "keep"
+    const data: LedgerEmailAccountInput = {
+      ...values,
+      processedFolder: values.processedAction === "move" ? values.processedFolder : "",
+      draftsProcessedAction: draftsAction,
+      draftsProcessedFolder: draftsAction === "move" ? values.draftsProcessedFolder : "",
+      ...(password ? { password } : {}),
+    }
+    const startsDeleting =
+      (data.processedAction === "delete" && account?.processedAction !== "delete") ||
+      (data.draftsProcessedAction === "delete" && account?.draftsProcessedAction !== "delete")
+    if (startsDeleting) {
+      setConfirmDelete(data)
+      return
+    }
+    onSubmit(data)
   }
+  const [draftsFolder, processedAction, processedFolder, draftsProcessedAction, draftsProcessedFolder] = useWatch({
+    control: form.control,
+    name: ["draftsFolder", "processedAction", "processedFolder", "draftsProcessedAction", "draftsProcessedFolder"],
+  })
+  const setField = (name: "processedAction" | "processedFolder" | "draftsProcessedAction" | "draftsProcessedFolder") =>
+    (value: string) => form.setValue(name, value as never, { shouldDirty: true, shouldValidate: form.formState.isSubmitted })
   const folders = useLedgerEmailFolders()
   const loadFolders = () => {
     const { imapHost, imapPort, username, password, useTls } = form.getValues()
@@ -152,6 +181,26 @@ export function LedgerEmailAccountDialog({ open, onOpenChange, account, onSubmit
                 </FormItem>
               )} />
             ) : null}
+            <LedgerEmailProcessedAction
+              label={t("ledger.email.processed.orders")}
+              action={processedAction}
+              onActionChange={setField("processedAction")}
+              folder={processedFolder}
+              onFolderChange={setField("processedFolder")}
+              folders={folders.data}
+              folderError={form.formState.errors.processedFolder?.message}
+            />
+            {llm && draftsFolder?.trim() ? (
+              <LedgerEmailProcessedAction
+                label={t("ledger.email.processed.drafts")}
+                action={draftsProcessedAction}
+                onActionChange={setField("draftsProcessedAction")}
+                folder={draftsProcessedFolder}
+                onFolderChange={setField("draftsProcessedFolder")}
+                folders={folders.data}
+                folderError={form.formState.errors.draftsProcessedFolder?.message}
+              />
+            ) : null}
             {llm ? (
               <FormField control={form.control} name="preClassify" render={({ field }) => (
                 <FormItem>
@@ -179,6 +228,16 @@ export function LedgerEmailAccountDialog({ open, onOpenChange, account, onSubmit
           </form>
         </Form>
       </DialogContent>
+      <DeleteConfirmDialog
+        open={confirmDelete !== null}
+        onOpenChange={(next) => { if (!next) setConfirmDelete(null) }}
+        description={t("ledger.email.processed.confirmDelete")}
+        actionLabel={t("ledger.email.processed.confirmDeleteAction")}
+        onConfirm={() => {
+          if (confirmDelete) onSubmit(confirmDelete)
+          setConfirmDelete(null)
+        }}
+      />
     </Dialog>
   )
 }

@@ -166,3 +166,102 @@ describe("LedgerEmailAccountDialog Kontor inbox folder", () => {
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ draftsFolder: "" })
   })
 })
+
+describe("LedgerEmailAccountDialog action for processed emails", () => {
+  const withLlm = { "GET /capabilities": { llm: true, llmVision: false, bankImport: false } }
+  const orders = () => screen.getByRole("radiogroup", { name: "Processed order emails" })
+  const drafts = () => screen.findByRole("radiogroup", { name: "Decided emails of the Kontor inbox folder" })
+  const save = (user: { click: (el: Element) => Promise<void> }) => user.click(screen.getByRole("button", { name: "Save" }))
+
+  it("keeps emails by default", async () => {
+    const { user, onSubmit } = renderDialog({}, account)
+    expect(within(orders()).getByRole("radio", { name: "Keep" })).toBeChecked()
+    await save(user)
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      processedAction: "keep", processedFolder: "", draftsProcessedAction: "keep", draftsProcessedFolder: "",
+    })
+  })
+
+  it("needs a target folder that Kontor does not read and takes it from the loaded list", async () => {
+    const { user, onSubmit } = renderDialog({ [foldersRoute]: { folders } }, account)
+    await user.click(within(orders()).getByRole("radio", { name: "Move" }))
+    await save(user)
+    expect(await screen.findByText("Choose the folder the emails are moved to.")).toBeInTheDocument()
+
+    const target = screen.getByRole("textbox", { name: "Target folder: Processed order emails" })
+    await user.type(target, "Orders")
+    expect(await screen.findByText("Choose a folder that Kontor does not read.")).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole("button", { name: "Load folders" }))
+    const list = await screen.findByRole("list", { name: "Target folder: Processed order emails" })
+    await user.clear(target)
+    await user.click(within(list).getByRole("button", { name: "archive" }))
+    await save(user)
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ processedAction: "move", processedFolder: "archive" })
+  })
+
+  it("drops the target folder of another action", async () => {
+    const { user, onSubmit } = renderDialog({}, { ...account, processedAction: "move", processedFolder: "Done" })
+    expect(screen.getByRole("textbox", { name: "Target folder: Processed order emails" })).toHaveValue("Done")
+    await user.click(within(orders()).getByRole("radio", { name: "Keep" }))
+    await save(user)
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ processedAction: "keep", processedFolder: "" })
+  })
+
+  it("asks before an account starts deleting emails", async () => {
+    const { user, onSubmit } = renderDialog({}, account)
+    await user.click(within(orders()).getByRole("radio", { name: "Delete" }))
+    await save(user)
+    const confirm = await screen.findByRole("alertdialog")
+    expect(confirm).toHaveTextContent(/gone for good/)
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    await user.click(within(confirm).getByRole("button", { name: "Cancel" }))
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument())
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    await save(user)
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Delete processed emails" }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ processedAction: "delete", processedFolder: "" })
+  })
+
+  it("does not ask again for an account that already deletes", async () => {
+    const { user, onSubmit } = renderDialog({}, { ...account, processedAction: "delete" })
+    await save(user)
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+  })
+
+  it("offers the action of the Kontor inbox folder only while there is one", async () => {
+    const existing = { ...account, draftsFolder: "Kontor", draftsProcessedAction: "move", draftsProcessedFolder: "Done" } as LedgerEmailAccount
+    const { user, onSubmit } = renderDialog(withLlm, existing)
+    expect(within(await drafts()).getByRole("radio", { name: "Move" })).toBeChecked()
+    expect(screen.getByRole("textbox", { name: "Target folder: Decided emails of the Kontor inbox folder" })).toHaveValue("Done")
+
+    await user.clear(screen.getByRole("textbox", { name: "Folder for the Kontor inbox (optional)" }))
+    expect(screen.queryByRole("radiogroup", { name: "Decided emails of the Kontor inbox folder" })).not.toBeInTheDocument()
+    await save(user)
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ draftsFolder: "", draftsProcessedAction: "keep", draftsProcessedFolder: "" })
+  })
+
+  it("asks before the Kontor inbox folder starts deleting and refuses the order folder as its target", async () => {
+    const { user, onSubmit } = renderDialog(withLlm, { ...account, draftsFolder: "Kontor" })
+    await user.click(within(await drafts()).getByRole("radio", { name: "Move" }))
+    await user.type(screen.getByRole("textbox", { name: "Target folder: Decided emails of the Kontor inbox folder" }), "Orders")
+    await save(user)
+    expect(await screen.findByText("Choose a folder that Kontor does not read.")).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    await user.click(within(await drafts()).getByRole("radio", { name: "Delete" }))
+    await save(user)
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Delete processed emails" }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ draftsProcessedAction: "delete", draftsProcessedFolder: "" })
+  })
+})

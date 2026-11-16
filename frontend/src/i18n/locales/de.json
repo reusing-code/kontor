@@ -428,9 +428,33 @@
       "folderHint": "IMAP-Ordner oder Gmail-Label mit deinen Bestell-E-Mails, z. B. INBOX oder Bestellungen. Nur E-Mails aus diesem Ordner gehen an das LLM.",
       "folderMissing": "Kein Ordner gewählt, Scans werden übersprungen. Bearbeite das Konto, um einen zu wählen.",
       "draftsFolder": "Ordner für den Kontor-Eingang (optional)",
-      "draftsFolderHint": "Ein zweiter Ordner oder ein Label für E-Mails wie Vertragsbestätigungen, Abo-Mitteilungen oder Rechnungen. Seine E-Mails gehen an das LLM und werden als Verträge, Käufe oder Fahrzeugkosten im Kontor-Eingang vorgeschlagen. Im Postfach wird nichts verändert.",
+      "draftsFolderHint": "Ein zweiter Ordner oder ein Label für E-Mails wie Vertragsbestätigungen, Abo-Mitteilungen oder Rechnungen. Seine E-Mails gehen an das LLM und werden als Verträge, Käufe oder Fahrzeugkosten im Kontor-Eingang vorgeschlagen. Das Postfach wird nur verändert, wenn du unten wählst, entschiedene E-Mails zu verschieben oder zu löschen.",
       "draftsFolderSame": "Wähle einen anderen Ordner als den für Bestell-E-Mails.",
       "draftsFolderShown": "Ordner für den Kontor-Eingang: {{folder}}",
+      "processed": {
+        "orders": "Verarbeitete Bestell-E-Mails",
+        "drafts": "Entschiedene E-Mails des Ordners für den Kontor-Eingang",
+        "keep": "Behalten",
+        "move": "Verschieben",
+        "delete": "Löschen",
+        "keepHint": "Im Postfach wird nichts verändert; Kontor merkt sich nur, was es verarbeitet hat.",
+        "moveHint": "Kontor verschiebt jede E-Mail in den gewählten Ordner, sobald sie verarbeitet ist. E-Mails, die es nicht lesen oder auswerten konnte, bleiben liegen.",
+        "deleteHint": "Kontor verschiebt jede E-Mail in den Papierkorb des Postfachs, sobald sie verarbeitet ist, oder löscht sie endgültig, wenn der Server keinen Papierkorb hat. E-Mails, die es nicht lesen oder auswerten konnte, bleiben liegen.",
+        "target": "Zielordner: {{label}}",
+        "targetPlaceholder": "Zielordner",
+        "targetRequired": "Wähle den Ordner, in den die E-Mails verschoben werden.",
+        "targetSame": "Wähle einen Ordner, den Kontor nicht liest.",
+        "confirmDelete": "Kontor löscht E-Mails aus diesem Postfach, sobald es sie verarbeitet hat: Bestell-E-Mails nach dem Scan, E-Mails des Ordners für den Kontor-Eingang, nachdem du ihren Entwurf angenommen oder abgelehnt hast. Hat der Mailserver keinen Papierkorb, sind sie endgültig weg.",
+        "confirmDeleteAction": "Verarbeitete E-Mails löschen",
+        "ordersShown": {
+          "move": "Verarbeitete Bestell-E-Mails werden nach {{folder}} verschoben",
+          "delete": "Verarbeitete Bestell-E-Mails werden gelöscht"
+        },
+        "draftsShown": {
+          "move": "Entschiedene E-Mails des Kontor-Eingangs werden nach {{folder}} verschoben",
+          "delete": "Entschiedene E-Mails des Kontor-Eingangs werden gelöscht"
+        }
+      },
       "draftsRun": "Ordner für den Kontor-Eingang prüfen",
       "draftsRunning": "Prüfe…",
       "draftsRunSuccess_one": "{{count}} neuer Entwurf im Eingang.",
