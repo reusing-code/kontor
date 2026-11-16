@@ -98,6 +98,7 @@ var routeRules = map[string]middleware.Rule{
 	"POST /api/v1/categories/{id}/contracts":                              middleware.RuleDenied,
 	"POST /api/v1/categories/{id}/purchases":                              middleware.RuleDenied,
 	"POST /api/v1/contracts/import":                                       middleware.RuleDenied,
+	"POST /api/v1/drafts/accept-batch":                                    middleware.RuleDenied,
 	"POST /api/v1/ledger/accounts":                                        middleware.RuleDenied,
 	"POST /api/v1/import":                                                 middleware.RuleDenied,
 	"POST /api/v1/ledger/categories":                                      middleware.RuleDenied,

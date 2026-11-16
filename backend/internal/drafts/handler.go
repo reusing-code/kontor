@@ -2,6 +2,7 @@ package drafts
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -22,10 +23,13 @@ type Handler struct {
 	store  *Store
 	logger *slog.Logger
 	hooks  map[string]SourceHooks
+	// batch accept: create function per target type and the module check
+	targets map[string]target
+	enabled EnabledFunc
 }
 
 func NewHandler(store *Store, logger *slog.Logger) *Handler {
-	return &Handler{store: store, logger: logger, hooks: map[string]SourceHooks{}}
+	return &Handler{store: store, logger: logger, hooks: map[string]SourceHooks{}, targets: map[string]target{}}
 }
 
 // RegisterSource attaches decision hooks for a source kind.
@@ -146,23 +150,35 @@ func (h *Handler) Accept(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
 		return
 	}
-	userID := middleware.GetUserID(r.Context())
-	warnings := []string{}
-	if hooks, ok := h.hooks[d.Source.Kind]; ok {
-		w2, err := hooks.OnAccept(r.Context(), userID, d, input)
-		if err != nil {
-			h.logger.Error("draft accept hook failed", "draftId", d.ID, "source", d.Source.Kind, "error", err)
-			httputil.Error(h.logger, w, http.StatusInternalServerError, "could not link the draft source to the entity")
-			return
-		}
-		warnings = append(warnings, w2...)
+	decided, warnings, err := h.accept(r.Context(), middleware.GetUserID(r.Context()), d, input)
+	if errors.Is(err, errSourceHook) {
+		httputil.Error(h.logger, w, http.StatusInternalServerError, "could not link the draft source to the entity")
+		return
 	}
-	decided, err := h.store.Decide(r.Context(), userID, d.ID, StatusAccepted, &Result{EntityType: input.EntityType, EntityID: input.EntityID})
 	if err != nil {
 		httputil.StoreError(h.logger, w, err)
 		return
 	}
 	httputil.WriteJSON(h.logger, w, http.StatusOK, decisionResponse{Draft: decided, Warnings: warnings})
+}
+
+var errSourceHook = errors.New("draft accept hook failed")
+
+// accept runs the source's accept hook and marks the draft accepted with the
+// entity. A hook error is logged and returned as errSourceHook; the draft
+// stays pending.
+func (h *Handler) accept(ctx context.Context, userID string, d Draft, in AcceptInput) (Draft, []string, error) {
+	warnings := []string{}
+	if hooks, ok := h.hooks[d.Source.Kind]; ok {
+		w, err := hooks.OnAccept(ctx, userID, d, in)
+		if err != nil {
+			h.logger.Error("draft accept hook failed", "draftId", d.ID, "source", d.Source.Kind, "error", err)
+			return Draft{}, nil, errSourceHook
+		}
+		warnings = append(warnings, w...)
+	}
+	decided, err := h.store.Decide(ctx, userID, d.ID, StatusAccepted, &Result{EntityType: in.EntityType, EntityID: in.EntityID})
+	return decided, warnings, err
 }
 
 func (h *Handler) Reject(w http.ResponseWriter, r *http.Request) {

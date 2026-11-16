@@ -1,7 +1,9 @@
 // Package drafts is the source-agnostic draft inbox: proposed entities that
-// the user accepts (after creating the entity in the UI) or rejects. Sources
-// such as the paperless pipeline create drafts and register hooks that run on
-// a decision; the package never imports modules or sources.
+// the user accepts (after creating the entity in the UI, or several at once
+// through the batch accept, which creates them with the create functions the
+// modules register) or rejects. Sources such as the paperless pipeline create
+// drafts and register hooks that run on a decision; the package never imports
+// modules or sources.
 package drafts
 
 import (

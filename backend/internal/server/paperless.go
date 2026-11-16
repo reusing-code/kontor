@@ -33,4 +33,11 @@ func registerDraftRoutes(mux handleFuncer, h *drafts.Handler) {
 	mux.HandleFunc("PUT /api/v1/drafts/{id}", h.Update)
 	mux.HandleFunc("POST /api/v1/drafts/{id}/accept", h.Accept)
 	mux.HandleFunc("POST /api/v1/drafts/{id}/reject", h.Reject)
+	mux.HandleFunc("POST /api/v1/drafts/accept-batch", h.AcceptBatch)
+}
+
+// draftCreatorProvider is implemented by modules whose draft targets can be
+// created by the batch accept.
+type draftCreatorProvider interface {
+	DraftCreators() map[string]drafts.CreateFunc
 }

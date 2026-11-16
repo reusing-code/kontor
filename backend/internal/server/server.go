@@ -124,6 +124,14 @@ func (s *Server) buildApp() (*app, error) {
 	draftHandler.RegisterSource(drafts.SourcePaperless, paperless.NewDraftHooks(paperlessService))
 	draftHandler.RegisterSource(drafts.SourceLedger, ledgerMod.DraftHooks())
 	draftHandler.RegisterSource(drafts.SourceEmail, ledgerMod.EmailDraftHooks())
+	draftHandler.SetEnabled(coreStore.ModuleEnabled)
+	for _, m := range registry.All() {
+		if p, ok := m.(draftCreatorProvider); ok {
+			for target, create := range p.DraftCreators() {
+				draftHandler.RegisterTarget(target, m.ID(), create)
+			}
+		}
+	}
 	pipeline := paperless.NewPipeline(paperlessService, draftStore, classifier,
 		userIDs(coreStore), s.cfg.PaperlessPipelineInterval, s.logger)
 
