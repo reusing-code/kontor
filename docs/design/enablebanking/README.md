@@ -69,7 +69,7 @@ Conversion, amounts, fingerprints, the window function, cross-source matching, t
 
 The real API was never called. Before relying on the import, check against your Enable Banking app and banks:
 
-1. Registering the app, uploading the certificate and registering exactly `PUBLIC_URL/api/v1/ledger/bank/callback` as redirect URL; linking your own accounts (restricted mode) and consenting to DKB and comdirect with the strong customer authentication they ask for.
+1. Registering the app (production environment, see the setup in the root `README.md`), uploading the certificate and registering exactly `PUBLIC_URL/api/v1/ledger/bank/callback` as redirect URL; linking your own accounts (restricted mode) and consenting to DKB and comdirect with the strong customer authentication they ask for.
 2. The real ASPSP names, so the `verified` marker (name contains `dkb` or `comdirect`) fits.
 3. Whether `required_psu_headers` of the ASPSP blocks unattended access (Kontor sends no `Psu-*` headers), and the real per-day call limit for unattended access (the default 24 h interval and the "Sync now" button are the only levers).
 4. Whether Enable Banking accepts the `transactions: true` access flag; if not, the flag has to be dropped.
