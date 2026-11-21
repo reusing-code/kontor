@@ -37,8 +37,18 @@ type Handler struct {
 	enabled module.EnablementSource
 }
 
-// afterImport starts the background runs that follow new transactions.
+// afterImport links the new internal transfers first, so the suggestions do
+// not categorize them, and then starts the background runs that follow new
+// transactions.
 func (h *Handler) afterImport(userID string) {
+	ctx, cancel := context.WithTimeout(context.Background(), transferDetectTimeout)
+	linked, err := h.store.AutoLinkLedgerTransfers(ctx, userID)
+	cancel()
+	if err != nil {
+		h.logger.Warn("ledger transfer detection failed", "userId", userID, "error", err)
+	} else if linked > 0 {
+		h.logger.Info("ledger transfers linked", "userId", userID, "pairs", linked)
+	}
 	h.suggester.RunInBackground(userID)
 	h.recurring.RunInBackground(userID)
 }

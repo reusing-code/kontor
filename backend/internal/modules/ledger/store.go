@@ -1133,18 +1133,11 @@ func (s *Store) ListLedgerTransferCandidates(_ context.Context, userID string, i
 			if !isPotentialLedgerTransferMatch(source, candidate) {
 				continue
 			}
-			ibanMatch := false
-			if accountIBANByID[candidate.AccountID] != "" && source.CounterpartyIBAN != "" && accountIBANByID[candidate.AccountID] == source.CounterpartyIBAN {
-				ibanMatch = true
-			}
-			if accountIBANByID[source.AccountID] != "" && candidate.CounterpartyIBAN != "" && accountIBANByID[source.AccountID] == candidate.CounterpartyIBAN {
-				ibanMatch = true
-			}
 			result.Items = append(result.Items, LedgerTransferCandidate{
 				Transaction:   candidate,
 				AccountName:   accountNameByID[candidate.AccountID],
 				DateDeltaDays: ledgerDateDeltaDays(ledgerDateForMatch(source), ledgerDateForMatch(candidate)),
-				IBANMatch:     ibanMatch,
+				IBANMatch:     ledgerTransferIBANMatch(accountIBANByID, source, candidate),
 			})
 		}
 		sort.Slice(result.Items, func(i, j int) bool {
