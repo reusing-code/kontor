@@ -113,21 +113,28 @@ type ledgerTransferLinkResponse struct {
 	PairedTransaction *LedgerTransaction `json:"pairedTransaction,omitempty"`
 }
 
+// ListLedgerTransactionsReviewQueue pages the review queue; limit=all returns
+// the whole queue in one response (the review page groups and pages it).
 func (h *Handler) ListLedgerTransactionsReviewQueue(w http.ResponseWriter, r *http.Request) {
-	limit := 100
-	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
+	options := LedgerTransactionListOptions{
+		ReviewStatus: LedgerTransactionReviewNeedsReview,
+		Limit:        100,
+		Cursor:       r.URL.Query().Get("cursor"),
+	}
+	switch rawLimit := r.URL.Query().Get("limit"); rawLimit {
+	case "":
+	case "all":
+		options.All = true
+		options.Cursor = ""
+	default:
 		parsed, err := strconv.Atoi(rawLimit)
 		if err != nil || parsed <= 0 {
 			httputil.Error(h.logger, w, http.StatusBadRequest, "invalid limit")
 			return
 		}
-		limit = parsed
+		options.Limit = parsed
 	}
-	page, err := h.store.ListLedgerTransactionsFiltered(r.Context(), middleware.GetUserID(r.Context()), LedgerTransactionListOptions{
-		ReviewStatus: LedgerTransactionReviewNeedsReview,
-		Limit:        limit,
-		Cursor:       r.URL.Query().Get("cursor"),
-	})
+	page, err := h.store.ListLedgerTransactionsFiltered(r.Context(), middleware.GetUserID(r.Context()), options)
 	if err != nil {
 		h.storeError(w, err)
 		return

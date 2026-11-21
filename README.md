@@ -156,7 +156,7 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | POST | `/ledger/accounts` | Create a ledger account (`{name, bank, iban?, currency?}`, IBAN checksum validated, duplicate IBAN 409; JWT only) |
 | GET | `/ledger/accounts/{id}` | Get ledger account details |
 | GET | `/ledger/accounts/{id}/transactions` | List transactions for an account |
-| GET | `/ledger/transactions` | Review queue for ledger transactions |
+| GET | `/ledger/transactions` | Review queue for ledger transactions (`limit` + `cursor`, or `limit=all` for the whole queue) |
 | GET | `/ledger/transactions/{id}` | Get ledger transaction details |
 | PUT | `/ledger/transactions/{id}` | Update note, links, and cross references |
 | POST | `/ledger/transactions/{id}/references` | Add one cross reference (`{type, targetId}`, type `purchase`, `contract`, `vehicle` or `cost`; idempotent, never removes anything; `links` scope) |

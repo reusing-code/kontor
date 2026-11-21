@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"mime/multipart"
 	"net/http"
@@ -291,6 +292,41 @@ func TestLedgerReviewQueue_OnlyNeedsReview(t *testing.T) {
 	}
 	if page.Items[0].ReviewStatus != LedgerTransactionReviewNeedsReview {
 		t.Fatalf("reviewStatus = %q", page.Items[0].ReviewStatus)
+	}
+}
+
+func TestLedgerReviewQueue_LimitAll(t *testing.T) {
+	h, s := newTestHandler(t)
+	mux := newMux(h)
+
+	accountID := addAccount(t, s, "Main")
+	txns := make([]LedgerTransaction, 0, 601)
+	for i := range 600 {
+		txns = append(txns, LedgerTransaction{
+			ID:           uuid.New(),
+			AccountID:    accountID,
+			BookingDate:  fmt.Sprintf("2026-%02d-%02d", i%12+1, i%28+1),
+			Currency:     "EUR",
+			ReviewStatus: LedgerTransactionReviewNeedsReview,
+		})
+	}
+	txns = append(txns, LedgerTransaction{ID: uuid.New(), AccountID: accountID, BookingDate: "2026-04-02", Currency: "EUR", ReviewStatus: LedgerTransactionReviewConfirmed})
+	commitTransactions(t, s, accountID, txns...)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/transactions?limit=all&cursor="+txns[0].ID.String(), nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	page := decodeJSON[struct {
+		Items      []LedgerTransaction `json:"items"`
+		NextCursor string              `json:"nextCursor"`
+	}](t, rec)
+	if len(page.Items) != 600 {
+		t.Fatalf("len(items) = %d, want 600", len(page.Items))
+	}
+	if page.NextCursor != "" {
+		t.Fatalf("nextCursor = %q, want none", page.NextCursor)
 	}
 }
 

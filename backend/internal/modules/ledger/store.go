@@ -52,6 +52,8 @@ type LedgerTransactionListOptions struct {
 	ReviewStatus string
 	Limit        int
 	Cursor       string
+	// All returns every match in one page; Limit and Cursor are ignored.
+	All bool
 }
 
 // LedgerTransactionSearch filters SearchLedgerTransactions; empty fields do
@@ -1084,6 +1086,12 @@ func (s *Store) ListLedgerTransactionsFiltered(_ context.Context, userID string,
 		return page, err
 	}
 	sortLedgerTransactions(filtered)
+	if options.All {
+		if filtered != nil {
+			page.Items = filtered
+		}
+		return page, nil
+	}
 	return paginateLedgerTransactions(filtered, options.Limit, options.Cursor), nil
 }
 
