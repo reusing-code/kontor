@@ -187,10 +187,22 @@ export const ledgerCategoryInputSchema = z.object({
 
 export type LedgerCategoryInput = z.infer<typeof ledgerCategoryInputSchema>
 
+// A part of a transaction booked to another category; the rest of the amount
+// keeps the transaction's own category. categoryId is only missing after the
+// category was deleted.
+export const ledgerTransactionSplitSchema = z.object({
+  amountMinor: z.int(),
+  categoryId: z.string().uuid().optional(),
+  note: z.string().optional(),
+})
+
+export type LedgerTransactionSplit = z.infer<typeof ledgerTransactionSplitSchema>
+
 export const ledgerTransactionSchema = z.object({
   id: z.string().uuid(),
   accountId: z.string().uuid(),
   categoryId: z.string().uuid().optional(),
+  splits: z.array(ledgerTransactionSplitSchema).optional(),
   specialCategory: z.string().optional(),
   transferPairTransactionId: z.string().uuid().optional(),
   bookingDate: z.string(),

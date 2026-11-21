@@ -30,6 +30,7 @@ import {
   reviewLedgerTransactionsBatch,
   runLedgerCategorySuggestions,
   runLedgerRecurringDetection,
+  setLedgerTransactionSplits,
   getLedgerEmailScanStatus,
   startLedgerEmailScan,
   runLedgerEmailDrafts,
@@ -59,6 +60,7 @@ import type {
   LedgerTransaction,
   LedgerTransactionDetailsInput,
   LedgerTransactionReference,
+  LedgerTransactionSplit,
 } from "@/modules/ledger/types"
 
 export const ledgerAccountsKey = ["ledger", "accounts"] as const
@@ -331,6 +333,15 @@ export function useUpdateLedgerTransactionDetails() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: LedgerTransactionDetailsInput }) => updateLedgerTransactionDetails(id, data),
     onSuccess: (transaction) => invalidateTransactionDetails(qc, transaction),
+  })
+}
+
+export function useSetLedgerTransactionSplits() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, splits }: { id: string; splits: LedgerTransactionSplit[] }) => setLedgerTransactionSplits(id, splits),
+    onSuccess: (transaction) =>
+      Promise.all([invalidateTransactionDetails(qc, transaction), qc.invalidateQueries({ queryKey: ["ledger", "review"] })]),
   })
 }
 

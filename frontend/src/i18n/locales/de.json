@@ -565,6 +565,31 @@
       },
       "addMatchWord": "„{{word}}“ als Schlüsselwort hinzufügen"
     },
+    "split": {
+      "title": "Aufteilen",
+      "description": "Einen Teil dieser Transaktion einer anderen Kategorie zuordnen, z.B. eine Bargeldauszahlung, die zusammen mit dem Einkauf bezahlt wurde. Der Rest bleibt bei der Kategorie der Transaktion.",
+      "addPart": "Teil hinzufügen",
+      "amount": "Betrag von Teil {{index}}",
+      "category": "Kategorie von Teil {{index}}",
+      "note": "Notiz zu Teil {{index}}",
+      "notePlaceholder": "Notiz (optional)",
+      "removePart": "Teil {{index}} entfernen",
+      "remainder": "Die restlichen {{amount}} bleiben bei {{category}}.",
+      "save": "Aufteilung speichern",
+      "remove": "Aufteilung entfernen",
+      "saved": "Aufteilung gespeichert.",
+      "removed": "Aufteilung entfernt.",
+      "transferLinked": "Eine verknüpfte interne Umbuchung kann nicht aufgeteilt werden. Hebe die Verknüpfung zuerst auf.",
+      "badge_one": "+{{count}} Teil",
+      "badge_other": "+{{count}} Teile",
+      "problems": {
+        "amount": "Gib für jeden Teil einen Betrag über null ein, z.B. 150 oder 150,00.",
+        "category": "Wähle für jeden Teil eine Kategorie.",
+        "note": "Eine Notiz darf höchstens 500 Zeichen haben.",
+        "total": "Die Teile müssen zusammen kleiner sein als der Betrag der Transaktion.",
+        "tooMany": "Eine Transaktion kann höchstens 10 Teile haben."
+      }
+    },
     "queue": {
       "count_one": "{{count}} Transaktion zu prüfen",
       "count_other": "{{count}} Transaktionen zu prüfen",

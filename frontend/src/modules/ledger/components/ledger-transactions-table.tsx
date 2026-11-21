@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import type { LedgerCategory, LedgerTransaction } from "@/modules/ledger/types"
 import { transactionPath } from "@/modules/ledger/lib/module-links"
 import { formatAmountMinor, formatLedgerCategorizationSource, formatLedgerDate, formatLedgerReviewStatus, formatLedgerSpecialCategory, formatSourceType } from "@/modules/ledger/lib/ledger-utils"
+import { LedgerSplitBadge } from "@/modules/ledger/components/ledger-split-badge"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -64,7 +65,12 @@ export function LedgerTransactionsTable({ transactions, categories = [], nextCur
                   </TableCell>
                   <TableCell>{txn.counterpartyName || "-"}</TableCell>
                   <TableCell className="max-w-[24rem] truncate">{txn.purpose || "-"}</TableCell>
-                  <TableCell>{txn.categoryId ? categoryNameById.get(txn.categoryId) ?? txn.categoryId : t("ledger.noCategory")}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {txn.categoryId ? categoryNameById.get(txn.categoryId) ?? txn.categoryId : t("ledger.noCategory")}
+                      <LedgerSplitBadge transaction={txn} categories={categories} />
+                    </div>
+                  </TableCell>
                   <TableCell>{txn.transactionType || "-"}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-2">

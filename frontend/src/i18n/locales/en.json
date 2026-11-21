@@ -565,6 +565,31 @@
       },
       "addMatchWord": "Add \"{{word}}\" as match word"
     },
+    "split": {
+      "title": "Split",
+      "description": "Book a part of this transaction to another category, e.g. a cash withdrawal paid together with the shopping. The rest stays with the transaction's category.",
+      "addPart": "Add part",
+      "amount": "Amount of part {{index}}",
+      "category": "Category of part {{index}}",
+      "note": "Note of part {{index}}",
+      "notePlaceholder": "Note (optional)",
+      "removePart": "Remove part {{index}}",
+      "remainder": "Remaining {{amount}} stays with {{category}}.",
+      "save": "Save split",
+      "remove": "Remove split",
+      "saved": "Split saved.",
+      "removed": "Split removed.",
+      "transferLinked": "A linked internal transfer cannot be split. Unlink it first.",
+      "badge_one": "+{{count}} part",
+      "badge_other": "+{{count}} parts",
+      "problems": {
+        "amount": "Enter an amount above zero for every part, e.g. 150 or 150,00.",
+        "category": "Choose a category for every part.",
+        "note": "A note can have at most 500 characters.",
+        "total": "The parts must add up to less than the transaction amount.",
+        "tooMany": "A transaction can have at most 10 parts."
+      }
+    },
     "queue": {
       "count_one": "{{count}} transaction to review",
       "count_other": "{{count}} transactions to review",

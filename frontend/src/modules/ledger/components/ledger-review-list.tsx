@@ -6,6 +6,7 @@ import { formatAmountMinor, formatLedgerDate } from "@/modules/ledger/lib/ledger
 import { entryItems, reviewProposal, type ReviewEntry, type ReviewProposal } from "@/modules/ledger/lib/review-queue"
 import { LedgerSuggestionBadge } from "@/modules/ledger/components/ledger-suggestion-badge"
 import { LedgerCategorySelect } from "@/modules/ledger/components/ledger-category-select"
+import { LedgerSplitBadge } from "@/modules/ledger/components/ledger-split-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -131,7 +132,10 @@ export function LedgerReviewList({
         </TableCell>
         <TableCell>{item.counterpartyName || "-"}</TableCell>
         <TableCell>
-          {override ? categoryName(override) : proposalCell(proposal, proposal?.matchWord ? [item.id] : [])}
+          <div className="flex flex-wrap items-center gap-2">
+            {override ? categoryName(override) : proposalCell(proposal, proposal?.matchWord ? [item.id] : [])}
+            <LedgerSplitBadge transaction={item} categories={categories} />
+          </div>
         </TableCell>
         <TableCell>{sourceBadge(item)}</TableCell>
       </TableRow>

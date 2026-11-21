@@ -13,6 +13,7 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/componen
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { LedgerCategorySelect } from "@/modules/ledger/components/ledger-category-select"
+import { LedgerSplitEditor } from "@/modules/ledger/components/ledger-split-editor"
 
 interface LedgerReviewPanelProps {
   transaction?: LedgerReviewQueueItem
@@ -147,6 +148,11 @@ function LedgerReviewPanelInner({
               </Button>
             )}
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-sm font-medium">{t("ledger.split.title")}</div>
+          <LedgerSplitEditor transaction={transaction} categories={categories} />
         </div>
 
         <div className="flex flex-wrap gap-2">

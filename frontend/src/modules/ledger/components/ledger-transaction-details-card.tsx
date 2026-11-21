@@ -7,6 +7,7 @@ import { useCategories } from "@/hooks/use-categories"
 import { useModules } from "@/hooks/use-modules"
 import { useContracts, useCreateContractByCategory } from "@/modules/contracts/hooks/use-contracts"
 import { useLedgerCategories, useLedgerEmailOrders, useUpdateLedgerTransactionDetails } from "@/modules/ledger/hooks/use-ledger"
+import { LedgerSplitEditor } from "@/modules/ledger/components/ledger-split-editor"
 import { usePurchases } from "@/modules/purchases/hooks/use-purchases"
 import { useCostEntry, useCreateVehicle, useVehicles } from "@/modules/auto/hooks/use-vehicles"
 import { moduleReferenceToPath, referenceModuleId, vehiclePath } from "@/modules/ledger/lib/module-links"
@@ -375,6 +376,15 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
             <div className="text-xs text-muted-foreground">{t("ledger.purpose")}</div>
             <div className="whitespace-pre-wrap">{transaction.purpose || "-"}</div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("ledger.split.title")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <LedgerSplitEditor key={transaction.id} transaction={transaction} categories={ledgerCategories} />
         </CardContent>
       </Card>
 
