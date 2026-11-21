@@ -18,6 +18,7 @@ import {
   getLedgerEmailOrders,
   getLedgerImports,
   getLedgerReviewQueue,
+  getLedgerReviewQueueAll,
   getLedgerTransactionById,
   getLedgerTransferCandidates,
   getLedgerTransactions,
@@ -65,7 +66,7 @@ export const ledgerEmailAccountsKey = ["ledger", "email-accounts"] as const
 export const ledgerEmailScanStatusKey = (id: string) => ["ledger", "email-scan", id] as const
 export const ledgerImportsKey = ["ledger", "imports"] as const
 export const ledgerCategoriesKey = ["ledger", "categories"] as const
-export const ledgerReviewQueueKey = (limit: number, cursor?: string) => ["ledger", "review", { limit, cursor: cursor ?? "" }] as const
+export const ledgerReviewQueueKey = (limit: number | "all", cursor?: string) => ["ledger", "review", { limit, cursor: cursor ?? "" }] as const
 export const ledgerSuggestionStatusKey = ["ledger", "category-suggestions", "status"] as const
 const ledgerAccountKey = (accountId: string) => ["ledger", "accounts", accountId] as const
 const ledgerTransactionKey = (transactionId: string) => ["ledger", "transactions", transactionId] as const
@@ -145,6 +146,14 @@ export function useLedgerReviewQueue(limit: number = 100, cursor?: string) {
   return useQuery({
     queryKey: ledgerReviewQueueKey(limit, cursor),
     queryFn: () => getLedgerReviewQueue(limit, cursor),
+  })
+}
+
+// The review page loads the whole queue and groups and pages it itself.
+export function useLedgerReviewQueueAll() {
+  return useQuery({
+    queryKey: ledgerReviewQueueKey("all"),
+    queryFn: getLedgerReviewQueueAll,
   })
 }
 
@@ -235,7 +244,8 @@ export function useReviewLedgerTransactionsBatch() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (items: LedgerBatchReviewItem[]) => reviewLedgerTransactionsBatch(items),
-    onSuccess: async () => {
+    // also after a failed chunk: the chunks before it were stored
+    onSettled: async () => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ledgerCategoriesKey }),
         qc.invalidateQueries({ queryKey: ["ledger", "review"] }),

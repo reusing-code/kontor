@@ -1,6 +1,9 @@
+import type { SyntheticEvent } from "react"
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { LedgerCategory, LedgerReviewQueueItem } from "@/modules/ledger/types"
 import { formatAmountMinor, formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
+import { entryItems, reviewProposal, type ReviewEntry, type ReviewProposal } from "@/modules/ledger/lib/review-queue"
 import { LedgerSuggestionBadge } from "@/modules/ledger/components/ledger-suggestion-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,146 +16,211 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { cn } from "@/lib/utils"
 
-export interface LedgerSuggestionSelection {
+export interface LedgerReviewSelection {
   isSelected: (transactionId: string) => boolean
-  toggle: (transactionId: string) => void
-  setAll: (selected: boolean) => void
+  setSelected: (transactionIds: string[], selected: boolean) => void
   isMatchWordSelected: (transactionId: string) => boolean
-  toggleMatchWord: (transactionId: string) => void
+  setMatchWord: (transactionIds: string[], selected: boolean) => void
 }
 
 interface LedgerReviewListProps {
-  transactions: LedgerReviewQueueItem[]
+  entries: ReviewEntry[]
   categories: LedgerCategory[]
+  llm: boolean
   selectedTransactionId?: string
   onSelect: (transaction: LedgerReviewQueueItem) => void
-  nextCursor?: string
-  onLoadMore?: () => void
-  loadingMore?: boolean
-  suggestions?: LedgerSuggestionSelection
+  expandedGroups: ReadonlySet<string>
+  onToggleGroup: (key: string) => void
+  selection: LedgerReviewSelection
+  showSelection: boolean
+}
+
+function checkedState(ids: string[], isOn: (id: string) => boolean): boolean | "indeterminate" {
+  const on = ids.filter(isOn).length
+  return on === 0 ? false : on === ids.length ? true : "indeterminate"
+}
+
+function stopPropagation(event: SyntheticEvent) {
+  event.stopPropagation()
 }
 
 export function LedgerReviewList({
-  transactions,
+  entries,
   categories,
+  llm,
   selectedTransactionId,
   onSelect,
-  nextCursor,
-  onLoadMore,
-  loadingMore = false,
-  suggestions,
+  expandedGroups,
+  onToggleGroup,
+  selection,
+  showSelection,
 }: LedgerReviewListProps) {
   const { t, i18n } = useTranslation()
   const categoryNameById = new Map(categories.map((category) => [category.id, category.name]))
-  const withSuggestion = suggestions ? transactions.filter((transaction) => transaction.suggestion) : []
-  const showSelection = withSuggestion.length > 0
-  const selectedCount = withSuggestion.filter((transaction) => suggestions?.isSelected(transaction.id)).length
-  const allSelected: boolean | "indeterminate" = selectedCount === 0 ? false : selectedCount === withSuggestion.length ? true : "indeterminate"
+  const categoryName = (id: string) => categoryNameById.get(id) ?? id
+  const proposable = (items: LedgerReviewQueueItem[]) => items.filter((item) => reviewProposal(item, llm)).map((item) => item.id)
+  const pageIds = proposable(entries.flatMap(entryItems))
   const columnCount = showSelection ? 6 : 5
 
-  return (
-    <div className="space-y-4">
-      <div className="overflow-x-auto rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {showSelection && (
-                <TableHead className="w-8">
-                  <Checkbox
-                    checked={allSelected}
-                    onCheckedChange={(checked) => suggestions?.setAll(checked === true)}
-                    aria-label={t("ledger.suggestions.selectAll")}
-                  />
-                </TableHead>
-              )}
-              <TableHead>{t("ledger.date")}</TableHead>
-              <TableHead>{t("ledger.amount")}</TableHead>
-              <TableHead>{t("ledger.counterparty")}</TableHead>
-              <TableHead>{t("ledger.category")}</TableHead>
-              <TableHead>{t("ledger.status")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {transactions.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={columnCount} className="py-8 text-center text-muted-foreground">
-                  {t("ledger.noTransactionsToReview")}
-                </TableCell>
-              </TableRow>
-            ) : (
-              transactions.map((transaction) => {
-                const suggestion = suggestions ? transaction.suggestion : undefined
-                return (
-                  <TableRow
-                    key={transaction.id}
-                    className={selectedTransactionId === transaction.id ? "bg-accent/40" : undefined}
-                    onClick={() => onSelect(transaction)}
-                  >
-                    {showSelection && (
-                      <TableCell onClick={(event) => event.stopPropagation()}>
-                        {suggestion && (
-                          <Checkbox
-                            checked={suggestions?.isSelected(transaction.id)}
-                            onCheckedChange={() => suggestions?.toggle(transaction.id)}
-                            aria-label={t("ledger.suggestions.select")}
-                          />
-                        )}
-                      </TableCell>
-                    )}
-                    <TableCell>{formatLedgerDate(transaction.bookingDate)}</TableCell>
-                    <TableCell className={transaction.amountMinor < 0 ? "text-destructive" : "text-emerald-600"}>
-                      {formatAmountMinor(transaction.amountMinor, transaction.currency, i18n.language)}
-                    </TableCell>
-                    <TableCell>{transaction.counterpartyName || "-"}</TableCell>
-                    <TableCell>
-                      {transaction.categoryId ? (
-                        categoryNameById.get(transaction.categoryId) ?? transaction.categoryId
-                      ) : suggestion ? (
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-muted-foreground italic">
-                              {categoryNameById.get(suggestion.categoryId) ?? suggestion.categoryId}
-                            </span>
-                            <LedgerSuggestionBadge confidence={suggestion.confidence} />
-                          </div>
-                          {suggestion.matchWord && (
-                            <label
-                              className="flex items-center gap-2 text-xs text-muted-foreground"
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              <Checkbox
-                                checked={suggestions?.isMatchWordSelected(transaction.id)}
-                                onCheckedChange={() => suggestions?.toggleMatchWord(transaction.id)}
-                              />
-                              {t("ledger.suggestions.addMatchWord", { word: suggestion.matchWord })}
-                            </label>
-                          )}
-                        </div>
-                      ) : (
-                        t("ledger.noCategory")
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={transaction.categorizationSource === "keyword" ? "default" : "secondary"}>
-                        {t(`ledger.categorizationSource.${transaction.categorizationSource}`)}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                )
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+  function matchWordToggle(ids: string[], word: string) {
+    return (
+      <label className="flex items-center gap-2 text-xs text-muted-foreground" onClick={stopPropagation}>
+        <Checkbox
+          checked={checkedState(ids, selection.isMatchWordSelected)}
+          onCheckedChange={(checked) => selection.setMatchWord(ids, checked === true)}
+        />
+        {t("ledger.suggestions.addMatchWord", { word })}
+      </label>
+    )
+  }
 
-      {nextCursor && onLoadMore && (
-        <div className="flex justify-center">
-          <Button type="button" variant="outline" onClick={onLoadMore} disabled={loadingMore}>
-            {loadingMore ? t("ledger.loadingMore") : t("ledger.loadMore")}
-          </Button>
+  function proposalCell(proposal: ReviewProposal | undefined, matchWordIds: string[]) {
+    if (!proposal) return t("ledger.noCategory")
+    if (proposal.kind === "assigned") return categoryName(proposal.categoryId)
+    return (
+      <div className="space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-muted-foreground italic">{categoryName(proposal.categoryId)}</span>
+          {proposal.confidence && <LedgerSuggestionBadge confidence={proposal.confidence} />}
         </div>
-      )}
+        {proposal.matchWord && matchWordIds.length > 0 && matchWordToggle(matchWordIds, proposal.matchWord)}
+      </div>
+    )
+  }
+
+  function sourceBadge(item: LedgerReviewQueueItem) {
+    return (
+      <Badge variant={item.categorizationSource === "keyword" ? "default" : "secondary"}>
+        {t(`ledger.categorizationSource.${item.categorizationSource}`)}
+      </Badge>
+    )
+  }
+
+  function transactionRow(item: LedgerReviewQueueItem, inGroup: boolean) {
+    const proposal = reviewProposal(item, llm)
+    const selected = selectedTransactionId === item.id
+    return (
+      <TableRow
+        key={item.id}
+        className={cn("cursor-pointer", inGroup && "bg-muted/20", selected && "bg-accent/40")}
+        aria-selected={selected}
+        onClick={() => onSelect(item)}
+      >
+        {showSelection && (
+          <TableCell onClick={stopPropagation}>
+            {proposal && (
+              <Checkbox
+                checked={selection.isSelected(item.id)}
+                onCheckedChange={(checked) => selection.setSelected([item.id], checked === true)}
+                aria-label={t("ledger.queue.select")}
+              />
+            )}
+          </TableCell>
+        )}
+        <TableCell className={cn(inGroup && "pl-8")}>{formatLedgerDate(item.bookingDate)}</TableCell>
+        <TableCell className={item.amountMinor < 0 ? "text-destructive" : "text-emerald-600"}>
+          {formatAmountMinor(item.amountMinor, item.currency, i18n.language)}
+        </TableCell>
+        <TableCell>{item.counterpartyName || "-"}</TableCell>
+        <TableCell>{proposalCell(proposal, proposal?.matchWord ? [item.id] : [])}</TableCell>
+        <TableCell>{sourceBadge(item)}</TableCell>
+      </TableRow>
+    )
+  }
+
+  function groupRows(entry: Extract<ReviewEntry, { kind: "group" }>) {
+    const { items, proposal, key } = entry
+    const ids = items.map((item) => item.id)
+    const name = items[0].counterpartyName || "-"
+    const expanded = expandedGroups.has(key)
+    const sameCurrency = items.every((item) => item.currency === items[0].currency)
+    const total = items.reduce((sum, item) => sum + item.amountMinor, 0)
+    const matchWordIds = proposal.matchWord
+      ? items.filter((item) => reviewProposal(item, llm)?.matchWord === proposal.matchWord).map((item) => item.id)
+      : []
+    const dates = [items[items.length - 1].bookingDate, items[0].bookingDate].map(formatLedgerDate)
+
+    return [
+      <TableRow key={key} className="cursor-pointer" onClick={() => onToggleGroup(key)}>
+        {showSelection && (
+          <TableCell onClick={stopPropagation}>
+            <Checkbox
+              checked={checkedState(ids, selection.isSelected)}
+              onCheckedChange={(checked) => selection.setSelected(ids, checked === true)}
+              aria-label={t("ledger.queue.selectGroup", { name })}
+            />
+          </TableCell>
+        )}
+        <TableCell className="text-muted-foreground">
+          {dates[0] === dates[1] ? dates[0] : `${dates[0]} – ${dates[1]}`}
+        </TableCell>
+        <TableCell className={total < 0 ? "text-destructive" : "text-emerald-600"}>
+          {sameCurrency ? formatAmountMinor(total, items[0].currency, i18n.language) : "-"}
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-6"
+              aria-expanded={expanded}
+              aria-label={t(expanded ? "ledger.queue.collapseGroup" : "ledger.queue.expandGroup", { name })}
+              onClick={(event) => {
+                event.stopPropagation()
+                onToggleGroup(key)
+              }}
+            >
+              {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+            </Button>
+            <span className="font-medium">{name}</span>
+            <Badge variant="outline">{t("ledger.queue.groupCount", { count: items.length })}</Badge>
+          </div>
+        </TableCell>
+        <TableCell>{proposalCell(proposal, matchWordIds)}</TableCell>
+        <TableCell>{sourceBadge(items[0])}</TableCell>
+      </TableRow>,
+      ...(expanded ? items.map((item) => transactionRow(item, true)) : []),
+    ]
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {showSelection && (
+              <TableHead className="w-8">
+                {pageIds.length > 0 && (
+                  <Checkbox
+                    checked={checkedState(pageIds, selection.isSelected)}
+                    onCheckedChange={(checked) => selection.setSelected(pageIds, checked === true)}
+                    aria-label={t("ledger.queue.selectPage")}
+                  />
+                )}
+              </TableHead>
+            )}
+            <TableHead>{t("ledger.date")}</TableHead>
+            <TableHead>{t("ledger.amount")}</TableHead>
+            <TableHead>{t("ledger.counterparty")}</TableHead>
+            <TableHead>{t("ledger.category")}</TableHead>
+            <TableHead>{t("ledger.status")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {entries.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={columnCount} className="py-8 text-center text-muted-foreground">
+                {t("ledger.noTransactionsToReview")}
+              </TableCell>
+            </TableRow>
+          ) : (
+            entries.flatMap((entry) => (entry.kind === "group" ? groupRows(entry) : [transactionRow(entry.item, false)]))
+          )}
+        </TableBody>
+      </Table>
     </div>
   )
 }

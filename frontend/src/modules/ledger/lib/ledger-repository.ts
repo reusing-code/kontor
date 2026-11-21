@@ -151,8 +151,24 @@ export async function getLedgerReviewQueue(limit: number = 100, cursor?: string)
   return get<LedgerReviewQueuePage>(`/ledger/transactions?${search.toString()}`)
 }
 
+export async function getLedgerReviewQueueAll(): Promise<LedgerReviewQueuePage> {
+  return get<LedgerReviewQueuePage>("/ledger/transactions?limit=all")
+}
+
+// The backend takes at most this many items per review-batch request.
+export const ledgerReviewBatchChunkSize = 100
+
+// reviewLedgerTransactionsBatch sends the items in sequential chunks and
+// merges the results; a failing request ends the run.
 export async function reviewLedgerTransactionsBatch(items: LedgerBatchReviewItem[]): Promise<LedgerBatchReviewResult> {
-  return post<LedgerBatchReviewResult>("/ledger/transactions/review-batch", { items })
+  const result: LedgerBatchReviewResult = { reviewed: 0, failed: [] }
+  for (let start = 0; start < items.length; start += ledgerReviewBatchChunkSize) {
+    const chunk = items.slice(start, start + ledgerReviewBatchChunkSize)
+    const part = await post<LedgerBatchReviewResult>("/ledger/transactions/review-batch", { items: chunk })
+    result.reviewed += part.reviewed
+    result.failed.push(...part.failed)
+  }
+  return result
 }
 
 export async function runLedgerCategorySuggestions(): Promise<LedgerSuggestionRunResult> {

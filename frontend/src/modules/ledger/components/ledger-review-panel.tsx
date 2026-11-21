@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
+import { XIcon } from "lucide-react"
 import type { LedgerCategory, LedgerReviewInput, LedgerReviewQueueItem } from "@/modules/ledger/types"
 import { useReviewLedgerTransaction } from "@/modules/ledger/hooks/use-ledger"
 import { formatAmountMinor, formatLedgerDate, tokenizeLedgerMatchWords } from "@/modules/ledger/lib/ledger-utils"
@@ -8,7 +9,7 @@ import { LedgerTransferManager } from "@/modules/ledger/components/ledger-transf
 import { LedgerSuggestionBadge } from "@/modules/ledger/components/ledger-suggestion-badge"
 import { PaperlessDocumentsSection } from "@/components/paperless/paperless-documents-section"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
   Select,
@@ -23,6 +24,7 @@ interface LedgerReviewPanelProps {
   transaction?: LedgerReviewQueueItem
   categories: LedgerCategory[]
   onReviewed?: (transactionId: string) => void
+  onClose?: () => void
   showSuggestion?: boolean
 }
 
@@ -30,11 +32,13 @@ function LedgerReviewPanelInner({
   transaction,
   categories,
   onReviewed,
+  onClose,
   showSuggestion,
 }: {
   transaction: LedgerReviewQueueItem
   categories: LedgerCategory[]
   onReviewed?: (transactionId: string) => void
+  onClose?: () => void
   showSuggestion: boolean
 }) {
   const { t, i18n } = useTranslation()
@@ -67,6 +71,13 @@ function LedgerReviewPanelInner({
     <Card>
       <CardHeader>
         <CardTitle>{t("ledger.reviewTransaction")}</CardTitle>
+        {onClose && (
+          <CardAction>
+            <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label={t("ledger.queue.closeDetails")}>
+              <XIcon />
+            </Button>
+          </CardAction>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 md:grid-cols-2">
@@ -125,7 +136,27 @@ function LedgerReviewPanelInner({
               </Button>
             ))}
           </div>
-          <Input value={matchWords} onChange={(event) => setMatchWords(event.target.value)} placeholder={t("ledger.matchWordsPlaceholder")} />
+          <div className="relative">
+            <Input
+              value={matchWords}
+              onChange={(event) => setMatchWords(event.target.value)}
+              placeholder={t("ledger.matchWordsPlaceholder")}
+              aria-label={t("ledger.matchWords")}
+              className="pr-9"
+            />
+            {matchWords && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute top-1/2 right-1 size-7 -translate-y-1/2"
+                onClick={() => setMatchWords("")}
+                aria-label={t("ledger.queue.clearMatchWords")}
+              >
+                <XIcon />
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -187,7 +218,7 @@ function LedgerReviewPanelInner({
   )
 }
 
-export function LedgerReviewPanel({ transaction, categories, onReviewed, showSuggestion = false }: LedgerReviewPanelProps) {
+export function LedgerReviewPanel({ transaction, categories, onReviewed, onClose, showSuggestion = false }: LedgerReviewPanelProps) {
   const { t } = useTranslation()
 
   if (!transaction) {
@@ -211,6 +242,7 @@ export function LedgerReviewPanel({ transaction, categories, onReviewed, showSug
       transaction={transaction}
       categories={categories}
       onReviewed={onReviewed}
+      onClose={onClose}
       showSuggestion={showSuggestion}
     />
   )
