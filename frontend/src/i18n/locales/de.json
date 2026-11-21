@@ -317,6 +317,7 @@
     "chooseCategory": "Kategorie auswählen",
     "selectCategory": "Kategorie auswählen",
     "noCategory": "Keine Kategorie",
+    "noCategories": "Noch keine Ledger-Kategorien vorhanden. Erstelle eine, um zu beginnen.",
     "createCategoryInline": "Neue Kategorie anlegen",
     "quickMatchWords": "Schnelle Schlüsselwörter hinzufügen",
     "suggestedCategory": "Vorgeschlagene Kategorie",

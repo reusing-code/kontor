@@ -317,6 +317,7 @@
     "chooseCategory": "Choose category",
     "selectCategory": "Select category",
     "noCategory": "No category",
+    "noCategories": "No ledger categories yet. Create one to get started.",
     "createCategoryInline": "Create new category",
     "quickMatchWords": "Add quick match words",
     "suggestedCategory": "Suggested category",
