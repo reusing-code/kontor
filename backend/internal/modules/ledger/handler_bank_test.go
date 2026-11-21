@@ -110,6 +110,16 @@ func TestBankHandlers_Statuses(t *testing.T) {
 	assertBankError(t, bankRequest(t, mux, "POST", authorize, `{"aspspName":"DKB","aspspCountry":"DE"}`), http.StatusBadGateway, "bank_unavailable")
 	f.fake.FailNext("/auth", 429, "")
 	assertBankError(t, bankRequest(t, mux, "POST", authorize, `{"aspspName":"DKB","aspspCountry":"DE"}`), http.StatusTooManyRequests, "bank_rate_limited")
+	f.fake.FailNext("/auth", 422, "WRONG_REQUEST_PARAMETERS")
+	assertBankError(t, bankRequest(t, mux, "POST", authorize, `{"aspspName":"DKB","aspspCountry":"DE"}`), http.StatusBadGateway, "bank_request_rejected")
+
+	f.fake.FailNext("/auth", 400, "REDIRECT_URI_NOT_ALLOWED")
+	rec = bankRequest(t, mux, "POST", authorize, `{"aspspName":"DKB","aspspCountry":"DE"}`)
+	body := rec.Body.String()
+	assertBankError(t, rec, http.StatusConflict, "redirect_url_not_allowed")
+	if want := `"redirectUrl":"` + bankTestPublicURL + `/api/v1/ledger/bank/callback"`; !strings.Contains(body, want) {
+		t.Fatalf("body = %s, want %s", body, want)
+	}
 
 	rec = bankRequest(t, mux, "POST", authorize, `{"aspspName":"DKB","aspspCountry":"DE"}`)
 	if rec.Code != http.StatusOK || !strings.HasPrefix(decodeJSON[map[string]string](t, rec)["url"], "https://bank.example/") {

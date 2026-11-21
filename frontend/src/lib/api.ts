@@ -17,12 +17,15 @@ export class ApiError extends Error {
   status: number
   // Stable machine-readable code of the endpoint, when it sends one.
   code?: string
+  // The parsed error body, for endpoints that send fields beyond error/code.
+  body: Record<string, unknown>
 
-  constructor(status: number, message: string, code?: string) {
+  constructor(status: number, message: string, code?: string, body: Record<string, unknown> = {}) {
     super(message)
     this.name = "ApiError"
     this.status = status
     this.code = code
+    this.body = body
   }
 }
 
@@ -50,7 +53,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
-    throw new ApiError(res.status, data.error ?? res.statusText, data.code)
+    throw new ApiError(res.status, data.error ?? res.statusText, data.code, data)
   }
 
   if (res.status === 204) return undefined as T
@@ -98,7 +101,7 @@ export async function postForm<T>(path: string, body: FormData): Promise<T> {
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
-    throw new ApiError(res.status, data.error ?? res.statusText, data.code)
+    throw new ApiError(res.status, data.error ?? res.statusText, data.code, data)
   }
 
   if (res.status === 204) return undefined as T
@@ -122,7 +125,7 @@ export async function getBlob(path: string): Promise<Blob> {
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
-    throw new ApiError(res.status, data.error ?? res.statusText, data.code)
+    throw new ApiError(res.status, data.error ?? res.statusText, data.code, data)
   }
 
   return res.blob()
@@ -145,7 +148,7 @@ export async function download(path: string, fallbackFilename: string): Promise<
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
-    throw new ApiError(res.status, data.error ?? res.statusText, data.code)
+    throw new ApiError(res.status, data.error ?? res.statusText, data.code, data)
   }
 
   const disposition = res.headers.get("Content-Disposition") ?? ""

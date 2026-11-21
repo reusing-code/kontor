@@ -208,6 +208,11 @@ func TestStartAuthorizationErrors(t *testing.T) {
 		{429, "", ErrBankRateLimited},
 		{403, "ACCESS_DENIED", ErrBankRestricted},
 		{422, "NO_ACCOUNTS_ADDED", ErrBankRestricted},
+		{400, "REDIRECT_URI_NOT_ALLOWED", ErrBankRedirectRejected},
+		{422, "WRONG_REQUEST_PARAMETERS", ErrBankRequestRejected},
+		{401, "UNAUTHORIZED_ACCESS", ErrBankRequestRejected},
+		{400, "", ErrBankRequestRejected},
+		{400, "ASPSP_ERROR", ErrBankUnavailable},
 	} {
 		f.fake.FailNext("/auth", tt.status, tt.code)
 		_, err := f.svc.StartAuthorization(ctx, testUserID, in)

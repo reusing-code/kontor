@@ -25,6 +25,8 @@ var (
 	ErrBankInvalidCountry   = errors.New("invalid country code")
 	ErrBankRestricted       = errors.New("the Enable Banking app is restricted to its owner's accounts")
 	ErrBankUnavailable      = errors.New("bank service unavailable")
+	ErrBankRedirectRejected = errors.New("the redirect URL is not registered in the Enable Banking app")
+	ErrBankRequestRejected  = errors.New("the bank service rejected the request")
 	ErrBankRateLimited      = errors.New("bank service rate limit reached")
 	ErrBankSyncRunning      = errors.New("a bank sync is already running")
 	ErrBankConsentExpired   = errors.New("bank consent expired")
@@ -40,6 +42,7 @@ const (
 	bankValidityMargin  = 5 * time.Minute
 	bankSessionTimeout  = 30 * time.Second
 	bankCleanupTimeout  = 15 * time.Second
+	bankCallbackPath    = "/api/v1/ledger/bank/callback"
 )
 
 // Reasons the public callback reports to the result page (a fixed set).
@@ -175,15 +178,33 @@ func isBankRestricted(err error) bool {
 	return false
 }
 
+// mapBankUpstreamError separates configuration and request errors (4xx), which
+// a retry does not fix, from outages.
 func mapBankUpstreamError(err error) error {
+	var apiErr *enablebanking.APIError
 	switch {
 	case isBankRestricted(err):
 		return ErrBankRestricted
 	case enablebanking.IsRateLimited(err):
 		return ErrBankRateLimited
+	case enablebanking.IsUnavailable(err):
+		return ErrBankUnavailable
+	case errors.As(err, &apiErr) && apiErr.Code == "REDIRECT_URI_NOT_ALLOWED":
+		return ErrBankRedirectRejected
+	case errors.As(err, &apiErr) && apiErr.Status >= 400 && apiErr.Status < 500:
+		return ErrBankRequestRejected
 	default:
 		return ErrBankUnavailable
 	}
+}
+
+// RedirectURL is the consent callback that must be registered in the Enable
+// Banking app; empty without PUBLIC_URL.
+func (s *BankService) RedirectURL() string {
+	if s == nil || s.publicURL == "" {
+		return ""
+	}
+	return s.publicURL + bankCallbackPath
 }
 
 func isVerifiedBank(name string) bool {
@@ -292,7 +313,7 @@ func (s *BankService) StartAuthorization(ctx context.Context, userID string, in 
 		ASPSPName:       bank.Name,
 		ASPSPCountry:    bank.Country,
 		State:           state,
-		RedirectURL:     s.publicURL + "/api/v1/ledger/bank/callback",
+		RedirectURL:     s.RedirectURL(),
 		ValidUntil:      consentValidUntil(now, bank.maxConsentSeconds),
 		ExtendedHistory: true,
 	})

@@ -34,6 +34,15 @@ func (h *Handler) bankError(w http.ResponseWriter, err error) {
 		writeBankError(h, w, http.StatusBadRequest, "invalid_country", "country must be a two-letter code")
 	case errors.Is(err, ErrBankRestricted):
 		writeBankError(h, w, http.StatusUnprocessableEntity, "bank_restricted", "the Enable Banking app can only connect its owner's accounts")
+	case errors.Is(err, ErrBankRedirectRejected):
+		redirectURL := h.bank.RedirectURL()
+		httputil.WriteJSON(h.logger, w, http.StatusConflict, map[string]string{
+			"error":       "register " + redirectURL + " as redirect URL in the Enable Banking app",
+			"code":        "redirect_url_not_allowed",
+			"redirectUrl": redirectURL,
+		})
+	case errors.Is(err, ErrBankRequestRejected):
+		writeBankError(h, w, http.StatusBadGateway, "bank_request_rejected", "the bank service rejected the request; the server log has the error code")
 	case errors.Is(err, ErrBankUnavailable):
 		writeBankError(h, w, http.StatusBadGateway, "bank_unavailable", "the bank service is unavailable")
 	case errors.Is(err, ErrBankRateLimited):

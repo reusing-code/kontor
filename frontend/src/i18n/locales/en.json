@@ -730,6 +730,8 @@
         "invalid_country": "Invalid country.",
         "bank_restricted": "This Enable Banking app can only connect its owner's accounts.",
         "bank_unavailable": "The bank service is unavailable. Try again later.",
+        "redirect_url_not_allowed": "Enable Banking does not accept the redirect URL. Register {{redirectUrl}} as redirect URL in the Enable Banking app.",
+        "bank_request_rejected": "Enable Banking rejected the request. The server log has the error code.",
         "bank_rate_limited": "Rate limit reached. Try again later.",
         "sync_running": "A sync is already running for this connection.",
         "consent_expired": "The consent has expired. Authorize it again.",
