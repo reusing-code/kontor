@@ -3,6 +3,8 @@ package enablebanking_test
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/base64"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -63,6 +65,18 @@ func TestJWTClaimsAndSignature(t *testing.T) {
 	}
 	if len(claims.Audience) != 1 || claims.Audience[0] != "api.enablebanking.com" {
 		t.Fatalf("aud = %v", claims.Audience)
+	}
+	// Enable Banking only accepts a plain string, not a one-element array.
+	payload, err := base64.RawURLEncoding.DecodeString(strings.Split(capture.tokens[0], ".")[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(payload, &raw); err != nil {
+		t.Fatal(err)
+	}
+	if aud, ok := raw["aud"].(string); !ok || aud != "api.enablebanking.com" {
+		t.Fatalf("raw aud = %#v, want a plain string", raw["aud"])
 	}
 	if !claims.IssuedAt.Equal(now) {
 		t.Fatalf("iat = %v, want %v", claims.IssuedAt, now)

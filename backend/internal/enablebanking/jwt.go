@@ -36,11 +36,13 @@ func (s *signer) Token() (string, error) {
 		return s.token, nil
 	}
 	expires := now.Add(jwtLifetime)
-	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.RegisteredClaims{
-		Issuer:    jwtIssuer,
-		Audience:  jwt.ClaimStrings{jwtAudience},
-		IssuedAt:  jwt.NewNumericDate(now),
-		ExpiresAt: jwt.NewNumericDate(expires),
+	// MapClaims, because RegisteredClaims encodes aud as an array, which
+	// Enable Banking rejects with 401 "JWT audience is not valid".
+	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"iss": jwtIssuer,
+		"aud": jwtAudience,
+		"iat": now.Unix(),
+		"exp": expires.Unix(),
 	})
 	tok.Header["typ"] = "JWT"
 	tok.Header["kid"] = s.appID

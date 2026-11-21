@@ -238,13 +238,16 @@ func (s *Server) authorized(r *http.Request) bool {
 	if !ok {
 		return false
 	}
-	tok, err := jwt.Parse(raw, func(*jwt.Token) (any, error) { return &s.key.PublicKey, nil },
+	claims := jwt.MapClaims{}
+	tok, err := jwt.ParseWithClaims(raw, claims, func(*jwt.Token) (any, error) { return &s.key.PublicKey, nil },
 		jwt.WithValidMethods([]string{"RS256"}),
 		jwt.WithIssuer("enablebanking.com"),
 		jwt.WithAudience("api.enablebanking.com"),
 		jwt.WithExpirationRequired(),
 	)
-	return err == nil && tok.Header["kid"] == s.AppID && tok.Header["typ"] == "JWT"
+	// Like the real API: aud must be a plain string, an array is rejected.
+	_, audIsString := claims["aud"].(string)
+	return err == nil && audIsString && tok.Header["kid"] == s.AppID && tok.Header["typ"] == "JWT"
 }
 
 func (s *Server) takeFailure(path string) *failure {
