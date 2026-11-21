@@ -1,6 +1,6 @@
-export type TokenScope = "read" | "drafts" | "links"
+export type TokenScope = "read" | "drafts" | "links" | "categorize"
 
-export const tokenScopes: TokenScope[] = ["read", "drafts", "links"]
+export const tokenScopes: TokenScope[] = ["read", "drafts", "links", "categorize"]
 
 export interface Token {
   id: string

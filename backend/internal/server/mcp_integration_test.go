@@ -361,8 +361,9 @@ func TestMCPAttachIsolationAndModuleState(t *testing.T) {
 }
 
 // allowedTools is the complete tool surface an agent may see, by scope. A new
-// tool must be added here on purpose: the drafts-only guarantee test fails
-// for anything else.
+// tool must be added here on purpose: the allow-list test fails for anything
+// else. Only the categorize tools change entities directly; every other
+// write goes through a draft.
 var allowedTools = map[string][]string{
 	pat.ScopeRead: {
 		"list_modules", "search_paperless_documents",
@@ -379,6 +380,10 @@ var allowedTools = map[string][]string{
 	},
 	pat.ScopeLinks: {
 		"attach_paperless_documents", "link_transaction",
+	},
+	pat.ScopeCategorize: {
+		"update_ledger_category", "set_transaction_category",
+		"link_ledger_transfer", "unlink_ledger_transfer",
 	},
 }
 
@@ -406,14 +411,14 @@ func sorted(lists ...[]string) []string {
 }
 
 func TestMCPToolAllowList(t *testing.T) {
-	if n := len(sorted(allowedTools[pat.ScopeRead], allowedTools[pat.ScopeDrafts], allowedTools[pat.ScopeLinks])); n != 21 {
-		t.Fatalf("the allow-list has %d tools, want 21", n)
+	if n := len(sorted(allowedTools[pat.ScopeRead], allowedTools[pat.ScopeDrafts], allowedTools[pat.ScopeLinks], allowedTools[pat.ScopeCategorize])); n != 25 {
+		t.Fatalf("the allow-list has %d tools, want 25", n)
 	}
 	a := newTestApp(t)
 	userID, _ := a.register(t, "allow@example.com")
 
-	_, allTok := a.newPAT(t, userID, nil, pat.ScopeRead, pat.ScopeDrafts, pat.ScopeLinks)
-	want := sorted(allowedTools[pat.ScopeRead], allowedTools[pat.ScopeDrafts], allowedTools[pat.ScopeLinks])
+	_, allTok := a.newPAT(t, userID, nil, slices.Clone(pat.Scopes)...)
+	want := sorted(allowedTools[pat.ScopeRead], allowedTools[pat.ScopeDrafts], allowedTools[pat.ScopeLinks], allowedTools[pat.ScopeCategorize])
 	if got := a.toolNames(t, a.mcpClient(t, allTok)); !slices.Equal(got, want) {
 		t.Fatalf("tools with all scopes:\n got %v\nwant %v", got, want)
 	}
@@ -429,6 +434,42 @@ func TestMCPToolAllowList(t *testing.T) {
 	}
 	if !slices.Equal(sorted(union), want) {
 		t.Fatalf("scope groups do not partition the tool set: %v", sorted(union))
+	}
+}
+
+func TestMCPCategorizeScopeChangesCategoriesButOpensNoREST(t *testing.T) {
+	a := newTestApp(t)
+	userID, jwt := a.register(t, "categorize@example.com")
+	status, body := a.request(t, "POST", "/api/v1/ledger/categories", jwt, `{"name":"Fuel","matchWords":["aral"]}`)
+	if status != 201 {
+		t.Fatalf("create category = %d %s", status, body)
+	}
+	var cat struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(body), &cat); err != nil {
+		t.Fatal(err)
+	}
+	_, raw := a.newPAT(t, userID, nil, pat.ScopeRead, pat.ScopeCategorize)
+
+	res, err := a.mcpClient(t, raw).CallTool(t.Context(), &mcp.CallToolParams{Name: "update_ledger_category", Arguments: map[string]any{
+		"categoryId": cat.ID, "addMatchWords": []string{"walther tankstelle"}}})
+	if err != nil || res.IsError {
+		t.Fatalf("update_ledger_category: %v %+v", err, res)
+	}
+	if status, body := a.request(t, "GET", "/api/v1/ledger/categories/"+cat.ID, jwt, ""); status != 200 || !strings.Contains(body, `"walther tankstelle"`) {
+		t.Fatalf("category after the MCP update = %d %s", status, body)
+	}
+
+	for _, req := range [][3]string{
+		{"PUT", "/api/v1/ledger/categories/" + cat.ID, `{"name":"x","matchWords":[]}`},
+		{"POST", "/api/v1/ledger/transactions/" + uuid.NewString() + "/review", `{}`},
+		{"POST", "/api/v1/ledger/transactions/" + uuid.NewString() + "/transfer-link", `{"pairedTransactionId":"` + uuid.NewString() + `"}`},
+		{"DELETE", "/api/v1/ledger/transactions/" + uuid.NewString() + "/transfer-link", ``},
+	} {
+		if status, body := a.request(t, req[0], req[1], raw, req[2]); status != 403 {
+			t.Errorf("%s %s with a categorize token = %d %s, want 403", req[0], req[1], status, body)
+		}
 	}
 }
 

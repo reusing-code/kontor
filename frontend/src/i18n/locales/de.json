@@ -969,17 +969,20 @@
     "scope": {
       "read": "lesen",
       "drafts": "Entwürfe",
-      "links": "Verknüpfungen"
+      "links": "Verknüpfungen",
+      "categorize": "Kategorisieren"
     },
     "scopeHint": {
       "read": "Alle deine Daten lesen, auch Exporte",
       "drafts": "Entwürfe im Posteingang erstellen und entscheiden",
-      "links": "Paperless-Dokumente und Transaktionen mit bestehenden Einträgen verknüpfen"
+      "links": "Paperless-Dokumente und Transaktionen mit bestehenden Einträgen verknüpfen",
+      "categorize": "Ledger-Kategorien, Transaktionskategorien und interne Umbuchungen direkt ändern"
     },
     "scopeDetail": {
       "read": "Alles lesen, was du siehst, auch den vollständigen Datenexport und alle Module. In MCP: Such- und Listenwerkzeuge.",
       "drafts": "Entwürfe für den Posteingang erstellen (MCP) und Entwürfe über die API bearbeiten, annehmen oder ablehnen. Ohne deine Prüfung in der Oberfläche wird nichts angelegt.",
-      "links": "Paperless-Dokumente an bestehende Verträge, Anschaffungen, Fahrzeuge, Kosten und Transaktionen anhängen sowie Transaktionen Referenzen hinzufügen."
+      "links": "Paperless-Dokumente an bestehende Verträge, Anschaffungen, Fahrzeuge, Kosten und Transaktionen anhängen sowie Transaktionen Referenzen hinzufügen.",
+      "categorize": "Nur über MCP und ohne Entwurf: Ledger-Kategorien umbenennen, verschieben und ihre Schlüsselwörter bearbeiten, die Kategorie einer Transaktion setzen (der Prüfstatus bleibt) und interne Umbuchungen verknüpfen oder lösen. Anlegen oder löschen kann es nichts."
     },
     "expiry": "Läuft ab",
     "expiryDays_one": "In {{count}} Tag",

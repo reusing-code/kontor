@@ -148,7 +148,7 @@ func contains(list []string, want string) bool {
 }
 
 func TestScopeConstantsMatchPAT(t *testing.T) {
-	if ScopeRead != pat.ScopeRead || ScopeDrafts != pat.ScopeDrafts || ScopeLinks != pat.ScopeLinks {
+	if ScopeRead != pat.ScopeRead || ScopeDrafts != pat.ScopeDrafts || ScopeLinks != pat.ScopeLinks || ScopeCategorize != pat.ScopeCategorize {
 		t.Fatal("scope constants differ from the pat package")
 	}
 }

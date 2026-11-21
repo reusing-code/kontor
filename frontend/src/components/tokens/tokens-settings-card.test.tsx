@@ -144,6 +144,7 @@ describe("TokensSettingsCard create", () => {
 
     const dialog = await openCreateDialog(user)
     await user.type(within(dialog).getByLabelText("Name"), "Linker")
+    await user.click(within(dialog).getByRole("checkbox", { name: /^categorize/ }))
     await user.click(within(dialog).getByRole("checkbox", { name: /^links/ }))
     await user.click(within(dialog).getByRole("checkbox", { name: /^drafts/ }))
     await user.click(within(dialog).getByRole("checkbox", { name: /^read/ }))
@@ -152,7 +153,7 @@ describe("TokensSettingsCard create", () => {
 
     await screen.findByRole("dialog", { name: "Your new token" })
     expect(api.callsTo("POST", "/tokens").map((c) => c.body)).toEqual([
-      { name: "Linker", scopes: ["drafts", "links"], expiresAt: "2026-05-31T10:00:00.000Z" },
+      { name: "Linker", scopes: ["drafts", "links", "categorize"], expiresAt: "2026-05-31T10:00:00.000Z" },
     ])
   })
 

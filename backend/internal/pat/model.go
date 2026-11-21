@@ -19,6 +19,9 @@ const (
 	ScopeRead   = "read"
 	ScopeDrafts = "drafts"
 	ScopeLinks  = "links"
+	// ScopeCategorize lets MCP tools change ledger categories, transaction
+	// categories and transfer links directly; it opens no REST route.
+	ScopeCategorize = "categorize"
 
 	MaxPerUser    = 50
 	MaxNameLength = 100
@@ -26,7 +29,7 @@ const (
 	touchThreshold = time.Minute
 )
 
-var Scopes = []string{ScopeRead, ScopeDrafts, ScopeLinks}
+var Scopes = []string{ScopeRead, ScopeDrafts, ScopeLinks, ScopeCategorize}
 
 var ErrLimitReached = fmt.Errorf("%w: token limit reached", storage.ErrConflict)
 

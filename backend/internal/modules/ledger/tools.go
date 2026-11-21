@@ -33,9 +33,10 @@ type listAccountsOut struct {
 }
 
 type categoryItem struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	ParentID string `json:"parentId,omitempty"`
+	ID         string   `json:"id"`
+	Name       string   `json:"name"`
+	ParentID   string   `json:"parentId,omitempty"`
+	MatchWords []string `json:"matchWords" jsonschema:"case-insensitive substrings of a transaction's counterparty or purpose that select this category; the longest matching word wins"`
 }
 
 type listCategoriesOut struct {
@@ -66,6 +67,8 @@ type transactionItem struct {
 	CounterpartyName string          `json:"counterpartyName,omitempty"`
 	Purpose          string          `json:"purpose,omitempty"`
 	CategoryID       string          `json:"categoryId,omitempty"`
+	SpecialCategory  string          `json:"specialCategory,omitempty" jsonschema:"internalTransfer for a linked transfer between the user's own accounts (then there is no categoryId)"`
+	TransferPairID   string          `json:"transferPairTransactionId,omitempty" jsonschema:"the other side of a linked internal transfer"`
 	Splits           []splitItem     `json:"splits,omitempty" jsonschema:"parts booked to other categories; the rest of the amount (categoryAmount) belongs to categoryId"`
 	CategoryAmount   *float64        `json:"categoryAmount,omitempty" jsonschema:"amount left for categoryId when the transaction is split"`
 	ReviewStatus     string          `json:"reviewStatus"`
@@ -147,7 +150,7 @@ func (m *Module) RegisterTools(r *mcptool.Registrar) {
 		})
 
 	mcptool.Add(r, spec("list_ledger_categories",
-		"List the user's ledger categories with their parent IDs; needed for create_ledger_category_draft.",
+		"List the user's ledger categories with their parent IDs and match words; needed for create_ledger_category_draft and the categorize tools.",
 		mcptool.ScopeRead, true),
 		func(ctx context.Context, c mcptool.Call, _ struct{}) (listCategoriesOut, error) {
 			cats, err := m.store.ListLedgerCategories(ctx, c.UserID)
@@ -156,11 +159,7 @@ func (m *Module) RegisterTools(r *mcptool.Registrar) {
 			}
 			out := listCategoriesOut{Items: make([]categoryItem, 0, len(cats))}
 			for _, cat := range cats {
-				item := categoryItem{ID: cat.ID.String(), Name: cat.Name}
-				if cat.ParentID != nil {
-					item.ParentID = cat.ParentID.String()
-				}
-				out.Items = append(out.Items, item)
+				out.Items = append(out.Items, categoryResult(cat))
 			}
 			return out, nil
 		})
@@ -241,6 +240,19 @@ func (m *Module) RegisterTools(r *mcptool.Registrar) {
 		func(ctx context.Context, c mcptool.Call, in linkTransactionIn) (linkTransactionOut, error) {
 			return m.linkTransaction(ctx, c, in)
 		})
+
+	m.registerCategorizeTools(r)
+}
+
+func categoryResult(cat LedgerCategory) categoryItem {
+	item := categoryItem{ID: cat.ID.String(), Name: cat.Name, MatchWords: cat.MatchWords}
+	if item.MatchWords == nil {
+		item.MatchWords = []string{}
+	}
+	if cat.ParentID != nil {
+		item.ParentID = cat.ParentID.String()
+	}
+	return item
 }
 
 func (m *Module) linkTransaction(ctx context.Context, c mcptool.Call, in linkTransactionIn) (linkTransactionOut, error) {
@@ -323,6 +335,10 @@ func transactionResult(t LedgerTransaction) transactionItem {
 	}
 	if t.CategoryID != nil {
 		item.CategoryID = t.CategoryID.String()
+	}
+	item.SpecialCategory = t.SpecialCategory
+	if t.TransferPairTransactionID != nil {
+		item.TransferPairID = t.TransferPairTransactionID.String()
 	}
 	for _, part := range t.Splits {
 		split := splitItem{Amount: float64(part.AmountMinor) / 100, Note: part.Note}

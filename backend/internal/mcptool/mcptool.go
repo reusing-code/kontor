@@ -22,6 +22,9 @@ const (
 	ScopeRead   = "read"
 	ScopeDrafts = "drafts"
 	ScopeLinks  = "links"
+	// ScopeCategorize is the only scope whose tools change entities directly
+	// (ledger categories, transaction categories, transfer links).
+	ScopeCategorize = "categorize"
 )
 
 // Spec describes one tool.
@@ -103,7 +106,7 @@ func (r *Registrar) ModuleEnabled(ctx context.Context, userID, moduleID string) 
 // retryable conflict and cancelled; any other error (and any panic) is logged
 // and reaches the agent as the fixed internal_error.
 func Add[In, Out any](r *Registrar, spec Spec, h func(ctx context.Context, c Call, in In) (Out, error)) {
-	if !slices.Contains([]string{ScopeRead, ScopeDrafts, ScopeLinks}, spec.Scope) {
+	if !slices.Contains([]string{ScopeRead, ScopeDrafts, ScopeLinks, ScopeCategorize}, spec.Scope) {
 		panic(fmt.Sprintf("mcptool: tool %q has invalid scope %q", spec.Name, spec.Scope))
 	}
 	install := func(srv *mcp.Server, call Call) {
