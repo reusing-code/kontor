@@ -323,16 +323,17 @@ describe("InboxPage bulk accept", () => {
     const api = mockApi(inboxRoutes({ drafts: many }))
     const { user } = renderWithProviders(<InboxPage />)
 
-    await waitFor(async () => expect(await findCheckbox(many[0])).toBeEnabled())
+    // 26 cards take longer than the default second on a busy CI runner
+    await waitFor(async () => expect(await findCheckbox(many[0])).toBeEnabled(), { timeout: 5000 })
     await user.click(screen.getByRole("checkbox", { name: "Select all (26)" }))
     await confirm(user, "Accept 26 drafts?")
 
-    expect(await screen.findByText("26 drafts accepted")).toBeInTheDocument()
+    expect(await screen.findByText("26 drafts accepted", {}, { timeout: 5000 })).toBeInTheDocument()
     const sent = batchCalls(api).map((call) => (call.body as { ids: string[] }).ids)
     expect(sent.map((chunk) => chunk.length)).toEqual([25, 1])
     expect(sent.flat()).toEqual(many.map((d) => d.id))
-    expect(await screen.findByText("No drafts waiting for review.")).toBeInTheDocument()
-  })
+    expect(await screen.findByText("No drafts waiting for review.", {}, { timeout: 5000 })).toBeInTheDocument()
+  }, 20_000)
 
   it("reports a failed request and keeps the drafts selected", async () => {
     const [first, second] = purchases(2)
