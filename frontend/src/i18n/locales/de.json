@@ -580,6 +580,8 @@
       "collapseGroup": "Transaktionen von {{name}} ausblenden",
       "select": "Kategorie auswählen",
       "selectGroup": "Alle Transaktionen von {{name}} auswählen",
+      "groupCategory": "Kategorie für alle Transaktionen von {{name}}",
+      "resetGroupCategory": "Zurück zur vorgeschlagenen Kategorie {{name}}",
       "selectPage": "Alle auf dieser Seite auswählen",
       "selectAll": "Alle auswählen",
       "selectNone": "Keine auswählen",

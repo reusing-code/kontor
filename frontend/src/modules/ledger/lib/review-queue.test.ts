@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { LedgerReviewQueueItem } from "@/modules/ledger/types"
-import { batchReviewItems, counterpartyKey, groupReviewQueue, reviewProposal } from "@/modules/ledger/lib/review-queue"
+import { batchReviewItems, categoryOverrides, counterpartyKey, groupReviewQueue, reviewProposal } from "@/modules/ledger/lib/review-queue"
 
 let seq = 0
 function txn(fields: Partial<LedgerReviewQueueItem>): LedgerReviewQueueItem {
@@ -81,6 +81,24 @@ describe("groupReviewQueue", () => {
     const a = txn({ counterpartyName: "Aral", suggestion: { categoryId: fuel, confidence: "high" } })
     const b = txn({ counterpartyName: "Aral", suggestion: { categoryId: fuel, confidence: "high" } })
     expect(groupReviewQueue([a, b], false).map((e) => e.kind)).toEqual(["single", "single"])
+  })
+})
+
+describe("categoryOverrides", () => {
+  it("applies a group's category to all its members and keeps the match word per chosen category", () => {
+    const a = txn({ counterpartyName: "Aral", suggestion: { categoryId: fuel, confidence: "high", matchWord: "aral" } })
+    const b = txn({ counterpartyName: "Aral", suggestion: { categoryId: fuel, confidence: "high", matchWord: "aral" } })
+    const single = txn({ counterpartyName: "Shell", suggestion: { categoryId: fuel, confidence: "high" } })
+    const entries = groupReviewQueue([a, b, single], true)
+    const key = entries[0].kind === "group" ? entries[0].key : ""
+
+    const overrides = categoryOverrides(entries, new Map([[key, groceries]]))
+
+    expect(batchReviewItems([a, b, single], true, () => true, overrides)).toEqual([
+      { transactionId: a.id, categoryId: groceries, addMatchWords: ["aral"] },
+      { transactionId: b.id, categoryId: groceries, addMatchWords: [] },
+      { transactionId: single.id, categoryId: fuel, addMatchWords: [] },
+    ])
   })
 })
 

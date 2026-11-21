@@ -580,6 +580,8 @@
       "collapseGroup": "Hide the transactions of {{name}}",
       "select": "Select category",
       "selectGroup": "Select all transactions of {{name}}",
+      "groupCategory": "Category for all transactions of {{name}}",
+      "resetGroupCategory": "Back to the proposed category {{name}}",
       "selectPage": "Select all on this page",
       "selectAll": "Select all",
       "selectNone": "Select none",

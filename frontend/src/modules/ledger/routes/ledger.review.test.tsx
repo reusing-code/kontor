@@ -100,6 +100,42 @@ describe("LedgerReviewPage", () => {
     expect(screen.getByRole("combobox", { name: "Choose category" })).toHaveTextContent("Food › Groceries")
   })
 
+  it("accepts a group with the category chosen on the group row", async () => {
+    const items = [aldi(2), aldi(1)]
+    const { api, user } = setup(items)
+
+    const select = await screen.findByRole("combobox", { name: "Category for all transactions of ALDI SAGT DANKE 2" })
+    expect(select).toHaveTextContent("Groceries")
+    await user.click(screen.getByRole("checkbox", { name: "Select all transactions of ALDI SAGT DANKE 2" }))
+    expect(screen.getByText("0 of 2 proposed categories selected.")).toBeInTheDocument()
+
+    await user.click(select)
+    await user.click(screen.getByRole("option", { name: "Fuel" }))
+    expect(select).toHaveTextContent("Fuel")
+    expect(screen.getByText("2 of 2 proposed categories selected.")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Show the transactions of ALDI SAGT DANKE 2" }))
+    const memberRow = screen.getByText("ALDI SAGT DANKE 1").closest("tr")!
+    expect(within(memberRow).getByText("Fuel")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Accept 2 categories" }))
+    await waitFor(() => expect(batchBodies(api)).toHaveLength(1))
+    expect(batchBodies(api)[0]).toEqual(items.map((item) => ({ transactionId: item.id, categoryId: fuel, addMatchWords: [] })))
+  })
+
+  it("resets a group to its proposed category", async () => {
+    const { api, user } = setup([aldi(2), aldi(1)])
+
+    await user.click(await screen.findByRole("combobox", { name: "Category for all transactions of ALDI SAGT DANKE 2" }))
+    await user.click(screen.getByRole("option", { name: "Fuel" }))
+    await user.click(screen.getByRole("button", { name: "Back to the proposed category Groceries" }))
+
+    expect(screen.getByRole("combobox", { name: "Category for all transactions of ALDI SAGT DANKE 2" })).toHaveTextContent("Groceries")
+    await user.click(screen.getByRole("button", { name: "Accept 2 categories" }))
+    await waitFor(() => expect(batchBodies(api)).toHaveLength(1))
+    expect(batchBodies(api)[0].map((item) => item.categoryId)).toEqual([groceries, groceries])
+  })
+
   it("groups keyword matches by counterparty and accepts them together with LLM suggestions", async () => {
     const shell = txn({ counterpartyName: "Shell", suggestion: { categoryId: fuel, confidence: "high" } })
     const items = [aldi(3), aldi(2), aldi(1), shell, txn({ counterpartyName: "Someone" })]

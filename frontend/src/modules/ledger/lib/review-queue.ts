@@ -88,22 +88,36 @@ export function entryItems(entry: ReviewEntry): LedgerReviewQueueItem[] {
   return entry.kind === "group" ? entry.items : [entry.item]
 }
 
-// batchReviewItems turns the selected transactions into review-batch items.
-// A match word goes along only when it was opted in, and only once per
-// category and word.
+// categoryOverrides maps the transactions of each group whose category was
+// changed on the group row to that category.
+export function categoryOverrides(entries: ReviewEntry[], byGroup: ReadonlyMap<string, string>): Map<string, string> {
+  const result = new Map<string, string>()
+  for (const entry of entries) {
+    if (entry.kind !== "group") continue
+    const categoryId = byGroup.get(entry.key)
+    if (categoryId) entry.items.forEach((item) => result.set(item.id, categoryId))
+  }
+  return result
+}
+
+// batchReviewItems turns the selected transactions into review-batch items,
+// with the overridden category where there is one. A match word goes along
+// only when it was opted in, and only once per category and word.
 export function batchReviewItems(
   items: LedgerReviewQueueItem[],
   llm: boolean,
   matchWordOn: (transactionId: string) => boolean,
+  overrides: ReadonlyMap<string, string> = new Map(),
 ): LedgerBatchReviewItem[] {
   const sentWords = new Set<string>()
   return items.flatMap((item) => {
     const proposal = reviewProposal(item, llm)
     if (!proposal) return []
+    const categoryId = overrides.get(item.id) ?? proposal.categoryId
     const word = proposal.matchWord && matchWordOn(item.id) ? proposal.matchWord : undefined
-    const wordKey = word && `${proposal.categoryId}|${word.toLowerCase()}`
+    const wordKey = word && `${categoryId}|${word.toLowerCase()}`
     const addMatchWords = wordKey && !sentWords.has(wordKey) ? [word] : []
     if (wordKey) sentWords.add(wordKey)
-    return [{ transactionId: item.id, categoryId: proposal.categoryId, addMatchWords }]
+    return [{ transactionId: item.id, categoryId, addMatchWords }]
   })
 }

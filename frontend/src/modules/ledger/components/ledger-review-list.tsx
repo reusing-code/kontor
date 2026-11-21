@@ -1,10 +1,11 @@
 import type { SyntheticEvent } from "react"
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
+import { ChevronDownIcon, ChevronRightIcon, Undo2Icon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { LedgerCategory, LedgerReviewQueueItem } from "@/modules/ledger/types"
 import { formatAmountMinor, formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
 import { entryItems, reviewProposal, type ReviewEntry, type ReviewProposal } from "@/modules/ledger/lib/review-queue"
 import { LedgerSuggestionBadge } from "@/modules/ledger/components/ledger-suggestion-badge"
+import { LedgerCategorySelect } from "@/modules/ledger/components/ledger-category-select"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -33,6 +34,9 @@ interface LedgerReviewListProps {
   onSelect: (transaction: LedgerReviewQueueItem) => void
   expandedGroups: ReadonlySet<string>
   onToggleGroup: (key: string) => void
+  // category chosen on a group row instead of its proposal
+  groupCategory: (key: string) => string | undefined
+  onGroupCategoryChange: (key: string, categoryId: string | undefined) => void
   selection: LedgerReviewSelection
   showSelection: boolean
 }
@@ -54,6 +58,8 @@ export function LedgerReviewList({
   onSelect,
   expandedGroups,
   onToggleGroup,
+  groupCategory,
+  onGroupCategoryChange,
   selection,
   showSelection,
 }: LedgerReviewListProps) {
@@ -98,7 +104,7 @@ export function LedgerReviewList({
     )
   }
 
-  function transactionRow(item: LedgerReviewQueueItem, inGroup: boolean) {
+  function transactionRow(item: LedgerReviewQueueItem, inGroup: boolean, override?: string) {
     const proposal = reviewProposal(item, llm)
     const selected = selectedTransactionId === item.id
     return (
@@ -124,7 +130,9 @@ export function LedgerReviewList({
           {formatAmountMinor(item.amountMinor, item.currency, i18n.language)}
         </TableCell>
         <TableCell>{item.counterpartyName || "-"}</TableCell>
-        <TableCell>{proposalCell(proposal, proposal?.matchWord ? [item.id] : [])}</TableCell>
+        <TableCell>
+          {override ? categoryName(override) : proposalCell(proposal, proposal?.matchWord ? [item.id] : [])}
+        </TableCell>
         <TableCell>{sourceBadge(item)}</TableCell>
       </TableRow>
     )
@@ -135,6 +143,7 @@ export function LedgerReviewList({
     const ids = items.map((item) => item.id)
     const name = items[0].counterpartyName || "-"
     const expanded = expandedGroups.has(key)
+    const override = groupCategory(key)
     const sameCurrency = items.every((item) => item.currency === items[0].currency)
     const total = items.reduce((sum, item) => sum + item.amountMinor, 0)
     const matchWordIds = proposal.matchWord
@@ -179,10 +188,39 @@ export function LedgerReviewList({
             <Badge variant="outline">{t("ledger.queue.groupCount", { count: items.length })}</Badge>
           </div>
         </TableCell>
-        <TableCell>{proposalCell(proposal, matchWordIds)}</TableCell>
+        <TableCell onClick={stopPropagation}>
+          <div className="space-y-1">
+            <div className="flex items-center gap-1">
+              <LedgerCategorySelect
+                categories={categories}
+                value={override ?? proposal.categoryId}
+                onValueChange={(value) => onGroupCategoryChange(key, value === proposal.categoryId ? undefined : value)}
+                size="sm"
+                className="w-[14rem]"
+                aria-label={t("ledger.queue.groupCategory", { name })}
+              />
+              {override ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={() => onGroupCategoryChange(key, undefined)}
+                  aria-label={t("ledger.queue.resetGroupCategory", { name: categoryName(proposal.categoryId) })}
+                  title={t("ledger.queue.resetGroupCategory", { name: categoryName(proposal.categoryId) })}
+                >
+                  <Undo2Icon />
+                </Button>
+              ) : (
+                proposal.confidence && <LedgerSuggestionBadge confidence={proposal.confidence} />
+              )}
+            </div>
+            {proposal.matchWord && matchWordIds.length > 0 && matchWordToggle(matchWordIds, proposal.matchWord)}
+          </div>
+        </TableCell>
         <TableCell>{sourceBadge(items[0])}</TableCell>
       </TableRow>,
-      ...(expanded ? items.map((item) => transactionRow(item, true)) : []),
+      ...(expanded ? items.map((item) => transactionRow(item, true, override)) : []),
     ]
   }
 

@@ -13,7 +13,14 @@ import {
 } from "@/modules/ledger/hooks/use-ledger"
 import { LedgerReviewList, type LedgerReviewSelection } from "@/modules/ledger/components/ledger-review-list"
 import { LedgerReviewPanel } from "@/modules/ledger/components/ledger-review-panel"
-import { batchReviewItems, groupReviewQueue, reviewProposal, type ReviewEntry } from "@/modules/ledger/lib/review-queue"
+import {
+  batchReviewItems,
+  categoryOverrides,
+  entryItems,
+  groupReviewQueue,
+  reviewProposal,
+  type ReviewEntry,
+} from "@/modules/ledger/lib/review-queue"
 import type { LedgerReviewQueueItem, LedgerSuggestionRunResult } from "@/modules/ledger/types"
 import { Button } from "@/components/ui/button"
 
@@ -80,6 +87,7 @@ export function LedgerReviewPage() {
   // start off, so only opt-ins are tracked.
   const [deselected, setDeselected] = useState<ReadonlySet<string>>(() => new Set())
   const [matchWordsOn, setMatchWordsOn] = useState<ReadonlySet<string>>(() => new Set())
+  const [groupCategories, setGroupCategories] = useState<ReadonlyMap<string, string>>(() => new Map())
 
   const transactions = useMemo(() => queue?.items ?? [], [queue?.items])
   const entries = useMemo(() => groupReviewQueue(transactions, llm), [transactions, llm])
@@ -102,6 +110,18 @@ export function LedgerReviewPage() {
   function goToPage(next: number, scroll: boolean) {
     setPage(next)
     if (scroll) listRef.current?.scrollIntoView?.({ block: "start" })
+  }
+
+  // Picking a category for a group also selects the group for accepting.
+  function setGroupCategory(key: string, categoryId: string | undefined) {
+    setGroupCategories((current) => {
+      const next = new Map(current)
+      if (categoryId) next.set(key, categoryId)
+      else next.delete(key)
+      return next
+    })
+    const group = entries.find((entry) => entry.kind === "group" && entry.key === key)
+    if (categoryId && group) selection.setSelected(entryItems(group).map((item) => item.id), true)
   }
 
   function toggleGroup(key: string) {
@@ -144,7 +164,7 @@ export function LedgerReviewPage() {
   }
 
   function handleAcceptSelected() {
-    const items = batchReviewItems(selectedItems, llm, (id) => matchWordsOn.has(id))
+    const items = batchReviewItems(selectedItems, llm, (id) => matchWordsOn.has(id), categoryOverrides(entries, groupCategories))
     batchReview.mutate(items, {
       onSuccess: (result) => {
         if (result.reviewed > 0) {
@@ -216,6 +236,8 @@ export function LedgerReviewPage() {
               onSelect={(item) => setSelectedTransactionId(item.id)}
               expandedGroups={expandedGroups}
               onToggleGroup={toggleGroup}
+              groupCategory={(key) => groupCategories.get(key)}
+              onGroupCategoryChange={setGroupCategory}
               selection={selection}
               showSelection={withProposal.length > 0}
             />
