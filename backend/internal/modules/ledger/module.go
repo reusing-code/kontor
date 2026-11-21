@@ -158,6 +158,7 @@ func New(e *storage.Engine, links *link.Registry, coreStore *core.Store, cfg Con
 		emailScanEnabled: scanEnabled,
 		scanInterval:     cfg.EmailScanInterval,
 		encryptionKey:    encryptionKey,
+		bank:             cfg.Bank,
 	}
 }
 
@@ -300,7 +301,11 @@ func (m *Module) startBankScheduler(ctx context.Context) {
 	if m.bank.SyncInterval <= 0 {
 		m.logger.Info("automatic bank sync disabled", "reason", "ENABLE_BANKING_SYNC_INTERVAL is 0")
 	}
-	NewBankSyncScheduler(BankSyncSchedulerConfig{
+	NewBankSyncScheduler(m.bankSchedulerConfig()).Start(ctx)
+}
+
+func (m *Module) bankSchedulerConfig() BankSyncSchedulerConfig {
+	return BankSyncSchedulerConfig{
 		Service:   m.handler.bank,
 		Store:     m.store,
 		Users:     m.coreStore,
@@ -308,5 +313,5 @@ func (m *Module) startBankScheduler(ctx context.Context) {
 		PublicURL: m.bank.PublicURL,
 		Interval:  m.bank.SyncInterval,
 		Logger:    m.logger,
-	}).Start(ctx)
+	}
 }
