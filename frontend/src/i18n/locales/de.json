@@ -301,7 +301,17 @@
     "categoryCreated": "Ledger-Kategorie erstellt.",
     "categoryUpdated": "Ledger-Kategorie aktualisiert.",
     "categoryDeleted": "Ledger-Kategorie gelöscht.",
-    "addChild": "Unterkategorie",
+    "categoryTree": {
+      "expandAll": "Alle aufklappen",
+      "collapseAll": "Alle zuklappen",
+      "expand": "{{name}} aufklappen",
+      "collapse": "{{name}} zuklappen",
+      "childCount_one": "{{count}} Unterkategorie",
+      "childCount_other": "{{count}} Unterkategorien",
+      "edit": "{{name}} bearbeiten",
+      "addChild": "Unterkategorie zu {{name}} hinzufügen",
+      "delete": "{{name}} löschen"
+    },
     "category": "Kategorie",
     "reviewState": "Prüfstatus",
     "chooseCategory": "Kategorie auswählen",

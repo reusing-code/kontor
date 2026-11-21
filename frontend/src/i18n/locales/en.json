@@ -301,7 +301,17 @@
     "categoryCreated": "Ledger category created.",
     "categoryUpdated": "Ledger category updated.",
     "categoryDeleted": "Ledger category deleted.",
-    "addChild": "Add child",
+    "categoryTree": {
+      "expandAll": "Expand all",
+      "collapseAll": "Collapse all",
+      "expand": "Expand {{name}}",
+      "collapse": "Collapse {{name}}",
+      "childCount_one": "{{count}} subcategory",
+      "childCount_other": "{{count}} subcategories",
+      "edit": "Edit {{name}}",
+      "addChild": "Add subcategory to {{name}}",
+      "delete": "Delete {{name}}"
+    },
     "category": "Category",
     "reviewState": "Review state",
     "chooseCategory": "Choose category",
