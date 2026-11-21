@@ -565,6 +565,7 @@
       },
       "addMatchWord": "Add \"{{word}}\" as match word"
     },
+    "categoryChanged": "Category changed.",
     "split": {
       "title": "Split",
       "description": "Book a part of this transaction to another category, e.g. a cash withdrawal paid together with the shopping. The rest stays with the transaction's category.",

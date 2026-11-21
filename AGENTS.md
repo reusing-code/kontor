@@ -110,7 +110,7 @@ Migrations are per module: each module supplies its own `Migrations()` list, app
 | `/ledger/accounts/$accountId` | Ledger account detail with transactions |
 | `/ledger/categories` | Ledger category tree manager |
 | `/ledger/review` | Ledger review queue: the whole queue, grouped by counterparty and proposed category, paged in the browser, with mass accept of match-word and LLM proposals |
-| `/ledger/transactions/$transactionId` | Ledger transaction detail with split into parts, notes, references, transfer linking, and creating a purchase, vehicle cost, contract or vehicle from the transaction (linked right away) |
+| `/ledger/transactions/$transactionId` | Ledger transaction detail with category change, split into parts, notes, references, transfer linking, and creating a purchase, vehicle cost, contract or vehicle from the transaction (linked right away) |
 | `/ledger/bank-connections` | Bank connections (Enable Banking): connect, map accounts, sync now, re-authorize, disconnect; only with the `bankImport` capability |
 | `/ledger/bank-connections/result` | Result page of the bank consent (`?bank=connected` or `?bank=failed&reason=<fixed code>`; the callback redirects here) |
 | `/ledger/email-accounts` | Ledger email account management, incl. the optional folder for the Kontor inbox, the action for processed emails (keep, move, delete) and the "Check Kontor inbox folders" button |

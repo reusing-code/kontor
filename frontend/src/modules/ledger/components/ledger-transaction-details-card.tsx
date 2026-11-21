@@ -6,7 +6,13 @@ import { Copy, ExternalLink, Link2, Save } from "lucide-react"
 import { useCategories } from "@/hooks/use-categories"
 import { useModules } from "@/hooks/use-modules"
 import { useContracts, useCreateContractByCategory } from "@/modules/contracts/hooks/use-contracts"
-import { useLedgerCategories, useLedgerEmailOrders, useUpdateLedgerTransactionDetails } from "@/modules/ledger/hooks/use-ledger"
+import {
+  useLedgerCategories,
+  useLedgerEmailOrders,
+  useReviewLedgerTransaction,
+  useUpdateLedgerTransactionDetails,
+} from "@/modules/ledger/hooks/use-ledger"
+import { LedgerCategorySelect } from "@/modules/ledger/components/ledger-category-select"
 import { LedgerSplitEditor } from "@/modules/ledger/components/ledger-split-editor"
 import { usePurchases } from "@/modules/purchases/hooks/use-purchases"
 import { useCostEntry, useCreateVehicle, useVehicles } from "@/modules/auto/hooks/use-vehicles"
@@ -275,6 +281,7 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
   const { data: ledgerCategories = [] } = useLedgerCategories()
   const { data: emailOrders = [] } = useLedgerEmailOrders()
   const updateDetails = useUpdateLedgerTransactionDetails()
+  const reviewMutation = useReviewLedgerTransaction()
 
   const availableTypes = (["purchase", "contract", "vehicle"] as ReferenceType[]).filter((type) =>
     isEnabled(referenceModuleId({ type, targetId: "" })),
@@ -319,6 +326,15 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
     navigator.clipboard.writeText(window.location.href)
       .then(() => toast.success(t("ledger.transactionLinkCopied")))
       .catch(() => toast.error(t("ledger.transactionLinkCopyFailed")))
+  }
+
+  // Changing the category here reviews the transaction with it, like the review queue.
+  function handleCategoryChange(categoryId: string) {
+    if (!categoryId || categoryId === transaction.categoryId) return
+    reviewMutation.mutate({ id: transaction.id, data: { categoryId, addMatchWords: [] } }, {
+      onSuccess: () => toast.success(t("ledger.categoryChanged")),
+      onError: (error) => toast.error(error.message),
+    })
   }
 
   function handleSave() {
@@ -366,7 +382,18 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
           </div>
           <div>
             <div className="text-xs text-muted-foreground">{t("ledger.category")}</div>
-            <div>{categoryName ?? t("ledger.noCategory")}</div>
+            {transaction.transferPairTransactionId ? (
+              <div>{categoryName ?? t("ledger.noCategory")}</div>
+            ) : (
+              <LedgerCategorySelect
+                categories={ledgerCategories}
+                value={transaction.categoryId ?? ""}
+                onValueChange={handleCategoryChange}
+                placeholder={t("ledger.noCategory")}
+                disabled={reviewMutation.isPending}
+                aria-label={t("ledger.category")}
+              />
+            )}
           </div>
           <div>
             <div className="text-xs text-muted-foreground">{t("ledger.specialCategory")}</div>

@@ -565,6 +565,7 @@
       },
       "addMatchWord": "„{{word}}“ als Schlüsselwort hinzufügen"
     },
+    "categoryChanged": "Kategorie geändert.",
     "split": {
       "title": "Aufteilen",
       "description": "Einen Teil dieser Transaktion einer anderen Kategorie zuordnen, z.B. eine Bargeldauszahlung, die zusammen mit dem Einkauf bezahlt wurde. Der Rest bleibt bei der Kategorie der Transaktion.",
