@@ -66,17 +66,17 @@ describe("LedgerReviewPage", () => {
     expect(api.calls.filter((call) => call.path.startsWith("/ledger/transactions")).map((call) => call.path)).toEqual(["/ledger/transactions?limit=all"])
   })
 
-  it("shows no transaction until one is picked, and lets it go again", async () => {
+  it("shows no transaction until one is picked and only lets it go with the close button", async () => {
     const { user } = setup([txn({ counterpartyName: "Someone" })])
 
-    await user.click(await screen.findByText("Someone"))
-    expect(screen.getByText("Review transaction")).toBeInTheDocument()
-    expect(screen.queryByText(emptyPanel)).toBeNull()
-
-    await user.click(screen.getAllByText("Someone")[0])
+    await screen.findByText("Someone")
     expect(screen.getByText(emptyPanel)).toBeInTheDocument()
+    await user.click(screen.getByText("Someone"))
+    expect(screen.getByText("Review transaction")).toBeInTheDocument()
 
     await user.click(screen.getAllByText("Someone")[0])
+    expect(screen.getByText("Review transaction")).toBeInTheDocument()
+
     await user.click(screen.getByRole("button", { name: "Close" }))
     expect(screen.getByText(emptyPanel)).toBeInTheDocument()
   })

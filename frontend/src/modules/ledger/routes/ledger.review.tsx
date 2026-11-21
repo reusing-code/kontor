@@ -213,7 +213,7 @@ export function LedgerReviewPage() {
               categories={categories}
               llm={llm}
               selectedTransactionId={selectedTransaction?.id}
-              onSelect={(item) => setSelectedTransactionId((current) => (current === item.id ? undefined : item.id))}
+              onSelect={(item) => setSelectedTransactionId(item.id)}
               expandedGroups={expandedGroups}
               onToggleGroup={toggleGroup}
               selection={selection}
