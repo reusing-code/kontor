@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { CircleCheckIcon, OctagonXIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import {
@@ -14,6 +15,8 @@ import { Button } from "@/components/ui/button"
 import { useCapabilities } from "@/hooks/use-capabilities"
 import { PaperlessPipelineSection } from "@/components/paperless/paperless-pipeline-section"
 
+type TestResult = { ok: true } | { ok: false; message: string }
+
 export function PaperlessSettingsCard() {
   const { t } = useTranslation()
   const { data: config } = usePaperlessConfig()
@@ -24,6 +27,7 @@ export function PaperlessSettingsCard() {
 
   const [baseUrl, setBaseUrl] = useState<string | null>(null)
   const [token, setToken] = useState("")
+  const [testResult, setTestResult] = useState<TestResult | null>(null)
 
   const configured = config?.configured ?? false
   const displayBaseUrl = baseUrl ?? config?.baseUrl ?? ""
@@ -40,6 +44,7 @@ export function PaperlessSettingsCard() {
         onSuccess: () => {
           toast.success(t("paperless.saved"))
           setToken("")
+          setTestResult(null)
         },
         onError: (err) => toast.error(err.message || t("settings.saveFailed")),
       },
@@ -47,9 +52,16 @@ export function PaperlessSettingsCard() {
   }
 
   function handleTest() {
+    setTestResult(null)
     testConfig.mutate(undefined, {
-      onSuccess: () => toast.success(t("paperless.testSuccess")),
-      onError: (err) => toast.error(t("paperless.testFailed", { message: err.message })),
+      onSuccess: () => {
+        setTestResult({ ok: true })
+        toast.success(t("paperless.testSuccess"))
+      },
+      onError: (err) => {
+        setTestResult({ ok: false, message: err.message })
+        toast.error(t("paperless.testFailed", { message: err.message }))
+      },
     })
   }
 
@@ -59,6 +71,7 @@ export function PaperlessSettingsCard() {
         toast.success(t("paperless.removed"))
         setBaseUrl(null)
         setToken("")
+        setTestResult(null)
       },
       onError: (err) => toast.error(err.message || t("settings.saveFailed")),
     })
@@ -79,7 +92,10 @@ export function PaperlessSettingsCard() {
               type="text"
               placeholder="https://paperless.example.com"
               value={displayBaseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
+              onChange={(e) => {
+                setBaseUrl(e.target.value)
+                setTestResult(null)
+              }}
               required
             />
           </div>
@@ -89,7 +105,10 @@ export function PaperlessSettingsCard() {
               id="paperlessToken"
               type="password"
               value={token}
-              onChange={(e) => setToken(e.target.value)}
+              onChange={(e) => {
+                setToken(e.target.value)
+                setTestResult(null)
+              }}
               placeholder={configured ? t("paperless.tokenUnchangedHint") : undefined}
               autoComplete="off"
             />
@@ -109,6 +128,18 @@ export function PaperlessSettingsCard() {
               </>
             )}
           </div>
+          {testResult?.ok === true && (
+            <p role="status" className="flex items-center gap-2 text-sm font-medium text-green-700">
+              <CircleCheckIcon className="size-4 shrink-0" />
+              {t("paperless.testSuccess")}
+            </p>
+          )}
+          {testResult?.ok === false && (
+            <p role="alert" className="flex items-center gap-2 text-sm font-medium text-destructive">
+              <OctagonXIcon className="size-4 shrink-0" />
+              {t("paperless.testFailed", { message: testResult.message })}
+            </p>
+          )}
           {configured && <p className="text-sm text-muted-foreground">{t("paperless.removeHint")}</p>}
         </form>
         {configured && llm && <PaperlessPipelineSection />}
