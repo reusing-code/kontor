@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"slices"
 	"strings"
 )
 
@@ -9,11 +10,35 @@ type MatchResult struct {
 	MatchedWord string
 }
 
-func MatchFields(categories []LedgerCategory, counterparty string, purpose string) MatchResult {
+// wrappedLineBreak is how some banks (comdirect) join the fixed-width lines
+// of a purpose text. The break can split a word ("Twitch I; nteractive") or
+// replace the space between two words ("Deutsche; Post AG").
+const wrappedLineBreak = "; "
+
+// matchHaystacks returns the lowercased text and, when it contains wrapped
+// line breaks, the variants with the breaks removed and replaced by a space,
+// so a match word is found across a break in either form.
+func matchHaystacks(counterparty, purpose string) []string {
 	haystack := strings.ToLower(strings.TrimSpace(counterparty) + "\n" + strings.TrimSpace(purpose))
-	if haystack == "" {
+	if !strings.Contains(haystack, wrappedLineBreak) {
+		return []string{haystack}
+	}
+	return []string{
+		haystack,
+		strings.ReplaceAll(haystack, wrappedLineBreak, ""),
+		strings.ReplaceAll(haystack, wrappedLineBreak, " "),
+	}
+}
+
+func containsAny(haystacks []string, word string) bool {
+	return slices.ContainsFunc(haystacks, func(h string) bool { return strings.Contains(h, word) })
+}
+
+func MatchFields(categories []LedgerCategory, counterparty string, purpose string) MatchResult {
+	if strings.TrimSpace(counterparty) == "" && strings.TrimSpace(purpose) == "" {
 		return MatchResult{}
 	}
+	haystacks := matchHaystacks(counterparty, purpose)
 
 	var best *LedgerCategory
 	bestWord := ""
@@ -47,7 +72,7 @@ func MatchFields(categories []LedgerCategory, counterparty string, purpose strin
 		category := categories[i]
 		for _, word := range category.MatchWords {
 			normalized := strings.ToLower(strings.TrimSpace(word))
-			if normalized == "" || !strings.Contains(haystack, normalized) {
+			if normalized == "" || !containsAny(haystacks, normalized) {
 				continue
 			}
 			matchedDepth := depth(category.ID.String())
