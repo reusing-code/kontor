@@ -673,6 +673,10 @@
         "expired": "Expired"
       },
       "mappedTo": "Mapped to {{name}}",
+      "changeMapping": "Change",
+      "changeMappingHint": "Transactions already synced stay in their ledger account; new syncs go to the account you choose.",
+      "unmap": "Unmap",
+      "unmapped": "Mapping removed. The bank account is not synced until it is mapped again.",
       "ledgerAccount": "ledger account",
       "mapTo": "Map to ledger account",
       "noCandidates": "No matching ledger account",

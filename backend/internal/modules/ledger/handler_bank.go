@@ -140,6 +140,26 @@ func (h *Handler) MapBankAccount(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(h.logger, w, http.StatusOK, view)
 }
 
+// UnmapBankAccount clears the mapping of a bank account; it is then no longer
+// synced or mapped by IBAN until it is mapped again.
+func (h *Handler) UnmapBankAccount(w http.ResponseWriter, r *http.Request) {
+	if !h.bank.active() {
+		h.bankError(w, ErrBankImportDisabled)
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeBankError(h, w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+	view, err := h.bank.UnmapAccount(r.Context(), middleware.GetUserID(r.Context()), id, r.PathValue("uid"))
+	if err != nil {
+		h.bankError(w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, view)
+}
+
 // SyncBankConnection runs a sync now. It is not cancelled when the client
 // disconnects, so a started import finishes.
 func (h *Handler) SyncBankConnection(w http.ResponseWriter, r *http.Request) {

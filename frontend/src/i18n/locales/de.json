@@ -673,6 +673,10 @@
         "expired": "Abgelaufen"
       },
       "mappedTo": "Zugeordnet zu {{name}}",
+      "changeMapping": "Ändern",
+      "changeMappingHint": "Bereits synchronisierte Transaktionen bleiben in ihrem Ledger-Konto; neue Synchronisierungen gehen in das gewählte Konto.",
+      "unmap": "Zuordnung aufheben",
+      "unmapped": "Zuordnung aufgehoben. Das Bankkonto wird erst wieder synchronisiert, wenn es zugeordnet ist.",
       "ledgerAccount": "Kontobuch-Konto",
       "mapTo": "Kontobuch-Konto zuordnen",
       "noCandidates": "Kein passendes Konto",

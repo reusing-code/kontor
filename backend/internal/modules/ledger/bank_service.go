@@ -421,6 +421,7 @@ func (s *BankService) storeSession(ctx context.Context, userID string, pending B
 			}
 			if p := matchPreviousBankAccount(prev.Accounts, account); p != nil {
 				account.LedgerAccountID = p.LedgerAccountID
+				account.Unmapped = p.Unmapped
 				account.LastSyncAt = p.LastSyncAt
 				// A consent_expired status and its attempt described the old
 				// consent: keeping only the attempt would show a stale "Failed"
@@ -533,7 +534,7 @@ func (s *BankService) mapByIBAN(ctx context.Context, userID string, conn *Ledger
 	}
 	for i := range conn.Accounts {
 		a := &conn.Accounts[i]
-		if a.LedgerAccountID != nil || a.IBAN == "" {
+		if a.LedgerAccountID != nil || a.Unmapped || a.IBAN == "" {
 			continue
 		}
 		acc, err := s.store.FindLedgerAccountByIBAN(ctx, userID, a.IBAN)
@@ -665,13 +666,47 @@ func (s *BankService) MapAccount(ctx context.Context, userID string, id uuid.UUI
 
 	updated, err := s.store.ModifyLedgerBankConnection(ctx, userID, id, func(c *LedgerBankConnection) {
 		for i := range c.Accounts {
-			if c.Accounts[i].UID == uid {
-				c.Accounts[i].LedgerAccountID = &ledgerAccountID
+			a := &c.Accounts[i]
+			if a.UID != uid {
+				continue
+			}
+			if a.LedgerAccountID == nil || *a.LedgerAccountID != ledgerAccountID {
+				// the sync state belongs to the old target; the next sync runs at once
+				resetBankAccountSyncState(a)
+			}
+			a.LedgerAccountID = &ledgerAccountID
+			a.Unmapped = false
+		}
+	})
+	if err != nil {
+		return BankConnectionView{}, err
+	}
+	return NewBankConnectionView(updated, s.now()), nil
+}
+
+// UnmapAccount removes the mapping of a bank account. Transactions it already
+// synced stay in their ledger account; the bank account is not synced and not
+// mapped by IBAN again until it is mapped by hand.
+func (s *BankService) UnmapAccount(ctx context.Context, userID string, id uuid.UUID, uid string) (BankConnectionView, error) {
+	if !s.active() {
+		return BankConnectionView{}, ErrBankImportDisabled
+	}
+	found := false
+	updated, err := s.store.ModifyLedgerBankConnection(ctx, userID, id, func(c *LedgerBankConnection) {
+		for i := range c.Accounts {
+			if a := &c.Accounts[i]; a.UID == uid {
+				found = true
+				a.LedgerAccountID = nil
+				a.Unmapped = true
+				resetBankAccountSyncState(a)
 			}
 		}
 	})
 	if err != nil {
 		return BankConnectionView{}, err
+	}
+	if !found {
+		return BankConnectionView{}, storage.ErrNotFound
 	}
 	return NewBankConnectionView(updated, s.now()), nil
 }

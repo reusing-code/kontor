@@ -9,6 +9,7 @@ import {
   useDisconnectBank,
   useMapBankAccount,
   useSyncBankConnection,
+  useUnmapBankAccount,
 } from "@/modules/ledger/hooks/use-bank-connections"
 import { bankErrorMessage, useStartBankAuthorization } from "@/modules/ledger/hooks/use-bank-authorization"
 import { useCreateLedgerAccount, useLedgerAccounts } from "@/modules/ledger/hooks/use-ledger"
@@ -54,6 +55,7 @@ export function BankConnectionsPanel() {
   const { start, isPending: authorizing } = useStartBankAuthorization()
   const disconnect = useDisconnectBank()
   const mapAccount = useMapBankAccount()
+  const unmapAccount = useUnmapBankAccount()
   const createAccount = useCreateLedgerAccount()
   const [connectOpen, setConnectOpen] = useState(false)
   const [toDisconnect, setToDisconnect] = useState<BankConnection | null>(null)
@@ -138,6 +140,15 @@ export function BankConnectionsPanel() {
                 { onError: (e) => toast.error(bankErrorMessage(t, e)) },
               )
             }
+            onUnmap={(uid) =>
+              unmapAccount.mutate(
+                { id: connection.id, uid },
+                {
+                  onSuccess: () => toast.success(t("ledger.bankImport.unmapped")),
+                  onError: (e) => toast.error(bankErrorMessage(t, e)),
+                },
+              )
+            }
             onCreate={(account) => setPendingCreate({ connectionId: connection.id, account, bank: connection.aspspName })}
           />
         ))
@@ -174,6 +185,7 @@ interface BankConnectionCardProps {
   onReauthorize: () => void
   onDisconnect: () => void
   onMap: (uid: string, ledgerAccountId: string) => void
+  onUnmap: (uid: string) => void
   onCreate: (account: BankAccount) => void
 }
 
@@ -185,6 +197,7 @@ function BankConnectionCard({
   onReauthorize,
   onDisconnect,
   onMap,
+  onUnmap,
   onCreate,
 }: BankConnectionCardProps) {
   const { t } = useTranslation()
@@ -241,6 +254,7 @@ function BankConnectionCard({
             ledgerAccounts={ledgerAccounts}
             mappedLedgerIds={mappedLedgerIds}
             onMap={(ledgerAccountId) => onMap(account.uid, ledgerAccountId)}
+            onUnmap={() => onUnmap(account.uid)}
             onCreate={() => onCreate(account)}
           />
         ))}
@@ -254,12 +268,15 @@ interface BankAccountRowProps {
   ledgerAccounts: LedgerAccount[]
   mappedLedgerIds: Set<string>
   onMap: (ledgerAccountId: string) => void
+  onUnmap: () => void
   onCreate: () => void
 }
 
-function BankAccountRow({ account, ledgerAccounts, mappedLedgerIds, onMap, onCreate }: BankAccountRowProps) {
+function BankAccountRow({ account, ledgerAccounts, mappedLedgerIds, onMap, onUnmap, onCreate }: BankAccountRowProps) {
   const { t } = useTranslation()
+  const [changing, setChanging] = useState(false)
   const mappedTo = ledgerAccounts.find((l) => l.id === account.ledgerAccountId)
+  const showMapping = !account.mapped || changing
   const candidates = ledgerAccounts.filter(
     (l) =>
       !mappedLedgerIds.has(l.id) &&
@@ -278,13 +295,28 @@ function BankAccountRow({ account, ledgerAccounts, mappedLedgerIds, onMap, onCre
           </div>
         </div>
         {account.mapped && (
-          <Badge variant="outline">{t("ledger.bankImport.mappedTo", { name: mappedTo?.name ?? t("ledger.bankImport.ledgerAccount") })}</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">{t("ledger.bankImport.mappedTo", { name: mappedTo?.name ?? t("ledger.bankImport.ledgerAccount") })}</Badge>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setChanging((c) => !c)} aria-expanded={changing}>
+              {changing ? t("common.cancel") : t("ledger.bankImport.changeMapping")}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={onUnmap}>
+              {t("ledger.bankImport.unmap")}
+            </Button>
+          </div>
         )}
       </div>
 
-      {!account.mapped && (
+      {changing && <p className="text-xs text-muted-foreground">{t("ledger.bankImport.changeMappingHint")}</p>}
+
+      {showMapping && (
         <div className="flex flex-wrap items-center gap-2">
-          <Select onValueChange={onMap}>
+          <Select
+            onValueChange={(id) => {
+              setChanging(false)
+              onMap(id)
+            }}
+          >
             <SelectTrigger className="w-full md:w-72" aria-label={t("ledger.bankImport.mapTo")}>
               <SelectValue placeholder={candidates.length ? t("ledger.bankImport.mapTo") : t("ledger.bankImport.noCandidates")} />
             </SelectTrigger>

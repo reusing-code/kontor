@@ -23,6 +23,7 @@ func newBankMux(h *Handler) http.Handler {
 	mux.HandleFunc("POST /api/v1/ledger/bank/connections/authorize", h.AuthorizeBank)
 	mux.HandleFunc("DELETE /api/v1/ledger/bank/connections/{id}", h.DisconnectBank)
 	mux.HandleFunc("PUT /api/v1/ledger/bank/connections/{id}/accounts/{uid}", h.MapBankAccount)
+	mux.HandleFunc("DELETE /api/v1/ledger/bank/connections/{id}/accounts/{uid}", h.UnmapBankAccount)
 	mux.HandleFunc("POST /api/v1/ledger/bank/connections/{id}/sync", h.SyncBankConnection)
 	mux.HandleFunc("GET /api/v1/ledger/bank/callback", h.BankCallback)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -149,7 +149,8 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | GET | `/ledger/bank/connections` | Bank connections with account mapping and sync status (never the session) |
 | POST | `/ledger/bank/connections/authorize` | Start a bank consent (`{aspspName, aspspCountry}` → `{url}`) |
 | DELETE | `/ledger/bank/connections/{id}` | Disconnect a bank (`{remoteClosed}`) |
-| PUT | `/ledger/bank/connections/{id}/accounts/{uid}` | Map a bank account to a ledger account (`{ledgerAccountId}`) |
+| PUT | `/ledger/bank/connections/{id}/accounts/{uid}` | Map a bank account to a ledger account (`{ledgerAccountId}`), also to change an existing mapping |
+| DELETE | `/ledger/bank/connections/{id}/accounts/{uid}` | Unmap a bank account (not synced and not mapped by IBAN until it is mapped again) |
 | POST | `/ledger/bank/connections/{id}/sync` | Sync a connection now (409 `sync_running` / `consent_expired`) |
 | GET | `/ledger/bank/callback` | Public redirect target of the consent (state is the credential; answers `303` to the result page) |
 | GET | `/ledger/accounts` | List tracked ledger accounts |

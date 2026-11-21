@@ -26,6 +26,12 @@ export async function mapBankAccount(id: string, uid: string, ledgerAccountId: s
   return put<BankConnection>(`/ledger/bank/connections/${id}/accounts/${encodeURIComponent(uid)}`, { ledgerAccountId })
 }
 
+// Removes a mapping; the bank account is then not synced or mapped by IBAN
+// until it is mapped again.
+export async function unmapBankAccount(id: string, uid: string): Promise<BankConnection> {
+  return delJson<BankConnection>(`/ledger/bank/connections/${id}/accounts/${encodeURIComponent(uid)}`)
+}
+
 export async function syncBankConnection(id: string): Promise<BankSyncSummary> {
   return post<BankSyncSummary>(`/ledger/bank/connections/${id}/sync`, {})
 }

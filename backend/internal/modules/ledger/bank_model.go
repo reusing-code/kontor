@@ -42,11 +42,14 @@ type LedgerBankAccount struct {
 	Name               string     `json:"name"`
 	IdentificationHash string     `json:"identificationHash,omitempty"`
 	LedgerAccountID    *uuid.UUID `json:"ledgerAccountId,omitempty"`
-	LastSyncAttemptAt  *time.Time `json:"lastSyncAttemptAt,omitempty"`
-	LastSyncAt         *time.Time `json:"lastSyncAt,omitempty"`
-	LastSyncStatus     string     `json:"lastSyncStatus,omitempty"`
-	LastImported       int        `json:"lastImported"`
-	LastDuplicates     int        `json:"lastDuplicates"`
+	// Unmapped: the user removed the mapping, so the IBAN auto-mapping leaves
+	// the account alone until it is mapped again by hand.
+	Unmapped          bool       `json:"unmapped,omitempty"`
+	LastSyncAttemptAt *time.Time `json:"lastSyncAttemptAt,omitempty"`
+	LastSyncAt        *time.Time `json:"lastSyncAt,omitempty"`
+	LastSyncStatus    string     `json:"lastSyncStatus,omitempty"`
+	LastImported      int        `json:"lastImported"`
+	LastDuplicates    int        `json:"lastDuplicates"`
 }
 
 // LedgerBankConnection is a user's consent at one bank. EncryptedSessionID is
@@ -190,4 +193,11 @@ func normalizeIBAN(s string) string {
 		}
 		return r
 	}, s))
+}
+
+// resetBankAccountSyncState clears what the last sync recorded, so the account
+// is due at the next scheduler tick and shows no stale result.
+func resetBankAccountSyncState(a *LedgerBankAccount) {
+	a.LastSyncAttemptAt, a.LastSyncAt = nil, nil
+	a.LastSyncStatus, a.LastImported, a.LastDuplicates = "", 0, 0
 }

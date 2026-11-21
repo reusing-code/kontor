@@ -7,6 +7,7 @@ import {
   getBankConnections,
   mapBankAccount,
   syncBankConnection,
+  unmapBankAccount,
 } from "@/modules/ledger/lib/bank-repository"
 
 export const bankConnectionsKey = ["ledger", "bank", "connections"] as const
@@ -50,6 +51,14 @@ export function useMapBankAccount() {
   return useMutation({
     mutationFn: ({ id, uid, ledgerAccountId }: { id: string; uid: string; ledgerAccountId: string }) =>
       mapBankAccount(id, uid, ledgerAccountId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: bankConnectionsKey }),
+  })
+}
+
+export function useUnmapBankAccount() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, uid }: { id: string; uid: string }) => unmapBankAccount(id, uid),
     onSuccess: () => qc.invalidateQueries({ queryKey: bankConnectionsKey }),
   })
 }
