@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -8,6 +9,70 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 )
+
+// deleteAccountTimeout bounds a delete that is not cancelled with the client;
+// an interrupted delete can be repeated.
+const deleteAccountTimeout = 5 * time.Minute
+
+func (h *Handler) accountID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	id, err := uuid.Parse(r.PathValue("accountId"))
+	if err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid accountId")
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+func (h *Handler) UpdateLedgerAccount(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.accountID(w, r)
+	if !ok {
+		return
+	}
+	var input LedgerAccountUpdateInput
+	if err := httputil.ReadJSON(r, &input); err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := input.Validate(); err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+		return
+	}
+	account, err := h.store.UpdateLedgerAccount(r.Context(), middleware.GetUserID(r.Context()), id, input)
+	if err != nil {
+		h.storeError(w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, account)
+}
+
+func (h *Handler) GetLedgerAccountDeleteSummary(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.accountID(w, r)
+	if !ok {
+		return
+	}
+	summary, err := h.store.LedgerAccountDeleteSummary(r.Context(), middleware.GetUserID(r.Context()), id)
+	if err != nil {
+		h.storeError(w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, summary)
+}
+
+func (h *Handler) DeleteLedgerAccount(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.accountID(w, r)
+	if !ok {
+		return
+	}
+	userID := middleware.GetUserID(r.Context())
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), deleteAccountTimeout)
+	defer cancel()
+	if err := h.store.DeleteLedgerAccount(ctx, userID, id); err != nil {
+		h.storeError(w, err)
+		return
+	}
+	h.logger.Info("ledger account deleted", "user_id", userID, "account_id", id)
+	w.WriteHeader(http.StatusNoContent)
+}
 
 func (h *Handler) CreateLedgerAccount(w http.ResponseWriter, r *http.Request) {
 	var input LedgerAccountInput

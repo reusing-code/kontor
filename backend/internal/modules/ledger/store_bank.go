@@ -293,6 +293,10 @@ func (s *Store) CommitLedgerSync(_ context.Context, userID string, batch LedgerI
 	err := retryOnConflict(func() error {
 		return s.e.Update(func(txn *badger.Txn) error {
 			result = LedgerSyncCommitResult{}
+			// the ledger account may have been deleted while the sync fetched
+			if _, err := loadLedgerAccountTxn(txn, userID, batch.AccountID); err != nil {
+				return err
+			}
 			pending, err := pendingSyncRows(txn, userID, txns, &result)
 			if err != nil {
 				return err

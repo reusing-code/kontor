@@ -538,6 +538,32 @@
       "orderLinked": "Email order linked.",
       "noLinkedOrders": "No linked email orders."
     },
+    "accountEdit": {
+      "button": "Edit",
+      "title": "Edit account",
+      "description": "IBAN and currency cannot be changed.",
+      "saved": "Account saved."
+    },
+    "accountDelete": {
+      "button": "Delete account",
+      "title": "Delete {{name}}?",
+      "description": "This deletes the account for good, together with:",
+      "transactions_one": "{{count}} transaction, with its categories, splits, notes and links",
+      "transactions_other": "{{count}} transactions, with their categories, splits, notes and links",
+      "imports_one": "{{count}} import; the file can be imported again",
+      "imports_other": "{{count}} imports; the files can be imported again",
+      "references_one": "{{count}} link to a contract, purchase or vehicle (the item itself stays)",
+      "references_other": "{{count}} links to contracts, purchases or vehicles (the items themselves stay)",
+      "transfers_one": "{{count}} internal transfer; its other side goes back to review",
+      "transfers_other": "{{count}} internal transfers; their other sides go back to review",
+      "emailOrders_one": "the link of {{count}} email order; it can be linked again",
+      "emailOrders_other": "the links of {{count}} email orders; they can be linked again",
+      "bankAccount": "the mapping of the bank account {{name}} at {{bank}}",
+      "afterwards": "To sync again, map the bank account to another ledger account or create one from it on the bank connections page. A sync only brings back what the bank still provides.",
+      "confirm": "Delete account",
+      "deleting": "Deleting…",
+      "done": "{{name}} deleted."
+    },
     "accountDialog": {
       "create": "Create account",
       "namePlaceholder": "e.g. Checking account",

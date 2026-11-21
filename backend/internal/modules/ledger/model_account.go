@@ -42,6 +42,28 @@ func (a *LedgerAccountInput) Validate() error {
 
 const maxAccountFieldLength = 200
 
+// LedgerAccountUpdateInput is what editing an account may change; IBAN and
+// currency are fixed after creation.
+type LedgerAccountUpdateInput struct {
+	Name string `json:"name"`
+	Bank string `json:"bank"`
+}
+
+func (a *LedgerAccountUpdateInput) Validate() error {
+	a.Name = strings.TrimSpace(a.Name)
+	a.Bank = strings.TrimSpace(a.Bank)
+	if a.Name == "" {
+		return errors.New("name is required")
+	}
+	if a.Bank == "" {
+		return errors.New("bank is required")
+	}
+	if utf8.RuneCountInString(a.Name) > maxAccountFieldLength || utf8.RuneCountInString(a.Bank) > maxAccountFieldLength {
+		return errors.New("name and bank must be at most 200 characters")
+	}
+	return nil
+}
+
 var (
 	currencyPattern = regexp.MustCompile(`^[A-Z]{3}$`)
 	ibanPattern     = regexp.MustCompile(`^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$`)

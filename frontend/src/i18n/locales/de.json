@@ -538,6 +538,32 @@
       "orderLinked": "E-Mail-Bestellung verknüpft.",
       "noLinkedOrders": "Keine verknüpften E-Mail-Bestellungen."
     },
+    "accountEdit": {
+      "button": "Bearbeiten",
+      "title": "Konto bearbeiten",
+      "description": "IBAN und Währung lassen sich nicht ändern.",
+      "saved": "Konto gespeichert."
+    },
+    "accountDelete": {
+      "button": "Konto löschen",
+      "title": "{{name}} löschen?",
+      "description": "Das Konto wird endgültig gelöscht, zusammen mit:",
+      "transactions_one": "{{count}} Transaktion mit Kategorie, Aufteilung, Notizen und Verknüpfungen",
+      "transactions_other": "{{count}} Transaktionen mit Kategorien, Aufteilungen, Notizen und Verknüpfungen",
+      "imports_one": "{{count}} Import; die Datei kann erneut importiert werden",
+      "imports_other": "{{count}} Importe; die Dateien können erneut importiert werden",
+      "references_one": "{{count}} Verknüpfung zu einem Vertrag, Kauf oder Fahrzeug (das Element selbst bleibt)",
+      "references_other": "{{count}} Verknüpfungen zu Verträgen, Käufen oder Fahrzeugen (die Elemente selbst bleiben)",
+      "transfers_one": "{{count}} interne Umbuchung; die Gegenseite muss erneut geprüft werden",
+      "transfers_other": "{{count}} interne Umbuchungen; die Gegenseiten müssen erneut geprüft werden",
+      "emailOrders_one": "die Verknüpfung von {{count}} E-Mail-Bestellung; sie kann erneut verknüpft werden",
+      "emailOrders_other": "die Verknüpfungen von {{count}} E-Mail-Bestellungen; sie können erneut verknüpft werden",
+      "bankAccount": "die Zuordnung des Bankkontos {{name}} bei {{bank}}",
+      "afterwards": "Um erneut zu synchronisieren, ordne das Bankkonto auf der Seite der Bankverbindungen einem anderen Ledger-Konto zu oder lege daraus eines an. Eine Synchronisierung holt nur zurück, was die Bank noch liefert.",
+      "confirm": "Konto löschen",
+      "deleting": "Wird gelöscht…",
+      "done": "{{name}} gelöscht."
+    },
     "accountDialog": {
       "create": "Konto anlegen",
       "namePlaceholder": "z. B. Girokonto",

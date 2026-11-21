@@ -58,6 +58,7 @@ var routeRules = map[string]middleware.Rule{
 	"GET /api/v1/ledger/email-orders":                                     middleware.RuleRead,
 	"GET /api/v1/ledger/email-orders/{emailOrderId}":                      middleware.RuleRead,
 	"GET /api/v1/ledger/email-orders/{emailOrderId}/candidates":           middleware.RuleRead,
+	"GET /api/v1/ledger/accounts/{accountId}/delete-summary":              middleware.RuleRead,
 	"GET /api/v1/ledger/imports":                                          middleware.RuleRead,
 	"GET /api/v1/ledger/transactions":                                     middleware.RuleRead,
 	"GET /api/v1/ledger/transactions/{transactionId}":                     middleware.RuleRead,
@@ -83,6 +84,7 @@ var routeRules = map[string]middleware.Rule{
 	// never reachable with a token
 	"DELETE /api/v1/contracts/{id}":                                       middleware.RuleDenied,
 	"DELETE /api/v1/costs/{id}":                                           middleware.RuleDenied,
+	"DELETE /api/v1/ledger/accounts/{accountId}":                          middleware.RuleDenied,
 	"DELETE /api/v1/ledger/bank/connections/{id}":                         middleware.RuleDenied,
 	"DELETE /api/v1/ledger/bank/connections/{id}/accounts/{uid}":          middleware.RuleDenied,
 	"POST /api/v1/ledger/bank/connections/{id}/sync":                      middleware.RuleDenied,
@@ -126,6 +128,7 @@ var routeRules = map[string]middleware.Rule{
 	"POST /api/v1/vehicles/{id}/costs":                                    middleware.RuleDenied,
 	"PUT /api/v1/contracts/{id}":                                          middleware.RuleDenied,
 	"PUT /api/v1/costs/{id}":                                              middleware.RuleDenied,
+	"PUT /api/v1/ledger/accounts/{accountId}":                             middleware.RuleDenied,
 	"PUT /api/v1/ledger/categories/{id}":                                  middleware.RuleDenied,
 	"PUT /api/v1/ledger/email-accounts/{emailAccountId}":                  middleware.RuleDenied,
 	"PUT /api/v1/ledger/transactions/{transactionId}":                     middleware.RuleDenied,

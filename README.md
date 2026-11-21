@@ -156,6 +156,9 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | GET | `/ledger/accounts` | List tracked ledger accounts |
 | POST | `/ledger/accounts` | Create a ledger account (`{name, bank, iban?, currency?}`, IBAN checksum validated, duplicate IBAN 409; JWT only) |
 | GET | `/ledger/accounts/{id}` | Get ledger account details |
+| PUT | `/ledger/accounts/{id}` | Rename a ledger account (`{name, bank}`; IBAN and currency are fixed) |
+| GET | `/ledger/accounts/{id}/delete-summary` | What deleting the account removes (transactions, imports, links, mapped bank accounts) |
+| DELETE | `/ledger/accounts/{id}` | Delete a ledger account with its transactions and imports |
 | GET | `/ledger/accounts/{id}/transactions` | List transactions for an account |
 | GET | `/ledger/transactions` | Review queue for ledger transactions (`limit` + `cursor`, or `limit=all` for the whole queue) |
 | GET | `/ledger/transactions/{id}` | Get ledger transaction details |

@@ -6,7 +6,9 @@ import type {
   LedgerSuggestionRunResult,
   LedgerSuggestionStatus,
   LedgerAccount,
+  LedgerAccountDeleteSummary,
   LedgerAccountInput,
+  LedgerAccountUpdateInput,
   LedgerCategory,
   LedgerCategoryInput,
   LedgerEmailAccount,
@@ -211,6 +213,18 @@ export async function linkLedgerTransfer(id: string, data: LedgerTransferLinkInp
 
 export async function unlinkLedgerTransfer(id: string): Promise<LedgerTransferLinkResult> {
   return delJson<LedgerTransferLinkResult>(`/ledger/transactions/${id}/transfer-link`)
+}
+
+export async function updateLedgerAccount(id: string, data: LedgerAccountUpdateInput): Promise<LedgerAccount> {
+  return put<LedgerAccount>(`/ledger/accounts/${id}`, data)
+}
+
+export async function getLedgerAccountDeleteSummary(id: string): Promise<LedgerAccountDeleteSummary> {
+  return get<LedgerAccountDeleteSummary>(`/ledger/accounts/${id}/delete-summary`)
+}
+
+export async function deleteLedgerAccount(id: string): Promise<void> {
+  return del(`/ledger/accounts/${id}`)
 }
 
 export async function getLedgerCategories(): Promise<LedgerCategory[]> {

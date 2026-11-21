@@ -467,6 +467,24 @@ export const ledgerAccountInputSchema = z.object({
 
 export type LedgerAccountInput = z.infer<typeof ledgerAccountInputSchema>
 
+// What editing an account may change; IBAN and currency are fixed.
+export const ledgerAccountUpdateInputSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  bank: z.string().trim().min(1).max(200),
+})
+
+export type LedgerAccountUpdateInput = z.infer<typeof ledgerAccountUpdateInputSchema>
+
+// What deleting an account removes (GET /ledger/accounts/{id}/delete-summary).
+export interface LedgerAccountDeleteSummary {
+  transactions: number
+  imports: number
+  references: number
+  transfers: number
+  emailOrders: number
+  bankAccounts: Array<{ connectionId: string; bank: string; uid: string; name: string; iban: string }>
+}
+
 export const ledgerCommitRequestSchema = z.object({
   accountId: z.string().uuid().optional(),
   newAccount: ledgerAccountInputSchema.optional(),

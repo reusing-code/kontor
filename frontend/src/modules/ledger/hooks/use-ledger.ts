@@ -6,7 +6,10 @@ import {
   createLedgerAccount,
   createLedgerCategory,
   createLedgerEmailAccount,
+  deleteLedgerAccount,
   deleteLedgerCategory,
+  getLedgerAccountDeleteSummary,
+  updateLedgerAccount,
   deleteLedgerEmailAccount,
   getLedgerAccountById,
   getLedgerAccounts,
@@ -47,6 +50,7 @@ import {
 import type {
   LedgerBatchReviewItem,
   LedgerAccountInput,
+  LedgerAccountUpdateInput,
   LedgerCategoryInput,
   LedgerCommitRequest,
   LedgerEmailAccountInput,
@@ -89,6 +93,36 @@ export function useLedgerAccount(accountId: string) {
   return useQuery({
     queryKey: ledgerAccountKey(accountId),
     queryFn: () => getLedgerAccountById(accountId),
+  })
+}
+
+export function useUpdateLedgerAccount() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: LedgerAccountUpdateInput }) => updateLedgerAccount(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ledgerAccountsKey }),
+  })
+}
+
+export function useLedgerAccountDeleteSummary(accountId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...ledgerAccountKey(accountId), "delete-summary"],
+    queryFn: () => getLedgerAccountDeleteSummary(accountId),
+    enabled,
+    staleTime: 0,
+  })
+}
+
+// Deleting an account removes transactions, imports and links in other
+// modules and unmaps bank accounts, so every query is refreshed.
+export function useDeleteLedgerAccount() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteLedgerAccount(id),
+    onSuccess: (_, id) => {
+      qc.removeQueries({ queryKey: ledgerAccountKey(id) })
+      return qc.invalidateQueries()
+    },
   })
 }
 
