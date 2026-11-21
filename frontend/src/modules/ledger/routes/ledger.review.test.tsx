@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
 import { mockApi, type ApiCall } from "@/test/api-mock"
 import { renderWithProviders } from "@/test/render"
-import type { LedgerBatchReviewItem, LedgerReviewQueueItem } from "@/modules/ledger/types"
+import type { LedgerBatchReviewItem, LedgerCategory, LedgerReviewQueueItem } from "@/modules/ledger/types"
 import { LedgerReviewPage } from "@/modules/ledger/routes/ledger.review"
 
 const at = "2026-11-01T10:00:00Z"
@@ -32,14 +32,17 @@ function txn(fields: Partial<LedgerReviewQueueItem>): LedgerReviewQueueItem {
 const aldi = (day: number) =>
   txn({ counterpartyName: `ALDI SAGT DANKE ${day}`, bookingDate: `2026-10-${String(day).padStart(2, "0")}`, categoryId: groceries, categorizationSource: "keyword" })
 
-function setup(initial: LedgerReviewQueueItem[]) {
+function category(id: string, name: string, parentId?: string): LedgerCategory {
+  return { id, name, parentId, matchWords: [], createdAt: at, updatedAt: at }
+}
+
+const defaultCategories = [category(groceries, "Groceries"), category(fuel, "Fuel")]
+
+function setup(initial: LedgerReviewQueueItem[], categories = defaultCategories) {
   let queue = initial
   const api = mockApi({
     "GET /capabilities": { llm: true, llmVision: false, bankImport: false },
-    "GET /ledger/categories": [
-      { id: groceries, name: "Groceries", matchWords: ["aldi"], createdAt: at, updatedAt: at },
-      { id: fuel, name: "Fuel", matchWords: [], createdAt: at, updatedAt: at },
-    ],
+    "GET /ledger/categories": categories,
     "GET /ledger/transactions": () => ({ items: queue }),
     "GET /ledger/category-suggestions/status": { running: false },
     "GET /paperless/config": { configured: false },
@@ -79,6 +82,22 @@ describe("LedgerReviewPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Close" }))
     expect(screen.getByText(emptyPanel)).toBeInTheDocument()
+  })
+
+  it("offers the categories as a tree and shows the chosen path", async () => {
+    const { user } = setup(
+      [txn({ counterpartyName: "Someone" })],
+      [category("food", "Food"), category("gro", "Groceries", "food"), category("bak", "Bakery", "food"), category("car", "Car")],
+    )
+
+    await user.click(await screen.findByText("Someone"))
+    await user.click(screen.getByRole("combobox", { name: "Choose category" }))
+    const options = screen.getAllByRole("option")
+    expect(options.map((o) => o.textContent)).toEqual(["No category", "Car", "Food", "Bakery", "Groceries"])
+    expect(options.map((o) => o.style.paddingLeft)).toEqual(["", "0.5rem", "0.5rem", "1.75rem", "1.75rem"])
+
+    await user.click(screen.getByRole("option", { name: "Groceries" }))
+    expect(screen.getByRole("combobox", { name: "Choose category" })).toHaveTextContent("Food › Groceries")
   })
 
   it("groups keyword matches by counterparty and accepts them together with LLM suggestions", async () => {

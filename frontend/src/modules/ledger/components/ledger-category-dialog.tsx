@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useForm, type Resolver } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
@@ -21,13 +21,8 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { LedgerCategorySelect } from "@/modules/ledger/components/ledger-category-select"
+import { descendantIds } from "@/modules/ledger/lib/category-tree"
 
 interface LedgerCategoryDialogProps {
   open: boolean
@@ -84,6 +79,8 @@ function LedgerCategoryDialogForm({
   onSubmit,
 }: LedgerCategoryDialogFormProps) {
   const { t } = useTranslation()
+  // a category cannot move below itself
+  const ownSubtree = useMemo(() => (category ? descendantIds(categories, category.id) : undefined), [categories, category])
   const [matchWordsInput, setMatchWordsInput] = useState((category?.matchWords ?? initialValues?.matchWords ?? []).join(", "))
   const form = useForm<LedgerCategoryInput>({
     resolver: standardSchemaResolver(ledgerCategoryInputSchema) as Resolver<LedgerCategoryInput>,
@@ -134,21 +131,15 @@ function LedgerCategoryDialogForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>{t("ledger.parentCategory")}</FormLabel>
-                <Select value={field.value ?? "none"} onValueChange={(value) => field.onChange(value === "none" ? undefined : value)}>
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder={t("ledger.noParentCategory")} />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="none">{t("ledger.noParentCategory")}</SelectItem>
-                    {categories
-                      .filter((item) => item.id !== category?.id)
-                      .map((item) => (
-                        <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <LedgerCategorySelect
+                    categories={categories}
+                    value={field.value ?? ""}
+                    onValueChange={(value) => field.onChange(value || undefined)}
+                    noneLabel={t("ledger.noParentCategory")}
+                    exclude={ownSubtree}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}

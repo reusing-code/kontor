@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { screen } from "@testing-library/react"
+import { screen, within } from "@testing-library/react"
 import { renderWithProviders } from "@/test/render"
 import { mockApi } from "@/test/api-mock"
 import type { LedgerCategory } from "@/modules/ledger/types"
@@ -89,5 +89,18 @@ describe("LedgerCategoryTreeManager", () => {
     await user.click(screen.getByRole("button", { name: "Add subcategory to Rent" }))
 
     expect(await screen.findByRole("dialog")).toHaveTextContent("Create ledger category")
+  })
+
+  it("offers the parent as a tree without the category's own subtree", async () => {
+    mockApi({})
+    const { user } = renderWithProviders(<LedgerCategoryTreeManager categories={categories} />)
+
+    await user.click(screen.getByRole("button", { name: "Edit Restaurants" }))
+    const dialog = await screen.findByRole("dialog")
+    const parent = within(dialog).getByRole("combobox", { name: "Parent category" })
+    expect(parent).toHaveTextContent("Food")
+
+    await user.click(parent)
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["No parent", "Food", "Groceries", "Rent"])
   })
 })

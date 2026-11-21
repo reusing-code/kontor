@@ -11,14 +11,8 @@ import { PaperlessDocumentsSection } from "@/components/paperless/paperless-docu
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
+import { LedgerCategorySelect } from "@/modules/ledger/components/ledger-category-select"
 
 interface LedgerReviewPanelProps {
   transaction?: LedgerReviewQueueItem
@@ -103,17 +97,13 @@ function LedgerReviewPanelInner({
 
         <div className="space-y-2">
           <div className="text-sm font-medium">{t("ledger.chooseCategory")}</div>
-          <Select value={activeSelectedCategoryId || "none"} onValueChange={(value) => setSelectedCategoryId(value === "none" ? undefined : value)}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder={t("ledger.selectCategory")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">{t("ledger.noCategory")}</SelectItem>
-              {categories.map((category) => (
-                <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <LedgerCategorySelect
+            categories={categories}
+            value={activeSelectedCategoryId}
+            onValueChange={(value) => setSelectedCategoryId(value || undefined)}
+            noneLabel={t("ledger.noCategory")}
+            aria-label={t("ledger.chooseCategory")}
+          />
         </div>
 
         <div className="space-y-2">
