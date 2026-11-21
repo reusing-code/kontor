@@ -166,6 +166,7 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | POST | `/ledger/transactions/{id}/transfer-link` | Link two transactions as an internal transfer |
 | DELETE | `/ledger/transactions/{id}/transfer-link` | Explicitly unlink an internal transfer |
 | POST | `/ledger/transactions/{id}/review` | Confirm or categorize a ledger transaction |
+| PUT | `/ledger/transactions/{id}/splits` | Split a transaction into parts with their own category (empty list removes the split) |
 | POST | `/ledger/transactions/review-batch` | Confirm up to 100 transactions with a category each (accept suggestions); per-item failures |
 | POST | `/ledger/category-suggestions/run` | Ask the LLM for category suggestions now (409 without LLM or while a run is going) |
 | GET | `/ledger/category-suggestions/status` | `{running}` for the current user |

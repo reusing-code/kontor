@@ -66,8 +66,16 @@ type transactionItem struct {
 	CounterpartyName string          `json:"counterpartyName,omitempty"`
 	Purpose          string          `json:"purpose,omitempty"`
 	CategoryID       string          `json:"categoryId,omitempty"`
+	Splits           []splitItem     `json:"splits,omitempty" jsonschema:"parts booked to other categories; the rest of the amount (categoryAmount) belongs to categoryId"`
+	CategoryAmount   *float64        `json:"categoryAmount,omitempty" jsonschema:"amount left for categoryId when the transaction is split"`
 	ReviewStatus     string          `json:"reviewStatus"`
 	References       []referenceItem `json:"references"`
+}
+
+type splitItem struct {
+	Amount     float64 `json:"amount"`
+	CategoryID string  `json:"categoryId,omitempty"`
+	Note       string  `json:"note,omitempty"`
 }
 
 type searchTransactionsOut struct {
@@ -315,6 +323,17 @@ func transactionResult(t LedgerTransaction) transactionItem {
 	}
 	if t.CategoryID != nil {
 		item.CategoryID = t.CategoryID.String()
+	}
+	for _, part := range t.Splits {
+		split := splitItem{Amount: float64(part.AmountMinor) / 100, Note: part.Note}
+		if part.CategoryID != nil {
+			split.CategoryID = part.CategoryID.String()
+		}
+		item.Splits = append(item.Splits, split)
+	}
+	if len(t.Splits) > 0 {
+		rest := float64(ledgerSplitRemainder(t)) / 100
+		item.CategoryAmount = &rest
 	}
 	for _, ref := range t.References {
 		item.References = append(item.References, referenceItem{Type: ref.Type, TargetID: ref.TargetID.String()})

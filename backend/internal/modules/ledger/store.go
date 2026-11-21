@@ -351,6 +351,7 @@ func isPotentialLedgerTransferMatch(source, candidate LedgerTransaction) bool {
 
 func applyLedgerTransferState(left *LedgerTransaction, rightID uuid.UUID) {
 	left.CategoryID = nil
+	left.Splits = nil
 	left.TransferPairTransactionID = &rightID
 	left.SpecialCategory = LedgerSpecialCategoryInternalTransfer
 	left.ReviewStatus = LedgerTransactionReviewConfirmed
@@ -867,21 +868,25 @@ func (s *Store) DeleteLedgerCategory(_ context.Context, userID string, id uuid.U
 			return err
 		}
 		for _, ledgerTxn := range transactions {
-			if ledgerTxn.CategoryID == nil || *ledgerTxn.CategoryID != id {
+			if !hasLedgerCategory(ledgerTxn, id) {
 				continue
 			}
-			if ledgerTxn.TransferPairTransactionID != nil {
-				if _, err := unlinkLedgerTransferTxn(txn, userID, ledgerTxn.ID); err != nil {
-					return err
+			if ledgerTxn.CategoryID != nil && *ledgerTxn.CategoryID == id {
+				if ledgerTxn.TransferPairTransactionID != nil {
+					if _, err := unlinkLedgerTransferTxn(txn, userID, ledgerTxn.ID); err != nil {
+						return err
+					}
+					ledgerTxn, err = loadLedgerTransaction(txn, userID, ledgerTxn.ID)
+					if err != nil {
+						return err
+					}
 				}
-				ledgerTxn, err = loadLedgerTransaction(txn, userID, ledgerTxn.ID)
-				if err != nil {
-					return err
-				}
+				ledgerTxn.CategoryID = nil
+				ledgerTxn.CategorizationSource = LedgerCategorizationNone
 			}
-			ledgerTxn.CategoryID = nil
+			// a part keeps its amount without category until it is reviewed again
+			clearLedgerSplitCategory(&ledgerTxn, id)
 			ledgerTxn.ReviewStatus = LedgerTransactionReviewNeedsReview
-			ledgerTxn.CategorizationSource = LedgerCategorizationNone
 			ledgerTxn.UpdatedAt = time.Now().UTC()
 			if err := storeLedgerTransaction(txn, userID, ledgerTxn); err != nil {
 				return err
@@ -1070,10 +1075,8 @@ func (s *Store) ListLedgerTransactionsFiltered(_ context.Context, userID string,
 			if options.AccountID != nil && ledgerTxn.AccountID != *options.AccountID {
 				continue
 			}
-			if options.CategoryID != nil {
-				if ledgerTxn.CategoryID == nil || *ledgerTxn.CategoryID != *options.CategoryID {
-					continue
-				}
+			if options.CategoryID != nil && !hasLedgerCategory(ledgerTxn, *options.CategoryID) {
+				continue
 			}
 			if options.ReviewStatus != "" && ledgerTxn.ReviewStatus != options.ReviewStatus {
 				continue

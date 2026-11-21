@@ -217,6 +217,7 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("GET /api/v1/ledger/transactions/{transactionId}", h.GetLedgerTransaction)
 	r.Handle("PUT /api/v1/ledger/transactions/{transactionId}", h.UpdateLedgerTransactionDetails)
 	r.Handle("POST /api/v1/ledger/transactions/{transactionId}/references", h.AddLedgerTransactionReference)
+	r.Handle("PUT /api/v1/ledger/transactions/{transactionId}/splits", h.SetLedgerTransactionSplits)
 	r.Handle("GET /api/v1/ledger/transactions/{transactionId}/transfer-candidates", h.ListLedgerTransferCandidates)
 	r.Handle("POST /api/v1/ledger/transactions/{transactionId}/transfer-link", h.LinkLedgerTransfer)
 	r.Handle("DELETE /api/v1/ledger/transactions/{transactionId}/transfer-link", h.UnlinkLedgerTransfer)
@@ -273,7 +274,7 @@ func (h *Handler) storeError(w http.ResponseWriter, err error) {
 		writeModuleDisabled(w, err)
 	case errors.Is(err, storage.ErrConflict), errors.Is(err, ErrLedgerFileImported), errors.Is(err, ErrLedgerTransferLinked):
 		httputil.Error(h.logger, w, http.StatusConflict, err.Error())
-	case errors.Is(err, ErrLedgerCategoryHasChild), errors.Is(err, ErrLedgerCategoryHasCycle), errors.Is(err, ErrLedgerTransferInvalid):
+	case errors.Is(err, ErrLedgerCategoryHasChild), errors.Is(err, ErrLedgerCategoryHasCycle), errors.Is(err, ErrLedgerTransferInvalid), errors.Is(err, ErrLedgerSplitInvalid):
 		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
 	case err != nil && (err.Error() == "links must contain valid absolute URLs" ||
 		err.Error() == "references contain an invalid type" ||

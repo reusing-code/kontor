@@ -74,6 +74,7 @@ type LedgerTransaction struct {
 	ID                        uuid.UUID                    `json:"id"`
 	AccountID                 uuid.UUID                    `json:"accountId"`
 	CategoryID                *uuid.UUID                   `json:"categoryId,omitempty"`
+	Splits                    []LedgerTransactionSplit     `json:"splits,omitempty"`
 	SpecialCategory           string                       `json:"specialCategory,omitempty"`
 	TransferPairTransactionID *uuid.UUID                   `json:"transferPairTransactionId,omitempty"`
 	BookingDate               string                       `json:"bookingDate"`

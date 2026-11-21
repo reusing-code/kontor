@@ -115,6 +115,9 @@ func (m *Module) ImportSection(ctx context.Context, userID string, data json.Raw
 	if stripped > 0 {
 		res.Warnf("ledger: removed %d reference(s) to items that were not imported", stripped)
 	}
+	if dropped := sanitizeImportedSplits(section.Transactions, section.Categories); dropped > 0 {
+		res.Warnf("ledger: removed the split of %d transaction(s) with invalid parts", dropped)
+	}
 
 	if err := m.restoreTransactions(ctx, userID, section, res); err != nil {
 		return err
@@ -155,6 +158,44 @@ func (m *Module) ImportSection(ctx context.Context, userID string, data json.Raw
 	}
 	res.Add("ledgerEmailOrders", len(section.EmailOrders))
 	return nil
+}
+
+// sanitizeImportedSplits drops the parts of a transaction when they are not a
+// valid split (a part without category is kept: it is what deleting a
+// category leaves) or name a category that is not imported; it returns how
+// many transactions lost their split.
+func sanitizeImportedSplits(txns []LedgerTransaction, categories []LedgerCategory) int {
+	known := make(map[uuid.UUID]bool, len(categories))
+	for _, category := range categories {
+		known[category.ID] = true
+	}
+	dropped := 0
+	for i := range txns {
+		parts := txns[i].Splits
+		if len(parts) == 0 {
+			continue
+		}
+		valid := txns[i].TransferPairTransactionID == nil
+		check := make([]LedgerTransactionSplit, len(parts))
+		for j, part := range parts {
+			if part.CategoryID != nil && !known[*part.CategoryID] {
+				valid = false
+			}
+			check[j] = part
+			if part.CategoryID == nil {
+				placeholder := uuid.Max
+				check[j].CategoryID = &placeholder
+			}
+		}
+		if _, err := normalizeLedgerSplits(txns[i].AmountMinor, check); err != nil {
+			valid = false
+		}
+		if !valid {
+			txns[i].Splits = nil
+			dropped++
+		}
+	}
+	return dropped
 }
 
 func (m *Module) PruneDeadLinks(context.Context, string, *module.ImportResult) error {

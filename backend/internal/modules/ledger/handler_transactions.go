@@ -184,6 +184,27 @@ func (h *Handler) UpdateLedgerTransactionDetails(w http.ResponseWriter, r *http.
 	httputil.WriteJSON(h.logger, w, http.StatusOK, ledgerTxn)
 }
 
+// SetLedgerTransactionSplits replaces the parts of a transaction
+// (`{splits: [...]}`, an empty list removes the split).
+func (h *Handler) SetLedgerTransactionSplits(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("transactionId"))
+	if err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid transactionId")
+		return
+	}
+	var input LedgerTransactionSplitsInput
+	if err := httputil.ReadJSON(r, &input); err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	ledgerTxn, err := h.store.SetLedgerTransactionSplits(r.Context(), middleware.GetUserID(r.Context()), id, input.Splits)
+	if err != nil {
+		h.storeError(w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, ledgerTxn)
+}
+
 // ErrTargetModuleDisabled means the module that owns a reference target is
 // disabled for the user.
 var ErrTargetModuleDisabled = errors.New("target module is disabled")

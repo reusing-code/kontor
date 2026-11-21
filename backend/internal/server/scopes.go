@@ -128,6 +128,7 @@ var routeRules = map[string]middleware.Rule{
 	"PUT /api/v1/ledger/categories/{id}":                                  middleware.RuleDenied,
 	"PUT /api/v1/ledger/email-accounts/{emailAccountId}":                  middleware.RuleDenied,
 	"PUT /api/v1/ledger/transactions/{transactionId}":                     middleware.RuleDenied,
+	"PUT /api/v1/ledger/transactions/{transactionId}/splits":              middleware.RuleDenied,
 	"PUT /api/v1/modules/{module}/categories/{id}":                        middleware.RuleDenied,
 	"PUT /api/v1/paperless/config":                                        middleware.RuleDenied,
 	"PUT /api/v1/paperless/pipeline":                                      middleware.RuleDenied,
