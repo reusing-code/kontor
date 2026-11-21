@@ -26,7 +26,8 @@ interface PrefilledCreateDialogsProps {
 }
 
 // PrefilledCreateDialogs opens the create dialog of entry's module with the
-// entry's fields filled in.
+// entry's fields filled in. Every dialog closes on submit; the ledger dialogs
+// leave closing to their caller, so they are closed here.
 export function PrefilledCreateDialogs({ entry, onClose, onCreate }: PrefilledCreateDialogsProps) {
   const createPurchase = useCreatePurchaseByCategory()
   const createContract = useCreateContractByCategory()
@@ -133,6 +134,7 @@ export function PrefilledCreateDialogs({ entry, onClose, onCreate }: PrefilledCr
         initialValues={ledgerCategoryInitial}
         onSubmit={(data) => {
           if (entry) onCreate(entry, () => createLedgerCategory.mutateAsync(data))
+          onClose()
         }}
       />
       <LedgerAccountDialog
@@ -141,6 +143,7 @@ export function PrefilledCreateDialogs({ entry, onClose, onCreate }: PrefilledCr
         initialValues={ledgerAccountInitial}
         onSubmit={(data) => {
           if (entry) onCreate(entry, () => createLedgerAccount.mutateAsync(data))
+          onClose()
         }}
       />
     </>

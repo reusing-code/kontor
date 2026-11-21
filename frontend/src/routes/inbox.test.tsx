@@ -39,6 +39,7 @@ describe("InboxPage accept", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save" }))
 
     await waitFor(() => expect(api.callsTo("POST", `/drafts/${d.id}/accept`)).toHaveLength(1))
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
     const creates = api.callsTo("POST", c.createPath)
     expect(creates).toHaveLength(1)
     expect(creates[0].body).toMatchObject(c.created)
