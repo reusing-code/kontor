@@ -65,6 +65,18 @@ The first sync of an account without transactions uses `strategy=longest` (as mu
 
 After a successful transaction sync the account's balances are fetched (`GET /accounts/{uid}/balances`; the consent asks for `balances: true`) and one is stored as a balance snapshot of the mapped ledger account (source `enablebanking`, see "Account balances" in `backend/AGENTS.md`). Only booked types count, like the imported rows: `ITBD` (interim booked) and `CLBD` (closing booked); `XPCD`, `CLAV`, `ITAV` and the other types contain pending rows or the credit line and are ignored. Among the booked EUR balances the newest date wins and `ITBD` beats `CLBD` on the same day; the date is `reference_date`, else the day of `last_change_date_time`, else today, and never after today. The balance fetch never fails the sync: the account's `lastBalanceStatus` is `ok`, `unavailable` (the bank refused, typically a consent from before balance access was requested, or no booked EUR balance) or `error`. Consents stored before this change have `balancesRequested` false; the bank connections page asks to re-authorize them, and re-authorizing resets the balance status. Amounts are never logged.
 
+## Securities (depot): not available
+
+Enable Banking cannot deliver a securities portfolio (held positions and their value), for any bank (#73, checked against the public API reference and FAQ in November 2026):
+
+- The account information endpoints are `GET /accounts/{uid}/details`, `/balances`, `/transactions` and `/transactions/{id}`; there is no positions, holdings or depot endpoint.
+- The consent `access` only knows `accounts`, `balances`, `transactions`, `transactions_extended_history` and `valid_until`; there is no securities scope.
+- `cash_account_type` is one of `CACC`, `CARD`, `CASH`, `LOAN`, `OTHR`, `SVGS`; there is no securities account type. "Securities" only appears as a payment purpose code (`SECU`, `CORT`).
+
+This follows from PSD2: account information access covers payment accounts, and a depot is not one. At most the cash settlement account of a depot (e.g. the comdirect Verrechnungskonto) is a payment account and can be connected like any other account; it holds cash, not the value of the securities.
+
+Other sources, should depot values be wanted later: the comdirect REST API (`/brokerage/clients/user/v3/depots`, `/brokerage/v3/depots/{id}/positions`; comdirect only, its own OAuth2 password flow with a session TAN, so bank credentials would pass through Kontor), FinTS `HKWPD` (rejected for the bank import), the depot overview CSV export of the online banking, or a balance entered by hand on a separate ledger account (already possible).
+
 ## Verified by tests (fixtures and a fake server)
 
 Conversion, amounts, fingerprints, the balance choice, the window function, cross-source matching, the sync flows and their error handling, the consent flow, the public callback, scopes and the absence of secrets in logs and responses.
