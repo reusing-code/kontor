@@ -14,43 +14,8 @@ import {
 import type { VehicleSummary } from "@/modules/auto/types"
 import { chartCostTypes, costTypeColor, type ChartCostType } from "@/modules/auto/config/chart"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-
-const AXIS_TICK = { fill: "var(--muted-foreground)", fontSize: 12 }
-const AXIS_LINE = { stroke: "var(--border)" }
-
-interface TooltipRow {
-  name: string
-  value: string
-  color?: string
-}
-
-function ChartTooltipBox({ title, rows }: { title: string; rows: TooltipRow[] }) {
-  return (
-    <div className="rounded-md border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md">
-      <div className="mb-1 font-medium">{title}</div>
-      {rows.map((row) => (
-        <div key={row.name} className="flex items-center gap-2">
-          {row.color && <span className="h-2 w-2 rounded-[2px]" style={{ background: row.color }} />}
-          <span className="text-muted-foreground">{row.name}</span>
-          <span className="ml-auto pl-3 font-medium tabular-nums">{row.value}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function ChartLegend({ items }: { items: { label: string; color: string }[] }) {
-  return (
-    <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
-      {items.map((item) => (
-        <div key={item.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: item.color }} />
-          {item.label}
-        </div>
-      ))}
-    </div>
-  )
-}
+import { AXIS_LINE, AXIS_TICK } from "@/components/charts/chart-axis"
+import { ChartLegend, ChartTooltipBox } from "@/components/charts/chart-parts"
 
 interface StackSegmentProps {
   x?: number
