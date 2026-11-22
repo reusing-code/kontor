@@ -13,6 +13,7 @@ import (
 
 const (
 	maxLedgerAnalysisMonths = 1200
+	ledgerRankingLimit      = 10
 	ledgerAnalysisEUR       = "EUR"
 )
 
@@ -406,4 +407,139 @@ func seriesID(s LedgerSpendingSeries) string {
 		return ""
 	}
 	return s.CategoryID.String()
+}
+
+// LedgerCashFlowAnalysis is the monthly income and spending: per month the
+// positive nets of the top-level categories are income and the negative ones
+// expenses, so ExpensesMinor equals the totals of the top-level spending view.
+type LedgerCashFlowAnalysis struct {
+	From               string   `json:"from"`
+	To                 string   `json:"to"`
+	Months             []string `json:"months"`
+	IncomeMinor        []int64  `json:"incomeMinor"`
+	ExpensesMinor      []int64  `json:"expensesMinor"`
+	NetMinor           []int64  `json:"netMinor"`
+	ExcludedCurrencies []string `json:"excludedCurrencies"`
+}
+
+// AnalyzeLedgerCashFlow nets income and expenses per month. from and to may
+// be empty (see resolveLedgerAnalysisRange).
+func AnalyzeLedgerCashFlow(in LedgerAnalysisInput, from, to, today string) (LedgerCashFlowAnalysis, error) {
+	rng, err := resolveLedgerAnalysisRange(from, to, today, earliestLedgerBooking(in.Transactions, nil))
+	if err != nil {
+		return LedgerCashFlowAnalysis{}, err
+	}
+	nets, excluded := ledgerTopLevelNets(in, rng, nil, newLedgerCategoryTree(in.Categories))
+	months := rng.months()
+	income := make([]int64, len(months))
+	expenses := make([]int64, len(months))
+	for _, series := range nets {
+		for m, net := range series {
+			if net > 0 {
+				income[m] += net
+			} else {
+				expenses[m] -= net
+			}
+		}
+	}
+	net := make([]int64, len(months))
+	for m := range net {
+		net[m] = income[m] - expenses[m]
+	}
+	return LedgerCashFlowAnalysis{
+		From:               rng.From,
+		To:                 rng.To,
+		Months:             months,
+		IncomeMinor:        income,
+		ExpensesMinor:      expenses,
+		NetMinor:           net,
+		ExcludedCurrencies: excluded,
+	}, nil
+}
+
+type LedgerRankedCategory struct {
+	Kind        string     `json:"kind"` // category | uncategorized
+	CategoryID  *uuid.UUID `json:"categoryId,omitempty"`
+	Name        string     `json:"name"`
+	AmountMinor int64      `json:"amountMinor"`
+}
+
+type LedgerRankedCounterparty struct {
+	Name        string `json:"name"`
+	Unknown     bool   `json:"unknown,omitempty"`
+	AmountMinor int64  `json:"amountMinor"`
+}
+
+// LedgerRankingAnalysis lists the top-level categories and the counterparties
+// with the highest spending in the range, at most ledgerRankingLimit each.
+type LedgerRankingAnalysis struct {
+	From               string                     `json:"from"`
+	To                 string                     `json:"to"`
+	Categories         []LedgerRankedCategory     `json:"categories"`
+	Counterparties     []LedgerRankedCounterparty `json:"counterparties"`
+	ExcludedCurrencies []string                   `json:"excludedCurrencies"`
+}
+
+// AnalyzeLedgerRanking ranks the spending of the range. from and to may be
+// empty (see resolveLedgerAnalysisRange).
+func AnalyzeLedgerRanking(in LedgerAnalysisInput, from, to, today string) (LedgerRankingAnalysis, error) {
+	rng, err := resolveLedgerAnalysisRange(from, to, today, earliestLedgerBooking(in.Transactions, nil))
+	if err != nil {
+		return LedgerRankingAnalysis{}, err
+	}
+	tree := newLedgerCategoryTree(in.Categories)
+	nets, excluded := ledgerTopLevelNets(in, rng, nil, tree)
+	series := ledgerSpendingSeries(nets, tree, nil)
+	series = series[:min(len(series), ledgerRankingLimit)]
+	categories := make([]LedgerRankedCategory, len(series))
+	for i, s := range series {
+		categories[i] = LedgerRankedCategory{Kind: s.Kind, CategoryID: s.CategoryID, Name: s.Name, AmountMinor: s.TotalMinor}
+	}
+	return LedgerRankingAnalysis{
+		From:               rng.From,
+		To:                 rng.To,
+		Categories:         categories,
+		Counterparties:     ledgerTopCounterparties(in, rng),
+		ExcludedCurrencies: excluded,
+	}, nil
+}
+
+// ledgerTopCounterparties nets the whole transaction amounts per counterparty
+// name (case and whitespace ignored, no name is one group) and lists those
+// with net spending, largest first. A group shows the spelling of its newest
+// transaction.
+func ledgerTopCounterparties(in LedgerAnalysisInput, rng LedgerAnalysisRange) []LedgerRankedCounterparty {
+	type group struct {
+		key, name, newest string
+		net               int64
+	}
+	groups := map[string]*group{}
+	eachCountedLedgerTransaction(in, rng, nil, func(t LedgerTransaction, _ int) {
+		name := strings.Join(strings.Fields(t.CounterpartyName), " ")
+		key := strings.ToLower(name)
+		g, ok := groups[key]
+		switch {
+		case !ok:
+			g = &group{key: key, name: name, newest: t.BookingDate}
+			groups[key] = g
+		case t.BookingDate > g.newest || (t.BookingDate == g.newest && name < g.name):
+			g.name, g.newest = name, t.BookingDate
+		}
+		g.net += t.AmountMinor
+	})
+	spenders := make([]*group, 0, len(groups))
+	for _, g := range groups {
+		if g.net < 0 {
+			spenders = append(spenders, g)
+		}
+	}
+	slices.SortFunc(spenders, func(a, b *group) int {
+		return cmp.Or(cmp.Compare(a.net, b.net), cmp.Compare(a.key, b.key))
+	})
+	spenders = spenders[:min(len(spenders), ledgerRankingLimit)]
+	ranked := make([]LedgerRankedCounterparty, len(spenders))
+	for i, g := range spenders {
+		ranked[i] = LedgerRankedCounterparty{Name: g.name, Unknown: g.key == "", AmountMinor: -g.net}
+	}
+	return ranked
 }

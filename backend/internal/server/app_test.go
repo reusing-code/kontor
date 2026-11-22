@@ -421,6 +421,8 @@ func TestLedgerRecurringRunRoute(t *testing.T) {
 // ledgerAnalysisPaths are the read-only analysis endpoints of the ledger module.
 var ledgerAnalysisPaths = []string{
 	"/api/v1/ledger/analysis/spending",
+	"/api/v1/ledger/analysis/cash-flow",
+	"/api/v1/ledger/analysis/ranking",
 }
 
 func TestLedgerAnalysisAccess(t *testing.T) {

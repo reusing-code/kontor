@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"errors"
 	"math/rand/v2"
 	"reflect"
 	"slices"
@@ -133,6 +134,107 @@ func TestAnalyzeLedgerSpending_IsIndependentOfTheInputOrder(t *testing.T) {
 			if got := spending(t, shuffledAnalysisInput(rng, in), "2026-01-01", "2026-02-28", opts); !reflect.DeepEqual(got, want) {
 				t.Fatalf("result changed with the input order:\n got %+v\nwant %+v", got, want)
 			}
+		}
+	}
+}
+
+func TestAnalyzeLedgerCashFlowAndRanking_SkipMalformedBookingDates(t *testing.T) {
+	food := analysisCategory("Food", nil)
+	legacy := legacyBookings(&food.ID)
+	for i := range legacy {
+		if i%2 == 0 {
+			legacy[i].AmountMinor = 888_888
+		}
+	}
+	valid := booked("2026-10-20", -100, &food.ID)
+	valid.CounterpartyName = "Laden"
+	in := analysisInput([]LedgerCategory{food}, append(legacy, valid)...)
+
+	flow, err := AnalyzeLedgerCashFlow(in, "", "", analysisToday)
+	if err != nil {
+		t.Fatalf("AnalyzeLedgerCashFlow: %v", err)
+	}
+	if flow.From != "2026-10-20" || !slices.Equal(flow.IncomeMinor, []int64{0, 0}) || !slices.Equal(flow.ExpensesMinor, []int64{100, 0}) || !slices.Equal(flow.NetMinor, []int64{-100, 0}) {
+		t.Fatalf("cash flow = %+v, want only the well-formed booking", flow)
+	}
+
+	ranking, err := AnalyzeLedgerRanking(in, "", "", analysisToday)
+	if err != nil {
+		t.Fatalf("AnalyzeLedgerRanking: %v", err)
+	}
+	if len(ranking.Categories) != 1 || ranking.Categories[0].AmountMinor != 100 {
+		t.Fatalf("categories = %+v", ranking.Categories)
+	}
+	if want := []LedgerRankedCounterparty{{Name: "Laden", AmountMinor: 100}}; !slices.Equal(ranking.Counterparties, want) {
+		t.Fatalf("counterparties = %+v, want %+v", ranking.Counterparties, want)
+	}
+}
+
+func TestAnalyzeLedgerCashFlowAndRanking_IsIndependentOfTheInputOrder(t *testing.T) {
+	in := tiedAnalysisInput()
+	rng := rand.New(rand.NewPCG(70, 2))
+	analyze := func(in LedgerAnalysisInput) (LedgerCashFlowAnalysis, LedgerRankingAnalysis) {
+		flow, err := AnalyzeLedgerCashFlow(in, "2026-01-01", "2026-02-28", analysisToday)
+		if err != nil {
+			t.Fatalf("AnalyzeLedgerCashFlow: %v", err)
+		}
+		ranking, err := AnalyzeLedgerRanking(in, "2026-01-01", "2026-02-28", analysisToday)
+		if err != nil {
+			t.Fatalf("AnalyzeLedgerRanking: %v", err)
+		}
+		return flow, ranking
+	}
+	wantFlow, wantRanking := analyze(in)
+	// "Laden", "LADEN" and "laden " are one counterparty, shown in the smallest spelling of its newest day.
+	if want := []LedgerRankedCounterparty{{Name: "LADEN", AmountMinor: 3000}, {Name: "Markt", AmountMinor: 3000}, {Name: "", Unknown: true, AmountMinor: 2000}}; !slices.Equal(wantRanking.Counterparties, want) {
+		t.Fatalf("counterparties = %+v, want %+v", wantRanking.Counterparties, want)
+	}
+	for range 50 {
+		flow, ranking := analyze(shuffledAnalysisInput(rng, in))
+		if !reflect.DeepEqual(flow, wantFlow) || !reflect.DeepEqual(ranking, wantRanking) {
+			t.Fatalf("result changed with the input order:\n got %+v %+v\nwant %+v %+v", flow, ranking, wantFlow, wantRanking)
+		}
+	}
+}
+
+func TestAnalyzeLedgerRanking_CounterpartyNameEdges(t *testing.T) {
+	in := analysisInput(nil,
+		paidTo("2026-01-05", -100, "\t  "),
+		paidTo("2026-01-06", -50, ""),
+		paidTo("2026-01-07", -300, "ÄRZTE am Markt"),
+		paidTo("2026-01-08", -200, "ärzte  AM\tmarkt"),
+		paidTo("2026-01-09", -400, "Zero"),
+		paidTo("2026-01-10", 400, "zero"),
+		paidTo("2026-01-11", -1, "<script>alert(1)</script>"),
+	)
+	got, err := AnalyzeLedgerRanking(in, "2026-01-01", "2026-01-31", analysisToday)
+	if err != nil {
+		t.Fatalf("AnalyzeLedgerRanking: %v", err)
+	}
+	want := []LedgerRankedCounterparty{
+		{Name: "ärzte AM markt", AmountMinor: 500},
+		{Name: "", Unknown: true, AmountMinor: 150},
+		{Name: "<script>alert(1)</script>", AmountMinor: 1},
+	}
+	if !slices.Equal(got.Counterparties, want) {
+		t.Fatalf("counterparties = %+v, want %+v", got.Counterparties, want)
+	}
+}
+
+// With an omitted end the range is checked by the analysis itself.
+func TestAnalyzeLedgerCashFlowAndRanking_RangeFromTheData(t *testing.T) {
+	in := analysisInput(nil, booked("1900-05-01", -100, nil), booked("2026-03-01", -100, nil))
+	for name, analyze := range map[string]func(from, to string) error{
+		"cash flow": func(from, to string) error { _, err := AnalyzeLedgerCashFlow(in, from, to, analysisToday); return err },
+		"ranking":   func(from, to string) error { _, err := AnalyzeLedgerRanking(in, from, to, analysisToday); return err },
+	} {
+		for _, ends := range [][2]string{{"2026-11-23", ""}, {"", ""}, {"", "2000-06-30"}, {"bad", ""}, {"", "2026-02-30x"}} {
+			if err := analyze(ends[0], ends[1]); !errors.Is(err, ErrLedgerAnalysisInvalid) {
+				t.Fatalf("%s %q..%q: err = %v, want ErrLedgerAnalysisInvalid", name, ends[0], ends[1], err)
+			}
+		}
+		if err := analyze("", "1999-12-31"); err != nil {
+			t.Fatalf("%s: 1200 months up to the given end: %v", name, err)
 		}
 	}
 }

@@ -244,6 +244,8 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("GET /api/v1/ledger/category-suggestions/status", h.GetLedgerCategorySuggestionStatus)
 	r.Handle("POST /api/v1/ledger/recurring/run", h.RunLedgerRecurringDetection)
 	r.Handle("GET /api/v1/ledger/analysis/spending", h.GetLedgerSpendingAnalysis)
+	r.Handle("GET /api/v1/ledger/analysis/cash-flow", h.GetLedgerCashFlowAnalysis)
+	r.Handle("GET /api/v1/ledger/analysis/ranking", h.GetLedgerRankingAnalysis)
 	r.Handle("GET /api/v1/ledger/bank/aspsps", h.ListBankASPSPs)
 	r.Handle("GET /api/v1/ledger/bank/connections", h.ListBankConnections)
 	r.Handle("POST /api/v1/ledger/bank/connections/authorize", h.AuthorizeBank)

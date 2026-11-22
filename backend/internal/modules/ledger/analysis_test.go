@@ -2,6 +2,8 @@ package ledger
 
 import (
 	"errors"
+	"fmt"
+	"math/rand/v2"
 	"slices"
 	"testing"
 
@@ -449,6 +451,347 @@ func TestAnalyzeLedgerSpending_Empty(t *testing.T) {
 		}
 		if got.From != analysisToday || got.To != analysisToday {
 			t.Fatalf("%s: range = %s..%s", name, got.From, got.To)
+		}
+	}
+}
+
+func TestAnalyzeLedgerCashFlow(t *testing.T) {
+	food := analysisCategory("Food", nil)
+	groceries := analysisCategory("Groceries", &food.ID)
+	salary := analysisCategory("Salary", nil)
+	usdAccount := uuid.New()
+	in := analysisInput([]LedgerCategory{food, groceries, salary},
+		booked("2026-01-05", -1000, &groceries.ID),
+		booked("2026-01-20", 300, &food.ID),
+		booked("2026-01-28", 250_000, &salary.ID),
+		booked("2026-01-30", -400, nil),
+		booked("2026-03-02", 900, nil),
+		booked("2026-03-03", -200, &food.ID),
+	)
+	in.Accounts = append(in.Accounts, analysisAccount(usdAccount, "USD"))
+	transfer := booked("2026-01-15", -50_000, nil)
+	transfer.SpecialCategory = LedgerSpecialCategoryInternalTransfer
+	foreign := booked("2026-03-04", -7777, &food.ID)
+	foreign.AccountID, foreign.Currency = usdAccount, "USD"
+	in.Transactions = append(in.Transactions, transfer, foreign)
+
+	got, err := AnalyzeLedgerCashFlow(in, "2026-01-01", "2026-03-31", analysisToday)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"2026-01", "2026-02", "2026-03"}; !slices.Equal(got.Months, want) {
+		t.Fatalf("months = %v, want %v", got.Months, want)
+	}
+	if want := []int64{250_000, 0, 900}; !slices.Equal(got.IncomeMinor, want) {
+		t.Fatalf("income = %v, want %v", got.IncomeMinor, want)
+	}
+	if want := []int64{1100, 0, 200}; !slices.Equal(got.ExpensesMinor, want) {
+		t.Fatalf("expenses = %v, want %v", got.ExpensesMinor, want)
+	}
+	if want := []int64{248_900, 0, 700}; !slices.Equal(got.NetMinor, want) {
+		t.Fatalf("net = %v, want %v", got.NetMinor, want)
+	}
+	if !slices.Equal(got.ExcludedCurrencies, []string{"USD"}) {
+		t.Fatalf("excludedCurrencies = %v", got.ExcludedCurrencies)
+	}
+
+	all, err := AnalyzeLedgerCashFlow(in, "", "", analysisToday)
+	if err != nil || all.From != "2026-01-05" || all.To != analysisToday {
+		t.Fatalf("all: %s..%s, %v", all.From, all.To, err)
+	}
+
+	empty, err := AnalyzeLedgerCashFlow(LedgerAnalysisInput{}, "", "", analysisToday)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zero := []int64{0}
+	if !slices.Equal(empty.IncomeMinor, zero) || !slices.Equal(empty.ExpensesMinor, zero) || !slices.Equal(empty.NetMinor, zero) ||
+		empty.ExcludedCurrencies == nil || len(empty.ExcludedCurrencies) != 0 {
+		t.Fatalf("empty = %+v, want one zero month and an empty non-nil currency list", empty)
+	}
+	if _, err := AnalyzeLedgerCashFlow(in, "2026-02-01", "2026-01-01", analysisToday); !errors.Is(err, ErrLedgerAnalysisInvalid) {
+		t.Fatalf("from after to: err = %v", err)
+	}
+}
+
+// randomAnalysisInput builds a mix of categorized, split, refunded,
+// uncategorized, transfer and foreign-currency transactions over the first
+// months of 2026; the first category mostly receives income.
+func randomAnalysisInput(rng *rand.Rand, count, months int) LedgerAnalysisInput {
+	usdAccount := uuid.New()
+	in := LedgerAnalysisInput{Accounts: []LedgerAccount{analysisAccount(analysisAccountID, "EUR"), analysisAccount(usdAccount, "USD")}}
+	for i := range 5 {
+		top := analysisCategory(fmt.Sprintf("Top %d", i), nil)
+		child := analysisCategory(fmt.Sprintf("Child %d", i), &top.ID)
+		grandchild := analysisCategory(fmt.Sprintf("Grandchild %d", i), &child.ID)
+		in.Categories = append(in.Categories, top, child, grandchild)
+	}
+	category := func() *uuid.UUID {
+		i := rng.IntN(len(in.Categories) + 2)
+		if i >= len(in.Categories) {
+			return nil
+		}
+		return &in.Categories[i].ID
+	}
+	for i := range count {
+		amount := rng.Int64N(60_000) - 45_000
+		txn := booked(fmt.Sprintf("2026-%02d-%02d", 1+rng.IntN(months), 1+rng.IntN(28)), amount, category())
+		txn.CounterpartyName = fmt.Sprintf("Shop %d", rng.IntN(40))
+		if rng.IntN(8) == 0 {
+			txn.CategoryID, txn.AmountMinor = &in.Categories[0].ID, 100_000+rng.Int64N(200_000)
+			amount = txn.AmountMinor
+		}
+		switch roll := rng.IntN(20); {
+		case roll == 0:
+			txn.CategoryID, txn.SpecialCategory = nil, LedgerSpecialCategoryInternalTransfer
+		case roll == 1:
+			txn.AccountID, txn.Currency = usdAccount, "USD"
+		case roll < 5 && (amount > 3 || amount < -3):
+			txn.Splits = []LedgerTransactionSplit{{AmountMinor: amount / 3, CategoryID: category()}, {AmountMinor: amount / 4, CategoryID: category()}}
+		}
+		if i%7 == 0 {
+			txn.ReviewStatus = LedgerTransactionReviewNeedsReview
+		}
+		in.Transactions = append(in.Transactions, txn)
+	}
+	return in
+}
+
+func TestLedgerAnalysis_SpendingMatchesCashFlow(t *testing.T) {
+	const months = 6
+	in := randomAnalysisInput(rand.New(rand.NewPCG(70, 3)), 600, months)
+	const from, to = "2026-01-01", "2026-06-30"
+
+	spent := spending(t, in, from, to, LedgerSpendingOptions{})
+	flow, err := AnalyzeLedgerCashFlow(in, from, to, analysisToday)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ranking, err := AnalyzeLedgerRanking(in, from, to, analysisToday)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The expectation is derived without the code under test: walk every
+	// part's parent chain and net per top-level category and month.
+	parents := map[uuid.UUID]*uuid.UUID{}
+	for _, c := range in.Categories {
+		parents[c.ID] = c.ParentID
+	}
+	topOf := func(id *uuid.UUID) uuid.UUID {
+		if id == nil {
+			return uuid.Nil
+		}
+		top := *id
+		for parents[top] != nil {
+			top = *parents[top]
+		}
+		return top
+	}
+	type cell struct {
+		top   uuid.UUID
+		month int
+	}
+	nets := map[cell]int64{}
+	counted := make([]int64, months)
+	for _, txn := range in.Transactions {
+		if txn.SpecialCategory != "" || txn.Currency != "EUR" {
+			continue
+		}
+		month := int(txn.BookingDate[5]-'0')*10 + int(txn.BookingDate[6]-'0') - 1
+		counted[month] += txn.AmountMinor
+		rest := txn.AmountMinor
+		for _, p := range txn.Splits {
+			nets[cell{topOf(p.CategoryID), month}] += p.AmountMinor
+			rest -= p.AmountMinor
+		}
+		nets[cell{topOf(txn.CategoryID), month}] += rest
+	}
+	wantIncome, wantExpenses := make([]int64, months), make([]int64, months)
+	for c, net := range nets {
+		if net > 0 {
+			wantIncome[c.month] += net
+		} else {
+			wantExpenses[c.month] -= net
+		}
+	}
+
+	seriesSum := make([]int64, months)
+	for _, s := range spent.Series {
+		for m, amount := range s.AmountsMinor {
+			if amount < 0 {
+				t.Fatalf("series %q has a negative month: %v", s.Name, s.AmountsMinor)
+			}
+			seriesSum[m] += amount
+		}
+	}
+	for m := range months {
+		if seriesSum[m] != flow.ExpensesMinor[m] || spent.TotalsMinor[m] != flow.ExpensesMinor[m] || flow.ExpensesMinor[m] != wantExpenses[m] {
+			t.Fatalf("month %d: series sum %d, totals %d, cash-flow expenses %d, want %d", m, seriesSum[m], spent.TotalsMinor[m], flow.ExpensesMinor[m], wantExpenses[m])
+		}
+		if flow.IncomeMinor[m] != wantIncome[m] {
+			t.Fatalf("month %d: income = %d, want %d", m, flow.IncomeMinor[m], wantIncome[m])
+		}
+		if flow.NetMinor[m] != counted[m] || flow.NetMinor[m] != flow.IncomeMinor[m]-flow.ExpensesMinor[m] {
+			t.Fatalf("month %d: net = %d, want the counted amounts %d", m, flow.NetMinor[m], counted[m])
+		}
+		if wantExpenses[m] == 0 || wantIncome[m] == 0 {
+			t.Fatalf("month %d: the generated data has no income or no expenses", m)
+		}
+	}
+	if len(ranking.Categories) != len(spent.Series) {
+		t.Fatalf("ranking has %d categories, spending %d series", len(ranking.Categories), len(spent.Series))
+	}
+	for i, c := range ranking.Categories {
+		if s := spent.Series[i]; c.AmountMinor != s.TotalMinor || c.Name != s.Name || c.Kind != s.Kind {
+			t.Fatalf("ranking[%d] = %+v, spending series = %+v", i, c, s)
+		}
+	}
+	if !slices.Equal(spent.ExcludedCurrencies, []string{"USD"}) || !slices.Equal(flow.ExcludedCurrencies, []string{"USD"}) || !slices.Equal(ranking.ExcludedCurrencies, []string{"USD"}) {
+		t.Fatalf("excluded = %v, %v, %v", spent.ExcludedCurrencies, flow.ExcludedCurrencies, ranking.ExcludedCurrencies)
+	}
+}
+
+func paidTo(date string, amountMinor int64, counterparty string) LedgerTransaction {
+	txn := booked(date, amountMinor, nil)
+	txn.CounterpartyName = counterparty
+	return txn
+}
+
+func TestAnalyzeLedgerRanking(t *testing.T) {
+	const from, to = "2026-01-01", "2026-03-31"
+	rank := func(t *testing.T, in LedgerAnalysisInput) LedgerRankingAnalysis {
+		t.Helper()
+		got, err := AnalyzeLedgerRanking(in, from, to, analysisToday)
+		if err != nil {
+			t.Fatalf("AnalyzeLedgerRanking: %v", err)
+		}
+		return got
+	}
+
+	t.Run("categories equal the spending totals", func(t *testing.T) {
+		food := analysisCategory("Food", nil)
+		groceries := analysisCategory("Groceries", &food.ID)
+		car := analysisCategory("Car", nil)
+		salary := analysisCategory("Salary", nil)
+		in := analysisInput([]LedgerCategory{food, groceries, car, salary},
+			booked("2026-01-05", -1000, &groceries.ID),
+			booked("2026-02-05", -500, &food.ID),
+			booked("2026-02-06", 200, &food.ID),
+			booked("2026-02-07", -5000, &car.ID),
+			booked("2026-02-08", -90, nil),
+			booked("2026-02-09", 300_000, &salary.ID),
+			booked("2026-04-01", -9999, &food.ID),
+		)
+		got := rank(t, in)
+		spent := spending(t, in, from, to, LedgerSpendingOptions{})
+		want := []LedgerRankedCategory{
+			{Kind: LedgerSeriesCategory, CategoryID: &car.ID, Name: "Car", AmountMinor: 5000},
+			{Kind: LedgerSeriesCategory, CategoryID: &food.ID, Name: "Food", AmountMinor: 1300},
+			{Kind: LedgerSeriesUncategorized, AmountMinor: 90},
+		}
+		if len(got.Categories) != len(want) || len(spent.Series) != len(want) {
+			t.Fatalf("categories = %+v", got.Categories)
+		}
+		for i, w := range want {
+			c := got.Categories[i]
+			sameID := (c.CategoryID == nil) == (w.CategoryID == nil) && (c.CategoryID == nil || *c.CategoryID == *w.CategoryID)
+			if c.Kind != w.Kind || c.Name != w.Name || c.AmountMinor != w.AmountMinor || !sameID {
+				t.Fatalf("categories[%d] = %+v, want %+v", i, c, w)
+			}
+			if c.AmountMinor != spent.Series[i].TotalMinor {
+				t.Fatalf("categories[%d] = %d, spending total = %d", i, c.AmountMinor, spent.Series[i].TotalMinor)
+			}
+		}
+		if got.From != from || got.To != to {
+			t.Fatalf("range = %s..%s", got.From, got.To)
+		}
+	})
+
+	t.Run("counterparties", func(t *testing.T) {
+		food := analysisCategory("Food", nil)
+		cash := analysisCategory("Cash", nil)
+		split := paidTo("2026-01-10", -1000, "Supermarkt  Nord")
+		split.CategoryID = &food.ID
+		split.Splits = []LedgerTransactionSplit{{AmountMinor: -400, CategoryID: &cash.ID}}
+		transfer := paidTo("2026-01-11", -80_000, "Own savings")
+		transfer.SpecialCategory = LedgerSpecialCategoryInternalTransfer
+		got := rank(t, analysisInput([]LedgerCategory{food, cash},
+			split,
+			paidTo("2026-02-10", -500, " SUPERMARKT nord "),
+			paidTo("2026-02-10", -100, "supermarkt Nord"),
+			paidTo("2026-02-20", 250, "Supermarkt Nord"),
+			paidTo("2026-01-15", -700, ""),
+			paidTo("2026-01-16", -200, "   "),
+			paidTo("2026-01-17", -3000, "Landlord"),
+			paidTo("2026-01-18", 250_000, "Employer"),
+			paidTo("2026-01-19", -300, "Refunder"),
+			paidTo("2026-01-20", 300, "Refunder"),
+			paidTo("2026-01-21", -900, "Beta"),
+			paidTo("2026-01-21", -900, "alpha"),
+			paidTo("2026-04-01", -9999, "Later"),
+			transfer,
+		))
+		want := []LedgerRankedCounterparty{
+			{Name: "Landlord", AmountMinor: 3000},
+			{Name: "Supermarkt Nord", AmountMinor: 1350},
+			{Name: "", Unknown: true, AmountMinor: 900},
+			{Name: "alpha", AmountMinor: 900},
+			{Name: "Beta", AmountMinor: 900},
+		}
+		if !slices.Equal(got.Counterparties, want) {
+			t.Fatalf("counterparties = %+v, want %+v", got.Counterparties, want)
+		}
+	})
+
+	t.Run("spelling of the newest transaction", func(t *testing.T) {
+		got := rank(t, analysisInput(nil,
+			paidTo("2026-01-10", -100, "old name gmbh"),
+			paidTo("2026-03-10", -100, "Old Name GmbH"),
+			paidTo("2026-03-10", -100, "OLD NAME GMBH"),
+			paidTo("2026-02-10", -100, "old Name gmbh"),
+		))
+		if len(got.Counterparties) != 1 || got.Counterparties[0] != (LedgerRankedCounterparty{Name: "OLD NAME GMBH", AmountMinor: 400}) {
+			t.Fatalf("counterparties = %+v", got.Counterparties)
+		}
+	})
+
+	t.Run("capped at ten", func(t *testing.T) {
+		var categories []LedgerCategory
+		var txns []LedgerTransaction
+		for i := range 12 {
+			c := analysisCategory(fmt.Sprintf("Category %02d", i), nil)
+			categories = append(categories, c)
+			txn := paidTo("2026-02-01", -int64(100+i), fmt.Sprintf("Shop %02d", i))
+			txn.CategoryID = &c.ID
+			txns = append(txns, txn)
+		}
+		got := rank(t, analysisInput(categories, txns...))
+		if len(got.Categories) != ledgerRankingLimit || len(got.Counterparties) != ledgerRankingLimit {
+			t.Fatalf("got %d categories and %d counterparties, want %d each", len(got.Categories), len(got.Counterparties), ledgerRankingLimit)
+		}
+		if got.Categories[0].Name != "Category 11" || got.Categories[9].Name != "Category 02" {
+			t.Fatalf("categories run from %q to %q", got.Categories[0].Name, got.Categories[9].Name)
+		}
+		if got.Counterparties[0].Name != "Shop 11" || got.Counterparties[9].Name != "Shop 02" {
+			t.Fatalf("counterparties run from %q to %q", got.Counterparties[0].Name, got.Counterparties[9].Name)
+		}
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		got := rank(t, LedgerAnalysisInput{})
+		if got.Categories == nil || got.Counterparties == nil || got.ExcludedCurrencies == nil ||
+			len(got.Categories)+len(got.Counterparties)+len(got.ExcludedCurrencies) != 0 {
+			t.Fatalf("empty = %#v, want empty non-nil slices", got)
+		}
+	})
+}
+
+func BenchmarkAnalyzeLedgerSpending(b *testing.B) {
+	in := randomAnalysisInput(rand.New(rand.NewPCG(70, 5)), 5000, 12)
+	for b.Loop() {
+		if _, err := AnalyzeLedgerSpending(in, "", "", analysisToday, LedgerSpendingOptions{}); err != nil {
+			b.Fatal(err)
 		}
 	}
 }

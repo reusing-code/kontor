@@ -95,3 +95,31 @@ func (h *Handler) GetLedgerSpendingAnalysis(w http.ResponseWriter, r *http.Reque
 	}
 	httputil.WriteJSON(h.logger, w, http.StatusOK, analysis)
 }
+
+// serveLedgerRangeAnalysis answers an analysis that only takes from and to.
+func serveLedgerRangeAnalysis[T any](h *Handler, w http.ResponseWriter, r *http.Request,
+	analyze func(in LedgerAnalysisInput, from, to, today string) (T, error)) {
+	from, to, ok := h.analysisRangeParams(w, r)
+	if !ok {
+		return
+	}
+	in, err := h.store.LoadLedgerAnalysisData(r.Context(), middleware.GetUserID(r.Context()))
+	if err != nil {
+		h.storeError(w, err)
+		return
+	}
+	analysis, err := analyze(in, from, to, h.today())
+	if err != nil {
+		h.writeAnalysisError(w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, analysis)
+}
+
+func (h *Handler) GetLedgerCashFlowAnalysis(w http.ResponseWriter, r *http.Request) {
+	serveLedgerRangeAnalysis(h, w, r, AnalyzeLedgerCashFlow)
+}
+
+func (h *Handler) GetLedgerRankingAnalysis(w http.ResponseWriter, r *http.Request) {
+	serveLedgerRangeAnalysis(h, w, r, AnalyzeLedgerRanking)
+}
