@@ -106,7 +106,7 @@ Go 1.27+ stdlib `net/http` with method+pattern routing. Single binary that optio
 | `search_vehicle_costs` | read | auto | `vehicleId`, `query` (description, vendor), `type`, `dateFrom`/`dateTo` |
 | `create_vehicle_cost_draft` | drafts | auto | `vehicleId` + `CostEntryInput`; target `cost` |
 | `create_vehicle_draft` | drafts | auto | `VehicleInput`; target `vehicle` |
-| `list_ledger_accounts` | read | ledger | Accounts with `ibanLast4` only (never the full IBAN) |
+| `list_ledger_accounts` | read | ledger | Accounts with `ibanLast4` only (never the full IBAN) and `balance?` (`current`, `asOf`, `source`, `drift?`, major units; omitted without a balance snapshot) |
 | `list_ledger_categories` | read | ledger | Category IDs, names, parent IDs and `matchWords` (always a list) |
 | `search_ledger_transactions` | read | ledger | `query` (counterparty, purpose, note), `dateFrom`/`dateTo` (booking date), `minAmount`/`maxAmount` (absolute, major units, 0 to 10^12), `accountId`; results carry the signed `amount`, `purpose` cut to 200 characters, references, the split parts (`splits` with `amount`, `categoryId`, `note`) and `categoryAmount` (what stays with `categoryId`) for split transactions, `specialCategory` and `transferPairTransactionId` for linked transfers, no counterparty IBAN |
 | `create_ledger_category_draft` | drafts | ledger | `{name, matchWords}` plus optional `parentId` (goes to the draft's `parentId`, not into `input`); target `ledger_category` |

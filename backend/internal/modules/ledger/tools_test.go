@@ -96,6 +96,38 @@ func TestListLedgerAccounts_MasksIBANAndIsolates(t *testing.T) {
 	}
 }
 
+func TestListLedgerAccounts_Balance(t *testing.T) {
+	e := newLedgerToolEnv(t)
+	withBalance := e.account(t, testUserID, "Main", "")
+	e.account(t, testUserID, "Other", "")
+	for _, snapshot := range []LedgerBalanceSnapshot{
+		{AccountID: withBalance, AsOf: "2026-03-01", AmountMinor: 10_000, Source: LedgerBalanceSourceManual},
+		{AccountID: withBalance, AsOf: "2026-04-01", AmountMinor: 12_345, Source: string(SourceEnableBanking)},
+	} {
+		if err := e.s.PutLedgerBalanceSnapshot(t.Context(), testUserID, snapshot); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	res, _ := mcptooltest.Call(t, e.Connect(t, testUserID, mcptool.ScopeRead), "list_ledger_accounts", map[string]any{})
+	out := mcptooltest.Decode[listAccountsOut](t, res)
+	if len(out.Items) != 2 {
+		t.Fatalf("items = %+v", out.Items)
+	}
+	for _, item := range out.Items {
+		if item.ID != withBalance.String() {
+			if item.Balance != nil {
+				t.Fatalf("account without snapshot has a balance: %+v", item.Balance)
+			}
+			continue
+		}
+		b := item.Balance
+		if b == nil || b.Current != 123.45 || b.AsOf != "2026-04-01" || b.Source != "enablebanking" || b.Drift == nil || *b.Drift != 23.45 {
+			t.Fatalf("balance = %+v", b)
+		}
+	}
+}
+
 func TestListLedgerCategories(t *testing.T) {
 	e := newLedgerToolEnv(t)
 	parent := e.category(t, testUserID, "Household", nil)

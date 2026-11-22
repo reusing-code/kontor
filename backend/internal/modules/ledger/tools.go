@@ -21,11 +21,28 @@ const (
 )
 
 type accountItem struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Bank      string `json:"bank"`
-	Currency  string `json:"currency"`
-	IBANLast4 string `json:"ibanLast4,omitempty"`
+	ID        string              `json:"id"`
+	Name      string              `json:"name"`
+	Bank      string              `json:"bank"`
+	Currency  string              `json:"currency"`
+	IBANLast4 string              `json:"ibanLast4,omitempty"`
+	Balance   *accountBalanceItem `json:"balance,omitempty" jsonschema:"current balance; missing when no balance is known"`
+}
+
+type accountBalanceItem struct {
+	Current float64  `json:"current" jsonschema:"current balance in major units: the last reported balance plus the transactions booked after it"`
+	AsOf    string   `json:"asOf" jsonschema:"date of the last reported balance, YYYY-MM-DD"`
+	Source  string   `json:"source" jsonschema:"where the last reported balance came from: dkb.csv, comdirect.csv, enablebanking or manual"`
+	Drift   *float64 `json:"drift,omitempty" jsonschema:"last reported balance minus the one before it plus the transactions in between; anything but 0 means transactions are missing or duplicated"`
+}
+
+func newAccountBalanceItem(b LedgerAccountBalance) *accountBalanceItem {
+	item := &accountBalanceItem{Current: float64(b.CurrentMinor) / 100, AsOf: b.AsOf, Source: b.Source}
+	if b.DriftMinor != nil {
+		drift := float64(*b.DriftMinor) / 100
+		item.Drift = &drift
+	}
+	return item
 }
 
 type listAccountsOut struct {
@@ -131,10 +148,14 @@ func (m *Module) RegisterTools(r *mcptool.Registrar) {
 	}
 
 	mcptool.Add(r, spec("list_ledger_accounts",
-		"List the user's ledger (bank) accounts. IBANs are shortened to their last four digits.",
+		"List the user's ledger (bank) accounts with their current balance when one is known. IBANs are shortened to their last four digits.",
 		mcptool.ScopeRead, true),
 		func(ctx context.Context, c mcptool.Call, _ struct{}) (listAccountsOut, error) {
 			accounts, err := m.store.ListLedgerAccounts(ctx, c.UserID)
+			if err != nil {
+				return listAccountsOut{}, err
+			}
+			balances, err := m.store.ListLedgerAccountBalances(ctx, c.UserID)
 			if err != nil {
 				return listAccountsOut{}, err
 			}
@@ -143,6 +164,9 @@ func (m *Module) RegisterTools(r *mcptool.Registrar) {
 				item := accountItem{ID: a.ID.String(), Name: a.Name, Bank: a.Bank, Currency: a.Currency}
 				if n := len(a.IBAN); n >= 4 {
 					item.IBANLast4 = a.IBAN[n-4:]
+				}
+				if b, ok := balances[a.ID]; ok {
+					item.Balance = newAccountBalanceItem(b)
 				}
 				out.Items = append(out.Items, item)
 			}
