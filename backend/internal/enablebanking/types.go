@@ -80,6 +80,19 @@ type Transaction struct {
 	RemittanceInformation []string             `json:"remittance_information,omitempty"`
 }
 
+// Balance is one balance of an account; BalanceType is the ISO 20022 code
+// (CLBD closing booked, ITBD interim booked, XPCD expected, CLAV/ITAV
+// available, ...). The dates are kept as text so an odd value cannot fail the
+// whole response.
+type Balance struct {
+	Name                     string `json:"name"`
+	BalanceAmount            Amount `json:"balance_amount"`
+	BalanceType              string `json:"balance_type"`
+	LastChangeDateTime       string `json:"last_change_date_time,omitempty"`
+	ReferenceDate            string `json:"reference_date,omitempty"`
+	LastCommittedTransaction string `json:"last_committed_transaction,omitempty"`
+}
+
 type TransactionsPage struct {
 	Transactions    []Transaction `json:"transactions"`
 	ContinuationKey string        `json:"continuation_key"`

@@ -70,6 +70,13 @@ func IsAppAuth(err error) bool {
 	return hasCode(err, "UNAUTHORIZED_ACCESS", "AUTHORIZATION_NOT_PROVIDED", "UNAUTHORIZED_IP", "INVALID_HOST")
 }
 
+// IsBalanceAccessMissing reports that the bank refuses the balances (403 or ACCESS_DENIED),
+// typically because the consent was given without balance access.
+func IsBalanceAccessMissing(err error) bool {
+	apiErr, ok := apiError(err)
+	return ok && !IsSessionUnusable(err) && (apiErr.Status == http.StatusForbidden || apiErr.Code == "ACCESS_DENIED")
+}
+
 func IsWrongTransactionsPeriod(err error) bool {
 	return hasCode(err, "WRONG_TRANSACTIONS_PERIOD")
 }

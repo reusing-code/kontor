@@ -62,7 +62,7 @@ func TestStartAuth(t *testing.T) {
 	}
 	body := reqs[0]
 	access := body["access"].(map[string]any)
-	if access["valid_until"] != "2027-01-01T00:00:00Z" || access["transactions"] != true || access["transactions_extended_history"] != true {
+	if access["valid_until"] != "2027-01-01T00:00:00Z" || access["transactions"] != true || access["transactions_extended_history"] != true || access["balances"] != true {
 		t.Fatalf("access = %v", access)
 	}
 	if aspsp := body["aspsp"].(map[string]any); aspsp["name"] != "DKB" || aspsp["country"] != "DE" {
@@ -158,6 +158,40 @@ func TestTransactionsFollowsContinuationKey(t *testing.T) {
 	}
 }
 
+func TestBalances(t *testing.T) {
+	fake := enablebankingtest.New(t)
+	fake.SetBalances("uid-1", []enablebanking.Balance{
+		{Name: "Booked", BalanceAmount: enablebanking.Amount{Currency: "EUR", Amount: "1234.56"}, BalanceType: "ITBD",
+			ReferenceDate: "2026-04-08", LastChangeDateTime: "2026-04-08T10:00:00Z", LastCommittedTransaction: "ref-1"},
+	})
+	c := newClient(t, fake)
+	got, err := c.Balances(t.Context(), "uid-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].BalanceType != "ITBD" || got[0].BalanceAmount.Amount != "1234.56" || got[0].ReferenceDate != "2026-04-08" {
+		t.Fatalf("balances = %+v", got)
+	}
+	if calls := fake.BalanceCalls(); len(calls) != 1 || calls[0] != "uid-1" {
+		t.Fatalf("calls = %v", calls)
+	}
+	if empty, err := c.Balances(t.Context(), "uid-2"); err != nil || len(empty) != 0 {
+		t.Fatalf("unknown account: %+v, %v", empty, err)
+	}
+
+	fake.FailNext("/accounts/uid-1/balances", http.StatusForbidden, "")
+	if _, err := c.Balances(t.Context(), "uid-1"); !enablebanking.IsBalanceAccessMissing(err) {
+		t.Fatalf("err = %v, want missing balance access", err)
+	}
+	fake.FailNext("/accounts/uid-1/balances", http.StatusUnauthorized, "EXPIRED_SESSION")
+	if _, err := c.Balances(t.Context(), "uid-1"); enablebanking.IsBalanceAccessMissing(err) || !enablebanking.IsSessionUnusable(err) {
+		t.Fatalf("err = %v, a lost session is not missing balance access", err)
+	}
+	if _, err := c.Balances(t.Context(), ""); err == nil {
+		t.Fatal("expected error without account UID")
+	}
+}
+
 func TestAPIErrors(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -172,6 +206,8 @@ func TestAPIErrors(t *testing.T) {
 		{"revoked session", 403, "REVOKED_SESSION", enablebanking.IsSessionUnusable, "REVOKED_SESSION"},
 		{"account not accessible", 403, "ASPSP_ACCOUNT_NOT_ACCESSIBLE", enablebanking.IsAccountNotAccessible, ""},
 		{"app auth", 401, "UNAUTHORIZED_ACCESS", enablebanking.IsAppAuth, ""},
+		{"balance access missing", 403, "", enablebanking.IsBalanceAccessMissing, ""},
+		{"balance access denied", 400, "ACCESS_DENIED", enablebanking.IsBalanceAccessMissing, ""},
 		{"wrong period", 422, "WRONG_TRANSACTIONS_PERIOD", enablebanking.IsWrongTransactionsPeriod, ""},
 		{"server error", 502, "", enablebanking.IsUnavailable, "status 502"},
 		{"bank error", 400, "ASPSP_ERROR", enablebanking.IsUnavailable, ""},

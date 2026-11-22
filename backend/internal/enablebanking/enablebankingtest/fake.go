@@ -67,6 +67,8 @@ type Server struct {
 	codes        map[string]enablebanking.Session
 	status       map[string]string
 	transactions map[string][]enablebanking.Transaction
+	balances     map[string][]enablebanking.Balance
+	balanceCalls []string
 	pageSize     int
 	failures     []*failure
 	txnRequests  int
@@ -85,6 +87,7 @@ func New(t *testing.T) *Server {
 		codes:        map[string]enablebanking.Session{},
 		status:       map[string]string{},
 		transactions: map[string][]enablebanking.Transaction{},
+		balances:     map[string][]enablebanking.Balance{},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /aspsps", s.handle(s.listASPSPs))
@@ -93,6 +96,7 @@ func New(t *testing.T) *Server {
 	mux.HandleFunc("GET /sessions/{id}", s.handle(s.getSession))
 	mux.HandleFunc("DELETE /sessions/{id}", s.handle(s.deleteSession))
 	mux.HandleFunc("GET /accounts/{uid}/transactions", s.handle(s.listTransactions))
+	mux.HandleFunc("GET /accounts/{uid}/balances", s.handle(s.listBalances))
 	s.srv = httptest.NewServer(mux)
 	s.URL = s.srv.URL
 	t.Cleanup(s.srv.Close)
@@ -136,6 +140,22 @@ func (s *Server) SetTransactions(accountUID string, txns []enablebanking.Transac
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.transactions[accountUID] = txns
+}
+
+// SetBalances sets what the balances endpoint returns for the account (an
+// empty list when unset).
+func (s *Server) SetBalances(accountUID string, balances []enablebanking.Balance) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.balances[accountUID] = balances
+}
+
+// BalanceCalls lists the account UIDs of the balance requests, failed ones
+// included.
+func (s *Server) BalanceCalls() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.balanceCalls...)
 }
 
 // SetPageSize limits the transactions per page; 0 means one page.
@@ -224,6 +244,8 @@ func (s *Server) record(r *http.Request) {
 		s.sessionCalls = append(s.sessionCalls, SessionCall{Method: r.Method})
 	case strings.HasPrefix(r.URL.Path, "/sessions/"):
 		s.sessionCalls = append(s.sessionCalls, SessionCall{Method: r.Method, SessionID: r.PathValue("id")})
+	case strings.HasSuffix(r.URL.Path, "/balances"):
+		s.balanceCalls = append(s.balanceCalls, r.PathValue("uid"))
 	case strings.HasSuffix(r.URL.Path, "/transactions"):
 		q := r.URL.Query()
 		s.queries = append(s.queries, TransactionQuery{
@@ -395,6 +417,14 @@ func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) {
 		next = base64.RawURLEncoding.EncodeToString([]byte("ck:" + strconv.Itoa(end)))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"transactions": filtered[start:end], "continuation_key": nullable(next)})
+}
+
+func (s *Server) listBalances(w http.ResponseWriter, r *http.Request) {
+	s.record(r)
+	s.mu.Lock()
+	balances := append([]enablebanking.Balance{}, s.balances[r.PathValue("uid")]...)
+	s.mu.Unlock()
+	writeJSON(w, http.StatusOK, map[string]any{"balances": balances})
 }
 
 func nullable(s string) any {

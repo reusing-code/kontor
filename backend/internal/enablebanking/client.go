@@ -148,6 +148,7 @@ func (c *Client) StartAuth(ctx context.Context, r AuthRequest) (string, error) {
 	body := map[string]any{
 		"access": map[string]any{
 			"valid_until":                   r.ValidUntil.UTC().Format(time.RFC3339),
+			"balances":                      true,
 			"transactions":                  true,
 			"transactions_extended_history": r.ExtendedHistory,
 		},
@@ -227,4 +228,17 @@ func (c *Client) Transactions(ctx context.Context, q TransactionsQuery) (Transac
 	var out TransactionsPage
 	err := c.do(ctx, http.MethodGet, "/accounts/"+url.PathEscape(q.AccountUID)+"/transactions", values, nil, &out)
 	return out, err
+}
+
+// Balances fetches the account's balances. A consent given without balance
+// access is refused by the bank (IsBalanceAccessMissing).
+func (c *Client) Balances(ctx context.Context, accountUID string) ([]Balance, error) {
+	if accountUID == "" {
+		return nil, fmt.Errorf("enable banking: account UID is required")
+	}
+	var out struct {
+		Balances []Balance `json:"balances"`
+	}
+	err := c.do(ctx, http.MethodGet, "/accounts/"+url.PathEscape(accountUID)+"/balances", nil, nil, &out)
+	return out.Balances, err
 }

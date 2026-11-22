@@ -157,7 +157,7 @@ func TestStartAuthorization(t *testing.T) {
 			if err != nil || !validUntil.Equal(f.now.Add(tt.wantValid)) {
 				t.Fatalf("valid_until = %v (%v), want %v", access["valid_until"], err, f.now.Add(tt.wantValid))
 			}
-			if access["transactions_extended_history"] != true || access["transactions"] != true {
+			if access["transactions_extended_history"] != true || access["transactions"] != true || access["balances"] != true {
 				t.Fatalf("access = %v", access)
 			}
 			aspsp := req["aspsp"].(map[string]any)
