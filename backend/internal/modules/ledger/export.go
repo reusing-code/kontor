@@ -21,6 +21,8 @@ type exportSection struct {
 	Transactions  []LedgerTransaction  `json:"transactions"`
 	EmailAccounts []LedgerEmailAccount `json:"emailAccounts"`
 	EmailOrders   []LedgerEmailOrder   `json:"emailOrders"`
+	// Balances is optional: exports from before balances existed have none.
+	Balances []LedgerBalanceSnapshot `json:"balances,omitempty"`
 }
 
 func (m *Module) IsEmpty(ctx context.Context, userID string) (bool, error) {
@@ -68,6 +70,9 @@ func (m *Module) ExportSection(ctx context.Context, userID string) (json.RawMess
 	if section.EmailOrders, err = m.store.ListLedgerEmailOrders(ctx, userID); err != nil {
 		return nil, err
 	}
+	if section.Balances, err = m.store.ListAllLedgerBalanceSnapshots(ctx, userID); err != nil {
+		return nil, err
+	}
 	return json.Marshal(section)
 }
 
@@ -90,6 +95,9 @@ func (m *Module) ImportSection(ctx context.Context, userID string, data json.Raw
 		}
 	}
 	res.Add("ledgerAccounts", len(section.Accounts))
+	if err := m.restoreBalances(ctx, userID, section, res); err != nil {
+		return err
+	}
 
 	// References to items in modules that were not imported are stripped so
 	// the transaction data stays internally consistent.
@@ -247,6 +255,30 @@ func (m *Module) replaceCategories(ctx context.Context, userID string, cats []Le
 			return fmt.Errorf("%w: ledger categories contain an unresolvable parent reference", module.ErrInvalidSection)
 		}
 		pending = remaining
+	}
+	return nil
+}
+
+// restoreBalances stores the snapshots of imported accounts; snapshots of an
+// account that is not in the export or that are invalid are skipped.
+func (m *Module) restoreBalances(ctx context.Context, userID string, section exportSection, res *module.ImportResult) error {
+	accounts := make(map[uuid.UUID]bool, len(section.Accounts))
+	for _, account := range section.Accounts {
+		accounts[account.ID] = true
+	}
+	skipped := 0
+	for _, snapshot := range section.Balances {
+		if !accounts[snapshot.AccountID] || snapshot.validate() != nil {
+			skipped++
+			continue
+		}
+		if err := m.store.PutLedgerBalanceSnapshot(ctx, userID, snapshot); err != nil {
+			return err
+		}
+		res.Add("ledgerBalances", 1)
+	}
+	if skipped > 0 {
+		res.Warnf("ledger: skipped %d balance(s) of unknown accounts or with invalid data", skipped)
 	}
 	return nil
 }

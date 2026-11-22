@@ -287,8 +287,8 @@ func detachLedgerEmailOrderTxn(txn *badger.Txn, userID string, orderID, txnID uu
 	return storeLedgerEmailOrder(txn, userID, order)
 }
 
-// deleteLedgerAccountRecordTxn removes the account, its IBAN index and its
-// import batches (with their file hashes, so the files can be imported
+// deleteLedgerAccountRecordTxn removes the account, its IBAN index, its
+// balance snapshots and its import batches (with their file hashes, so the files can be imported
 // again). It runs once the account has no transactions left.
 func (s *Store) deleteLedgerAccountRecordTxn(txn *badger.Txn, userID string, id uuid.UUID) error {
 	a, err := loadLedgerAccountTxn(txn, userID, id)
@@ -311,6 +311,9 @@ func (s *Store) deleteLedgerAccountRecordTxn(txn *badger.Txn, userID string, id 
 		if err := txn.Delete(ledImpKey(userID, b.ID)); err != nil {
 			return err
 		}
+	}
+	if err := deleteKeysWithPrefix(txn, ledBalAccountPrefix(userID, id), nil); err != nil {
+		return err
 	}
 	if a.IBAN != "" {
 		if err := deleteIfValue(txn, idxLedAccIBANKey(userID, a.IBAN), id.String()); err != nil {
