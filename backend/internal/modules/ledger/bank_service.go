@@ -409,6 +409,7 @@ func (s *BankService) storeSession(ctx context.Context, userID string, pending B
 			EncryptedSessionID: encrypted,
 			AuthorizedAt:       now,
 			ValidUntil:         session.ValidUntil,
+			BalancesRequested:  true,
 			CreatedAt:          now,
 			UpdatedAt:          now,
 		}

@@ -50,38 +50,47 @@ type LedgerBankAccount struct {
 	LastSyncStatus    string     `json:"lastSyncStatus,omitempty"`
 	LastImported      int        `json:"lastImported"`
 	LastDuplicates    int        `json:"lastDuplicates"`
+	// LastBalanceStatus is the outcome of the balance fetch of the last
+	// successful sync (BankBalance*); empty before the first one.
+	LastBalanceStatus string `json:"lastBalanceStatus,omitempty"`
 }
 
 // LedgerBankConnection is a user's consent at one bank. EncryptedSessionID is
 // the AES-GCM encrypted Enable Banking session ID and never leaves the API.
 type LedgerBankConnection struct {
-	ID                 uuid.UUID           `json:"id"`
-	ASPSPName          string              `json:"aspspName"`
-	ASPSPCountry       string              `json:"aspspCountry"`
-	EncryptedSessionID string              `json:"-"`
-	AuthorizedAt       time.Time           `json:"authorizedAt"`
-	ValidUntil         time.Time           `json:"validUntil"`
-	LostAt             *time.Time          `json:"lostAt,omitempty"`
-	NotifiedDays       []int               `json:"notifiedDays,omitempty"`
-	Accounts           []LedgerBankAccount `json:"accounts"`
-	CreatedAt          time.Time           `json:"createdAt"`
-	UpdatedAt          time.Time           `json:"updatedAt"`
+	ID                 uuid.UUID  `json:"id"`
+	ASPSPName          string     `json:"aspspName"`
+	ASPSPCountry       string     `json:"aspspCountry"`
+	EncryptedSessionID string     `json:"-"`
+	AuthorizedAt       time.Time  `json:"authorizedAt"`
+	ValidUntil         time.Time  `json:"validUntil"`
+	LostAt             *time.Time `json:"lostAt,omitempty"`
+	NotifiedDays       []int      `json:"notifiedDays,omitempty"`
+	// BalancesRequested: the consent asked for balance access (consents from
+	// before balances were supported did not).
+	BalancesRequested bool                `json:"balancesRequested,omitempty"`
+	Accounts          []LedgerBankAccount `json:"accounts"`
+	CreatedAt         time.Time           `json:"createdAt"`
+	UpdatedAt         time.Time           `json:"updatedAt"`
 }
 
 // storableLedgerBankConnection includes EncryptedSessionID for persistence
 // (LedgerBankConnection has json:"-" on it so it never leaves the API).
 type storableLedgerBankConnection struct {
-	ID                 uuid.UUID           `json:"id"`
-	ASPSPName          string              `json:"aspspName"`
-	ASPSPCountry       string              `json:"aspspCountry"`
-	EncryptedSessionID string              `json:"encryptedSessionId"`
-	AuthorizedAt       time.Time           `json:"authorizedAt"`
-	ValidUntil         time.Time           `json:"validUntil"`
-	LostAt             *time.Time          `json:"lostAt,omitempty"`
-	NotifiedDays       []int               `json:"notifiedDays,omitempty"`
-	Accounts           []LedgerBankAccount `json:"accounts"`
-	CreatedAt          time.Time           `json:"createdAt"`
-	UpdatedAt          time.Time           `json:"updatedAt"`
+	ID                 uuid.UUID  `json:"id"`
+	ASPSPName          string     `json:"aspspName"`
+	ASPSPCountry       string     `json:"aspspCountry"`
+	EncryptedSessionID string     `json:"encryptedSessionId"`
+	AuthorizedAt       time.Time  `json:"authorizedAt"`
+	ValidUntil         time.Time  `json:"validUntil"`
+	LostAt             *time.Time `json:"lostAt,omitempty"`
+	NotifiedDays       []int      `json:"notifiedDays,omitempty"`
+	// BalancesRequested: the consent asked for balance access (consents from
+	// before balances were supported did not).
+	BalancesRequested bool                `json:"balancesRequested,omitempty"`
+	Accounts          []LedgerBankAccount `json:"accounts"`
+	CreatedAt         time.Time           `json:"createdAt"`
+	UpdatedAt         time.Time           `json:"updatedAt"`
 }
 
 // BankConnectionStatus derives active, expiring or expired. A consent that was
@@ -112,28 +121,33 @@ type BankAccountView struct {
 	StatusMessage     string     `json:"statusMessage"`
 	LastImported      int        `json:"lastImported"`
 	LastDuplicates    int        `json:"lastDuplicates"`
+	LastBalanceStatus string     `json:"lastBalanceStatus,omitempty"`
 }
 
 // BankConnectionView is the API shape of a connection; it never carries the session.
 type BankConnectionView struct {
-	ID           uuid.UUID         `json:"id"`
-	ASPSPName    string            `json:"aspspName"`
-	ASPSPCountry string            `json:"aspspCountry"`
-	AuthorizedAt time.Time         `json:"authorizedAt"`
-	ExpiresAt    time.Time         `json:"expiresAt"`
-	Status       string            `json:"status"`
-	Accounts     []BankAccountView `json:"accounts"`
+	ID           uuid.UUID `json:"id"`
+	ASPSPName    string    `json:"aspspName"`
+	ASPSPCountry string    `json:"aspspCountry"`
+	AuthorizedAt time.Time `json:"authorizedAt"`
+	ExpiresAt    time.Time `json:"expiresAt"`
+	Status       string    `json:"status"`
+	// BalancesRequested is false for a consent from before balance access was
+	// requested: re-authorizing it lets the sync read the balances.
+	BalancesRequested bool              `json:"balancesRequested"`
+	Accounts          []BankAccountView `json:"accounts"`
 }
 
 func NewBankConnectionView(c LedgerBankConnection, now time.Time) BankConnectionView {
 	view := BankConnectionView{
-		ID:           c.ID,
-		ASPSPName:    c.ASPSPName,
-		ASPSPCountry: c.ASPSPCountry,
-		AuthorizedAt: c.AuthorizedAt,
-		ExpiresAt:    c.ValidUntil,
-		Status:       BankConnectionStatus(c, now),
-		Accounts:     make([]BankAccountView, 0, len(c.Accounts)),
+		ID:                c.ID,
+		ASPSPName:         c.ASPSPName,
+		ASPSPCountry:      c.ASPSPCountry,
+		AuthorizedAt:      c.AuthorizedAt,
+		ExpiresAt:         c.ValidUntil,
+		Status:            BankConnectionStatus(c, now),
+		BalancesRequested: c.BalancesRequested,
+		Accounts:          make([]BankAccountView, 0, len(c.Accounts)),
 	}
 	for _, a := range c.Accounts {
 		status := a.LastSyncStatus
@@ -153,6 +167,7 @@ func NewBankConnectionView(c LedgerBankConnection, now time.Time) BankConnection
 			StatusMessage:     bankStatusMessage(status, a.LastImported, a.LastDuplicates),
 			LastImported:      a.LastImported,
 			LastDuplicates:    a.LastDuplicates,
+			LastBalanceStatus: a.LastBalanceStatus,
 		})
 	}
 	return view
@@ -199,5 +214,5 @@ func normalizeIBAN(s string) string {
 // is due at the next scheduler tick and shows no stale result.
 func resetBankAccountSyncState(a *LedgerBankAccount) {
 	a.LastSyncAttemptAt, a.LastSyncAt = nil, nil
-	a.LastSyncStatus, a.LastImported, a.LastDuplicates = "", 0, 0
+	a.LastSyncStatus, a.LastImported, a.LastDuplicates, a.LastBalanceStatus = "", 0, 0, ""
 }

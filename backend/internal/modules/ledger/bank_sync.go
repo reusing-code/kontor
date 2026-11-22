@@ -36,6 +36,8 @@ type BankAccountSyncResult struct {
 	SkippedNotBooked int    `json:"skippedNotBooked"`
 	SkippedCurrency  int    `json:"skippedCurrency"`
 	SkippedInvalid   int    `json:"skippedInvalid"`
+	// BalanceStatus is set after a successful transaction sync (BankBalance*).
+	BalanceStatus string `json:"balanceStatus,omitempty"`
 }
 
 type BankSyncSummary struct {
@@ -186,6 +188,9 @@ func (s *BankService) syncAccount(ctx context.Context, userID string, conn Ledge
 			"account_uid", account.UID, "status", status, "upstream", bankErrCode(err))
 	}
 	result.Status, result.Imported, result.Duplicates = status, imported, dupes
+	if err == nil {
+		result.BalanceStatus = s.syncBalance(accountCtx, userID, conn, account)
+	}
 
 	s.recordSyncState(ctx, userID, conn, account.UID, result, started, consentLost)
 	if err == nil {
@@ -236,6 +241,7 @@ func (s *BankService) recordSyncState(ctx context.Context, userID string, conn L
 				a.LastSyncAt = &at
 				a.LastImported = res.Imported
 				a.LastDuplicates = res.Duplicates
+				a.LastBalanceStatus = res.BalanceStatus
 			}
 		}
 	})

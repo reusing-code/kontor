@@ -61,9 +61,13 @@ The tests cover this in `bank_fingerprint_test.go` (the D1 test: for both banks 
 
 The first sync of an account without transactions uses `strategy=longest` (as much history as the bank allows; consent asks for `transactions_extended_history`). Afterwards the window starts at the newest stored booking date **not after today** minus 14 days (a booked row with a bad future date must not become the anchor, or the gap before it would never be fetched again; an account whose rows are all in the future falls back to `longest`), so late postings are picked up and the overlap deduplicates by fingerprint. All pages are fetched before anything is stored, and the commit goes oldest first in chunks, so an interrupted run cannot skip older rows.
 
+## Balances
+
+After a successful transaction sync the account's balances are fetched (`GET /accounts/{uid}/balances`; the consent asks for `balances: true`) and one is stored as a balance snapshot of the mapped ledger account (source `enablebanking`, see "Account balances" in `backend/AGENTS.md`). Only booked types count, like the imported rows: `ITBD` (interim booked) and `CLBD` (closing booked); `XPCD`, `CLAV`, `ITAV` and the other types contain pending rows or the credit line and are ignored. Among the booked EUR balances the newest date wins and `ITBD` beats `CLBD` on the same day; the date is `reference_date`, else the day of `last_change_date_time`, else today, and never after today. The balance fetch never fails the sync: the account's `lastBalanceStatus` is `ok`, `unavailable` (the bank refused, typically a consent from before balance access was requested, or no booked EUR balance) or `error`. Consents stored before this change have `balancesRequested` false; the bank connections page asks to re-authorize them, and re-authorizing resets the balance status. Amounts are never logged.
+
 ## Verified by tests (fixtures and a fake server)
 
-Conversion, amounts, fingerprints, the window function, cross-source matching, the sync flows and their error handling, the consent flow, the public callback, scopes and the absence of secrets in logs and responses.
+Conversion, amounts, fingerprints, the balance choice, the window function, cross-source matching, the sync flows and their error handling, the consent flow, the public callback, scopes and the absence of secrets in logs and responses.
 
 ## Verified only by the user (manual checklist)
 
@@ -77,3 +81,4 @@ The real API was never called. Before relying on the import, check against your 
 6. Data quality against your CSV exports: counterparty and purpose texts, booking versus value dates, `entry_reference` presence, and how many rows the first `longest` backfill returns.
 7. After a CSV backfill: connect the bank, run a sync and confirm that existing rows are absorbed (imported count 0 for overlapping days) and that nothing is duplicated; tune `bankCrossSourceDays` if the real date gaps are larger.
 8. The expiry mails at 14 and 3 days (needs SMTP) and the re-authorization flow.
+9. Balances: after re-authorizing, which balance types DKB and comdirect return (`balance_types` is logged when none is usable), and that the stored balance matches the banking app (no drift warning on the account page right after a sync).
