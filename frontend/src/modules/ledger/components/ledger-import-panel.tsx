@@ -216,6 +216,12 @@ export function LedgerImportPanel({ accounts }: LedgerImportPanelProps) {
               </div>
             </div>
 
+            {preview.balance && (
+              <div className="text-sm text-muted-foreground">
+                {t("ledger.balance.inFile", { amount: formatAmountMinor(preview.balance.amountMinor, "EUR", i18n.language), date: preview.balance.asOf })}
+              </div>
+            )}
+
             {preview.warnings && preview.warnings.length > 0 && (
               <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm">
                 <div className="font-medium">{t("ledger.warnings")}</div>

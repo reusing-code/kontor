@@ -12,8 +12,8 @@ function bankAccount(fields: Partial<BankAccount>): BankAccount {
   return { uid: "uid-1", iban: "DE89370400440532013000", currency: "EUR", name: "Girokonto", mapped: false, lastSyncStatus: "", statusMessage: "", lastImported: 0, lastDuplicates: 0, ...fields }
 }
 
-function setup(accounts: BankAccount[]) {
-  let connection: BankConnection = { id: "conn-1", aspspName: "DKB", aspspCountry: "DE", authorizedAt: at, expiresAt: "2027-02-01T00:00:00Z", status: "active", accounts }
+function setup(accounts: BankAccount[], balancesRequested = true) {
+  let connection: BankConnection = { id: "conn-1", aspspName: "DKB", aspspCountry: "DE", authorizedAt: at, expiresAt: "2027-02-01T00:00:00Z", status: "active", balancesRequested, accounts }
   const api = mockApi({
     "GET /capabilities": { llm: false, llmVision: false, bankImport: true },
     "GET /ledger/accounts": [ledger("giro", "Giro"), ledger("savings", "Savings")],
@@ -55,5 +55,23 @@ describe("BankConnectionsPanel mapping", () => {
     expect(api.callsTo("PUT", "/ledger/bank/connections/conn-1/accounts/uid-1")[0].body).toEqual({ ledgerAccountId: "savings" })
     expect(await screen.findByText("Mapped to Savings")).toBeInTheDocument()
     expect(screen.queryByRole("combobox", { name: "Map to ledger account" })).toBeNull()
+  })
+})
+
+describe("BankConnectionsPanel balances", () => {
+  it("asks to re-authorize a consent from before balances were requested", async () => {
+    setup([bankAccount({ mapped: true, ledgerAccountId: "giro", lastSyncStatus: "ok", lastBalanceStatus: "unavailable" })], false)
+    expect(await screen.findByText(/This consent was given before Kontor read balances/)).toBeInTheDocument()
+  })
+
+  it("says when the bank reports no booked balance", async () => {
+    setup([bankAccount({ mapped: true, ledgerAccountId: "giro", lastSyncStatus: "ok", lastBalanceStatus: "unavailable" })])
+    expect(await screen.findByText("The bank reports no booked balance for this account.")).toBeInTheDocument()
+  })
+
+  it("shows nothing when the balance was loaded", async () => {
+    setup([bankAccount({ mapped: true, ledgerAccountId: "giro", lastSyncStatus: "ok", lastBalanceStatus: "ok" })], false)
+    expect(await screen.findByText("Mapped to Giro")).toBeInTheDocument()
+    expect(screen.queryByText(/Re-authorize to load the balance/)).toBeNull()
   })
 })

@@ -24,6 +24,7 @@ import type {
   LedgerCommitRequest,
   LedgerCommitResult,
   LedgerImportBatch,
+  LedgerManualBalanceInput,
   LedgerPreviewResult,
   LedgerReviewInput,
   LedgerReviewResult,
@@ -217,6 +218,14 @@ export async function unlinkLedgerTransfer(id: string): Promise<LedgerTransferLi
 
 export async function updateLedgerAccount(id: string, data: LedgerAccountUpdateInput): Promise<LedgerAccount> {
   return put<LedgerAccount>(`/ledger/accounts/${id}`, data)
+}
+
+export async function setLedgerAccountBalance(id: string, data: LedgerManualBalanceInput): Promise<LedgerAccount> {
+  return post<LedgerAccount>(`/ledger/accounts/${id}/balance`, data)
+}
+
+export async function deleteLedgerAccountBalance(id: string, asOf: string): Promise<LedgerAccount> {
+  return delJson<LedgerAccount>(`/ledger/accounts/${id}/balance/${asOf}`)
 }
 
 export async function getLedgerAccountDeleteSummary(id: string): Promise<LedgerAccountDeleteSummary> {

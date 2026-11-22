@@ -251,6 +251,7 @@ function BankConnectionCard({
           <BankAccountRow
             key={account.uid}
             account={account}
+            balancesRequested={connection.balancesRequested}
             ledgerAccounts={ledgerAccounts}
             mappedLedgerIds={mappedLedgerIds}
             onMap={(ledgerAccountId) => onMap(account.uid, ledgerAccountId)}
@@ -265,6 +266,7 @@ function BankConnectionCard({
 
 interface BankAccountRowProps {
   account: BankAccount
+  balancesRequested: boolean
   ledgerAccounts: LedgerAccount[]
   mappedLedgerIds: Set<string>
   onMap: (ledgerAccountId: string) => void
@@ -272,7 +274,7 @@ interface BankAccountRowProps {
   onCreate: () => void
 }
 
-function BankAccountRow({ account, ledgerAccounts, mappedLedgerIds, onMap, onUnmap, onCreate }: BankAccountRowProps) {
+function BankAccountRow({ account, balancesRequested, ledgerAccounts, mappedLedgerIds, onMap, onUnmap, onCreate }: BankAccountRowProps) {
   const { t } = useTranslation()
   const [changing, setChanging] = useState(false)
   const mappedTo = ledgerAccounts.find((l) => l.id === account.ledgerAccountId)
@@ -343,6 +345,12 @@ function BankAccountRow({ account, ledgerAccounts, mappedLedgerIds, onMap, onUnm
           : t("ledger.bankImport.neverSynced")}
         {account.lastSyncStatus === "ok" && ` · ${t("ledger.bankImport.lastCounts", { imported: account.lastImported, duplicates: account.lastDuplicates })}`}
       </div>
+      {account.mapped && account.lastBalanceStatus === "unavailable" && (
+        <p className="text-xs text-yellow-700 dark:text-yellow-500">
+          {balancesRequested ? t("ledger.balance.bankUnavailable") : t("ledger.balance.bankUnavailableOldConsent")}
+        </p>
+      )}
+      {account.mapped && account.lastBalanceStatus === "error" && <p className="text-xs text-muted-foreground">{t("ledger.balance.bankError")}</p>}
     </div>
   )
 }

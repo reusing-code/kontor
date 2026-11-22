@@ -15,6 +15,7 @@ import { formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
 import { LedgerTransactionsTable } from "@/modules/ledger/components/ledger-transactions-table"
 import { LedgerAccountEditDialog } from "@/modules/ledger/components/ledger-account-edit-dialog"
 import { LedgerAccountDeleteDialog } from "@/modules/ledger/components/ledger-account-delete-dialog"
+import { LedgerAccountBalanceCard } from "@/modules/ledger/components/ledger-account-balance-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -93,6 +94,8 @@ export function LedgerAccountPage() {
         </CardContent>
       </Card>
 
+      {account && <LedgerAccountBalanceCard account={account} />}
+
       <div className="space-y-3">
         <h2 className="text-xl font-semibold">{t("ledger.transactions")}</h2>
         <LedgerTransactionsTable
@@ -100,6 +103,8 @@ export function LedgerAccountPage() {
           categories={categories}
           nextCursor={page?.nextCursor}
           loadingMore={isFetching}
+          pageBalance={page?.pageBalance}
+          currency={account?.currency}
           onLoadMore={page?.nextCursor ? () => setCursorStack((prev) => [...prev, page.nextCursor as string]) : undefined}
         />
       </div>

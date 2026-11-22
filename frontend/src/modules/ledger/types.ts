@@ -1,5 +1,19 @@
 import { z } from "zod/v4"
 
+// The balance is derived from the newest snapshot (asOf, source) plus the
+// transactions booked after it; driftMinor compares that snapshot with the one
+// before it plus the transactions in between (missing or duplicated rows).
+export const ledgerAccountBalanceSchema = z.object({
+  currentMinor: z.number().int(),
+  snapshotMinor: z.number().int(),
+  asOf: z.string(),
+  source: z.string(),
+  driftMinor: z.number().int().optional(),
+  previousAsOf: z.string().optional(),
+})
+
+export type LedgerAccountBalance = z.infer<typeof ledgerAccountBalanceSchema>
+
 export const ledgerAccountSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
@@ -8,6 +22,7 @@ export const ledgerAccountSchema = z.object({
   currency: z.string().min(1),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  balance: ledgerAccountBalanceSchema.optional(),
 })
 
 export type LedgerAccount = z.infer<typeof ledgerAccountSchema>
@@ -361,6 +376,7 @@ export const ledgerPreviewResultSchema = z.object({
   newRows: z.number().int(),
   duplicateRows: z.number().int(),
   warnings: z.array(z.string()).optional(),
+  balance: z.object({ amountMinor: z.number().int(), asOf: z.string() }).optional(),
   expiresAt: z.string().datetime(),
 })
 
@@ -375,9 +391,20 @@ export const ledgerCommitResultSchema = z.object({
 
 export type LedgerCommitResult = z.infer<typeof ledgerCommitResultSchema>
 
+// closingMinor is the balance after the page's newest transaction (top),
+// openingMinor the balance before its oldest one (bottom).
+export const ledgerPageBalanceSchema = z.object({
+  closingMinor: z.number().int(),
+  openingMinor: z.number().int(),
+})
+
+export type LedgerPageBalance = z.infer<typeof ledgerPageBalanceSchema>
+
 export const ledgerTransactionsPageSchema = z.object({
   items: z.array(ledgerTransactionSchema),
   nextCursor: z.string().optional(),
+  pageBalance: ledgerPageBalanceSchema.optional(),
+  accountBalance: ledgerAccountBalanceSchema.optional(),
 })
 
 export type LedgerTransactionsPage = z.infer<typeof ledgerTransactionsPageSchema>
@@ -522,6 +549,7 @@ export interface BankAccount {
   statusMessage: string
   lastImported: number
   lastDuplicates: number
+  lastBalanceStatus?: "ok" | "unavailable" | "error"
 }
 
 export interface BankConnection {
@@ -531,6 +559,8 @@ export interface BankConnection {
   authorizedAt: string
   expiresAt: string
   status: BankConnectionStatus
+  // false for a consent from before balances were requested
+  balancesRequested: boolean
   accounts: BankAccount[]
 }
 
@@ -553,4 +583,9 @@ export interface BankSyncSummary {
   imported: number
   duplicates: number
   accounts: BankSyncAccountResult[]
+}
+
+export interface LedgerManualBalanceInput {
+  amountMinor: number
+  asOf: string
 }

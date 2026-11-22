@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
-import type { LedgerCategory, LedgerTransaction } from "@/modules/ledger/types"
+import type { LedgerCategory, LedgerPageBalance, LedgerTransaction } from "@/modules/ledger/types"
 import { transactionPath } from "@/modules/ledger/lib/module-links"
 import { formatAmountMinor, formatLedgerCategorizationSource, formatLedgerDate, formatLedgerReviewStatus, formatLedgerSpecialCategory, formatSourceType } from "@/modules/ledger/lib/ledger-utils"
 import { LedgerSplitBadge } from "@/modules/ledger/components/ledger-split-badge"
@@ -21,11 +21,27 @@ interface LedgerTransactionsTableProps {
   nextCursor?: string
   onLoadMore?: () => void
   loadingMore?: boolean
+  // the balances around the shown page; no balance rows without it
+  pageBalance?: LedgerPageBalance
+  currency?: string
 }
 
-export function LedgerTransactionsTable({ transactions, categories = [], nextCursor, onLoadMore, loadingMore = false }: LedgerTransactionsTableProps) {
+const columnCount = 9
+
+export function LedgerTransactionsTable({ transactions, categories = [], nextCursor, onLoadMore, loadingMore = false, pageBalance, currency = "EUR" }: LedgerTransactionsTableProps) {
   const { t, i18n } = useTranslation()
   const categoryNameById = new Map(categories.map((category) => [category.id, category.name]))
+  const showBalance = pageBalance !== undefined && transactions.length > 0
+
+  function balanceRow(label: string, minor: number) {
+    return (
+      <TableRow className="bg-muted/50 font-medium hover:bg-muted/50">
+        <TableCell colSpan={2}>{label}</TableCell>
+        <TableCell className={minor < 0 ? "text-destructive" : undefined}>{formatAmountMinor(minor, currency, i18n.language)}</TableCell>
+        <TableCell colSpan={columnCount - 3} />
+      </TableRow>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -47,45 +63,49 @@ export function LedgerTransactionsTable({ transactions, categories = [], nextCur
           <TableBody>
             {transactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={columnCount} className="py-8 text-center text-muted-foreground">
                   {t("ledger.noTransactions")}
                 </TableCell>
               </TableRow>
             ) : (
-              transactions.map((txn) => (
-                <TableRow key={txn.id}>
-                  <TableCell>
-                    <Link to={transactionPath(txn.id)} className="text-primary hover:underline">
-                      {formatLedgerDate(txn.bookingDate)}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{formatLedgerDate(txn.valueDate)}</TableCell>
-                  <TableCell className={txn.amountMinor < 0 ? "text-destructive" : "text-emerald-600"}>
-                    {formatAmountMinor(txn.amountMinor, txn.currency, i18n.language)}
-                  </TableCell>
-                  <TableCell>{txn.counterpartyName || "-"}</TableCell>
-                  <TableCell className="max-w-[24rem] truncate">{txn.purpose || "-"}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {txn.categoryId ? categoryNameById.get(txn.categoryId) ?? txn.categoryId : t("ledger.noCategory")}
-                      <LedgerSplitBadge transaction={txn} categories={categories} />
-                    </div>
-                  </TableCell>
-                  <TableCell>{txn.transactionType || "-"}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-2">
-                      {txn.specialCategory ? (
-                        <Badge variant="secondary">{formatLedgerSpecialCategory(txn.specialCategory)}</Badge>
-                      ) : null}
-                      <Badge variant={txn.reviewStatus === "confirmed" ? "secondary" : "default"}>
-                        {formatLedgerReviewStatus(txn.reviewStatus)}
-                      </Badge>
-                      <Badge variant="outline">{formatLedgerCategorizationSource(txn.categorizationSource)}</Badge>
-                    </div>
-                  </TableCell>
-                  <TableCell>{formatSourceType(txn.sourceType)}</TableCell>
-                </TableRow>
-              ))
+              <>
+                {showBalance && balanceRow(t("ledger.balance.afterPage"), pageBalance.closingMinor)}
+                {transactions.map((txn) => (
+                  <TableRow key={txn.id}>
+                    <TableCell>
+                      <Link to={transactionPath(txn.id)} className="text-primary hover:underline">
+                        {formatLedgerDate(txn.bookingDate)}
+                      </Link>
+                    </TableCell>
+                    <TableCell>{formatLedgerDate(txn.valueDate)}</TableCell>
+                    <TableCell className={txn.amountMinor < 0 ? "text-destructive" : "text-emerald-600"}>
+                      {formatAmountMinor(txn.amountMinor, txn.currency, i18n.language)}
+                    </TableCell>
+                    <TableCell>{txn.counterpartyName || "-"}</TableCell>
+                    <TableCell className="max-w-[24rem] truncate">{txn.purpose || "-"}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {txn.categoryId ? categoryNameById.get(txn.categoryId) ?? txn.categoryId : t("ledger.noCategory")}
+                        <LedgerSplitBadge transaction={txn} categories={categories} />
+                      </div>
+                    </TableCell>
+                    <TableCell>{txn.transactionType || "-"}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-2">
+                        {txn.specialCategory ? (
+                          <Badge variant="secondary">{formatLedgerSpecialCategory(txn.specialCategory)}</Badge>
+                        ) : null}
+                        <Badge variant={txn.reviewStatus === "confirmed" ? "secondary" : "default"}>
+                          {formatLedgerReviewStatus(txn.reviewStatus)}
+                        </Badge>
+                        <Badge variant="outline">{formatLedgerCategorizationSource(txn.categorizationSource)}</Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell>{formatSourceType(txn.sourceType)}</TableCell>
+                  </TableRow>
+                ))}
+                {showBalance && balanceRow(t("ledger.balance.beforePage"), pageBalance.openingMinor)}
+              </>
             )}
           </TableBody>
         </Table>

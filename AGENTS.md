@@ -107,7 +107,7 @@ Migrations are per module: each module supplies its own `Migrations()` list, app
 | `/auto/vehicles/$vehicleId` | Vehicle detail with cost entries and headline stats |
 | `/auto/vehicles/$vehicleId/statistics` | Vehicle statistics with charts, yearly breakdowns, and projection |
 | `/ledger` | Ledger dashboard with accounts, imports, categories, and review queue |
-| `/ledger/accounts/$accountId` | Ledger account detail with transactions; rename (name, bank) and delete the account with its transactions and imports |
+| `/ledger/accounts/$accountId` | Ledger account detail with the balance (current, source, drift warning, set or remove a balance by hand) and transactions with the balance after and before each page; rename (name, bank) and delete the account with its transactions and imports |
 | `/ledger/categories` | Ledger category tree manager |
 | `/ledger/review` | Ledger review queue: the whole queue, grouped by counterparty and proposed category, paged in the browser, with mass accept of match-word and LLM proposals |
 | `/ledger/transactions/$transactionId` | Ledger transaction detail with category change, split into parts, notes, references, transfer linking, and creating a purchase, vehicle cost, contract or vehicle from the transaction (linked right away) |

@@ -10,6 +10,8 @@ import {
   deleteLedgerCategory,
   getLedgerAccountDeleteSummary,
   updateLedgerAccount,
+  setLedgerAccountBalance,
+  deleteLedgerAccountBalance,
   deleteLedgerEmailAccount,
   getLedgerAccountById,
   getLedgerAccounts,
@@ -51,6 +53,7 @@ import type {
   LedgerBatchReviewItem,
   LedgerAccountInput,
   LedgerAccountUpdateInput,
+  LedgerManualBalanceInput,
   LedgerCategoryInput,
   LedgerCommitRequest,
   LedgerEmailAccountInput,
@@ -100,6 +103,24 @@ export function useUpdateLedgerAccount() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: LedgerAccountUpdateInput }) => updateLedgerAccount(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ledgerAccountsKey }),
+  })
+}
+
+// A balance changes the account, the account list and every page balance of
+// the account's transactions, which all live under ["ledger","accounts"].
+export function useSetLedgerAccountBalance() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: LedgerManualBalanceInput }) => setLedgerAccountBalance(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ledgerAccountsKey }),
+  })
+}
+
+export function useDeleteLedgerAccountBalance() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, asOf }: { id: string; asOf: string }) => deleteLedgerAccountBalance(id, asOf),
     onSuccess: () => qc.invalidateQueries({ queryKey: ledgerAccountsKey }),
   })
 }
