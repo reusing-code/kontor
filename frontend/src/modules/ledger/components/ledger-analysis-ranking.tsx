@@ -7,6 +7,7 @@ import { LedgerAnalysisCard } from "@/modules/ledger/components/ledger-analysis-
 interface RankedEntry {
   key: string
   name: string
+  context?: string
   amountMinor: number
 }
 
@@ -20,7 +21,10 @@ function RankedList({ entries }: { entries: RankedEntry[] }) {
       {entries.map((entry) => (
         <li key={entry.key} className="space-y-1">
           <div className="flex items-baseline justify-between gap-4 text-sm">
-            <span className="truncate">{entry.name}</span>
+            <span className="truncate">
+              {entry.context && <span className="text-muted-foreground">{entry.context} › </span>}
+              {entry.name}
+            </span>
             <span className="font-medium tabular-nums">{formatAmountMinor(entry.amountMinor, "EUR", i18n.language)}</span>
           </div>
           <div className="h-1.5 rounded-full bg-primary/20" style={{ width: `${largest > 0 ? Math.max((entry.amountMinor / largest) * 100, 1) : 0}%` }} />
@@ -38,6 +42,7 @@ export function LedgerAnalysisRanking({ range }: { range: LedgerAnalysisRange })
   const categories: RankedEntry[] = (query.data?.categories ?? []).map((c) => ({
     key: c.categoryId ?? c.kind,
     name: c.kind === "uncategorized" ? t("ledger.analysis.spending.uncategorized") : c.name,
+    context: c.parentName,
     amountMinor: c.amountMinor,
   }))
   const counterparties: RankedEntry[] = (query.data?.counterparties ?? []).map((c) => ({

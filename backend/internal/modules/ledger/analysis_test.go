@@ -639,14 +639,6 @@ func TestLedgerAnalysis_SpendingMatchesCashFlow(t *testing.T) {
 			t.Fatalf("month %d: the generated data has no income or no expenses", m)
 		}
 	}
-	if len(ranking.Categories) != len(spent.Series) {
-		t.Fatalf("ranking has %d categories, spending %d series", len(ranking.Categories), len(spent.Series))
-	}
-	for i, c := range ranking.Categories {
-		if s := spent.Series[i]; c.AmountMinor != s.TotalMinor || c.Name != s.Name || c.Kind != s.Kind {
-			t.Fatalf("ranking[%d] = %+v, spending series = %+v", i, c, s)
-		}
-	}
 	if !slices.Equal(spent.ExcludedCurrencies, []string{"USD"}) || !slices.Equal(flow.ExcludedCurrencies, []string{"USD"}) || !slices.Equal(ranking.ExcludedCurrencies, []string{"USD"}) {
 		t.Fatalf("excluded = %v, %v, %v", spent.ExcludedCurrencies, flow.ExcludedCurrencies, ranking.ExcludedCurrencies)
 	}
@@ -669,7 +661,7 @@ func TestAnalyzeLedgerRanking(t *testing.T) {
 		return got
 	}
 
-	t.Run("categories equal the spending totals", func(t *testing.T) {
+	t.Run("categories count what is booked on them", func(t *testing.T) {
 		food := analysisCategory("Food", nil)
 		groceries := analysisCategory("Groceries", &food.ID)
 		car := analysisCategory("Car", nil)
@@ -684,23 +676,20 @@ func TestAnalyzeLedgerRanking(t *testing.T) {
 			booked("2026-04-01", -9999, &food.ID),
 		)
 		got := rank(t, in)
-		spent := spending(t, in, from, to, LedgerSpendingOptions{})
 		want := []LedgerRankedCategory{
 			{Kind: LedgerSeriesCategory, CategoryID: &car.ID, Name: "Car", AmountMinor: 5000},
-			{Kind: LedgerSeriesCategory, CategoryID: &food.ID, Name: "Food", AmountMinor: 1300},
+			{Kind: LedgerSeriesCategory, CategoryID: &groceries.ID, Name: "Groceries", ParentName: "Food", AmountMinor: 1000},
+			{Kind: LedgerSeriesCategory, CategoryID: &food.ID, Name: "Food", AmountMinor: 300},
 			{Kind: LedgerSeriesUncategorized, AmountMinor: 90},
 		}
-		if len(got.Categories) != len(want) || len(spent.Series) != len(want) {
+		if len(got.Categories) != len(want) {
 			t.Fatalf("categories = %+v", got.Categories)
 		}
 		for i, w := range want {
 			c := got.Categories[i]
 			sameID := (c.CategoryID == nil) == (w.CategoryID == nil) && (c.CategoryID == nil || *c.CategoryID == *w.CategoryID)
-			if c.Kind != w.Kind || c.Name != w.Name || c.AmountMinor != w.AmountMinor || !sameID {
+			if c.Kind != w.Kind || c.Name != w.Name || c.ParentName != w.ParentName || c.AmountMinor != w.AmountMinor || !sameID {
 				t.Fatalf("categories[%d] = %+v, want %+v", i, c, w)
-			}
-			if c.AmountMinor != spent.Series[i].TotalMinor {
-				t.Fatalf("categories[%d] = %d, spending total = %d", i, c.AmountMinor, spent.Series[i].TotalMinor)
 			}
 		}
 		if got.From != from || got.To != to {

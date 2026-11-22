@@ -632,6 +632,7 @@ export interface LedgerRankedCategory {
   kind: "category" | "uncategorized"
   categoryId?: string
   name: string
+  parentName?: string
   amountMinor: number
 }
 

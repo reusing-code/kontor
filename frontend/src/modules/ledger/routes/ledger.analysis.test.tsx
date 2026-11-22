@@ -60,6 +60,7 @@ const ranking: LedgerRankingAnalysis = {
   ...noRanking,
   categories: [
     { kind: "category", categoryId: "cat-rent", name: "Rent", amountMinor: 180000 },
+    { kind: "category", categoryId: "cat-groceries", name: "Groceries", parentName: "Food", amountMinor: 60000 },
     { kind: "uncategorized", name: "", amountMinor: 45000 },
   ],
   counterparties: [
@@ -312,7 +313,7 @@ describe("LedgerAnalysisPage", () => {
   it("lists the top categories and counterparties in order", async () => {
     setup({ ranking })
 
-    await waitFor(() => expect(listOf("Top categories")).toEqual(["Rent€1,800.00", "Uncategorized€450.00"]))
+    await waitFor(() => expect(listOf("Top categories")).toEqual(["Rent€1,800.00", "Food › Groceries€600.00", "Uncategorized€450.00"]))
     expect(listOf("Top counterparties")).toEqual(["Landlord€1,800.00", "Unknown counterparty€90.00", "Supermarkt Nord€45.50"])
   })
 
@@ -322,7 +323,7 @@ describe("LedgerAnalysisPage", () => {
       ranking: () => (failing ? apiError(500, "internal error") : { ...ranking, counterparties: [] }),
     })
 
-    await waitFor(() => expect(listOf("Top categories")).toHaveLength(2))
+    await waitFor(() => expect(listOf("Top categories")).toHaveLength(3))
     expect(within(card("Top counterparties")).getByText("No expenses in this period.")).toBeInTheDocument()
     expect(within(card("Top categories")).queryByText("No expenses in this period.")).toBeNull()
 

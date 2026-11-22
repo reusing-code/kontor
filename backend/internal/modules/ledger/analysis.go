@@ -251,6 +251,20 @@ func ledgerTopLevelNets(in LedgerAnalysisInput, rng LedgerAnalysisRange, account
 	})
 }
 
+// ledgerOwnCategoryNets nets every counted part under the category it is
+// booked on, without rolling up; uuid.Nil is the uncategorized series.
+func ledgerOwnCategoryNets(in LedgerAnalysisInput, rng LedgerAnalysisRange, tree ledgerCategoryTree) (map[uuid.UUID][]int64, []string) {
+	return ledgerNets(in, rng, nil, func(categoryID *uuid.UUID) (uuid.UUID, bool) {
+		if categoryID == nil {
+			return uuid.Nil, true
+		}
+		if _, ok := tree.byID[*categoryID]; !ok {
+			return uuid.Nil, true
+		}
+		return *categoryID, true
+	})
+}
+
 // earliestLedgerBooking is the first booking date (of accountID when given),
 // or "" without one.
 func earliestLedgerBooking(txns []LedgerTransaction, accountID *uuid.UUID) string {
@@ -461,6 +475,7 @@ type LedgerRankedCategory struct {
 	Kind        string     `json:"kind"` // category | uncategorized
 	CategoryID  *uuid.UUID `json:"categoryId,omitempty"`
 	Name        string     `json:"name"`
+	ParentName  string     `json:"parentName,omitempty"` // direct parent, empty for a top level
 	AmountMinor int64      `json:"amountMinor"`
 }
 
@@ -470,8 +485,9 @@ type LedgerRankedCounterparty struct {
 	AmountMinor int64  `json:"amountMinor"`
 }
 
-// LedgerRankingAnalysis lists the top-level categories and the counterparties
-// with the highest spending in the range, at most ledgerRankingLimit each.
+// LedgerRankingAnalysis lists the categories and the counterparties with the
+// highest spending in the range, at most ledgerRankingLimit each. A category
+// counts what is booked on it, not what is booked on its subcategories.
 type LedgerRankingAnalysis struct {
 	From               string                     `json:"from"`
 	To                 string                     `json:"to"`
@@ -488,12 +504,17 @@ func AnalyzeLedgerRanking(in LedgerAnalysisInput, from, to, today string) (Ledge
 		return LedgerRankingAnalysis{}, err
 	}
 	tree := newLedgerCategoryTree(in.Categories)
-	nets, excluded := ledgerTopLevelNets(in, rng, nil, tree)
+	nets, excluded := ledgerOwnCategoryNets(in, rng, tree)
 	series := ledgerSpendingSeries(nets, tree, nil)
 	series = series[:min(len(series), ledgerRankingLimit)]
 	categories := make([]LedgerRankedCategory, len(series))
 	for i, s := range series {
 		categories[i] = LedgerRankedCategory{Kind: s.Kind, CategoryID: s.CategoryID, Name: s.Name, AmountMinor: s.TotalMinor}
+		if s.CategoryID != nil {
+			if parentID := tree.byID[*s.CategoryID].ParentID; parentID != nil {
+				categories[i].ParentName = tree.byID[*parentID].Name
+			}
+		}
 	}
 	return LedgerRankingAnalysis{
 		From:               rng.From,
