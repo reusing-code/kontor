@@ -145,3 +145,53 @@ func (s *Store) ListLedgerAccountBalances(_ context.Context, userID string) (map
 	})
 	return balances, err
 }
+
+// LedgerPageBalance is the balance around one page of an account's
+// transaction list: ClosingMinor after its newest transaction (top),
+// OpeningMinor before its oldest one (bottom).
+type LedgerPageBalance struct {
+	ClosingMinor int64 `json:"closingMinor"`
+	OpeningMinor int64 `json:"openingMinor"`
+}
+
+// LedgerAccountTransactionPage is a page of an account's transactions with
+// the balances; both are nil when the account has no snapshot.
+type LedgerAccountTransactionPage struct {
+	LedgerTransactionPage
+	PageBalance *LedgerPageBalance
+	Balance     *LedgerAccountBalance
+}
+
+// ListLedgerAccountTransactionsPage pages an account's transactions like
+// ListLedgerTransactionsPage and adds the balances around the page, derived
+// from the current balance by taking back every transaction listed above it.
+func (s *Store) ListLedgerAccountTransactionsPage(_ context.Context, userID string, accountID uuid.UUID, limit int, cursor string) (LedgerAccountTransactionPage, error) {
+	var page LedgerAccountTransactionPage
+	err := s.e.View(func(txn *badger.Txn) error {
+		txns, err := filterLedgerTransactions(txn, userID, LedgerTransactionListOptions{AccountID: &accountID})
+		if err != nil {
+			return err
+		}
+		page.LedgerTransactionPage = paginateLedgerTransactions(txns, limit, cursor)
+		snapshots, err := collectLedgerBalanceSnapshots(txn, ledBalAccountPrefix(userID, accountID))
+		if err != nil {
+			return err
+		}
+		page.Balance = computeLedgerAccountBalance(snapshots, txns)
+		if page.Balance != nil {
+			start, end := ledgerPageBounds(txns, limit, cursor)
+			closing := page.Balance.CurrentMinor - sumAmounts(txns[:start])
+			page.PageBalance = &LedgerPageBalance{ClosingMinor: closing, OpeningMinor: closing - sumAmounts(txns[start:end])}
+		}
+		return nil
+	})
+	return page, err
+}
+
+func sumAmounts(txns []LedgerTransaction) int64 {
+	var sum int64
+	for _, t := range txns {
+		sum += t.AmountMinor
+	}
+	return sum
+}

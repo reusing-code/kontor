@@ -655,14 +655,26 @@ func (s *Store) RemoveReferences(txn *badger.Txn, userID string, transactionIDs 
 }
 
 func paginateLedgerTransactions(txns []LedgerTransaction, limit int, cursor string) LedgerTransactionPage {
+	start, end := ledgerPageBounds(txns, limit, cursor)
+	page := LedgerTransactionPage{Items: txns[start:end]}
+	if page.Items == nil {
+		page.Items = []LedgerTransaction{}
+	}
+	if end < len(txns) && end > start {
+		page.NextCursor = txns[end-1].ID.String()
+	}
+	return page
+}
+
+// ledgerPageBounds returns the slice bounds of the page after the cursor (the
+// last ID of the previous page); an unknown cursor starts at the beginning.
+func ledgerPageBounds(txns []LedgerTransaction, limit int, cursor string) (start, end int) {
 	if limit <= 0 {
 		limit = 100
 	}
 	if limit > 500 {
 		limit = 500
 	}
-	page := LedgerTransactionPage{Items: []LedgerTransaction{}}
-	start := 0
 	if cursor != "" {
 		for i, txn := range txns {
 			if txn.ID.String() == cursor {
@@ -671,21 +683,7 @@ func paginateLedgerTransactions(txns []LedgerTransaction, limit int, cursor stri
 			}
 		}
 	}
-	if start > len(txns) {
-		start = len(txns)
-	}
-	end := start + limit
-	if end > len(txns) {
-		end = len(txns)
-	}
-	page.Items = txns[start:end]
-	if page.Items == nil {
-		page.Items = []LedgerTransaction{}
-	}
-	if end < len(txns) && end > start {
-		page.NextCursor = txns[end-1].ID.String()
-	}
-	return page
+	return start, min(start+limit, len(txns))
 }
 
 // Ledger Accounts
@@ -1067,28 +1065,13 @@ func (s *Store) ListLedgerTransactionsFiltered(_ context.Context, userID string,
 	page := LedgerTransactionPage{Items: []LedgerTransaction{}}
 	var filtered []LedgerTransaction
 	err := s.e.View(func(txn *badger.Txn) error {
-		all, err := collectLedgerTransactions(txn, userID)
-		if err != nil {
-			return err
-		}
-		for _, ledgerTxn := range all {
-			if options.AccountID != nil && ledgerTxn.AccountID != *options.AccountID {
-				continue
-			}
-			if options.CategoryID != nil && !hasLedgerCategory(ledgerTxn, *options.CategoryID) {
-				continue
-			}
-			if options.ReviewStatus != "" && ledgerTxn.ReviewStatus != options.ReviewStatus {
-				continue
-			}
-			filtered = append(filtered, ledgerTxn)
-		}
-		return nil
+		var err error
+		filtered, err = filterLedgerTransactions(txn, userID, options)
+		return err
 	})
 	if err != nil {
 		return page, err
 	}
-	sortLedgerTransactions(filtered)
 	if options.All {
 		if filtered != nil {
 			page.Items = filtered
@@ -1096,6 +1079,30 @@ func (s *Store) ListLedgerTransactionsFiltered(_ context.Context, userID string,
 		return page, nil
 	}
 	return paginateLedgerTransactions(filtered, options.Limit, options.Cursor), nil
+}
+
+// filterLedgerTransactions returns the matching transactions in list order
+// (newest booking date first); Limit, Cursor and All are not looked at.
+func filterLedgerTransactions(txn *badger.Txn, userID string, options LedgerTransactionListOptions) ([]LedgerTransaction, error) {
+	all, err := collectLedgerTransactions(txn, userID)
+	if err != nil {
+		return nil, err
+	}
+	var filtered []LedgerTransaction
+	for _, ledgerTxn := range all {
+		if options.AccountID != nil && ledgerTxn.AccountID != *options.AccountID {
+			continue
+		}
+		if options.CategoryID != nil && !hasLedgerCategory(ledgerTxn, *options.CategoryID) {
+			continue
+		}
+		if options.ReviewStatus != "" && ledgerTxn.ReviewStatus != options.ReviewStatus {
+			continue
+		}
+		filtered = append(filtered, ledgerTxn)
+	}
+	sortLedgerTransactions(filtered)
+	return filtered, nil
 }
 
 func (s *Store) GetLedgerTransaction(_ context.Context, userID string, id uuid.UUID) (LedgerTransaction, error) {

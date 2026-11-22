@@ -1,6 +1,10 @@
 package ledger
 
 import (
+	"fmt"
+	"math/rand/v2"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -171,5 +175,142 @@ func TestImportSection_WithoutBalancesStillWorks(t *testing.T) {
 	}
 	if all, _ := dst.ListAllLedgerBalanceSnapshots(t.Context(), "user-3"); len(all) != 0 {
 		t.Fatalf("orphan snapshot restored: %+v", all)
+	}
+}
+
+type accountPageBody struct {
+	Items          []LedgerTransaction   `json:"items"`
+	NextCursor     string                `json:"nextCursor"`
+	PageBalance    *LedgerPageBalance    `json:"pageBalance"`
+	AccountBalance *LedgerAccountBalance `json:"accountBalance"`
+}
+
+func getAccountPage(t *testing.T, mux http.Handler, accountID uuid.UUID, limit int, cursor string) accountPageBody {
+	t.Helper()
+	url := fmt.Sprintf("/api/v1/ledger/accounts/%s/transactions?limit=%d&cursor=%s", accountID, limit, cursor)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", url, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body)
+	}
+	return decodeJSON[accountPageBody](t, rec)
+}
+
+func TestAccountTransactionPages_BalancesMatchARunningSum(t *testing.T) {
+	h, s := newTestHandler(t)
+	mux := newMux(h)
+	accountID := addAccount(t, s, "Main")
+	other := addAccount(t, s, "Other")
+	rng := rand.New(rand.NewPCG(71, 1))
+	var txns []LedgerTransaction
+	for i := range 23 {
+		txns = append(txns, LedgerTransaction{
+			ID: uuid.New(), AccountID: accountID, Currency: "EUR",
+			BookingDate: fmt.Sprintf("2026-03-%02d", 1+i%12),
+			AmountMinor: rng.Int64N(20_000) - 10_000,
+		})
+	}
+	commitTransactions(t, s, accountID, txns...)
+	addBooking(t, s, other, "2026-03-05", 1_000_000)
+	putSnapshot(t, s, accountID, "2026-03-06", 50_000, "dkb.csv")
+
+	listed, err := s.ListLedgerTransactionsPage(t.Context(), testUserID, accountID, 500, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := int64(50_000) + sumBookedBetween(listed.Items, "2026-03-06", "")
+	// balanceAfter[i] is the balance right after the i-th listed transaction
+	balanceAfter := make([]int64, len(listed.Items))
+	running := current
+	for i, txn := range listed.Items {
+		balanceAfter[i] = running
+		running -= txn.AmountMinor
+	}
+	oldestOpening := running
+
+	cursor, offset, pages := "", 0, 0
+	var previousOpening *int64
+	for {
+		page := getAccountPage(t, mux, accountID, 5, cursor)
+		pages++
+		if page.PageBalance == nil || page.AccountBalance == nil {
+			t.Fatalf("page %d has no balances", pages)
+		}
+		if page.AccountBalance.CurrentMinor != current {
+			t.Fatalf("current = %d, want %d", page.AccountBalance.CurrentMinor, current)
+		}
+		if page.PageBalance.ClosingMinor != balanceAfter[offset] {
+			t.Fatalf("page %d closing = %d, want %d", pages, page.PageBalance.ClosingMinor, balanceAfter[offset])
+		}
+		if previousOpening != nil && *previousOpening != page.PageBalance.ClosingMinor {
+			t.Fatalf("page %d closing %d != previous opening %d", pages, page.PageBalance.ClosingMinor, *previousOpening)
+		}
+		opening := page.PageBalance.OpeningMinor
+		previousOpening = &opening
+		offset += len(page.Items)
+		if page.NextCursor == "" {
+			break
+		}
+		cursor = page.NextCursor
+	}
+	if offset != len(txns) || pages != 5 {
+		t.Fatalf("paged %d transactions in %d pages", offset, pages)
+	}
+	if *previousOpening != oldestOpening {
+		t.Fatalf("last opening = %d, want %d", *previousOpening, oldestOpening)
+	}
+}
+
+func TestAccountTransactionPages_NoSnapshotNoBalances(t *testing.T) {
+	h, s := newTestHandler(t)
+	mux := newMux(h)
+	accountID := addAccount(t, s, "Main")
+	addBooking(t, s, accountID, "2026-03-01", 100)
+
+	page := getAccountPage(t, mux, accountID, 10, "")
+	if len(page.Items) != 1 || page.PageBalance != nil || page.AccountBalance != nil {
+		t.Fatalf("page = %+v", page)
+	}
+
+	empty := addAccount(t, s, "Empty")
+	putSnapshot(t, s, empty, "2026-03-01", 4200, LedgerBalanceSourceManual)
+	page = getAccountPage(t, mux, empty, 10, "")
+	if page.PageBalance == nil || page.PageBalance.ClosingMinor != 4200 || page.PageBalance.OpeningMinor != 4200 {
+		t.Fatalf("empty account page balance = %+v", page.PageBalance)
+	}
+}
+
+func TestLedgerAccountEndpoints_CarryBalance(t *testing.T) {
+	h, s := newTestHandler(t)
+	mux := newMux(h)
+	withBalance := addAccount(t, s, "A")
+	addAccount(t, s, "B")
+	addBooking(t, s, withBalance, "2026-03-02", -500)
+	putSnapshot(t, s, withBalance, "2026-03-01", 10_000, "comdirect.csv")
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/accounts", nil))
+	type accountBody struct {
+		ID      uuid.UUID             `json:"id"`
+		Balance *LedgerAccountBalance `json:"balance"`
+	}
+	list := decodeJSON[[]accountBody](t, rec)
+	if len(list) != 2 {
+		t.Fatalf("accounts = %+v", list)
+	}
+	for _, account := range list {
+		if (account.ID == withBalance) != (account.Balance != nil) {
+			t.Fatalf("account %s balance = %+v", account.ID, account.Balance)
+		}
+		if account.Balance != nil && account.Balance.CurrentMinor != 9_500 {
+			t.Fatalf("current = %d, want 9500", account.Balance.CurrentMinor)
+		}
+	}
+
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/accounts/"+withBalance.String(), nil))
+	single := decodeJSON[accountBody](t, rec)
+	if single.Balance == nil || single.Balance.CurrentMinor != 9_500 || single.Balance.Source != "comdirect.csv" {
+		t.Fatalf("account balance = %+v", single.Balance)
 	}
 }

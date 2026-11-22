@@ -154,13 +154,13 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | DELETE | `/ledger/bank/connections/{id}/accounts/{uid}` | Unmap a bank account (not synced and not mapped by IBAN until it is mapped again) |
 | POST | `/ledger/bank/connections/{id}/sync` | Sync a connection now (409 `sync_running` / `consent_expired`) |
 | GET | `/ledger/bank/callback` | Public redirect target of the consent (state is the credential; answers `303` to the result page) |
-| GET | `/ledger/accounts` | List tracked ledger accounts |
+| GET | `/ledger/accounts` | List tracked ledger accounts with their current balance |
 | POST | `/ledger/accounts` | Create a ledger account (`{name, bank, iban?, currency?}`, IBAN checksum validated, duplicate IBAN 409; JWT only) |
-| GET | `/ledger/accounts/{id}` | Get ledger account details |
+| GET | `/ledger/accounts/{id}` | Get ledger account details with the current balance |
 | PUT | `/ledger/accounts/{id}` | Rename a ledger account (`{name, bank}`; IBAN and currency are fixed) |
 | GET | `/ledger/accounts/{id}/delete-summary` | What deleting the account removes (transactions, imports, links, mapped bank accounts) |
 | DELETE | `/ledger/accounts/{id}` | Delete a ledger account with its transactions and imports |
-| GET | `/ledger/accounts/{id}/transactions` | List transactions for an account |
+| GET | `/ledger/accounts/{id}/transactions` | List transactions for an account, with the balance after and before the page |
 | GET | `/ledger/transactions` | Review queue for ledger transactions (`limit` + `cursor`, or `limit=all` for the whole queue) |
 | GET | `/ledger/transactions/{id}` | Get ledger transaction details |
 | PUT | `/ledger/transactions/{id}` | Update note, links, and cross references |

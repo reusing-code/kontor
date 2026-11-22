@@ -53,9 +53,18 @@ type ledgerCommitBody struct {
 	NewAccount *LedgerAccountInput `json:"newAccount,omitempty"`
 }
 
-type ledgerTransactionPageResponse struct {
-	Items      []LedgerTransaction `json:"items"`
-	NextCursor string              `json:"nextCursor,omitempty"`
+type ledgerAccountTransactionPageResponse struct {
+	Items          []LedgerTransaction   `json:"items"`
+	NextCursor     string                `json:"nextCursor,omitempty"`
+	PageBalance    *LedgerPageBalance    `json:"pageBalance,omitempty"`
+	AccountBalance *LedgerAccountBalance `json:"accountBalance,omitempty"`
+}
+
+// ledgerAccountResponse is an account with its balance (omitted without a
+// balance snapshot).
+type ledgerAccountResponse struct {
+	LedgerAccount
+	Balance *LedgerAccountBalance `json:"balance,omitempty"`
 }
 
 func (h *Handler) LedgerImportCommit(w http.ResponseWriter, r *http.Request) {
@@ -117,8 +126,13 @@ func (h *Handler) GetLedgerAccount(w http.ResponseWriter, r *http.Request) {
 		h.storeError(w, err)
 		return
 	}
+	balance, err := h.store.GetLedgerAccountBalance(r.Context(), userID, accountID)
+	if err != nil {
+		h.storeError(w, err)
+		return
+	}
 
-	httputil.WriteJSON(h.logger, w, http.StatusOK, account)
+	httputil.WriteJSON(h.logger, w, http.StatusOK, ledgerAccountResponse{LedgerAccount: account, Balance: balance})
 }
 
 func (h *Handler) ListLedgerAccounts(w http.ResponseWriter, r *http.Request) {
@@ -129,8 +143,20 @@ func (h *Handler) ListLedgerAccounts(w http.ResponseWriter, r *http.Request) {
 		h.storeError(w, err)
 		return
 	}
+	balances, err := h.store.ListLedgerAccountBalances(r.Context(), userID)
+	if err != nil {
+		h.storeError(w, err)
+		return
+	}
+	items := make([]ledgerAccountResponse, len(accounts))
+	for i, account := range accounts {
+		items[i] = ledgerAccountResponse{LedgerAccount: account}
+		if balance, ok := balances[account.ID]; ok {
+			items[i].Balance = &balance
+		}
+	}
 
-	httputil.WriteJSON(h.logger, w, http.StatusOK, accounts)
+	httputil.WriteJSON(h.logger, w, http.StatusOK, items)
 }
 
 func (h *Handler) ListLedgerImports(w http.ResponseWriter, r *http.Request) {
@@ -174,11 +200,13 @@ func (h *Handler) ListLedgerTransactions(w http.ResponseWriter, r *http.Request)
 		limit = parsedLimit
 	}
 
-	page, err := h.store.ListLedgerTransactionsPage(r.Context(), userID, accountID, limit, r.URL.Query().Get("cursor"))
+	page, err := h.store.ListLedgerAccountTransactionsPage(r.Context(), userID, accountID, limit, r.URL.Query().Get("cursor"))
 	if err != nil {
 		h.storeError(w, err)
 		return
 	}
 
-	httputil.WriteJSON(h.logger, w, http.StatusOK, ledgerTransactionPageResponse(page))
+	httputil.WriteJSON(h.logger, w, http.StatusOK, ledgerAccountTransactionPageResponse{
+		Items: page.Items, NextCursor: page.NextCursor, PageBalance: page.PageBalance, AccountBalance: page.Balance,
+	})
 }
