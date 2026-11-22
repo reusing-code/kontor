@@ -90,7 +90,7 @@ func TestParseComdirectCSV_SkipsPendingRows(t *testing.T) {
 "offen";"offen";"Lastschrift";"Empfänger: Pending Merchant Buchungstext: Reservierung Ref. PEND123";"-10,00";
 "02.04.2026";"02.04.2026";"Kartenverfügung";" Buchungstext: AMAZON* , LUXEMBOURG LU Karte Nr. XXXX Ref. ABC123";"-123,34";
 
-"Alter Kontostand";"222.222,22 EUR";
+"Alter Kontostand";"111.234,45 EUR";
 `
 	encoded := encodeWindows1252(raw)
 

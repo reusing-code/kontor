@@ -131,6 +131,7 @@ func (svc *ImportService) Preview(ctx context.Context, req PreviewRequest) (*Pre
 		NewRows:       newCount,
 		DuplicateRows: dupCount,
 		Warnings:      parsed.Warnings,
+		Balance:       parsed.Balance,
 	}
 
 	svc.cache.Put(previewID, result)
@@ -246,7 +247,15 @@ func (svc *ImportService) Commit(ctx context.Context, req CommitRequest) (*Commi
 		UpdatedAt:     now,
 	}
 
-	commitResult, err := svc.store.CommitLedgerImport(ctx, req.UserID, batch, txns)
+	var balance *LedgerBalanceSnapshot
+	if preview.Balance != nil {
+		balance = &LedgerBalanceSnapshot{
+			AccountID: accountID, AsOf: preview.Balance.AsOf, AmountMinor: preview.Balance.AmountMinor,
+			Source: string(preview.SourceType), RecordedAt: now,
+		}
+	}
+
+	commitResult, err := svc.store.CommitLedgerImportWithBalance(ctx, req.UserID, batch, txns, balance)
 	if err != nil {
 		if err == ErrLedgerFileImported {
 			return nil, err

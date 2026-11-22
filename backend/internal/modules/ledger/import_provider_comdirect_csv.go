@@ -85,6 +85,10 @@ func (p *ComdirectCSVProvider) Parse(r io.Reader) (ParseResult, error) {
 		result.Rows = append(result.Rows, row)
 	}
 
+	balance, warnings := comdirectBalance(lines[:headerIdx], lines[endIdx:], result.Rows)
+	result.Balance = balance
+	result.Warnings = append(result.Warnings, warnings...)
+
 	return result, nil
 }
 

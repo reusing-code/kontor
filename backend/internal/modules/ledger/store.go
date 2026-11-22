@@ -945,7 +945,13 @@ func (s *Store) LedgerTransactionFingerprintExists(_ context.Context, userID str
 	return exists, err
 }
 
-func (s *Store) CommitLedgerImport(_ context.Context, userID string, batch LedgerImportBatch, txns []LedgerTransaction) (LedgerImportCommitResult, error) {
+func (s *Store) CommitLedgerImport(ctx context.Context, userID string, batch LedgerImportBatch, txns []LedgerTransaction) (LedgerImportCommitResult, error) {
+	return s.CommitLedgerImportWithBalance(ctx, userID, batch, txns, nil)
+}
+
+// CommitLedgerImportWithBalance is CommitLedgerImport that also stores the
+// balance the file reported (nil: none), in the same badger transaction.
+func (s *Store) CommitLedgerImportWithBalance(_ context.Context, userID string, batch LedgerImportBatch, txns []LedgerTransaction, balance *LedgerBalanceSnapshot) (LedgerImportCommitResult, error) {
 	result := LedgerImportCommitResult{}
 
 	err := s.e.Update(func(txn *badger.Txn) error {
@@ -986,7 +992,9 @@ func (s *Store) CommitLedgerImport(_ context.Context, userID string, batch Ledge
 				return err
 			}
 		}
-
+		if balance != nil {
+			return putLedgerBalanceSnapshotTxn(txn, userID, *balance)
+		}
 		return nil
 	})
 	if err != nil {

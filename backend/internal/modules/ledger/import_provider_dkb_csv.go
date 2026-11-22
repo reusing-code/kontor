@@ -63,6 +63,12 @@ func (p *DKBCSVProvider) Parse(r io.Reader) (ParseResult, error) {
 		result.Rows = append(result.Rows, row)
 	}
 
+	balance, err := parseDKBBalance(lines[:4])
+	if err != nil {
+		result.Warnings = append(result.Warnings, fmt.Sprintf("balance: could not read Kontostand: %v", err))
+	}
+	result.Balance = balance
+
 	return result, nil
 }
 

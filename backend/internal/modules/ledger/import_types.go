@@ -26,11 +26,20 @@ type ParsedRow struct {
 	TransactionType  string `json:"transactionType,omitempty"`
 }
 
+// ParsedBalance is the balance a file reports: at the end of day AsOf,
+// including every row booked on or before it.
+type ParsedBalance struct {
+	AmountMinor int64  `json:"amountMinor"`
+	AsOf        string `json:"asOf"`
+}
+
 type ParseResult struct {
 	IBAN     string
 	BankName string
 	Rows     []ParsedRow
 	Warnings []string
+	// Balance is nil when the file has none or it could not be read.
+	Balance *ParsedBalance
 }
 
 type PreviewTransaction struct {
@@ -56,5 +65,6 @@ type PreviewResult struct {
 	NewRows       int                  `json:"newRows"`
 	DuplicateRows int                  `json:"duplicateRows"`
 	Warnings      []string             `json:"warnings,omitempty"`
+	Balance       *ParsedBalance       `json:"balance,omitempty"`
 	ExpiresAt     time.Time            `json:"expiresAt"`
 }
