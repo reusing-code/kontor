@@ -157,6 +157,7 @@ func TestLedgerAnalysis_LogsNoTransactionData(t *testing.T) {
 
 	const counterparty, purpose, iban = "Geheimladen Mueller", "Rechnung 4711-XYZ", "DE89370400440532013000"
 	accountID := addAccount(t, s, "Main")
+	putSnapshot(t, s, accountID, "2026-10-01", 987_654, "dkb.csv")
 	food := addCategory(t, s, "Food")
 	addTransaction(t, s, accountID, func(txn *LedgerTransaction) {
 		txn.BookingDate, txn.AmountMinor, txn.CategoryID = "2026-10-02", -123457, &food
@@ -168,7 +169,7 @@ func TestLedgerAnalysis_LogsNoTransactionData(t *testing.T) {
 			t.Fatalf("GET %s = %d %s, want %d", path, rec.Code, rec.Body, status)
 		}
 	}
-	for _, secret := range []string{counterparty, purpose, iban, "123457"} {
+	for _, secret := range []string{counterparty, purpose, iban, "123457", "987654", "864197"} {
 		if strings.Contains(logs.String(), secret) {
 			t.Fatalf("log contains %q:\n%s", secret, logs)
 		}
@@ -187,6 +188,8 @@ func analysisLogRequests(accountID uuid.UUID) map[string]int {
 		"cash-flow?to=bad":                      http.StatusBadRequest,
 		"ranking":                               http.StatusOK,
 		"ranking?from=2026-10-02&to=2026-10-01": http.StatusBadRequest,
+		"net-worth":                             http.StatusOK,
+		"net-worth?from=bad":                    http.StatusBadRequest,
 	}
 }
 
@@ -295,7 +298,9 @@ func TestLedgerAnalysis_FiveThousandTransactions(t *testing.T) {
 		commitTransactions(t, s, accountID, txns...)
 	}
 
-	for _, path := range []string{"spending", "spending?parentCategoryId=" + categories[0].String(), "cash-flow", "ranking"} {
+	putSnapshot(t, s, accountID, "2023-06-30", 1_000_000, "dkb.csv")
+
+	for _, path := range []string{"spending", "spending?parentCategoryId=" + categories[0].String(), "cash-flow", "ranking", "net-worth"} {
 		start := time.Now()
 		rec := getAnalysis(mux, path)
 		elapsed := time.Since(start)
@@ -316,5 +321,98 @@ func TestLedgerAnalysis_FiveThousandTransactions(t *testing.T) {
 	}
 	if net != want || flow.From != "2021-01-01" {
 		t.Fatalf("net over all months = %d from %s, want %d from 2021-01-01", net, flow.From, want)
+	}
+}
+
+func TestLedgerNetWorthEndpoint_LastPointIsCurrentBalance(t *testing.T) {
+	h, s := newTestHandler(t)
+	pinAnalysisToday(h)
+	mux := newMux(h)
+
+	t.Run("empty user", func(t *testing.T) {
+		rec := getAnalysis(mux, "net-worth")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, body = %s", rec.Code, rec.Body)
+		}
+		for _, want := range []string{`"from":"2026-11-22"`, `"to":"2026-11-22"`, `"dates":[]`, `"totalMinor":[]`, `"accounts":[]`, `"excludedAccounts":[]`} {
+			if !strings.Contains(rec.Body.String(), want) {
+				t.Fatalf("body %s lacks %s", rec.Body, want)
+			}
+		}
+	})
+
+	giro := addAccount(t, s, "Giro")
+	savings := addAccount(t, s, "Savings")
+	addAccount(t, s, "Cash")
+	for _, account := range []uuid.UUID{giro, savings} {
+		addBooking(t, s, account, "2026-08-03", -1_100)
+		addBooking(t, s, account, "2026-10-10", 2_200)
+		addBooking(t, s, account, "2026-10-20", -3_300)
+		addBooking(t, s, account, "2026-11-22", -4_400)
+		addBooking(t, s, account, "2026-12-24", 5_500)
+	}
+	putSnapshot(t, s, giro, "2026-09-01", 100_000, "dkb.csv")
+	putSnapshot(t, s, giro, "2026-10-10", 123_456, "dkb.csv")
+	putSnapshot(t, s, savings, "2026-10-10", 500_000, LedgerBalanceSourceManual)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/accounts", nil))
+	accounts := decodeJSON[[]struct {
+		ID      uuid.UUID             `json:"id"`
+		Balance *LedgerAccountBalance `json:"balance"`
+	}](t, rec)
+	current := map[uuid.UUID]int64{}
+	for _, account := range accounts {
+		if account.Balance != nil {
+			current[account.ID] = account.Balance.CurrentMinor
+		}
+	}
+	if len(current) != 2 || current[giro] != 123_456-3_300-4_400+5_500 {
+		t.Fatalf("current balances = %v", current)
+	}
+
+	rec = getAnalysis(mux, "net-worth")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body)
+	}
+	for _, want := range []string{`"accountId"`, `"valuesMinor"`, `"totalMinor"`, `"excludedAccounts":[{"accountId":"`, `"name":"Cash","reason":"no_balance"}`} {
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Fatalf("body %s lacks %s", rec.Body, want)
+		}
+	}
+	got := decodeJSON[LedgerNetWorthAnalysis](t, rec)
+	if got.From != "2026-08-03" || got.To != "2026-11-22" {
+		t.Fatalf("range = %s..%s", got.From, got.To)
+	}
+	if want := []string{"2026-08-31", "2026-09-30", "2026-10-31", "2026-11-22"}; len(got.Dates) != len(want) || got.Dates[0] != want[0] || got.Dates[3] != want[3] {
+		t.Fatalf("dates = %v, want %v", got.Dates, want)
+	}
+	if len(got.Accounts) != 2 {
+		t.Fatalf("accounts = %+v", got.Accounts)
+	}
+	last := len(got.Dates) - 1
+	var sum int64
+	for _, account := range got.Accounts {
+		want, ok := current[account.AccountID]
+		if !ok || account.ValuesMinor[last] != want {
+			t.Fatalf("%s: last value = %d, currentMinor = %d", account.Name, account.ValuesMinor[last], want)
+		}
+		sum += want
+	}
+	if got.TotalMinor[last] != sum {
+		t.Fatalf("last total = %d, want %d", got.TotalMinor[last], sum)
+	}
+	// Giro: 100000 at 09-01; the second snapshot wins from 10-10 on.
+	if got.Accounts[0].Name != "Giro" || got.Accounts[0].ValuesMinor[0] != 100_000 || got.Accounts[0].ValuesMinor[2] != 123_456-3_300 {
+		t.Fatalf("Giro = %+v", got.Accounts[0])
+	}
+
+	for query, message := range map[string]string{
+		"?from=1.9.2026":                 "from must be a date (YYYY-MM-DD)",
+		"?to=2026-02-30":                 "to must be a date (YYYY-MM-DD)",
+		"?from=2026-10-02&to=2026-10-01": "from must not be after to",
+		"?from=1900-01-01&to=2026-10-01": "more than 1200 months",
+	} {
+		wantAnalysisStatus(t, mux, "net-worth"+query, http.StatusBadRequest, message)
 	}
 }

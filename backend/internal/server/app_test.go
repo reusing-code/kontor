@@ -423,6 +423,7 @@ var ledgerAnalysisPaths = []string{
 	"/api/v1/ledger/analysis/spending",
 	"/api/v1/ledger/analysis/cash-flow",
 	"/api/v1/ledger/analysis/ranking",
+	"/api/v1/ledger/analysis/net-worth",
 }
 
 func TestLedgerAnalysisAccess(t *testing.T) {

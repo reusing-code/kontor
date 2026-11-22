@@ -22,3 +22,21 @@ func (s *Store) LoadLedgerAnalysisData(_ context.Context, userID string) (Ledger
 	})
 	return in, err
 }
+
+// LoadLedgerNetWorthData reads what the net worth series needs in one read transaction.
+func (s *Store) LoadLedgerNetWorthData(_ context.Context, userID string) (LedgerNetWorthInput, error) {
+	var in LedgerNetWorthInput
+	err := s.e.View(func(txn *badger.Txn) error {
+		var err error
+		if in.Accounts, err = collectLedgerAccounts(txn, userID); err != nil {
+			return err
+		}
+		sortLedgerAccounts(in.Accounts)
+		if in.Transactions, err = collectLedgerTransactions(txn, userID); err != nil {
+			return err
+		}
+		in.Snapshots, err = collectLedgerBalanceSnapshots(txn, ledBalPrefix(userID))
+		return err
+	})
+	return in, err
+}

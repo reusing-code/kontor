@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"errors"
+	"fmt"
 	"math/rand/v2"
 	"reflect"
 	"slices"
@@ -237,4 +238,129 @@ func TestAnalyzeLedgerCashFlowAndRanking_RangeFromTheData(t *testing.T) {
 			t.Fatalf("%s: 1200 months up to the given end: %v", name, err)
 		}
 	}
+}
+
+// The net worth places bookings by the string order of their date, exactly as
+// the account balance does, so bookings with a malformed date cannot break it:
+// the last point stays the current balance of the account list, and the
+// start of "all" is the first well-formed date.
+func TestAnalyzeLedgerNetWorth_MalformedBookingDates(t *testing.T) {
+	account := analysisAccount(uuid.New(), "EUR")
+	txns := []LedgerTransaction{bookedOn(account.ID, "2026-08-10", -1000), bookedOn(account.ID, "2026-10-05", -200)}
+	for _, date := range legacyBookingDates {
+		txns = append(txns, bookedOn(account.ID, date, -999_999))
+	}
+	in := LedgerNetWorthInput{
+		Accounts:     []LedgerAccount{account},
+		Transactions: txns,
+		Snapshots:    []LedgerBalanceSnapshot{snapshotAt(account.ID, "2026-09-15", 50_000)},
+	}
+
+	all := netWorth(t, in, "", "")
+	if all.From != "2026-08-10" || len(all.Dates) != 4 {
+		t.Fatalf("from = %q with dates %v, want the first well-formed booking", all.From, all.Dates)
+	}
+	current := computeLedgerAccountBalance(in.Snapshots, txns).CurrentMinor
+	if last := all.TotalMinor[len(all.TotalMinor)-1]; last != current {
+		t.Fatalf("last point = %d, currentMinor = %d", last, current)
+	}
+	// Up to the snapshot only the well-formed bookings lie between the dates.
+	if !slices.Equal(all.TotalMinor[:2], []int64{50_000, 50_000}) {
+		t.Fatalf("total = %v, want 50000 at the end of August and September", all.TotalMinor)
+	}
+}
+
+func TestAnalyzeLedgerNetWorth_Edges(t *testing.T) {
+	account := analysisAccount(uuid.New(), "EUR")
+	other := analysisAccount(uuid.New(), "EUR")
+	other.Name = "Other"
+
+	t.Run("a snapshot dated after today", func(t *testing.T) {
+		in := LedgerNetWorthInput{
+			Accounts:     []LedgerAccount{account},
+			Transactions: []LedgerTransaction{bookedOn(account.ID, "2026-11-01", -100), bookedOn(account.ID, "2026-12-15", -50)},
+			Snapshots:    []LedgerBalanceSnapshot{snapshotAt(account.ID, "2026-12-31", 1_000)},
+		}
+		got := netWorth(t, in, "", "")
+		if !slices.Equal(got.Dates, []string{analysisToday}) || got.From != "2026-11-01" {
+			t.Fatalf("dates = %v from %s", got.Dates, got.From)
+		}
+		if current := computeLedgerAccountBalance(in.Snapshots, in.Transactions).CurrentMinor; got.TotalMinor[0] != current {
+			t.Fatalf("last point = %d, currentMinor = %d", got.TotalMinor[0], current)
+		}
+		// Before today the snapshot is walked back through the bookings up to it.
+		if past := netWorth(t, in, "2026-10-01", "2026-10-31"); !slices.Equal(past.TotalMinor, []int64{1_150}) {
+			t.Fatalf("total on 2026-10-31 = %v, want 1150", past.TotalMinor)
+		}
+	})
+
+	t.Run("two accounts with a snapshot on the same day and negative balances", func(t *testing.T) {
+		in := LedgerNetWorthInput{
+			Accounts: []LedgerAccount{account, other},
+			Snapshots: []LedgerBalanceSnapshot{
+				snapshotAt(account.ID, "2026-09-30", -70_000),
+				snapshotAt(other.ID, "2026-09-30", 20_000),
+			},
+			Transactions: []LedgerTransaction{bookedOn(account.ID, "2026-09-30", -1), bookedOn(other.ID, "2026-10-01", -30_000)},
+		}
+		got := netWorth(t, in, "2026-09-30", "2026-10-31")
+		if !slices.Equal(got.Dates, []string{"2026-09-30", "2026-10-31"}) || !slices.Equal(got.TotalMinor, []int64{-50_000, -80_000}) {
+			t.Fatalf("dates = %v, total = %v", got.Dates, got.TotalMinor)
+		}
+		if !slices.Equal(got.Accounts[1].ValuesMinor, []int64{20_000, -10_000}) {
+			t.Fatalf("Other = %v", got.Accounts[1].ValuesMinor)
+		}
+	})
+
+	t.Run("a transaction of an unknown account counts nowhere", func(t *testing.T) {
+		in := LedgerNetWorthInput{
+			Accounts:     []LedgerAccount{account},
+			Snapshots:    []LedgerBalanceSnapshot{snapshotAt(account.ID, "2026-09-30", 500), snapshotAt(uuid.New(), "2020-01-01", 999_999)},
+			Transactions: []LedgerTransaction{bookedOn(uuid.New(), "2019-01-01", -999_999)},
+		}
+		got := netWorth(t, in, "", "")
+		if got.From != "2026-09-30" || len(got.Accounts) != 1 || got.TotalMinor[len(got.TotalMinor)-1] != 500 || len(got.ExcludedAccounts) != 0 {
+			t.Fatalf("got %+v", got)
+		}
+	})
+
+	t.Run("the ends of the range", func(t *testing.T) {
+		in := LedgerNetWorthInput{Accounts: []LedgerAccount{account}, Snapshots: []LedgerBalanceSnapshot{snapshotAt(account.ID, "1900-01-01", 5)}}
+		for _, ends := range [][2]string{{"", ""}, {"2026-11-23", ""}, {"", "2026-02-30"}, {"x", "y"}} {
+			if _, err := AnalyzeLedgerNetWorth(in, ends[0], ends[1], analysisToday); !errors.Is(err, ErrLedgerAnalysisInvalid) {
+				t.Fatalf("%q..%q: err = %v, want ErrLedgerAnalysisInvalid", ends[0], ends[1], err)
+			}
+		}
+		got := netWorth(t, in, "", "1999-12-31")
+		if len(got.Dates) != maxLedgerAnalysisMonths || got.Dates[0] != "1900-01-31" || got.Dates[len(got.Dates)-1] != "1999-12-31" {
+			t.Fatalf("%d dates from %s", len(got.Dates), got.Dates[0])
+		}
+	})
+
+	t.Run("independent of the order of bookings and snapshots", func(t *testing.T) {
+		in := LedgerNetWorthInput{Accounts: []LedgerAccount{account, other}}
+		for day := 1; day <= 28; day++ {
+			for month := 6; month <= 11; month++ {
+				date := fmt.Sprintf("2026-%02d-%02d", month, day)
+				in.Transactions = append(in.Transactions, bookedOn(account.ID, date, int64(day*month)), bookedOn(other.ID, date, int64(-day)))
+				if day%9 == 0 {
+					in.Snapshots = append(in.Snapshots, snapshotAt(account.ID, date, int64(1000*day)), snapshotAt(other.ID, date, int64(month)))
+				}
+			}
+		}
+		want := netWorth(t, in, "", "")
+		rng := rand.New(rand.NewPCG(70, 3))
+		for range 30 {
+			shuffled := LedgerNetWorthInput{Accounts: in.Accounts, Transactions: slices.Clone(in.Transactions), Snapshots: slices.Clone(in.Snapshots)}
+			rng.Shuffle(len(shuffled.Transactions), func(i, j int) {
+				shuffled.Transactions[i], shuffled.Transactions[j] = shuffled.Transactions[j], shuffled.Transactions[i]
+			})
+			rng.Shuffle(len(shuffled.Snapshots), func(i, j int) {
+				shuffled.Snapshots[i], shuffled.Snapshots[j] = shuffled.Snapshots[j], shuffled.Snapshots[i]
+			})
+			if got := netWorth(t, shuffled, "", ""); !reflect.DeepEqual(got, want) {
+				t.Fatalf("result changed with the input order:\n got %+v\nwant %+v", got, want)
+			}
+		}
+	})
 }

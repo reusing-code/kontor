@@ -713,13 +713,18 @@ func (s *Store) ListLedgerAccounts(_ context.Context, userID string) ([]LedgerAc
 	if accounts == nil {
 		accounts = []LedgerAccount{}
 	}
+	sortLedgerAccounts(accounts)
+	return accounts, nil
+}
+
+// sortLedgerAccounts puts accounts into list order (name).
+func sortLedgerAccounts(accounts []LedgerAccount) {
 	sort.Slice(accounts, func(i, j int) bool {
 		if accounts[i].Name == accounts[j].Name {
 			return accounts[i].CreatedAt.Before(accounts[j].CreatedAt)
 		}
 		return strings.ToLower(accounts[i].Name) < strings.ToLower(accounts[j].Name)
 	})
-	return accounts, nil
 }
 
 func (s *Store) GetLedgerAccount(_ context.Context, userID string, id uuid.UUID) (LedgerAccount, error) {

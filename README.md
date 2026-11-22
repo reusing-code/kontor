@@ -181,6 +181,7 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | GET | `/ledger/analysis/spending` | Monthly spending by category (`from`, `to`, optional `accountId`; `parentCategoryId` for the subcategories of one top-level category) |
 | GET | `/ledger/analysis/cash-flow` | Monthly income, expenses and net result (`from`, `to`) |
 | GET | `/ledger/analysis/ranking` | Top categories and counterparties by spending in the range (`from`, `to`) |
+| GET | `/ledger/analysis/net-worth` | Net worth over time: month-end balances per account and in total, with the accounts left out (`from`, `to`) |
 | GET/POST | `/ledger/categories` | List / create ledger categories |
 | GET/PUT/DELETE | `/ledger/categories/{id}` | Ledger category CRUD |
 | GET | `/ledger/imports` | List ledger import batches |

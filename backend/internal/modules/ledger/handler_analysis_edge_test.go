@@ -17,7 +17,7 @@ import (
 )
 
 // analysisEdgeEndpoints are the analysis endpoints the edge tests run against.
-var analysisEdgeEndpoints = []string{"spending", "cash-flow", "ranking"}
+var analysisEdgeEndpoints = []string{"spending", "cash-flow", "ranking", "net-worth"}
 
 // seedAnalysisEdgeData stores an account with a balance, a category and a few
 // bookings, and returns the account.
