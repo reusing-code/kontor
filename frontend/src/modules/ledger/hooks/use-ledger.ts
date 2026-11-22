@@ -27,6 +27,7 @@ import {
   getLedgerSpendingAnalysis,
   getLedgerCashFlowAnalysis,
   getLedgerRankingAnalysis,
+  getLedgerNetWorthAnalysis,
   getLedgerTransactionById,
   getLedgerTransferCandidates,
   getLedgerTransactions,
@@ -227,6 +228,14 @@ export function useLedgerRankingAnalysis(range: LedgerAnalysisRange) {
   return useQuery({
     queryKey: [...ledgerAnalysisKey, "ranking", analysisRangeKey(range)],
     queryFn: () => getLedgerRankingAnalysis(range),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useLedgerNetWorthAnalysis(range: LedgerAnalysisRange) {
+  return useQuery({
+    queryKey: [...ledgerAnalysisKey, "net-worth", analysisRangeKey(range)],
+    queryFn: () => getLedgerNetWorthAnalysis(range),
     placeholderData: keepPreviousData,
   })
 }

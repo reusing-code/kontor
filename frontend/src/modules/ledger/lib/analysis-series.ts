@@ -1,5 +1,5 @@
 import type { TooltipRow } from "@/components/charts/chart-parts"
-import type { LedgerCashFlowAnalysis, LedgerCategory, LedgerSpendingAnalysis } from "@/modules/ledger/types"
+import type { LedgerCashFlowAnalysis, LedgerCategory, LedgerNetWorthAnalysis, LedgerSpendingAnalysis } from "@/modules/ledger/types"
 import { formatAmountMinor } from "@/modules/ledger/lib/ledger-utils"
 
 export const categoryPaletteSize = 10
@@ -126,6 +126,24 @@ export function cashFlowSeries(analysis: LedgerCashFlowAnalysis, labels: { incom
     { key: "income", label: labels.income, color: "var(--viz-income)", amountsMinor: analysis.incomeMinor, totalMinor: sum(analysis.incomeMinor) },
     { key: "expenses", label: labels.expenses, color: "var(--viz-expenses)", amountsMinor: analysis.expensesMinor, totalMinor: sum(analysis.expensesMinor) },
     { key: "net", label: labels.net, color: "var(--viz-net)", amountsMinor: analysis.netMinor, totalMinor: sum(analysis.netMinor) },
+  ]
+}
+
+// netWorthSeries: the total, and with showAccounts one series per account.
+// Accounts come in list order whatever the range, so their colors are stable.
+export function netWorthSeries(analysis: LedgerNetWorthAnalysis, totalLabel: string, showAccounts: boolean): ChartSeries[] {
+  const last = (values: number[]) => values[values.length - 1] ?? 0
+  const total: ChartSeries = { key: "total", label: totalLabel, color: "var(--foreground)", amountsMinor: analysis.totalMinor, totalMinor: last(analysis.totalMinor) }
+  if (!showAccounts) return [total]
+  return [
+    total,
+    ...analysis.accounts.map((account, index) => ({
+      key: account.accountId,
+      label: account.name,
+      color: paletteColor(index),
+      amountsMinor: account.valuesMinor,
+      totalMinor: last(account.valuesMinor),
+    })),
   ]
 }
 

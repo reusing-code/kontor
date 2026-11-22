@@ -844,7 +844,25 @@
         "unknownCounterparty": "Unbekannter Empfänger",
         "empty": "Keine Ausgaben in diesem Zeitraum."
       },
-      "excludedCurrencies": "Buchungen in {{currencies}} sind nicht enthalten."
+      "excludedCurrencies": "Buchungen in {{currencies}} sind nicht enthalten.",
+      "netWorth": {
+        "title": "Vermögen",
+        "total": "Gesamt",
+        "showAccounts": "Konten anzeigen",
+        "excluded": "Nicht enthalten: {{accounts}}",
+        "reasonNoBalance": "kein Kontostand",
+        "reasonCurrency": "andere Währung, {{currency}}",
+        "empty": "Noch kein Konto hat einen Kontostand."
+      },
+      "card": {
+        "title": "Vermögen",
+        "open": "Auswertung öffnen",
+        "accounts_one": "Kontostand von {{count}} Konto",
+        "accounts_other": "Summe der Kontostände von {{count}} Konten",
+        "excluded_one": "{{count}} Konto ist nicht enthalten.",
+        "excluded_other": "{{count}} Konten sind nicht enthalten.",
+        "none": "Noch kein Konto hat einen Kontostand."
+      }
     }
   },
   "paperless": {

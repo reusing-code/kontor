@@ -25,6 +25,7 @@ export function LedgerAnalysisCashFlow({ range }: { range: LedgerAnalysisRange }
       title={t("ledger.analysis.cashFlow.title")}
       isPending={query.isPending}
       isError={query.isError}
+      isRefreshing={query.isPlaceholderData}
       onRetry={() => void query.refetch()}
       isEmpty={isEmpty}
       emptyText={t("ledger.analysis.cashFlow.empty")}

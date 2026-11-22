@@ -19,6 +19,7 @@ import { useBankConnections } from "@/modules/ledger/hooks/use-bank-connections"
 import { BankConsentBanner } from "@/modules/ledger/components/bank-consent-banner"
 import { LedgerAccountList } from "@/modules/ledger/components/ledger-account-list"
 import { LedgerImportPanel } from "@/modules/ledger/components/ledger-import-panel"
+import { LedgerNetWorthCard } from "@/modules/ledger/components/ledger-net-worth-card"
 import { LedgerImportsList } from "@/modules/ledger/components/ledger-imports-list"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -60,7 +61,7 @@ export function LedgerIndexPage() {
   const { bankImport } = useCapabilities()
   const { data: bankConnections = [] } = useBankConnections()
 
-  const { data: accounts = [] } = useLedgerAccounts()
+  const { data: accounts = [], isPending: accountsPending } = useLedgerAccounts()
   const { data: emailAccounts = [] } = useLedgerEmailAccounts()
   const { data: emailOrders = [] } = useLedgerEmailOrders()
   const { data: imports = [] } = useLedgerImports()
@@ -80,6 +81,8 @@ export function LedgerIndexPage() {
       <BankConsentBanner />
 
       <div className="grid gap-4 md:grid-cols-2">
+        <LedgerNetWorthCard accounts={accounts} isPending={accountsPending} />
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <CardTitle>{t("ledger.reviewQueue")}</CardTitle>

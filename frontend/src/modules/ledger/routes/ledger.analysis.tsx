@@ -11,6 +11,7 @@ import {
 } from "@/modules/ledger/lib/analysis-range"
 import { useLedgerCashFlowAnalysis } from "@/modules/ledger/hooks/use-ledger"
 import { LedgerAnalysisCashFlow } from "@/modules/ledger/components/ledger-analysis-cash-flow"
+import { LedgerAnalysisNetWorth } from "@/modules/ledger/components/ledger-analysis-net-worth"
 import { LedgerAnalysisRanking } from "@/modules/ledger/components/ledger-analysis-ranking"
 import { LedgerAnalysisRangeControl } from "@/modules/ledger/components/ledger-analysis-range"
 import { LedgerAnalysisSpending } from "@/modules/ledger/components/ledger-analysis-spending"
@@ -68,6 +69,7 @@ export function LedgerAnalysisPage() {
       </div>
       <LedgerAnalysisSpending range={applied} />
       <LedgerAnalysisCashFlow range={applied} />
+      <LedgerAnalysisNetWorth range={applied} />
       <LedgerAnalysisRanking range={applied} />
     </div>
   )

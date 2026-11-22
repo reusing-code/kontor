@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -7,17 +8,21 @@ interface LedgerAnalysisCardProps {
   title: string
   isPending: boolean
   isError: boolean
+  // the content is still that of the previous range while the new one loads
+  isRefreshing?: boolean
   onRetry: () => void
   isEmpty: boolean
   emptyText: string
   // shown in the header next to the title
   actions?: ReactNode
+  // shown below the content, also in the empty state
+  footer?: ReactNode
   children?: ReactNode
 }
 
 // LedgerAnalysisCard frames one analysis and shows its loading, error and
-// empty state instead of the content.
-export function LedgerAnalysisCard({ title, isPending, isError, onRetry, isEmpty, emptyText, actions, children }: LedgerAnalysisCardProps) {
+// empty state instead of the content; content of the previous range is dimmed.
+export function LedgerAnalysisCard({ title, isPending, isError, isRefreshing = false, onRetry, isEmpty, emptyText, actions, footer, children }: LedgerAnalysisCardProps) {
   const { t } = useTranslation()
 
   return (
@@ -36,10 +41,11 @@ export function LedgerAnalysisCard({ title, isPending, isError, onRetry, isEmpty
           </div>
         ) : isPending ? (
           <div role="status" aria-label={t("common.loading")} className="h-[280px] animate-pulse rounded-md bg-muted" />
-        ) : isEmpty ? (
-          <p className="text-sm text-muted-foreground">{emptyText}</p>
         ) : (
-          children
+          <div aria-busy={isRefreshing} className={cn("transition-opacity", isRefreshing && "opacity-60")}>
+            {isEmpty ? <p className="text-sm text-muted-foreground">{emptyText}</p> : children}
+            {footer}
+          </div>
         )}
       </CardContent>
     </Card>

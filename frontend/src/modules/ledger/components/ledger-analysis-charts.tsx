@@ -1,8 +1,20 @@
 import { useTranslation } from "react-i18next"
-import { Bar, BarChart, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 import { AXIS_LINE, AXIS_TICK } from "@/components/charts/chart-axis"
 import { ChartTooltipBox } from "@/components/charts/chart-parts"
-import { formatMonth } from "@/modules/ledger/lib/analysis-range"
+import { formatMonth, formatRangeDate } from "@/modules/ledger/lib/analysis-range"
 import {
   chartRows,
   formatAmountCompact,
@@ -91,6 +103,45 @@ export function CashFlowChart({ months, series }: { months: string[]; series: Ch
           ),
         )}
       </ComposedChart>
+    </ResponsiveContainer>
+  )
+}
+
+// NetWorthChart draws one line per series of netWorthSeries over the dates;
+// the total is the thicker one.
+export function NetWorthChart({ dates, series }: { dates: string[]; series: ChartSeries[] }) {
+  const { i18n } = useTranslation()
+  const locale = i18n.language
+
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <LineChart data={chartRows(dates, "date", series)} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+        <CartesianGrid vertical={false} stroke="var(--border)" />
+        <XAxis dataKey="date" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false}
+          tickFormatter={(date: string) => formatMonth(date.slice(0, 7), locale)} />
+        <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} width={64}
+          tickFormatter={(value: number) => formatAmountCompact(value, locale)} />
+        <Tooltip
+          content={({ active, label }) => {
+            const index = dates.indexOf(String(label))
+            if (!active || index < 0) return null
+            return <ChartTooltipBox title={formatRangeDate(dates[index], locale)} rows={seriesTooltipRows(series, index, locale)} />
+          }}
+        />
+        {series.map((s) => (
+          <Line
+            key={s.key}
+            dataKey={s.key}
+            name={s.label}
+            stroke={s.color}
+            strokeWidth={s.key === "total" ? 2.5 : 1.5}
+            strokeLinecap="round"
+            dot={dates.length <= 24 ? { r: 3, fill: s.color, stroke: "var(--card)", strokeWidth: 2 } : false}
+            activeDot={{ r: 5 }}
+            isAnimationActive={false}
+          />
+        ))}
+      </LineChart>
     </ResponsiveContainer>
   )
 }

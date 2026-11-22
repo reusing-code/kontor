@@ -4,6 +4,7 @@ import {
   cashFlowSeries,
   chartRows,
   formatAmountCompact,
+  netWorthSeries,
   otherColor,
   paletteColor,
   seriesTooltipRows,
@@ -226,6 +227,46 @@ describe("cashFlowSeries", () => {
       { name: "Income", value: "€0.00", color: "var(--viz-income)" },
       { name: "Expenses", value: "€40.00", color: "var(--viz-expenses)" },
       { name: "Net result", value: "-€40.00", color: "var(--viz-net)" },
+    ])
+  })
+})
+
+describe("netWorthSeries", () => {
+  const worth = {
+    from: "2026-09-01",
+    to: "2026-10-31",
+    dates: ["2026-09-30", "2026-10-31"],
+    totalMinor: [1200000, 1250000],
+    accounts: [
+      { accountId: "acc-giro", name: "Giro", valuesMinor: [200000, 250000] },
+      { accountId: "acc-savings", name: "Savings", valuesMinor: [1000000, 1000000] },
+    ],
+    excludedAccounts: [],
+  }
+
+  it("is the total alone by default", () => {
+    expect(netWorthSeries(worth, "Total", false)).toEqual([
+      { key: "total", label: "Total", color: "var(--foreground)", amountsMinor: [1200000, 1250000], totalMinor: 1250000 },
+    ])
+  })
+
+  it("adds the accounts in response order with palette colors", () => {
+    const series = netWorthSeries(worth, "Total", true)
+    expect(series.map((s) => [s.key, s.label, s.color, s.totalMinor])).toEqual([
+      ["total", "Total", "var(--foreground)", 1250000],
+      ["acc-giro", "Giro", "var(--viz-cat-1)", 250000],
+      ["acc-savings", "Savings", "var(--viz-cat-2)", 1000000],
+    ])
+    expect(seriesTooltipRows(series, 0, "en")).toEqual([
+      { name: "Total", value: "€12,000.00", color: "var(--foreground)" },
+      { name: "Giro", value: "€2,000.00", color: "var(--viz-cat-1)" },
+      { name: "Savings", value: "€10,000.00", color: "var(--viz-cat-2)" },
+    ])
+  })
+
+  it("has no values without dates", () => {
+    expect(netWorthSeries({ ...worth, dates: [], totalMinor: [], accounts: [] }, "Total", true)).toEqual([
+      { key: "total", label: "Total", color: "var(--foreground)", amountsMinor: [], totalMinor: 0 },
     ])
   })
 })

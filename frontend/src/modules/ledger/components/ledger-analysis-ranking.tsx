@@ -59,6 +59,7 @@ export function LedgerAnalysisRanking({ range }: { range: LedgerAnalysisRange })
           title={list.title}
           isPending={query.isPending}
           isError={query.isError}
+          isRefreshing={query.isPlaceholderData}
           onRetry={() => void query.refetch()}
           isEmpty={list.entries.length === 0}
           emptyText={t("ledger.analysis.ranking.empty")}

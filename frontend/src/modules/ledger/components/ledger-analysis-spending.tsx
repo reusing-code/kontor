@@ -38,6 +38,7 @@ export function LedgerAnalysisSpending({ range }: { range: LedgerAnalysisRange }
       title={t("ledger.analysis.spending.title")}
       isPending={query.isPending}
       isError={query.isError}
+      isRefreshing={query.isPlaceholderData}
       onRetry={() => void query.refetch()}
       isEmpty={series.length === 0}
       emptyText={t("ledger.analysis.spending.empty")}

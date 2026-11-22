@@ -27,6 +27,7 @@ import type {
   LedgerCommitResult,
   LedgerImportBatch,
   LedgerManualBalanceInput,
+  LedgerNetWorthAnalysis,
   LedgerPreviewResult,
   LedgerRankingAnalysis,
   LedgerReviewInput,
@@ -302,4 +303,8 @@ export async function getLedgerCashFlowAnalysis(range: LedgerAnalysisRange): Pro
 
 export async function getLedgerRankingAnalysis(range: LedgerAnalysisRange): Promise<LedgerRankingAnalysis> {
   return get<LedgerRankingAnalysis>(`/ledger/analysis/ranking${analysisQuery(range)}`)
+}
+
+export async function getLedgerNetWorthAnalysis(range: LedgerAnalysisRange): Promise<LedgerNetWorthAnalysis> {
+  return get<LedgerNetWorthAnalysis>(`/ledger/analysis/net-worth${analysisQuery(range)}`)
 }

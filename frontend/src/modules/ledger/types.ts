@@ -649,3 +649,28 @@ export interface LedgerRankingAnalysis {
   counterparties: LedgerRankedCounterparty[]
   excludedCurrencies: string[]
 }
+
+export interface LedgerNetWorthAccount {
+  accountId: string
+  name: string
+  valuesMinor: number[]
+}
+
+export interface LedgerNetWorthExcluded {
+  accountId: string
+  name: string
+  reason: "no_balance" | "currency"
+  // only for reason currency
+  currency?: string
+}
+
+// Balances of the EUR accounts that have a balance at each date, and their
+// sum; the other accounts are listed in excludedAccounts.
+export interface LedgerNetWorthAnalysis {
+  from: string
+  to: string
+  dates: string[]
+  totalMinor: number[]
+  accounts: LedgerNetWorthAccount[]
+  excludedAccounts: LedgerNetWorthExcluded[]
+}

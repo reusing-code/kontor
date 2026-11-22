@@ -844,7 +844,25 @@
         "unknownCounterparty": "Unknown counterparty",
         "empty": "No expenses in this period."
       },
-      "excludedCurrencies": "Transactions in {{currencies}} are not included."
+      "excludedCurrencies": "Transactions in {{currencies}} are not included.",
+      "netWorth": {
+        "title": "Net worth",
+        "total": "Total",
+        "showAccounts": "Show accounts",
+        "excluded": "Not included: {{accounts}}",
+        "reasonNoBalance": "no balance",
+        "reasonCurrency": "other currency, {{currency}}",
+        "empty": "No account has a balance yet."
+      },
+      "card": {
+        "title": "Net worth",
+        "open": "Open analysis",
+        "accounts_one": "Balance of {{count}} account",
+        "accounts_other": "Sum of the balances of {{count}} accounts",
+        "excluded_one": "{{count}} account is not included.",
+        "excluded_other": "{{count}} accounts are not included.",
+        "none": "No account has a balance yet."
+      }
     }
   },
   "paperless": {

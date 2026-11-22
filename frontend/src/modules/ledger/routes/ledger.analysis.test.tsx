@@ -3,7 +3,13 @@ import { screen, waitFor, within } from "@testing-library/react"
 import { apiError, mockApi, type ApiCall } from "@/test/api-mock"
 import { stubChartSize } from "@/test/chart-size"
 import { renderWithProviders } from "@/test/render"
-import type { LedgerCashFlowAnalysis, LedgerCategory, LedgerRankingAnalysis, LedgerSpendingAnalysis } from "@/modules/ledger/types"
+import type {
+  LedgerCashFlowAnalysis,
+  LedgerCategory,
+  LedgerNetWorthAnalysis,
+  LedgerRankingAnalysis,
+  LedgerSpendingAnalysis,
+} from "@/modules/ledger/types"
 import { LedgerAnalysisPage } from "@/modules/ledger/routes/ledger.analysis"
 
 const at = "2026-01-01T10:00:00Z"
@@ -63,16 +69,29 @@ const ranking: LedgerRankingAnalysis = {
   ],
 }
 
+const netWorth: LedgerNetWorthAnalysis = {
+  from: "2025-12-01",
+  to: "2026-11-22",
+  dates: ["2026-09-30", "2026-10-31", "2026-11-22"],
+  totalMinor: [1200000, 1250000, 1300000],
+  accounts: [
+    { accountId: "acc-giro", name: "Giro", valuesMinor: [200000, 250000, 300000] },
+    { accountId: "acc-savings", name: "Savings", valuesMinor: [1000000, 1000000, 1000000] },
+  ],
+  excludedAccounts: [],
+}
+
 const base = "/ledger/analysis/"
 
 // A handler is a response body or a function of the call. The ranking is
 // empty by default so its names do not mix with the chart legends.
-function setup(handlers: { spending?: unknown; cashFlow?: unknown; ranking?: unknown } = {}) {
+function setup(handlers: { spending?: unknown; cashFlow?: unknown; ranking?: unknown; netWorth?: unknown } = {}) {
   const api = mockApi({
     "GET /ledger/categories": categories,
     [`GET ${base}spending`]: handlers.spending ?? ((call: ApiCall) => (call.path.includes("parentCategoryId") ? subcategories : topLevel)),
     [`GET ${base}cash-flow`]: handlers.cashFlow ?? cashFlow,
     [`GET ${base}ranking`]: handlers.ranking ?? noRanking,
+    [`GET ${base}net-worth`]: handlers.netWorth ?? netWorth,
   })
   const queries = (endpoint: string) =>
     api.calls.filter((c) => c.path.startsWith(base + endpoint)).map((c) => c.path.slice(base.length + endpoint.length))
@@ -129,7 +148,7 @@ describe("LedgerAnalysisPage", () => {
     expect(spendingCalls()).toHaveLength(4)
     // every analysis follows the range
     const expected = ["?from=2025-12-01&to=2026-11-22", "?from=2026-06-01&to=2026-11-22", "?from=2026-01-01&to=2026-11-22", ""]
-    for (const endpoint of ["spending", "cash-flow", "ranking"]) {
+    for (const endpoint of ["spending", "cash-flow", "ranking", "net-worth"]) {
       expect(queries(endpoint)).toEqual(expected)
     }
   })
@@ -321,5 +340,79 @@ describe("LedgerAnalysisPage", () => {
 
     setup({ cashFlow: { ...cashFlow, excludedCurrencies: ["CHF", "USD"] } })
     expect(await screen.findByText("Transactions in CHF, USD are not included.")).toBeInTheDocument()
+  })
+
+  it("shows the net worth total and, with the switch, one line per account", async () => {
+    const { user, queries } = setup()
+
+    await waitFor(() => expect(legendOf("Net worth")).toEqual(["Total"]))
+    expect(queries("net-worth")).toEqual(["?from=2025-12-01&to=2026-11-22"])
+    const lines = () => card("Net worth").querySelectorAll(".recharts-line-curve").length
+    await waitFor(() => expect(lines()).toBe(1))
+    expect(screen.queryByText(/Not included/)).toBeNull()
+
+    const toggle = screen.getByRole("switch", { name: "Show accounts" })
+    expect(toggle).not.toBeChecked()
+    await user.click(toggle)
+    expect(legendOf("Net worth")).toEqual(["Total", "Giro", "Savings"])
+    await waitFor(() => expect(lines()).toBe(3))
+
+    await user.click(toggle)
+    expect(legendOf("Net worth")).toEqual(["Total"])
+  })
+
+  it("names the accounts that are not part of the net worth", async () => {
+    setup({
+      netWorth: {
+        ...netWorth,
+        excludedAccounts: [
+          { accountId: "acc-cash", name: "Cash", reason: "no_balance" },
+          { accountId: "acc-usd", name: "Dollars", reason: "currency", currency: "USD" },
+        ],
+      },
+    })
+
+    expect(await screen.findByText("Not included: Cash (no balance), Dollars (other currency, USD)")).toBeInTheDocument()
+    expect(legendOf("Net worth")).toEqual(["Total"])
+  })
+
+  it("shows the net worth empty state, still with the excluded accounts", async () => {
+    setup({
+      netWorth: {
+        ...netWorth,
+        dates: [],
+        totalMinor: [],
+        accounts: [],
+        excludedAccounts: [{ accountId: "acc-cash", name: "Cash", reason: "no_balance" }],
+      },
+    })
+
+    expect(await within(card("Net worth")).findByText("No account has a balance yet.")).toBeInTheDocument()
+    expect(within(card("Net worth")).getByText("Not included: Cash (no balance)")).toBeInTheDocument()
+    expect(legendOf("Net worth")).toEqual([])
+  })
+
+  it("marks every card as busy while another range loads", async () => {
+    let hold: Promise<void> | undefined
+    let release = () => {}
+    const delayed = <T,>(body: T) => async () => {
+      await hold
+      return body
+    }
+    const { user } = setup({ spending: delayed(topLevel), cashFlow: delayed(cashFlow), ranking: delayed(ranking), netWorth: delayed(netWorth) })
+    const titles = ["Expenses by category", "Cash flow", "Net worth", "Top categories", "Top counterparties"]
+    const busy = () => titles.map((title) => card(title).querySelector("[aria-busy]")?.getAttribute("aria-busy"))
+    await waitFor(() => expect(busy()).toEqual(["false", "false", "false", "false", "false"]))
+
+    hold = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await user.click(screen.getByRole("button", { name: "6 months" }))
+    await waitFor(() => expect(busy()).toEqual(["true", "true", "true", "true", "true"]))
+    // the previous data stays on screen
+    expect(legend()).toEqual(["Food", "Car", "Uncategorized"])
+
+    release()
+    await waitFor(() => expect(busy()).toEqual(["false", "false", "false", "false", "false"]))
   })
 })
