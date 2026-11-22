@@ -178,6 +178,7 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | POST | `/ledger/category-suggestions/run` | Ask the LLM for category suggestions now (409 without LLM or while a run is going) |
 | GET | `/ledger/category-suggestions/status` | `{running}` for the current user |
 | POST | `/ledger/recurring/run` | Detect recurring payments now and propose new groups as contract drafts (`{groups, created, skipped}`; 409 while a run is going, 403 `module_disabled` when contracts are disabled) |
+| GET | `/ledger/analysis/spending` | Monthly spending by category (`from`, `to`, optional `accountId`; `parentCategoryId` for the subcategories of one top-level category) |
 | GET/POST | `/ledger/categories` | List / create ledger categories |
 | GET/PUT/DELETE | `/ledger/categories/{id}` | Ledger category CRUD |
 | GET | `/ledger/imports` | List ledger import batches |

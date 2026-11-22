@@ -35,6 +35,8 @@ type Handler struct {
 	encryptionKey []byte
 	// enabled checks the module of a reference target; nil skips the check.
 	enabled module.EnablementSource
+	// now is the clock of the analyses; nil uses time.Now.
+	now func() time.Time
 }
 
 // afterImport links the new internal transfers first, so the suggestions do
@@ -241,6 +243,7 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("POST /api/v1/ledger/category-suggestions/run", h.RunLedgerCategorySuggestions)
 	r.Handle("GET /api/v1/ledger/category-suggestions/status", h.GetLedgerCategorySuggestionStatus)
 	r.Handle("POST /api/v1/ledger/recurring/run", h.RunLedgerRecurringDetection)
+	r.Handle("GET /api/v1/ledger/analysis/spending", h.GetLedgerSpendingAnalysis)
 	r.Handle("GET /api/v1/ledger/bank/aspsps", h.ListBankASPSPs)
 	r.Handle("GET /api/v1/ledger/bank/connections", h.ListBankConnections)
 	r.Handle("POST /api/v1/ledger/bank/connections/authorize", h.AuthorizeBank)

@@ -417,3 +417,38 @@ func TestLedgerRecurringRunRoute(t *testing.T) {
 		t.Fatalf("contracts disabled = %d %s", status, resp)
 	}
 }
+
+// ledgerAnalysisPaths are the read-only analysis endpoints of the ledger module.
+var ledgerAnalysisPaths = []string{
+	"/api/v1/ledger/analysis/spending",
+}
+
+func TestLedgerAnalysisAccess(t *testing.T) {
+	a := newTestApp(t)
+	userID, jwt := a.register(t, "analysis@example.com")
+	_, readTok := a.newPAT(t, userID, nil, pat.ScopeRead)
+	_, draftTok := a.newPAT(t, userID, nil, pat.ScopeDrafts)
+
+	for _, path := range ledgerAnalysisPaths {
+		for _, tok := range []string{jwt, readTok} {
+			if status, resp := a.request(t, "GET", path, tok, ""); status != http.StatusOK {
+				t.Fatalf("GET %s = %d %s, want 200", path, status, resp)
+			}
+		}
+		if status, resp := a.request(t, "GET", path, draftTok, ""); status != http.StatusForbidden || !strings.Contains(resp, `"insufficient_scope"`) {
+			t.Fatalf("drafts token on %s = %d %s, want 403 insufficient_scope", path, status, resp)
+		}
+	}
+
+	status, resp := a.request(t, "PUT", "/api/v1/settings", jwt, `{"renewalDays":90,"reminderFrequency":"disabled","enabledModules":["contracts","purchases","auto"]}`)
+	if status != http.StatusOK {
+		t.Fatalf("settings = %d %s", status, resp)
+	}
+	for _, path := range ledgerAnalysisPaths {
+		for _, tok := range []string{jwt, readTok} {
+			if status, resp := a.request(t, "GET", path, tok, ""); status != http.StatusForbidden || !strings.Contains(resp, `"module_disabled"`) {
+				t.Fatalf("GET %s with ledger disabled = %d %s, want 403 module_disabled", path, status, resp)
+			}
+		}
+	}
+}

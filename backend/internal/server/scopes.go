@@ -47,6 +47,7 @@ var routeRules = map[string]middleware.Rule{
 	"GET /api/v1/ledger/accounts":                                         middleware.RuleRead,
 	"GET /api/v1/ledger/accounts/{accountId}":                             middleware.RuleRead,
 	"GET /api/v1/ledger/accounts/{accountId}/transactions":                middleware.RuleRead,
+	"GET /api/v1/ledger/analysis/spending":                                middleware.RuleRead,
 	"GET /api/v1/ledger/bank/connections":                                 middleware.RuleRead,
 	"GET /api/v1/ledger/categories":                                       middleware.RuleRead,
 	"GET /api/v1/ledger/category-suggestions/status":                      middleware.RuleRead,
