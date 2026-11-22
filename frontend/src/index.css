@@ -132,6 +132,38 @@
   --viz-misc: #e66767;
 }
 
+/* Ledger analysis: series colors for categories (a cycle of ten, assigned by a
+   category's position among its siblings), the summed rest and "uncategorized" */
+:root {
+  --viz-cat-1: #2a78d6;
+  --viz-cat-2: #c08400;
+  --viz-cat-3: #169a6b;
+  --viz-cat-4: #e34948;
+  --viz-cat-5: #4a3aa7;
+  --viz-cat-6: #0e9aa7;
+  --viz-cat-7: #d6569a;
+  --viz-cat-8: #8a6a3b;
+  --viz-cat-9: #6b8e23;
+  --viz-cat-10: #e8702a;
+  --viz-cat-other: #5f6b7a;
+  --viz-cat-uncategorized: #9aa0a6;
+}
+
+.dark {
+  --viz-cat-1: #3987e5;
+  --viz-cat-2: #c98500;
+  --viz-cat-3: #199e70;
+  --viz-cat-4: #e66767;
+  --viz-cat-5: #9085e9;
+  --viz-cat-6: #2bb3c0;
+  --viz-cat-7: #e07bb3;
+  --viz-cat-8: #b08a57;
+  --viz-cat-9: #8fae3f;
+  --viz-cat-10: #f08a4b;
+  --viz-cat-other: #a3adba;
+  --viz-cat-uncategorized: #6b7280;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

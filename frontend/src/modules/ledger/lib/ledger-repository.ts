@@ -9,6 +9,7 @@ import type {
   LedgerAccountDeleteSummary,
   LedgerAccountInput,
   LedgerAccountUpdateInput,
+  LedgerAnalysisRange,
   LedgerCategory,
   LedgerCategoryInput,
   LedgerEmailAccount,
@@ -29,6 +30,7 @@ import type {
   LedgerReviewInput,
   LedgerReviewResult,
   LedgerSourceType,
+  LedgerSpendingAnalysis,
   LedgerTransferCandidatesResult,
   LedgerTransferLinkInput,
   LedgerTransferLinkResult,
@@ -39,6 +41,7 @@ import type {
   LedgerTransactionsPage,
 } from "@/modules/ledger/types"
 import { del, delJson, get, post, postForm, put } from "@/lib/api"
+import { analysisQuery } from "@/modules/ledger/lib/analysis-range"
 
 export async function getLedgerAccounts(): Promise<LedgerAccount[]> {
   return get<LedgerAccount[]>("/ledger/accounts")
@@ -285,4 +288,8 @@ export function defaultLedgerAccountInput(iban?: string, bank?: string): LedgerA
     iban: iban ?? "",
     currency: "EUR",
   }
+}
+
+export async function getLedgerSpendingAnalysis(range: LedgerAnalysisRange, parentCategoryId?: string): Promise<LedgerSpendingAnalysis> {
+  return get<LedgerSpendingAnalysis>(`/ledger/analysis/spending${analysisQuery(range, { parentCategoryId })}`)
 }

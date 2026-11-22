@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react"
-import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import {
   addLedgerTransactionReference,
   commitLedgerImport,
@@ -24,6 +24,7 @@ import {
   getLedgerImports,
   getLedgerReviewQueue,
   getLedgerReviewQueueAll,
+  getLedgerSpendingAnalysis,
   getLedgerTransactionById,
   getLedgerTransferCandidates,
   getLedgerTransactions,
@@ -50,6 +51,7 @@ import {
   updateLedgerEmailAccount,
 } from "@/modules/ledger/lib/ledger-repository"
 import type {
+  LedgerAnalysisRange,
   LedgerBatchReviewItem,
   LedgerAccountInput,
   LedgerAccountUpdateInput,
@@ -75,6 +77,7 @@ export const ledgerEmailAccountsKey = ["ledger", "email-accounts"] as const
 export const ledgerEmailScanStatusKey = (id: string) => ["ledger", "email-scan", id] as const
 export const ledgerImportsKey = ["ledger", "imports"] as const
 export const ledgerCategoriesKey = ["ledger", "categories"] as const
+export const ledgerAnalysisKey = ["ledger", "analysis"] as const
 export const ledgerReviewQueueKey = (limit: number | "all", cursor?: string) => ["ledger", "review", { limit, cursor: cursor ?? "" }] as const
 export const ledgerSuggestionStatusKey = ["ledger", "category-suggestions", "status"] as const
 const ledgerAccountKey = (accountId: string) => ["ledger", "accounts", accountId] as const
@@ -196,6 +199,15 @@ export function useLedgerCategories() {
   return useQuery({
     queryKey: ledgerCategoriesKey,
     queryFn: getLedgerCategories,
+  })
+}
+
+// The analyses keep the previous data on screen while another range loads.
+export function useLedgerSpendingAnalysis(range: LedgerAnalysisRange, parentCategoryId?: string) {
+  return useQuery({
+    queryKey: [...ledgerAnalysisKey, "spending", { from: range.from ?? "", to: range.to ?? "", parentCategoryId: parentCategoryId ?? "" }],
+    queryFn: () => getLedgerSpendingAnalysis(range, parentCategoryId),
+    placeholderData: keepPreviousData,
   })
 }
 

@@ -27,6 +27,15 @@ export function LedgerSidebarSection() {
         {t("ledger.reviewQueue")}
       </Link>
       <Link
+        to="/ledger/analysis"
+        className={cn(
+          "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
+          matchRoute({ to: "/ledger/analysis" }) && "bg-accent font-medium",
+        )}
+      >
+        {t("ledger.analysis.title")}
+      </Link>
+      <Link
         to="/ledger/categories"
         className={cn(
           "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",

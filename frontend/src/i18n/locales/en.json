@@ -795,6 +795,41 @@
         "currency_mismatch": "The currencies differ.",
         "sync_timeout": "The sync did not finish in time. Imported rows are kept; run it again."
       }
+    },
+    "analysis": {
+      "title": "Analysis",
+      "description": "Charts from your transactions and account balances.",
+      "range": {
+        "label": "Time range",
+        "6m": "6 months",
+        "12m": "12 months",
+        "ytd": "Year to date",
+        "all": "All",
+        "custom": "Custom",
+        "from": "From",
+        "to": "To",
+        "active": "{{from}} – {{to}}",
+        "allTime": "All time",
+        "problems": {
+          "incomplete": "Enter both dates.",
+          "fromAfterTo": "The start date must not be after the end date.",
+          "tooLong": "The range must not span more than 100 years.",
+          "toInFuture": "The end date must not be in the future."
+        }
+      },
+      "error": "This analysis could not be loaded.",
+      "retry": "Retry",
+      "spending": {
+        "title": "Expenses by category",
+        "level": "Category level",
+        "topLevel": "Top-level categories",
+        "allCategories": "All categories",
+        "uncategorized": "Uncategorized",
+        "other": "Other",
+        "direct": "{{name}} (directly)",
+        "total": "Total",
+        "empty": "No expenses in this period."
+      }
     }
   },
   "paperless": {

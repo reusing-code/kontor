@@ -589,3 +589,29 @@ export interface LedgerManualBalanceInput {
   amountMinor: number
   asOf: string
 }
+
+// An inclusive booking-date range of the analyses; an omitted end is left to
+// the server (from = the first booking, to = today).
+export interface LedgerAnalysisRange {
+  from?: string
+  to?: string
+}
+
+export interface LedgerSpendingSeries {
+  kind: "category" | "uncategorized" | "direct"
+  categoryId?: string
+  name: string
+  amountsMinor: number[]
+  totalMinor: number
+}
+
+// Monthly spending per series; with parentCategoryId the amounts are signed.
+export interface LedgerSpendingAnalysis {
+  from: string
+  to: string
+  months: string[]
+  parentCategoryId?: string
+  series: LedgerSpendingSeries[]
+  totalsMinor: number[]
+  excludedCurrencies: string[]
+}

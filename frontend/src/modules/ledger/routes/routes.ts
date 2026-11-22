@@ -14,6 +14,7 @@ const LedgerEmailOrdersPage = lazy(() => import("./ledger.email-orders").then((m
 const LedgerBankConnectionsPage = lazy(() => import("./ledger.bank-connections").then((module) => ({ default: module.LedgerBankConnectionsPage })))
 const LedgerBankResultPage = lazy(() => import("./ledger.bank-connections.result").then((module) => ({ default: module.LedgerBankResultPage })))
 const LedgerReviewPage = lazy(() => import("./ledger.review").then((module) => ({ default: module.LedgerReviewPage })))
+const LedgerAnalysisPage = lazy(() => import("./ledger.analysis").then((module) => ({ default: module.LedgerAnalysisPage })))
 const LedgerTransactionPage = lazy(() => import("./ledger.transactions.$transactionId").then((module) => ({ default: module.LedgerTransactionPage })))
 
 // Bank import routes need the ledger module and the server-side capability.
@@ -88,6 +89,13 @@ export const ledgerReviewRoute = createRoute({
   component: LedgerReviewPage,
 })
 
+export const ledgerAnalysisRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/ledger/analysis",
+  beforeLoad: moduleGuard("ledger"),
+  component: LedgerAnalysisPage,
+})
+
 export const ledgerTransactionRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/ledger/transactions/$transactionId",
@@ -104,5 +112,6 @@ export const ledgerRoutes: AnyRoute[] = [
   ledgerBankConnectionsRoute,
   ledgerBankResultRoute,
   ledgerReviewRoute,
+  ledgerAnalysisRoute,
   ledgerTransactionRoute,
 ]

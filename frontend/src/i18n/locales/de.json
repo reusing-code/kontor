@@ -795,6 +795,41 @@
         "currency_mismatch": "Die Währungen unterscheiden sich.",
         "sync_timeout": "Der Abruf wurde nicht rechtzeitig fertig. Importierte Buchungen bleiben erhalten; erneut starten."
       }
+    },
+    "analysis": {
+      "title": "Auswertung",
+      "description": "Diagramme aus deinen Buchungen und Kontoständen.",
+      "range": {
+        "label": "Zeitraum",
+        "6m": "6 Monate",
+        "12m": "12 Monate",
+        "ytd": "Laufendes Jahr",
+        "all": "Alles",
+        "custom": "Benutzerdefiniert",
+        "from": "Von",
+        "to": "Bis",
+        "active": "{{from}} – {{to}}",
+        "allTime": "Gesamter Zeitraum",
+        "problems": {
+          "incomplete": "Bitte beide Daten angeben.",
+          "fromAfterTo": "Das Startdatum darf nicht nach dem Enddatum liegen.",
+          "tooLong": "Der Zeitraum darf höchstens 100 Jahre umfassen.",
+          "toInFuture": "Das Enddatum darf nicht in der Zukunft liegen."
+        }
+      },
+      "error": "Diese Auswertung konnte nicht geladen werden.",
+      "retry": "Erneut versuchen",
+      "spending": {
+        "title": "Ausgaben nach Kategorie",
+        "level": "Kategorieebene",
+        "topLevel": "Hauptkategorien",
+        "allCategories": "Alle Kategorien",
+        "uncategorized": "Ohne Kategorie",
+        "other": "Sonstige",
+        "direct": "{{name}} (direkt)",
+        "total": "Summe",
+        "empty": "Keine Ausgaben in diesem Zeitraum."
+      }
     }
   },
   "paperless": {
