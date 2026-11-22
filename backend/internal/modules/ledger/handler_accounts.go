@@ -105,3 +105,64 @@ func newLedgerAccount(id uuid.UUID, input LedgerAccountInput, now time.Time) Led
 		UpdatedAt: now,
 	}
 }
+
+// SetLedgerAccountBalance stores a balance entered by hand and returns the
+// account with its balance.
+func (h *Handler) SetLedgerAccountBalance(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.accountID(w, r)
+	if !ok {
+		return
+	}
+	var input LedgerManualBalanceInput
+	if err := httputil.ReadJSON(r, &input); err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	now := time.Now().UTC()
+	if err := input.Validate(now.Format(time.DateOnly)); err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+		return
+	}
+	userID := middleware.GetUserID(r.Context())
+	if err := h.store.PutLedgerBalanceSnapshot(r.Context(), userID, LedgerBalanceSnapshot{
+		AccountID: id, AsOf: input.AsOf, AmountMinor: *input.AmountMinor, Source: LedgerBalanceSourceManual, RecordedAt: now,
+	}); err != nil {
+		h.storeError(w, err)
+		return
+	}
+	h.writeAccountWithBalance(w, r, userID, id)
+}
+
+// DeleteLedgerAccountBalance deletes a manual balance (409 for one from an
+// import or a sync) and returns the account with its remaining balance.
+func (h *Handler) DeleteLedgerAccountBalance(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.accountID(w, r)
+	if !ok {
+		return
+	}
+	asOf := r.PathValue("asOf")
+	if _, err := time.Parse(time.DateOnly, asOf); err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "asOf must be a date (YYYY-MM-DD)")
+		return
+	}
+	userID := middleware.GetUserID(r.Context())
+	if err := h.store.DeleteManualLedgerBalanceSnapshot(r.Context(), userID, id, asOf); err != nil {
+		h.storeError(w, err)
+		return
+	}
+	h.writeAccountWithBalance(w, r, userID, id)
+}
+
+func (h *Handler) writeAccountWithBalance(w http.ResponseWriter, r *http.Request, userID string, id uuid.UUID) {
+	account, err := h.store.GetLedgerAccount(r.Context(), userID, id)
+	if err != nil {
+		h.storeError(w, err)
+		return
+	}
+	balance, err := h.store.GetLedgerAccountBalance(r.Context(), userID, id)
+	if err != nil {
+		h.storeError(w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, ledgerAccountResponse{LedgerAccount: account, Balance: balance})
+}

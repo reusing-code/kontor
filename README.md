@@ -161,6 +161,8 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | GET | `/ledger/accounts/{id}/delete-summary` | What deleting the account removes (transactions, imports, links, mapped bank accounts) |
 | DELETE | `/ledger/accounts/{id}` | Delete a ledger account with its transactions and imports |
 | GET | `/ledger/accounts/{id}/transactions` | List transactions for an account, with the balance after and before the page |
+| POST | `/ledger/accounts/{id}/balance` | Set the account balance by hand (`{amountMinor, asOf?}`; JWT only) |
+| DELETE | `/ledger/accounts/{id}/balance/{asOf}` | Delete a balance set by hand (JWT only) |
 | GET | `/ledger/transactions` | Review queue for ledger transactions (`limit` + `cursor`, or `limit=all` for the whole queue) |
 | GET | `/ledger/transactions/{id}` | Get ledger transaction details |
 | PUT | `/ledger/transactions/{id}` | Update note, links, and cross references |

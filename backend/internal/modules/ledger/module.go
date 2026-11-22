@@ -209,6 +209,8 @@ func (m *Module) RegisterRoutes(r *module.Router) {
 	r.Handle("DELETE /api/v1/ledger/accounts/{accountId}", h.DeleteLedgerAccount)
 	r.Handle("GET /api/v1/ledger/accounts/{accountId}/delete-summary", h.GetLedgerAccountDeleteSummary)
 	r.Handle("GET /api/v1/ledger/accounts/{accountId}/transactions", h.ListLedgerTransactions)
+	r.Handle("POST /api/v1/ledger/accounts/{accountId}/balance", h.SetLedgerAccountBalance)
+	r.Handle("DELETE /api/v1/ledger/accounts/{accountId}/balance/{asOf}", h.DeleteLedgerAccountBalance)
 	r.Handle("GET /api/v1/ledger/email-accounts", h.ListLedgerEmailAccounts)
 	r.Handle("POST /api/v1/ledger/email-accounts", h.CreateLedgerEmailAccount)
 	r.Handle("POST /api/v1/ledger/email-accounts/folders", h.ListLedgerEmailFolders)

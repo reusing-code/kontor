@@ -79,6 +79,23 @@ func (s *Store) PutLedgerBalanceSnapshot(_ context.Context, userID string, snaps
 	})
 }
 
+// DeleteManualLedgerBalanceSnapshot deletes a snapshot the user entered by
+// hand; ErrLedgerBalanceNotManual for one from an import or a sync.
+func (s *Store) DeleteManualLedgerBalanceSnapshot(_ context.Context, userID string, accountID uuid.UUID, asOf string) error {
+	return retryOnConflict(func() error {
+		return s.e.Update(func(txn *badger.Txn) error {
+			var snapshot LedgerBalanceSnapshot
+			if err := storage.GetJSON(txn, ledBalKey(userID, accountID, asOf), &snapshot); err != nil {
+				return err
+			}
+			if snapshot.Source != LedgerBalanceSourceManual {
+				return ErrLedgerBalanceNotManual
+			}
+			return txn.Delete(ledBalKey(userID, accountID, asOf))
+		})
+	})
+}
+
 func (s *Store) ListLedgerBalanceSnapshots(_ context.Context, userID string, accountID uuid.UUID) ([]LedgerBalanceSnapshot, error) {
 	var snapshots []LedgerBalanceSnapshot
 	err := s.e.View(func(txn *badger.Txn) error {

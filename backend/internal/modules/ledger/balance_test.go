@@ -314,3 +314,66 @@ func TestLedgerAccountEndpoints_CarryBalance(t *testing.T) {
 		t.Fatalf("account balance = %+v", single.Balance)
 	}
 }
+
+func TestManualBalance_SetAndDelete(t *testing.T) {
+	h, s := newTestHandler(t)
+	mux := newMux(h)
+	accountID := addAccount(t, s, "Main")
+	addBooking(t, s, accountID, "2026-03-02", 250)
+	base := "/api/v1/ledger/accounts/" + accountID.String() + "/balance"
+	do := func(method, url string, body any) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(method, url, nil)
+		if body != nil {
+			req = httptest.NewRequest(method, url, jsonBody(body))
+		}
+		mux.ServeHTTP(rec, req)
+		return rec
+	}
+	type accountBody struct {
+		Balance *LedgerAccountBalance `json:"balance"`
+	}
+
+	rec := do("POST", base, map[string]any{"amountMinor": 1000, "asOf": "2026-03-01"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body)
+	}
+	if got := decodeJSON[accountBody](t, rec); got.Balance == nil || got.Balance.CurrentMinor != 1250 || got.Balance.Source != LedgerBalanceSourceManual {
+		t.Fatalf("balance = %+v", got.Balance)
+	}
+
+	rec = do("POST", base, map[string]any{"amountMinor": -5})
+	today := time.Now().UTC().Format(time.DateOnly)
+	if got := decodeJSON[accountBody](t, rec); rec.Code != http.StatusOK || got.Balance.AsOf != today || got.Balance.SnapshotMinor != -5 {
+		t.Fatalf("default date: %d %+v", rec.Code, got.Balance)
+	}
+
+	for name, body := range map[string]any{
+		"no amount":    map[string]any{"asOf": "2026-03-01"},
+		"future":       map[string]any{"amountMinor": 1, "asOf": "2999-01-01"},
+		"bad date":     map[string]any{"amountMinor": 1, "asOf": "01.03.2026"},
+		"out of range": map[string]any{"amountMinor": int64(maxManualBalanceMinor) + 1},
+	} {
+		if rec := do("POST", base, body); rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: status = %d", name, rec.Code)
+		}
+	}
+	if rec := do("POST", "/api/v1/ledger/accounts/"+uuid.NewString()+"/balance", map[string]any{"amountMinor": 1}); rec.Code != http.StatusNotFound {
+		t.Errorf("unknown account: status = %d", rec.Code)
+	}
+
+	rec = do("DELETE", base+"/"+today, nil)
+	if got := decodeJSON[accountBody](t, rec); rec.Code != http.StatusOK || got.Balance == nil || got.Balance.AsOf != "2026-03-01" {
+		t.Fatalf("after delete: %d %+v", rec.Code, got.Balance)
+	}
+	putSnapshot(t, s, accountID, "2026-03-05", 9, "dkb.csv")
+	if rec := do("DELETE", base+"/2026-03-05", nil); rec.Code != http.StatusConflict {
+		t.Fatalf("deleting an imported balance: status = %d", rec.Code)
+	}
+	if rec := do("DELETE", base+"/2026-01-01", nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("deleting a missing balance: status = %d", rec.Code)
+	}
+	if rec := do("DELETE", base+"/yesterday", nil); rec.Code != http.StatusBadRequest {
+		t.Fatalf("bad date: status = %d", rec.Code)
+	}
+}

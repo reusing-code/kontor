@@ -121,18 +121,7 @@ func (h *Handler) GetLedgerAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	account, err := h.store.GetLedgerAccount(r.Context(), userID, accountID)
-	if err != nil {
-		h.storeError(w, err)
-		return
-	}
-	balance, err := h.store.GetLedgerAccountBalance(r.Context(), userID, accountID)
-	if err != nil {
-		h.storeError(w, err)
-		return
-	}
-
-	httputil.WriteJSON(h.logger, w, http.StatusOK, ledgerAccountResponse{LedgerAccount: account, Balance: balance})
+	h.writeAccountWithBalance(w, r, userID, accountID)
 }
 
 func (h *Handler) ListLedgerAccounts(w http.ResponseWriter, r *http.Request) {
