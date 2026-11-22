@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest"
 import type { LedgerCategory, LedgerSpendingAnalysis, LedgerSpendingSeries } from "@/modules/ledger/types"
 import {
+  cashFlowSeries,
   chartRows,
   formatAmountCompact,
   otherColor,
   paletteColor,
+  seriesTooltipRows,
   siblingColorIndex,
   spendingChartSeries,
   spendingTooltipRows,
@@ -202,5 +204,28 @@ describe("chart rows and tooltip", () => {
     expect(formatAmountCompact(50000, "en")).toBe("€500")
     expect(formatAmountCompact(123456, "en")).toBe("€1.2K")
     expect(formatAmountCompact(-250000000, "en")).toBe("-€2.5M")
+  })
+})
+
+describe("cashFlowSeries", () => {
+  const flow = cashFlowSeries(
+    { from: "2026-01-01", to: "2026-02-28", months: ["2026-01", "2026-02"], incomeMinor: [300000, 0], expensesMinor: [120050, 4000], netMinor: [179950, -4000], excludedCurrencies: [] },
+    { income: "Income", expenses: "Expenses", net: "Net result" },
+  )
+
+  it("has income, expenses and the net result with their colors", () => {
+    expect(flow.map((s) => [s.key, s.label, s.color, s.totalMinor])).toEqual([
+      ["income", "Income", "var(--viz-income)", 300000],
+      ["expenses", "Expenses", "var(--viz-expenses)", 124050],
+      ["net", "Net result", "var(--viz-net)", 175950],
+    ])
+  })
+
+  it("lists all three in the tooltip, zeros included", () => {
+    expect(seriesTooltipRows(flow, 1, "en")).toEqual([
+      { name: "Income", value: "€0.00", color: "var(--viz-income)" },
+      { name: "Expenses", value: "€40.00", color: "var(--viz-expenses)" },
+      { name: "Net result", value: "-€40.00", color: "var(--viz-net)" },
+    ])
   })
 })

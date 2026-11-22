@@ -1,5 +1,5 @@
 import type { TooltipRow } from "@/components/charts/chart-parts"
-import type { LedgerCategory, LedgerSpendingAnalysis } from "@/modules/ledger/types"
+import type { LedgerCashFlowAnalysis, LedgerCategory, LedgerSpendingAnalysis } from "@/modules/ledger/types"
 import { formatAmountMinor } from "@/modules/ledger/lib/ledger-utils"
 
 export const categoryPaletteSize = 10
@@ -116,6 +116,22 @@ export function spendingTooltipRows(series: ChartSeries[], index: number, totalL
     .map((s) => ({ name: s.label, value: formatAmountMinor(s.amountsMinor[index], "EUR", locale), color: s.color }))
   const total = series.reduce((sum, s) => sum + s.amountsMinor[index], 0)
   return [...rows, { name: totalLabel, value: formatAmountMinor(total, "EUR", locale) }]
+}
+
+// cashFlowSeries: income and expenses (both positive, drawn as bars) and the
+// net result (drawn as a line).
+export function cashFlowSeries(analysis: LedgerCashFlowAnalysis, labels: { income: string; expenses: string; net: string }): ChartSeries[] {
+  const sum = (values: number[]) => values.reduce((total, value) => total + value, 0)
+  return [
+    { key: "income", label: labels.income, color: "var(--viz-income)", amountsMinor: analysis.incomeMinor, totalMinor: sum(analysis.incomeMinor) },
+    { key: "expenses", label: labels.expenses, color: "var(--viz-expenses)", amountsMinor: analysis.expensesMinor, totalMinor: sum(analysis.expensesMinor) },
+    { key: "net", label: labels.net, color: "var(--viz-net)", amountsMinor: analysis.netMinor, totalMinor: sum(analysis.netMinor) },
+  ]
+}
+
+// seriesTooltipRows lists every series of one axis position, zeros included.
+export function seriesTooltipRows(series: ChartSeries[], index: number, locale: string): TooltipRow[] {
+  return series.map((s) => ({ name: s.label, value: formatAmountMinor(s.amountsMinor[index], "EUR", locale), color: s.color }))
 }
 
 // formatAmountCompact: 123456 minor units -> "€1.2K" (axis ticks).

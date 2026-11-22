@@ -10,7 +10,13 @@ const here = import.meta.url
 const css = fs.readFileSync(new URL("../../../index.css", here), "utf8")
 
 // The light-mode series colors of the ledger charts, read from index.css.
-const checked = [...Array.from({ length: 10 }, (_, i) => `--viz-cat-${i + 1}`), "--viz-cat-other"]
+const checked = [
+  ...Array.from({ length: 10 }, (_, i) => `--viz-cat-${i + 1}`),
+  "--viz-cat-other",
+  "--viz-cat-uncategorized",
+  "--viz-income",
+  "--viz-expenses",
+]
 
 function lightValues(): Record<string, string> {
   const values: Record<string, string> = {}

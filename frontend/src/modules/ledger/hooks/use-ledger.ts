@@ -25,6 +25,8 @@ import {
   getLedgerReviewQueue,
   getLedgerReviewQueueAll,
   getLedgerSpendingAnalysis,
+  getLedgerCashFlowAnalysis,
+  getLedgerRankingAnalysis,
   getLedgerTransactionById,
   getLedgerTransferCandidates,
   getLedgerTransactions,
@@ -207,6 +209,24 @@ export function useLedgerSpendingAnalysis(range: LedgerAnalysisRange, parentCate
   return useQuery({
     queryKey: [...ledgerAnalysisKey, "spending", { from: range.from ?? "", to: range.to ?? "", parentCategoryId: parentCategoryId ?? "" }],
     queryFn: () => getLedgerSpendingAnalysis(range, parentCategoryId),
+    placeholderData: keepPreviousData,
+  })
+}
+
+const analysisRangeKey = (range: LedgerAnalysisRange) => ({ from: range.from ?? "", to: range.to ?? "" })
+
+export function useLedgerCashFlowAnalysis(range: LedgerAnalysisRange) {
+  return useQuery({
+    queryKey: [...ledgerAnalysisKey, "cash-flow", analysisRangeKey(range)],
+    queryFn: () => getLedgerCashFlowAnalysis(range),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useLedgerRankingAnalysis(range: LedgerAnalysisRange) {
+  return useQuery({
+    queryKey: [...ledgerAnalysisKey, "ranking", analysisRangeKey(range)],
+    queryFn: () => getLedgerRankingAnalysis(range),
     placeholderData: keepPreviousData,
   })
 }

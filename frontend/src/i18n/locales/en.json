@@ -815,7 +815,8 @@
           "fromAfterTo": "The start date must not be after the end date.",
           "tooLong": "The range must not span more than 100 years.",
           "toInFuture": "The end date must not be in the future."
-        }
+        },
+        "allTimeDates": "All time ({{from}} – {{to}})"
       },
       "error": "This analysis could not be loaded.",
       "retry": "Retry",
@@ -829,7 +830,21 @@
         "direct": "{{name}} (directly)",
         "total": "Total",
         "empty": "No expenses in this period."
-      }
+      },
+      "cashFlow": {
+        "title": "Cash flow",
+        "income": "Income",
+        "expenses": "Expenses",
+        "net": "Net result",
+        "empty": "No income or expenses in this period."
+      },
+      "ranking": {
+        "categories": "Top categories",
+        "counterparties": "Top counterparties",
+        "unknownCounterparty": "Unknown counterparty",
+        "empty": "No expenses in this period."
+      },
+      "excludedCurrencies": "Transactions in {{currencies}} are not included."
     }
   },
   "paperless": {

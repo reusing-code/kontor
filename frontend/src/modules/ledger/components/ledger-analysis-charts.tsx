@@ -1,9 +1,15 @@
 import { useTranslation } from "react-i18next"
-import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { AXIS_LINE, AXIS_TICK } from "@/components/charts/chart-axis"
 import { ChartTooltipBox } from "@/components/charts/chart-parts"
 import { formatMonth } from "@/modules/ledger/lib/analysis-range"
-import { chartRows, formatAmountCompact, spendingTooltipRows, type ChartSeries } from "@/modules/ledger/lib/analysis-series"
+import {
+  chartRows,
+  formatAmountCompact,
+  seriesTooltipRows,
+  spendingTooltipRows,
+  type ChartSeries,
+} from "@/modules/ledger/lib/analysis-series"
 
 // The only file of the ledger module that imports recharts: everything else
 // (helpers, legends, the dashboard) stays out of the chart chunk.
@@ -40,6 +46,51 @@ export function SpendingChart({ months, series }: { months: string[]; series: Ch
           <Bar key={s.key} dataKey={s.key} name={s.label} stackId="spending" fill={s.color} maxBarSize={32} isAnimationActive={false} />
         ))}
       </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+// CashFlowChart draws income and expenses side by side per month and the net
+// result as a line; series are those of cashFlowSeries.
+export function CashFlowChart({ months, series }: { months: string[]; series: ChartSeries[] }) {
+  const { i18n } = useTranslation()
+  const locale = i18n.language
+
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <ComposedChart data={chartRows(months, "month", series)} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+        <CartesianGrid vertical={false} stroke="var(--border)" />
+        <XAxis dataKey="month" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false}
+          tickFormatter={(month: string) => formatMonth(month, locale)} />
+        <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} width={64}
+          tickFormatter={(value: number) => formatAmountCompact(value, locale)} />
+        <ReferenceLine y={0} stroke="var(--border)" />
+        <Tooltip
+          cursor={{ fill: "var(--muted)", opacity: 0.4 }}
+          content={({ active, label }) => {
+            const index = months.indexOf(String(label))
+            if (!active || index < 0) return null
+            return <ChartTooltipBox title={formatMonth(months[index], locale)} rows={seriesTooltipRows(series, index, locale)} />
+          }}
+        />
+        {series.map((s) =>
+          s.key === "net" ? (
+            <Line
+              key={s.key}
+              dataKey={s.key}
+              name={s.label}
+              stroke={s.color}
+              strokeWidth={2}
+              strokeLinecap="round"
+              dot={{ r: 3, fill: s.color, stroke: "var(--card)", strokeWidth: 2 }}
+              activeDot={{ r: 5 }}
+              isAnimationActive={false}
+            />
+          ) : (
+            <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} maxBarSize={20} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+          ),
+        )}
+      </ComposedChart>
     </ResponsiveContainer>
   )
 }

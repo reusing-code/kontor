@@ -133,7 +133,7 @@
 }
 
 /* Ledger analysis: series colors for categories (a cycle of ten, assigned by a
-   category's position among its siblings), the summed rest and "uncategorized" */
+   category's position among its siblings), the summed rest and "uncategorized", and the cash-flow series */
 :root {
   --viz-cat-1: #2a78d6;
   --viz-cat-2: #c08400;
@@ -146,7 +146,10 @@
   --viz-cat-9: #6b8e23;
   --viz-cat-10: #e8702a;
   --viz-cat-other: #5f6b7a;
-  --viz-cat-uncategorized: #9aa0a6;
+  --viz-cat-uncategorized: #878e96;
+  --viz-income: #169a6b;
+  --viz-expenses: #e34948;
+  --viz-net: var(--foreground);
 }
 
 .dark {
@@ -162,6 +165,9 @@
   --viz-cat-10: #f08a4b;
   --viz-cat-other: #a3adba;
   --viz-cat-uncategorized: #6b7280;
+  --viz-income: #199e70;
+  --viz-expenses: #e66767;
+  --viz-net: var(--foreground);
 }
 
 @layer base {

@@ -7,15 +7,15 @@ import { Label } from "@/components/ui/label"
 
 interface LedgerAnalysisRangeControlProps {
   state: AnalysisRangeState
-  // the last valid range, used to prefill the custom dates
-  applied: LedgerAnalysisRange
+  // the dates the custom inputs start with: those the page shows data for
+  prefill: LedgerAnalysisRange
   today: string
   onChange: (state: AnalysisRangeState) => void
 }
 
 // LedgerAnalysisRangeControl offers the presets and a custom from/to range.
 // An invalid custom range shows why below the inputs.
-export function LedgerAnalysisRangeControl({ state, applied, today, onChange }: LedgerAnalysisRangeControlProps) {
+export function LedgerAnalysisRangeControl({ state, prefill, today, onChange }: LedgerAnalysisRangeControlProps) {
   const { t } = useTranslation()
   const custom = state.kind === "custom"
   const problem = resolveRange(state, today).problem
@@ -44,7 +44,7 @@ export function LedgerAnalysisRangeControl({ state, applied, today, onChange }: 
           variant={custom ? "default" : "outline"}
           aria-pressed={custom}
           onClick={() => {
-            if (!custom) onChange({ kind: "custom", from: applied.from ?? "", to: applied.to ?? "" })
+            if (!custom) onChange({ kind: "custom", from: prefill.from ?? "", to: prefill.to ?? "" })
           }}
         >
           {t("ledger.analysis.range.custom")}

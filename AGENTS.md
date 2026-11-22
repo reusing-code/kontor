@@ -109,7 +109,7 @@ Migrations are per module: each module supplies its own `Migrations()` list, app
 | `/ledger` | Ledger dashboard with accounts, imports, categories, and review queue |
 | `/ledger/accounts/$accountId` | Ledger account detail with the balance (current, source, drift warning, set or remove a balance by hand) and transactions with the balance after and before each page; rename (name, bank) and delete the account with its transactions and imports |
 | `/ledger/categories` | Ledger category tree manager |
-| `/ledger/analysis` | Ledger analysis: time range (6 / 12 months, year to date, all, or custom dates) and monthly expenses stacked by category, with the subcategories of one top-level category on demand |
+| `/ledger/analysis` | Ledger analysis: time range (6 / 12 months, year to date, all, or custom dates) monthly expenses stacked by category (with the subcategories of one top-level category on demand), monthly cash flow (income, expenses, net result) and the top categories and counterparties |
 | `/ledger/review` | Ledger review queue: the whole queue, grouped by counterparty and proposed category, paged in the browser, with mass accept of match-word and LLM proposals |
 | `/ledger/transactions/$transactionId` | Ledger transaction detail with category change, split into parts, notes, references, transfer linking, and creating a purchase, vehicle cost, contract or vehicle from the transaction (linked right away) |
 | `/ledger/bank-connections` | Bank connections (Enable Banking): connect, map, change or unmap accounts, sync now, re-authorize, disconnect; only with the `bankImport` capability |

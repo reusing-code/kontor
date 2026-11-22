@@ -10,6 +10,7 @@ import type {
   LedgerAccountInput,
   LedgerAccountUpdateInput,
   LedgerAnalysisRange,
+  LedgerCashFlowAnalysis,
   LedgerCategory,
   LedgerCategoryInput,
   LedgerEmailAccount,
@@ -27,6 +28,7 @@ import type {
   LedgerImportBatch,
   LedgerManualBalanceInput,
   LedgerPreviewResult,
+  LedgerRankingAnalysis,
   LedgerReviewInput,
   LedgerReviewResult,
   LedgerSourceType,
@@ -292,4 +294,12 @@ export function defaultLedgerAccountInput(iban?: string, bank?: string): LedgerA
 
 export async function getLedgerSpendingAnalysis(range: LedgerAnalysisRange, parentCategoryId?: string): Promise<LedgerSpendingAnalysis> {
   return get<LedgerSpendingAnalysis>(`/ledger/analysis/spending${analysisQuery(range, { parentCategoryId })}`)
+}
+
+export async function getLedgerCashFlowAnalysis(range: LedgerAnalysisRange): Promise<LedgerCashFlowAnalysis> {
+  return get<LedgerCashFlowAnalysis>(`/ledger/analysis/cash-flow${analysisQuery(range)}`)
+}
+
+export async function getLedgerRankingAnalysis(range: LedgerAnalysisRange): Promise<LedgerRankingAnalysis> {
+  return get<LedgerRankingAnalysis>(`/ledger/analysis/ranking${analysisQuery(range)}`)
 }

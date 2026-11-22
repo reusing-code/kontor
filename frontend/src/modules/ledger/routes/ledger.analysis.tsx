@@ -9,6 +9,9 @@ import {
   resolveRange,
   type AnalysisRangeState,
 } from "@/modules/ledger/lib/analysis-range"
+import { useLedgerCashFlowAnalysis } from "@/modules/ledger/hooks/use-ledger"
+import { LedgerAnalysisCashFlow } from "@/modules/ledger/components/ledger-analysis-cash-flow"
+import { LedgerAnalysisRanking } from "@/modules/ledger/components/ledger-analysis-ranking"
 import { LedgerAnalysisRangeControl } from "@/modules/ledger/components/ledger-analysis-range"
 import { LedgerAnalysisSpending } from "@/modules/ledger/components/ledger-analysis-spending"
 
@@ -27,13 +30,26 @@ export function LedgerAnalysisPage() {
     if (range) setApplied(range)
   }
 
+  // The cash-flow response (shared with its section through the query cache)
+  // tells which dates "all" covers and which currencies were left out.
+  const cashFlow = useLedgerCashFlowAnalysis(applied)
+  const current = cashFlow.isPlaceholderData ? undefined : cashFlow.data
+  const dates = (from: string, to: string) => ({
+    from: formatRangeDate(from, i18n.language),
+    to: formatRangeDate(to, i18n.language),
+  })
   const active =
     applied.from && applied.to
-      ? t("ledger.analysis.range.active", {
-          from: formatRangeDate(applied.from, i18n.language),
-          to: formatRangeDate(applied.to, i18n.language),
-        })
-      : t("ledger.analysis.range.allTime")
+      ? t("ledger.analysis.range.active", dates(applied.from, applied.to))
+      : current
+        ? t("ledger.analysis.range.allTimeDates", dates(current.from, current.to))
+        : t("ledger.analysis.range.allTime")
+  const excludedCurrencies = current?.excludedCurrencies ?? []
+  // "Custom" starts with the dates on screen: for "all" those the data covers,
+  // both capped at the local today (the server's UTC date can be a day ahead).
+  const capped = (date: string) => (date < today ? date : today)
+  const prefill: LedgerAnalysisRange =
+    applied.from && applied.to ? applied : current ? { from: capped(current.from), to: capped(current.to) } : applied
 
   return (
     <div className="space-y-6">
@@ -42,10 +58,17 @@ export function LedgerAnalysisPage() {
         <p className="text-sm text-muted-foreground">{t("ledger.analysis.description")}</p>
       </div>
       <div className="space-y-2">
-        <LedgerAnalysisRangeControl state={state} applied={applied} today={today} onChange={change} />
+        <LedgerAnalysisRangeControl state={state} prefill={prefill} today={today} onChange={change} />
         <p className="text-sm text-muted-foreground">{active}</p>
+        {excludedCurrencies.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            {t("ledger.analysis.excludedCurrencies", { currencies: excludedCurrencies.join(", ") })}
+          </p>
+        )}
       </div>
       <LedgerAnalysisSpending range={applied} />
+      <LedgerAnalysisCashFlow range={applied} />
+      <LedgerAnalysisRanking range={applied} />
     </div>
   )
 }

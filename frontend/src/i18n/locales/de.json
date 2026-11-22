@@ -815,7 +815,8 @@
           "fromAfterTo": "Das Startdatum darf nicht nach dem Enddatum liegen.",
           "tooLong": "Der Zeitraum darf höchstens 100 Jahre umfassen.",
           "toInFuture": "Das Enddatum darf nicht in der Zukunft liegen."
-        }
+        },
+        "allTimeDates": "Gesamter Zeitraum ({{from}} – {{to}})"
       },
       "error": "Diese Auswertung konnte nicht geladen werden.",
       "retry": "Erneut versuchen",
@@ -829,7 +830,21 @@
         "direct": "{{name}} (direkt)",
         "total": "Summe",
         "empty": "Keine Ausgaben in diesem Zeitraum."
-      }
+      },
+      "cashFlow": {
+        "title": "Einnahmen und Ausgaben",
+        "income": "Einnahmen",
+        "expenses": "Ausgaben",
+        "net": "Saldo",
+        "empty": "Keine Einnahmen oder Ausgaben in diesem Zeitraum."
+      },
+      "ranking": {
+        "categories": "Größte Kategorien",
+        "counterparties": "Größte Empfänger",
+        "unknownCounterparty": "Unbekannter Empfänger",
+        "empty": "Keine Ausgaben in diesem Zeitraum."
+      },
+      "excludedCurrencies": "Buchungen in {{currencies}} sind nicht enthalten."
     }
   },
   "paperless": {

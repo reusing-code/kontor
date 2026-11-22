@@ -615,3 +615,37 @@ export interface LedgerSpendingAnalysis {
   totalsMinor: number[]
   excludedCurrencies: string[]
 }
+
+// Monthly income, expenses and their difference; expensesMinor equals the
+// totals of the top-level spending analysis.
+export interface LedgerCashFlowAnalysis {
+  from: string
+  to: string
+  months: string[]
+  incomeMinor: number[]
+  expensesMinor: number[]
+  netMinor: number[]
+  excludedCurrencies: string[]
+}
+
+export interface LedgerRankedCategory {
+  kind: "category" | "uncategorized"
+  categoryId?: string
+  name: string
+  amountMinor: number
+}
+
+export interface LedgerRankedCounterparty {
+  name: string
+  // transactions without a counterparty name, as one entry
+  unknown?: boolean
+  amountMinor: number
+}
+
+export interface LedgerRankingAnalysis {
+  from: string
+  to: string
+  categories: LedgerRankedCategory[]
+  counterparties: LedgerRankedCounterparty[]
+  excludedCurrencies: string[]
+}
