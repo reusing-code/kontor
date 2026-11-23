@@ -1,0 +1,150 @@
+#!/bin/sh
+# Usage: ci/publish-release <tag>
+# Publishes the release of a v* tag on Forgejo and on GitHub.
+# Forgejo: creates the release if there is none (title = tag, text = message
+# of an annotated tag), then appends ci/release-notes after a marker unless
+# the text has the marker already. A draft is left alone.
+# GitHub (the push mirror only brings the tag): waits up to 10 minutes for the
+# tag, then creates the release with the title and text of the Forgejo
+# release, unless GitHub has it already.
+# Tags not shaped like vX.Y.Z are always pre-releases.
+# Env: FORGEJO_API (https://<host>/api/v1/repos/<owner>/<repo>), FORGEJO_TOKEN
+# (write access to the repo), GH_TOKEN (fine-grained PAT, contents: write on
+# GH_REPO), GH_REPO (owner/name on GitHub), DRY_RUN (non-empty: print the
+# writes instead of doing them; FORGEJO_TOKEN is optional then and the tag is
+# not waited for). Needs curl, jq and the tags with history.
+set -eu
+
+tag=$1
+: "${FORGEJO_API:?}" "${GH_TOKEN:?}" "${GH_REPO:?}"
+[ -n "${DRY_RUN:-}" ] || : "${FORGEJO_TOKEN:?}"
+gh_api=https://api.github.com/repos/$GH_REPO
+marker='<!-- kontor:changes -->'
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# forgejo|github <method> <url> [data-file]: prints the HTTP status, body in $tmp/resp
+forgejo() {
+  curl -sS -o "$tmp/resp" -w '%{http_code}' -X "$1" \
+    ${FORGEJO_TOKEN:+-H "Authorization: token $FORGEJO_TOKEN"} \
+    -H 'Content-Type: application/json' \
+    ${3:+--data-binary "@$3"} "$2"
+}
+
+github() {
+  curl -sS -o "$tmp/resp" -w '%{http_code}' -X "$1" \
+    -H "Authorization: Bearer $GH_TOKEN" \
+    -H 'Accept: application/vnd.github+json' \
+    -H 'X-GitHub-Api-Version: 2022-11-28' \
+    ${3:+--data-binary "@$3"} "$2"
+}
+
+fail() {
+  echo "ci/publish-release: $1" >&2
+  [ -s "$tmp/resp" ] && cat "$tmp/resp" >&2
+  exit 1
+}
+
+dry() { [ -n "${DRY_RUN:-}" ]; }
+
+# with_notes <text-file>: the text, the marker and the release notes
+with_notes() {
+  if [ -n "$(tr -d ' \t\r\n' < "$1")" ]; then
+    printf '%s\n\n' "$(cat "$1")"
+  fi
+  printf '%s\n\n' "$marker"
+  cat "$tmp/notes"
+}
+
+stable=false
+printf '%s' "${tag#v}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' && stable=true
+"$(dirname "$0")/release-notes" "$tag" > "$tmp/notes"
+
+# Forgejo: find or create the release
+status=$(forgejo GET "$FORGEJO_API/releases/tags/$tag")
+if [ "$status" = 404 ]; then
+  : > "$tmp/text"
+  if [ "$(git cat-file -t "refs/tags/$tag")" = tag ]; then
+    git for-each-ref --format='%(contents:subject)%0a%0a%(contents:body)' "refs/tags/$tag" > "$tmp/text"
+  fi
+  with_notes "$tmp/text" > "$tmp/body"
+  pre=true
+  [ "$stable" = true ] && pre=false
+  jq -n --arg tag "$tag" --rawfile body "$tmp/body" --argjson prerelease "$pre" \
+    '{tag_name: $tag, name: $tag, body: $body, prerelease: $prerelease}' > "$tmp/payload"
+  if dry; then
+    echo "would create the Forgejo release:"
+    jq . "$tmp/payload"
+    jq '. + {id: 0, draft: false}' "$tmp/payload" > "$tmp/resp"
+    status=200
+  else
+    status=$(forgejo POST "$FORGEJO_API/releases" "$tmp/payload")
+    case $status in
+      201) echo "created the Forgejo release $tag"; status=200 ;;
+      409) status=$(forgejo GET "$FORGEJO_API/releases/tags/$tag") ;; # created in the UI meanwhile
+    esac
+  fi
+fi
+[ "$status" = 200 ] || fail "looking up or creating the Forgejo release $tag failed ($status)"
+cp "$tmp/resp" "$tmp/release"
+
+if [ "$(jq -r .draft "$tmp/release")" = true ]; then
+  echo "Forgejo release $tag is a draft, skipping"
+  exit 0
+fi
+name=$(jq -r '.name // ""' "$tmp/release")
+[ -n "$name" ] || name=$tag
+prerelease=$(jq -r .prerelease "$tmp/release")
+[ "$stable" = true ] || prerelease=true
+
+# Forgejo: add the release notes to the text
+jq -r '.body // ""' "$tmp/release" > "$tmp/text"
+if grep -qF "$marker" "$tmp/text"; then
+  cp "$tmp/text" "$tmp/body"
+else
+  with_notes "$tmp/text" > "$tmp/body"
+  jq -n --rawfile body "$tmp/body" '{body: $body}' > "$tmp/payload"
+  if dry; then
+    printf 'would set the text of the Forgejo release:\n%s\n' "$(cat "$tmp/body")"
+  else
+    [ "$(forgejo PATCH "$FORGEJO_API/releases/$(jq -r .id "$tmp/release")" "$tmp/payload")" = 200 ] ||
+      fail "adding the release notes to the Forgejo release $tag failed"
+    echo "added the release notes to the Forgejo release $tag"
+  fi
+fi
+
+# GitHub
+case $(github GET "$gh_api/releases/tags/$tag") in
+  200) echo "GitHub release $tag exists, skipping"; exit 0 ;;
+  404) ;;
+  *) fail "looking up GitHub release $tag failed" ;;
+esac
+
+want=$(git rev-parse "refs/tags/$tag")
+tries=20
+while :; do
+  case $(github GET "$gh_api/git/ref/tags/$tag") in
+    200)
+      got=$(jq -r .object.sha "$tmp/resp")
+      [ "$got" = "$want" ] && break
+      fail "tag $tag is $got on GitHub, expected $want"
+      ;;
+    404) dry && { echo "tag $tag is not on GitHub yet"; break; } ;;
+    *) fail "looking up tag $tag on GitHub failed" ;;
+  esac
+  tries=$((tries - 1))
+  [ "$tries" -gt 0 ] || fail "tag $tag did not reach GitHub, check the push mirror"
+  echo "tag $tag not on GitHub yet, waiting for the push mirror"
+  sleep 30
+done
+
+jq -n --arg tag "$tag" --arg name "$name" --rawfile body "$tmp/body" \
+  --argjson prerelease "$prerelease" \
+  '{tag_name: $tag, name: $name, body: ($body | rtrimstr("\n")), prerelease: $prerelease}' > "$tmp/payload"
+if dry; then
+  echo "would create the GitHub release:"
+  jq . "$tmp/payload"
+  exit 0
+fi
+[ "$(github POST "$gh_api/releases" "$tmp/payload")" = 201 ] || fail "creating GitHub release $tag failed"
+echo "created $(jq -r .html_url "$tmp/resp")"
