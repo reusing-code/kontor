@@ -33,7 +33,7 @@ See `frontend/AGENTS.md` and `backend/AGENTS.md` for per-project commands.
 - `Dockerfile` — Multi-stage build: frontend (Bun) → backend (Go) → Alpine runtime
 - `compose.yml` — Single-service deployment with named volume for DB
 - `.forgejo/workflows/ci.yml` — CI (Forgejo Actions), see below
-- `ci/` — CI image (`ci/Dockerfile`) and helper scripts (`ci/versions`, `ci/retry`)
+- `ci/` — CI image (`ci/Dockerfile`) and helper scripts (`ci/versions`, `ci/retry`, `ci/base-images`, `ci/release-notes`, `ci/github-release`)
 - `.tool-versions` — golangci-lint version pin (asdf/mise format; mise is not required)
 
 ## CI
@@ -44,6 +44,7 @@ Tool versions have one source each: Go in `backend/go.mod`, Bun in `engines.bun`
 - `frontend` and `backend` run inside that image with no `uses:` steps: a shallow `git fetch` of `$GITHUB_SHA` with the job token, `GOTOOLCHAIN=local`, dependency downloads wrapped in `ci/retry`, and caches in named volumes (`kontor-bun`, `kontor-gomod`, `kontor-gocache`, `kontor-golangci`). The runner only mounts them once `kontor-*` is in its `container.valid_volumes` (tobi/shaker#45); until then the caches are cold on every run. The frontend job runs lint, the tests (`bun run test`; the image has no Node, so Bun runs Vitest) and the build.
 - `docker` (pushes to `main` and `v*` tags only) runs in the CI image as well, with plain `docker login` / `docker buildx build` on the dind's default `docker` builder: the BuildKit cache stays in the persistent dind, no registry cache. It first pulls the base images listed by `ci/base-images` (the Dockerfile's `FROM` lines with the version build args substituted), each with a warning and fallback to the cached image if the pull fails, then builds without `--pull`. Tags: `sha-<7>`, the branch name, and for `vX.Y.Z` tags `X.Y.Z`, `X.Y`, `latest` (pre-release tags only get their version). The image is pushed to `forgejo.reusing.dev/tobi/kontor` (`PACKAGES_TOKEN`).
 - `mirror-ghcr` copies that digest unchanged to `ghcr.io/reusing-code/kontor` with the same tags (`docker buildx imagetools create --prefer-index=false` in `ci/retry`, then checks the digest; `GHCR_TOKEN`, user `reusing-code`). `compose.yml` and the deployment pull from ghcr.io, so the job is required; if ghcr.io is down, re-run only this job later.
+- `release-github` (`v*` tags only, after `mirror-ghcr`) creates the GitHub release, since the push mirror only brings the tag: `ci/github-release` waits up to 10 minutes for the tag on GitHub, takes title, text and pre-release flag of the Forgejo release (none: tag name, no text; non-`X.Y.Z` tags are always pre-releases; a Forgejo draft is skipped), appends `ci/release-notes` (commits since the previous `v*` tag, image, compare link) and skips a release GitHub already has (`GH_RELEASE_TOKEN`, fine-grained, *Contents: Read and write* on `reusing-code/kontor`). The checkout fetches all `v*` tags with history. `curl` and `jq` come from the CI image.
 
 To bump a tool, change its source; the next run builds a new CI image. Change `ci/Dockerfile` (e.g. the `DOCKER_VERSION` default) for anything else in the image.
 

@@ -69,6 +69,8 @@ task down     # stop
 
 CI publishes the image to `forgejo.reusing.dev/tobi/kontor` and mirrors it to `ghcr.io/reusing-code/kontor`, which `compose.yml` uses. Tags: `sha-<commit>`, `main`, and per release `X.Y.Z`, `X.Y` and `latest`.
 
+Releases are created on Forgejo; the push mirror only brings the tags to [GitHub](https://github.com/reusing-code/kontor). For a `v*` tag, CI then creates the GitHub release (`ci/github-release`): it takes the title, text and pre-release flag of the Forgejo release and adds the commits since the previous tag, the image and a compare link. This needs the `GH_RELEASE_TOKEN` secret, a fine-grained GitHub token for `reusing-code/kontor` with *Contents: Read and write*. To create a missed release by hand, run `GH_TOKEN=$(gh auth token) GH_REPO=reusing-code/kontor FORGEJO_API=https://forgejo.reusing.dev/api/v1/repos/tobi/Kontor ci/github-release vX.Y.Z` (`DRY_RUN=1` prints the request instead).
+
 Every push to `main` adds a `sha-*` tag on Forgejo. A package cleanup rule set in the Forgejo UI (user settings → Packages → Cleanup rules → Add cleanup rule) keeps that bounded while keeping release tags, `main` and `latest`:
 
 - Type: Container, "Apply pattern to full package name" checked

@@ -232,3 +232,32 @@ jobs:
             [ "$got" = "$DIGEST" ] || { echo "$MIRROR_IMAGE:$t is $got, expected $DIGEST" >&2; exit 1; }
           done
           echo "mirrored $DIGEST as $TAGS"
+
+  # The push mirror brings tags to GitHub but not releases. Runs after
+  # mirror-ghcr so a GitHub release only appears once its image is pullable.
+  release-github:
+    needs: [ci-image, mirror-ghcr]
+    runs-on: docker
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    container:
+      image: ${{ needs.ci-image.outputs.image }}
+    steps:
+      - name: Checkout with tags
+        working-directory: .
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          git init -q .
+          auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')
+          git -c http.extraheader="Authorization: basic $auth" \
+            fetch -q "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" '+refs/tags/v*:refs/tags/v*'
+          git checkout -qf "$GITHUB_SHA"
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+          GH_REPO: reusing-code/kontor
+          FORGEJO_TOKEN: ${{ github.token }}
+        run: |
+          [ -n "$GH_TOKEN" ] || { echo "GH_RELEASE_TOKEN not set" >&2; exit 1; }
+          FORGEJO_API="$GITHUB_SERVER_URL/api/v1/repos/$GITHUB_REPOSITORY" \
+            ci/github-release "$GITHUB_REF_NAME"

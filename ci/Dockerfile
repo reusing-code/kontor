@@ -11,6 +11,9 @@ FROM golangci/golangci-lint:v${GOLANGCI_LINT_VERSION} AS golangci-lint
 FROM docker:${DOCKER_VERSION}-cli AS docker
 
 FROM golang:${GO_VERSION}
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends jq \
+  && rm -rf /var/lib/apt/lists/*
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=golangci-lint /usr/bin/golangci-lint /usr/local/bin/golangci-lint
 COPY --from=docker /usr/local/bin/docker /usr/local/bin/docker

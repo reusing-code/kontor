@@ -1,0 +1,26 @@
+#!/bin/sh
+# Usage: ci/release-notes <tag> [body-file]
+# Prints the GitHub release notes for a v* tag: the Forgejo release text from
+# body-file (if not empty), the commits since the previous v* tag, the image
+# and a compare link. Needs the tags with their history.
+set -eu
+
+tag=$1
+body=${2:-}
+gh_repo=${GH_REPO:-reusing-code/kontor}
+image=${MIRROR_IMAGE:-ghcr.io/reusing-code/kontor}
+
+prev=$(git describe --tags --abbrev=0 --match 'v*' "$tag^" 2>/dev/null || true)
+range=${prev:+$prev..}$tag
+
+if [ -n "$body" ] && [ -n "$(tr -d ' \t\r\n' < "$body")" ]; then
+  cat "$body"
+  printf '\n\n'
+fi
+printf '## Changes\n\n'
+git log --no-merges --format='* %s (%h)' "$range"
+# shellcheck disable=SC2016 # backticks are a markdown fence
+printf '\n## Docker image\n\n```\ndocker pull %s:%s\n```\n' "$image" "${tag#v}"
+if [ -n "$prev" ]; then
+  printf '\n**Full Changelog**: https://github.com/%s/compare/%s...%s\n' "$gh_repo" "$prev" "$tag"
+fi
