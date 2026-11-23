@@ -133,7 +133,6 @@ func parseComdirectRow(colIdx map[string]int, rec []string, rowNum int) (ParsedR
 		return ParsedRow{}, nil, fmt.Errorf("invalid amount %q: %w", amountRaw, err)
 	}
 
-	txnType := get("Vorgang")
 	buchungstext := get("Buchungstext")
 
 	counterparty, purpose, ref := parseComdirectBuchungstext(buchungstext)
@@ -148,7 +147,6 @@ func parseComdirectRow(colIdx map[string]int, rec []string, rowNum int) (ParsedR
 		CounterpartyName: counterparty,
 		Purpose:          purpose,
 		BankReference:    ref,
-		TransactionType:  txnType,
 	}, warnings, nil
 }
 

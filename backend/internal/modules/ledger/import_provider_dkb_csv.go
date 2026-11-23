@@ -145,7 +145,6 @@ func parseDKBRow(colIdx map[string]int, rec []string, rowNum int) (ParsedRow, []
 		CounterpartyIBAN: get("IBAN"),
 		Purpose:          get("Verwendungszweck"),
 		BankReference:    get("Kundenreferenz"),
-		TransactionType:  get("Umsatztyp"),
 	}, warnings, nil
 }
 

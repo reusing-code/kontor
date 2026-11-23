@@ -7,8 +7,7 @@
       "status": "BOOK",
       "booking_date": "2026-04-01",
       "value_date": "2026-04-02",
-      "remittance_information": ["AMAZON* , LUXEMBOURG LU Kartenzahlung comdirect Visa-Debitkarte"],
-      "bank_transaction_code": {"description": "Kartenverfuegung"}
+      "remittance_information": ["AMAZON* , LUXEMBOURG LU Kartenzahlung comdirect Visa-Debitkarte"]
     },
     {
       "transaction_amount": {"currency": "EUR", "amount": "23.45"},
@@ -17,8 +16,7 @@
       "status": "BOOK",
       "booking_date": "2026-04-02",
       "value_date": "2026-04-02",
-      "remittance_information": ["MARKTKAUF DE Kartenzahlung comdirect Visa-Debitkarte"],
-      "bank_transaction_code": {"description": "Lastschrift / Belastung"}
+      "remittance_information": ["MARKTKAUF DE Kartenzahlung comdirect Visa-Debitkarte"]
     },
     {
       "entry_reference": "SYN-CD-0003",
@@ -29,8 +27,7 @@
       "status": "BOOK",
       "booking_date": "2026-04-01",
       "value_date": "2026-04-01",
-      "remittance_information": ["Uebertrag Konto"],
-      "bank_transaction_code": {"description": "Ueberweisung"}
+      "remittance_information": ["Uebertrag Konto"]
     }
   ],
   "other": [
@@ -41,8 +38,7 @@
       "credit_debit_indicator": "CRDT",
       "status": "BOOK",
       "booking_date": "2026-04-03",
-      "remittance_information": ["Gehalt 03/2026"],
-      "bank_transaction_code": {"description": "Gutschrift"}
+      "remittance_information": ["Gehalt 03/2026"]
     },
     {
       "entry_reference": "SYN-CD-0005",

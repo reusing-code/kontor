@@ -23,7 +23,6 @@ type ParsedRow struct {
 	CounterpartyIBAN string `json:"counterpartyIban,omitempty"`
 	Purpose          string `json:"purpose,omitempty"`
 	BankReference    string `json:"bankReference,omitempty"`
-	TransactionType  string `json:"transactionType,omitempty"`
 }
 
 // ParsedBalance is the balance a file reports: at the end of day AsOf,

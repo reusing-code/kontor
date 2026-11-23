@@ -114,9 +114,6 @@ func RowFromBankTransaction(t enablebanking.Transaction) (ParsedRow, BankSkip) {
 	if partyAccount != nil {
 		row.CounterpartyIBAN = normalizeIBAN(partyAccount.IBAN)
 	}
-	if t.BankTransactionCode != nil {
-		row.TransactionType = strings.TrimSpace(t.BankTransactionCode.Description)
-	}
 	parts := make([]string, 0, len(t.RemittanceInformation))
 	for _, p := range t.RemittanceInformation {
 		if p = strings.TrimSpace(p); p != "" {

@@ -55,29 +55,24 @@ type AccountRef struct {
 	IBAN string `json:"iban"`
 }
 
-type BankTransactionCode struct {
-	Description string `json:"description"`
-}
-
 type Amount struct {
 	Currency string `json:"currency"`
 	Amount   string `json:"amount"`
 }
 
 type Transaction struct {
-	EntryReference        string               `json:"entry_reference,omitempty"`
-	TransactionAmount     Amount               `json:"transaction_amount"`
-	Creditor              *Party               `json:"creditor,omitempty"`
-	CreditorAccount       *AccountRef          `json:"creditor_account,omitempty"`
-	Debtor                *Party               `json:"debtor,omitempty"`
-	DebtorAccount         *AccountRef          `json:"debtor_account,omitempty"`
-	BankTransactionCode   *BankTransactionCode `json:"bank_transaction_code,omitempty"`
-	CreditDebitIndicator  string               `json:"credit_debit_indicator"`
-	Status                string               `json:"status"`
-	BookingDate           string               `json:"booking_date,omitempty"`
-	ValueDate             string               `json:"value_date,omitempty"`
-	TransactionDate       string               `json:"transaction_date,omitempty"`
-	RemittanceInformation []string             `json:"remittance_information,omitempty"`
+	EntryReference        string      `json:"entry_reference,omitempty"`
+	TransactionAmount     Amount      `json:"transaction_amount"`
+	Creditor              *Party      `json:"creditor,omitempty"`
+	CreditorAccount       *AccountRef `json:"creditor_account,omitempty"`
+	Debtor                *Party      `json:"debtor,omitempty"`
+	DebtorAccount         *AccountRef `json:"debtor_account,omitempty"`
+	CreditDebitIndicator  string      `json:"credit_debit_indicator"`
+	Status                string      `json:"status"`
+	BookingDate           string      `json:"booking_date,omitempty"`
+	ValueDate             string      `json:"value_date,omitempty"`
+	TransactionDate       string      `json:"transaction_date,omitempty"`
+	RemittanceInformation []string    `json:"remittance_information,omitempty"`
 }
 
 // Balance is one balance of an account; BalanceType is the ISO 20022 code

@@ -8,8 +8,7 @@
       "status": "BOOK",
       "booking_date": "2026-04-07",
       "value_date": "2026-04-02",
-      "remittance_information": ["Depot 0123 Wertpapierertrag 02.04.2026 WKN A1JX52 VANG.FTSE A.-WO.U.ETF DLD ISIN"],
-      "bank_transaction_code": {"description": "Eingang"}
+      "remittance_information": ["Depot 0123 Wertpapierertrag 02.04.2026 WKN A1JX52 VANG.FTSE A.-WO.U.ETF DLD ISIN"]
     },
     {
       "entry_reference": "SYN-DKB-0002",
@@ -20,8 +19,7 @@
       "status": "BOOK",
       "booking_date": "2026-04-01",
       "value_date": "2026-04-01",
-      "remittance_information": ["Uebertrag Konto"],
-      "bank_transaction_code": {"description": "Eingang"}
+      "remittance_information": ["Uebertrag Konto"]
     }
   ],
   "other": [
@@ -34,8 +32,7 @@
       "status": "BOOK",
       "booking_date": "2026-04-03",
       "value_date": "2026-04-03",
-      "remittance_information": ["Einkauf 02.04.", "Kartenzahlung"],
-      "bank_transaction_code": {"description": "Ausgang"}
+      "remittance_information": ["Einkauf 02.04.", "Kartenzahlung"]
     },
     {
       "entry_reference": "SYN-DKB-0004",

@@ -305,7 +305,6 @@ func newLedgerTransactionFromRow(row ParsedRow, accountID, batchID uuid.UUID, so
 		CounterpartyIBAN:     row.CounterpartyIBAN,
 		Purpose:              row.Purpose,
 		BankReference:        row.BankReference,
-		TransactionType:      row.TransactionType,
 		ReviewStatus:         LedgerTransactionReviewNeedsReview,
 		CategorizationSource: categorizationSource,
 		SourceType:           string(source),

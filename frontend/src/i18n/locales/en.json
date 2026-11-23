@@ -366,7 +366,6 @@
     "counterparty": "Counterparty",
     "purpose": "Purpose",
     "status": "Status",
-    "type": "Type",
     "source": "Source",
     "duplicate": "Duplicate",
     "new": "New",

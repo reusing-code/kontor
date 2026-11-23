@@ -85,7 +85,6 @@ type LedgerTransaction struct {
 	CounterpartyIBAN          string                       `json:"counterpartyIban,omitempty"`
 	Purpose                   string                       `json:"purpose,omitempty"`
 	BankReference             string                       `json:"bankReference,omitempty"`
-	TransactionType           string                       `json:"transactionType,omitempty"`
 	ReviewStatus              string                       `json:"reviewStatus"`
 	CategorizationSource      string                       `json:"categorizationSource"`
 	Note                      string                       `json:"note,omitempty"`

@@ -49,9 +49,6 @@ func TestParseComdirectCSV(t *testing.T) {
 	if r0.AmountMinor != -12334 {
 		t.Errorf("row 0 AmountMinor = %d, want -12334", r0.AmountMinor)
 	}
-	if r0.TransactionType != "Kartenverfügung" {
-		t.Errorf("row 0 TransactionType = %q, want Kartenverfügung", r0.TransactionType)
-	}
 	if r0.BankReference != "ABC123" {
 		t.Errorf("row 0 BankReference = %q, want ABC123", r0.BankReference)
 	}

@@ -20,7 +20,6 @@ Real field content (names, purposes, dates) has to be verified by the operator a
 | Counterparty IBAN | `IBAN` column | inside `Buchungstext` (not extracted) | `creditor_account.iban` / `debtor_account.iban` of the other side |
 | Purpose | `Verwendungszweck` | `Buchungstext:` part | `remittance_information[]`, trimmed and joined with a space |
 | Bank reference | `Kundenreferenz` | `Ref. …` suffix of `Buchungstext` | `entry_reference` (optional) |
-| Transaction type | `Umsatztyp` | `Vorgang` | `bank_transaction_code.description` |
 | Status | `Status` column (ignored; pending rows are imported today) | rows with `offen` are skipped | `status`: only `BOOK` is imported; `PDNG`, `HOLD`, `SCHD`, `CNCL`, `RJCT`, `OTHR` are counted and skipped |
 | Currency | EUR only | EUR only | any; non-EUR rows are skipped and counted, never converted |
 

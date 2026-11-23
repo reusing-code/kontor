@@ -26,7 +26,7 @@ interface LedgerTransactionsTableProps {
   currency?: string
 }
 
-const columnCount = 9
+const columnCount = 8
 
 export function LedgerTransactionsTable({ transactions, categories = [], nextCursor, onLoadMore, loadingMore = false, pageBalance, currency = "EUR" }: LedgerTransactionsTableProps) {
   const { t, i18n } = useTranslation()
@@ -55,7 +55,6 @@ export function LedgerTransactionsTable({ transactions, categories = [], nextCur
               <TableHead>{t("ledger.counterparty")}</TableHead>
               <TableHead>{t("ledger.purpose")}</TableHead>
               <TableHead>{t("ledger.category")}</TableHead>
-              <TableHead>{t("ledger.type")}</TableHead>
               <TableHead>{t("ledger.reviewState")}</TableHead>
               <TableHead>{t("ledger.source")}</TableHead>
             </TableRow>
@@ -89,7 +88,6 @@ export function LedgerTransactionsTable({ transactions, categories = [], nextCur
                         <LedgerSplitBadge transaction={txn} categories={categories} />
                       </div>
                     </TableCell>
-                    <TableCell>{txn.transactionType || "-"}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
                         {txn.specialCategory ? (

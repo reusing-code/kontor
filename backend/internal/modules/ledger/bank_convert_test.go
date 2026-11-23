@@ -61,7 +61,6 @@ func bankTxn(mutate func(*enablebanking.Transaction)) enablebanking.Transaction 
 		Debtor:                &enablebanking.Party{Name: "Me"},
 		DebtorAccount:         &enablebanking.AccountRef{IBAN: "DE02120300000000202051"},
 		RemittanceInformation: []string{" Order 1 ", "", "thanks"},
-		BankTransactionCode:   &enablebanking.BankTransactionCode{Description: "Kartenzahlung"},
 	}
 	if mutate != nil {
 		mutate(&t)
@@ -78,7 +77,7 @@ func TestRowFromBankTransaction(t *testing.T) {
 	}{
 		{"debit uses creditor", nil, BankSkipNone, func(t *testing.T, r ParsedRow) {
 			if r.AmountMinor != -1250 || r.CounterpartyName != "Shop GmbH" || r.CounterpartyIBAN != "DE44500105175407324931" ||
-				r.Purpose != "Order 1 thanks" || r.BankReference != "ref-1" || r.TransactionType != "Kartenzahlung" ||
+				r.Purpose != "Order 1 thanks" || r.BankReference != "ref-1" ||
 				r.BookingDate != "2026-04-02" || r.ValueDate != "2026-04-01" || r.Currency != "EUR" {
 				t.Fatalf("row = %+v", r)
 			}

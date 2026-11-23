@@ -228,7 +228,6 @@ export const ledgerTransactionSchema = z.object({
   counterpartyIban: z.string().optional(),
   purpose: z.string().optional(),
   bankReference: z.string().optional(),
-  transactionType: z.string().optional(),
   reviewStatus: z.string(),
   categorizationSource: z.string(),
   note: z.string().optional(),
@@ -346,7 +345,6 @@ export const ledgerPreviewRowSchema = z.object({
   counterpartyIban: z.string().optional(),
   purpose: z.string().optional(),
   bankReference: z.string().optional(),
-  transactionType: z.string().optional(),
 })
 
 export type LedgerPreviewRow = z.infer<typeof ledgerPreviewRowSchema>

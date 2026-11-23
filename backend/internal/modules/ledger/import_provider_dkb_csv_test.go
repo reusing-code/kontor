@@ -47,9 +47,6 @@ func TestParseDKBCSV(t *testing.T) {
 	if r0.Purpose != "Depot 0123 Wertpapierertrag" {
 		t.Errorf("row 0 Purpose = %q, want 'Depot 0123 Wertpapierertrag'", r0.Purpose)
 	}
-	if r0.TransactionType != "Eingang" {
-		t.Errorf("row 0 TransactionType = %q, want Eingang", r0.TransactionType)
-	}
 
 	r1 := result.Rows[1]
 	if r1.AmountMinor != 1234500 {
