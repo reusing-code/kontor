@@ -58,3 +58,33 @@ func HasPrefix(txn *badger.Txn, prefix []byte) bool {
 	it.Rewind()
 	return it.Valid()
 }
+
+// Get returns the JSON value at key, or ErrNotFound when the key is missing.
+func Get[T any](txn *badger.Txn, key []byte) (T, error) {
+	var v T
+	if err := GetJSON(txn, key, &v); err != nil {
+		var zero T
+		return zero, err
+	}
+	return v, nil
+}
+
+// List decodes every value under prefix in key order. The result is never
+// nil, so an empty list encodes as [] and not as null.
+func List[T any](txn *badger.Txn, prefix []byte) ([]T, error) {
+	out := []T{}
+	opts := badger.DefaultIteratorOptions
+	opts.Prefix = prefix
+	it := txn.NewIterator(opts)
+	defer it.Close()
+	for it.Rewind(); it.Valid(); it.Next() {
+		var v T
+		if err := it.Item().Value(func(val []byte) error {
+			return json.Unmarshal(val, &v)
+		}); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, nil
+}
