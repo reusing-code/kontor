@@ -384,8 +384,9 @@ func TestChangePassword_WrongCurrent(t *testing.T) {
 	}))
 	mux.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	// Not 401: the frontend treats every 401 as an expired session and logs out.
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
 	}
 }
 

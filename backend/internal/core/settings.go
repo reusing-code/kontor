@@ -158,7 +158,7 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.CurrentPassword)); err != nil {
-		httputil.Error(h.logger, w, http.StatusUnauthorized, "current password is incorrect")
+		httputil.Error(h.logger, w, http.StatusBadRequest, "current password is incorrect")
 		return
 	}
 

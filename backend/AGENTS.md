@@ -250,7 +250,7 @@ All endpoints under `/api/v1/`. JSON request/response with camelCase field names
 - `GET /api/v1/capabilities` — Server-wide feature flags (`{"llm": bool, "llmVision": bool, "bankImport": bool}`; `llmVision` is true when `LLM_VISION_MODEL` is set too; `llm` is true when `LLM_BASE_URL` is configured, `bankImport` when Enable Banking is configured and a valid `ENCRYPTION_KEY` exists)
 - `GET /api/v1/settings` — Get settings (renewal preferences, enabled modules)
 - `PUT /api/v1/settings` — Update settings (`enabledModules` optional; omit to leave unchanged)
-- `PUT /api/v1/settings/password` — Change password
+- `PUT /api/v1/settings/password` — Change password (`{currentPassword, newPassword}`; a wrong current password is `400`, not `401`, so the frontend does not treat it as an expired session)
 - `GET /api/v1/paperless/config` — Paperless integration status (`{configured, baseUrl}`; the token is never returned)
 - `PUT /api/v1/paperless/config` — Save paperless base URL + API token (token optional on update; encrypted with `ENCRYPTION_KEY`)
 - `DELETE /api/v1/paperless/config` — Remove the paperless connection (document links are kept)
