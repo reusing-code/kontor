@@ -1,5 +1,8 @@
 import { z } from "zod/v4"
 
+// The modules whose items are filed under the shared categories.
+export type CategoryKind = "contracts" | "purchases"
+
 export const categorySchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),

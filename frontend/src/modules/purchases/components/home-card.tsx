@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { useQuery } from "@tanstack/react-query"
 import { getPurchaseSummary } from "@/modules/purchases/lib/purchase-repository"
+import { purchaseKeys } from "@/modules/purchases/keys"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { ShoppingBag, ArrowRight } from "lucide-react"
 
@@ -9,7 +10,7 @@ export function PurchasesHomeCard() {
   const { t } = useTranslation()
 
   const { data: purchaseSummary } = useQuery({
-    queryKey: ["purchases-summary"],
+    queryKey: purchaseKeys.summary(),
     queryFn: getPurchaseSummary,
   })
 

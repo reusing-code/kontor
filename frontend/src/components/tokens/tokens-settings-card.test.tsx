@@ -5,6 +5,7 @@ import { TokensSettingsCard } from "@/components/tokens/tokens-settings-card"
 import { apiError, mockApi, type ApiCall } from "@/test/api-mock"
 import { renderWithProviders } from "@/test/render"
 import type { Token, TokenCreated } from "@/types/token"
+import { tokenKeys } from "@/lib/query-keys"
 
 const rawToken = "kpat_s3cr3t-raw-token-value"
 
@@ -266,12 +267,12 @@ describe("TokensSettingsCard reveal", () => {
 
     const reveal = await createToken(user)
     await waitFor(() => expect(api.callsTo("GET", "/tokens")).toHaveLength(2))
-    await waitFor(() => expect(queryClient.getQueryData<Token[]>(["tokens"])).toHaveLength(1))
+    await waitFor(() => expect(queryClient.getQueryData<Token[]>(tokenKeys.all)).toHaveLength(1))
 
     const cached = () => JSON.stringify(queryClient.getQueryCache().getAll().map((q) => [q.queryKey, q.state.data]))
     expect(cached()).toContain("CI agent")
     expect(cached()).not.toContain(rawToken)
-    expect(queryClient.getQueryData<Token[]>(["tokens"])![0]).not.toHaveProperty("token")
+    expect(queryClient.getQueryData<Token[]>(tokenKeys.all)![0]).not.toHaveProperty("token")
 
     await user.click(footerClose(reveal))
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())

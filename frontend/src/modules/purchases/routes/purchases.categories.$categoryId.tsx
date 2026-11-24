@@ -7,8 +7,7 @@ import { Plus } from "lucide-react"
 import { rootRoute } from "@/routes/__root"
 import { moduleGuard } from "@/modules/guard"
 import { useCategoryPurchases, useCreatePurchase, useUpdatePurchase, useDeletePurchase } from "@/modules/purchases/hooks/use-purchases"
-import { getCategoryById } from "@/lib/category-repository"
-import { useQuery } from "@tanstack/react-query"
+import { useCategory } from "@/hooks/use-categories"
 import type { Purchase, PurchaseFormData } from "@/modules/purchases/types"
 import { Button } from "@/components/ui/button"
 import { PurchasesTable } from "@/modules/purchases/components/purchases-table"
@@ -25,16 +24,13 @@ export const purchasesCategoryRoute = createRoute({
 function PurchasesCategoryDetailPage() {
   const { t } = useTranslation()
   const { categoryId } = purchasesCategoryRoute.useParams()
-  const { data: category } = useQuery({
-    queryKey: ["category", "purchases", categoryId],
-    queryFn: () => getCategoryById("purchases", categoryId),
-  })
+  const { data: category } = useCategory("purchases", categoryId)
   const categoryName = category ? (category.nameKey ? t(category.nameKey) : category.name) : t("nav.categories")
   usePageTitle(categoryName, t("app.title"))
   const { data: purchases = [] } = useCategoryPurchases(categoryId)
   const createPurchase = useCreatePurchase(categoryId)
-  const updatePurchase = useUpdatePurchase(categoryId)
-  const deletePurchase = useDeletePurchase(categoryId)
+  const updatePurchase = useUpdatePurchase()
+  const deletePurchase = useDeletePurchase()
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null)

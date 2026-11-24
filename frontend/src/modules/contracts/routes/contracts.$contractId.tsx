@@ -3,7 +3,7 @@ import { createRoute } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { usePageTitle } from "@/hooks/use-page-title"
-import { useContract, useUpdateContractById } from "@/modules/contracts/hooks/use-contracts"
+import { useContract, useUpdateContract } from "@/modules/contracts/hooks/use-contracts"
 import { LinkedTransactionsList } from "@/components/linked-transactions-list"
 import { PaperlessDocumentsSection } from "@/components/paperless/paperless-documents-section"
 import { EmailSourceSection } from "@/components/email-source-section"
@@ -24,7 +24,7 @@ export function ContractDetailPage() {
   const { t } = useTranslation()
   const { contractId } = contractDetailRoute.useParams()
   const { data: contract } = useContract(contractId)
-  const updateContract = useUpdateContractById()
+  const updateContract = useUpdateContract()
   const [editing, setEditing] = useState(false)
 
   usePageTitle(contract?.name ?? t("nav.contracts"), t("app.title"))

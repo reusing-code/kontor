@@ -2,10 +2,11 @@ import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { useQuery } from "@tanstack/react-query"
 import { useModules } from "@/hooks/use-modules"
-import { getAllCategories } from "@/lib/category-repository"
+import { categoriesQueryOptions } from "@/hooks/use-categories"
+import { vehicleKeys } from "@/modules/auto/keys"
 import { getAllVehicles } from "@/modules/auto/lib/vehicle-repository"
 import { getLedgerCategories } from "@/modules/ledger/lib/ledger-repository"
-import { ledgerCategoriesKey } from "@/modules/ledger/hooks/use-ledger"
+import { ledgerKeys } from "@/modules/ledger/keys"
 import type { LedgerCategory } from "@/modules/ledger/types"
 import type { DraftEntityType } from "@/types/drafts"
 import type { DraftOption } from "@/components/drafts/draft-input"
@@ -27,19 +28,11 @@ function ledgerCategoryOptions(categories: LedgerCategory[]): DraftOption[] {
 export function useParentOptions(): Record<DraftEntityType, DraftOption[]> {
   const { t } = useTranslation()
   const { isEnabled } = useModules()
-  const purchaseCategories = useQuery({
-    queryKey: ["categories", "purchases"],
-    queryFn: () => getAllCategories("purchases"),
-    enabled: isEnabled("purchases"),
-  })
-  const contractCategories = useQuery({
-    queryKey: ["categories", "contracts"],
-    queryFn: () => getAllCategories("contracts"),
-    enabled: isEnabled("contracts"),
-  })
-  const vehicles = useQuery({ queryKey: ["vehicles"], queryFn: getAllVehicles, enabled: isEnabled("auto") })
+  const purchaseCategories = useQuery({ ...categoriesQueryOptions("purchases"), enabled: isEnabled("purchases") })
+  const contractCategories = useQuery({ ...categoriesQueryOptions("contracts"), enabled: isEnabled("contracts") })
+  const vehicles = useQuery({ queryKey: vehicleKeys.list(), queryFn: getAllVehicles, enabled: isEnabled("auto") })
   const ledgerCategories = useQuery({
-    queryKey: ledgerCategoriesKey,
+    queryKey: ledgerKeys.categories(),
     queryFn: getLedgerCategories,
     enabled: isEnabled("ledger"),
   })

@@ -3,7 +3,7 @@ import { createRoute } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { usePageTitle } from "@/hooks/use-page-title"
-import { usePurchase, useUpdatePurchaseById } from "@/modules/purchases/hooks/use-purchases"
+import { usePurchase, useUpdatePurchase } from "@/modules/purchases/hooks/use-purchases"
 import { LinkedTransactionsList } from "@/components/linked-transactions-list"
 import { PaperlessDocumentsSection } from "@/components/paperless/paperless-documents-section"
 import { EmailSourceSection } from "@/components/email-source-section"
@@ -24,7 +24,7 @@ export function PurchaseDetailPage() {
   const { t } = useTranslation()
   const { purchaseId } = purchaseDetailRoute.useParams()
   const { data: purchase } = usePurchase(purchaseId)
-  const updatePurchase = useUpdatePurchaseById()
+  const updatePurchase = useUpdatePurchase()
   const [editing, setEditing] = useState(false)
 
   usePageTitle(purchase?.itemName ?? t("nav.purchases"), t("app.title"))

@@ -3,13 +3,14 @@ import i18n from "@/i18n"
 import { acceptDraft, acceptDraftsBatch, getDraftSummary, listDrafts, rejectDraft, updateDraft } from "@/lib/drafts-repository"
 import { useCapabilities } from "@/hooks/use-capabilities"
 import { usePaperlessConfig } from "@/hooks/use-paperless"
+import { draftKeys, paperlessKeys } from "@/lib/query-keys"
+import { contractKeys } from "@/modules/contracts/keys"
+import { ledgerKeys } from "@/modules/ledger/keys"
 import type { DraftAcceptInput, DraftUpdateInput } from "@/types/drafts"
-
-const pendingDraftsKey = ["drafts", "pending"] as const
 
 // Counts of pending and of all drafts; invalidated with every ["drafts"] change.
 export const draftSummaryQueryOptions = queryOptions({
-  queryKey: ["drafts", "summary"],
+  queryKey: draftKeys.summary(),
   queryFn: getDraftSummary,
   refetchInterval: 60 * 1000,
 })
@@ -26,7 +27,7 @@ export function useInboxAvailable() {
 
 export function usePendingDrafts(enabled: boolean) {
   return useQuery({
-    queryKey: pendingDraftsKey,
+    queryKey: draftKeys.pending(),
     queryFn: () => listDrafts("pending"),
     enabled,
     refetchInterval: 60 * 1000,
@@ -37,7 +38,7 @@ export function useUpdateDraft() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: DraftUpdateInput }) => updateDraft(id, input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["drafts"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: draftKeys.all }),
   })
 }
 
@@ -46,12 +47,12 @@ export function useAcceptDraft() {
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: DraftAcceptInput }) => acceptDraft(id, input),
     meta: { errorMessage: (e) => i18n.t("drafts.acceptFailed", { message: e.message }) },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["drafts"] }),
+    onSettled: () => qc.invalidateQueries({ queryKey: draftKeys.all }),
     onSuccess: () =>
       Promise.all([
-        qc.invalidateQueries({ queryKey: ["paperless", "links"] }),
-        qc.invalidateQueries({ queryKey: ["ledger"] }),
-        qc.invalidateQueries({ queryKey: ["contracts"] }),
+        qc.invalidateQueries({ queryKey: paperlessKeys.links() }),
+        qc.invalidateQueries({ queryKey: ledgerKeys.all }),
+        qc.invalidateQueries({ queryKey: contractKeys.all }),
       ]),
   })
 }
@@ -60,7 +61,7 @@ export function useRejectDraft() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => rejectDraft(id),
-    onSettled: () => qc.invalidateQueries({ queryKey: ["drafts"] }),
+    onSettled: () => qc.invalidateQueries({ queryKey: draftKeys.all }),
   })
 }
 

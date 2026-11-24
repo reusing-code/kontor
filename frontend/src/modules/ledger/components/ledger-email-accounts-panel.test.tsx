@@ -3,6 +3,7 @@ import { screen, waitFor } from "@testing-library/react"
 import { apiError, mockApi } from "@/test/api-mock"
 import { renderWithProviders } from "@/test/render"
 import { LedgerEmailAccountsPanel } from "@/modules/ledger/components/ledger-email-accounts-panel"
+import { draftKeys } from "@/lib/query-keys"
 
 const account = {
   id: "7d0a1f6e-6a59-4b3a-9c0b-0d5c8f0f3a11",
@@ -39,7 +40,7 @@ describe("LedgerEmailAccountsPanel Kontor inbox folders", () => {
     const { user, api, queryClient } = renderPanel("Kontor", {
       found: 3, created: 2, skipped: 0, failed: 1, warnings: ["Mail: could not read the drafts folder"],
     })
-    queryClient.setQueryData(["drafts", "summary"], { pending: 0, total: 0 })
+    queryClient.setQueryData(draftKeys.summary(), { pending: 0, total: 0 })
     expect(await screen.findByText("Kontor inbox folder: Kontor")).toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "Check Kontor inbox folders" }))

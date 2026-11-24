@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { Plus } from "lucide-react"
 import { useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from "@/hooks/use-categories"
 import { getPurchaseSummary } from "@/modules/purchases/lib/purchase-repository"
+import { purchaseKeys } from "@/modules/purchases/keys"
 import { useQuery } from "@tanstack/react-query"
 import type { Category, CategoryFormData } from "@/types/category"
 import { Button } from "@/components/ui/button"
@@ -17,7 +18,7 @@ export function PurchasesDashboardPage() {
   usePageTitle(t("nav.purchases"), t("app.title"))
   const { data: categories = [] } = useCategories("purchases")
   const { data: summary } = useQuery({
-    queryKey: ["purchases-summary"],
+    queryKey: purchaseKeys.summary(),
     queryFn: getPurchaseSummary,
   })
   const summaryByCategory = new Map(

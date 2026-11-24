@@ -7,8 +7,7 @@ import { Plus } from "lucide-react"
 import { rootRoute } from "@/routes/__root"
 import { moduleGuard } from "@/modules/guard"
 import { useCategoryContracts, useCreateContract, useUpdateContract, useDeleteContract } from "@/modules/contracts/hooks/use-contracts"
-import { getCategoryById } from "@/lib/category-repository"
-import { useQuery } from "@tanstack/react-query"
+import { useCategory } from "@/hooks/use-categories"
 import type { Contract, ContractFormData } from "@/modules/contracts/types"
 import { Button } from "@/components/ui/button"
 import { ContractsTable } from "@/modules/contracts/components/contracts-table"
@@ -25,16 +24,13 @@ export const contractsCategoryRoute = createRoute({
 function ContractsCategoryDetailPage() {
   const { t } = useTranslation()
   const { categoryId } = contractsCategoryRoute.useParams()
-  const { data: category } = useQuery({
-    queryKey: ["category", "contracts", categoryId],
-    queryFn: () => getCategoryById("contracts", categoryId),
-  })
+  const { data: category } = useCategory("contracts", categoryId)
   const categoryName = category ? (category.nameKey ? t(category.nameKey) : category.name) : t("nav.categories")
   usePageTitle(categoryName, t("app.title"))
   const { data: contracts = [] } = useCategoryContracts(categoryId)
   const createContract = useCreateContract(categoryId)
-  const updateContract = useUpdateContract(categoryId)
-  const deleteContract = useDeleteContract(categoryId)
+  const updateContract = useUpdateContract()
+  const deleteContract = useDeleteContract()
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingContract, setEditingContract] = useState<Contract | null>(null)

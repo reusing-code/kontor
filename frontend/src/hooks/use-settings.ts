@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { updateSettings, changePassword, importModuleData, restoreBackup } from "@/lib/settings-repository"
 import { settingsQueryOptions } from "@/hooks/use-modules"
+import { settingsKeys } from "@/lib/query-keys"
 import i18n from "@/i18n"
 import type { ModuleId } from "@/types/modules"
 import type { SettingsUpdate } from "@/types/settings"
@@ -13,7 +14,7 @@ export function useUpdateSettings() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: SettingsUpdate) => updateSettings(data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: settingsQueryOptions.queryKey }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: settingsKeys.all }),
   })
 }
 

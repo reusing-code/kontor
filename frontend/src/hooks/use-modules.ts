@@ -1,11 +1,12 @@
 import { queryOptions, useQuery } from "@tanstack/react-query"
 import { getSettings } from "@/lib/settings-repository"
+import { settingsKeys } from "@/lib/query-keys"
 import type { ModuleId } from "@/types/modules"
 
 const ALL_MODULE_IDS: ModuleId[] = ["contracts", "purchases", "auto", "ledger"]
 
 export const settingsQueryOptions = queryOptions({
-  queryKey: ["settings"],
+  queryKey: settingsKeys.all,
   queryFn: getSettings,
 })
 

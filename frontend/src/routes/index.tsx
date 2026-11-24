@@ -7,6 +7,8 @@ import { modules } from "@/modules/registry"
 import { useModules } from "@/hooks/use-modules"
 import { getSummary } from "@/modules/contracts/lib/contract-repository"
 import { getPurchaseSummary } from "@/modules/purchases/lib/purchase-repository"
+import { contractKeys } from "@/modules/contracts/keys"
+import { purchaseKeys } from "@/modules/purchases/keys"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { CalendarClock } from "lucide-react"
 
@@ -45,13 +47,13 @@ function QuickStatsCard() {
   const purchasesEnabled = isEnabled("purchases")
 
   const { data: contractSummary } = useQuery({
-    queryKey: ["summary"],
+    queryKey: contractKeys.summary(),
     queryFn: getSummary,
     enabled: contractsEnabled,
   })
 
   const { data: purchaseSummary } = useQuery({
-    queryKey: ["purchases-summary"],
+    queryKey: purchaseKeys.summary(),
     queryFn: getPurchaseSummary,
     enabled: purchasesEnabled,
   })
