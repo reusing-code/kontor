@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { formatDate, formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { useForm, type Resolver } from "react-hook-form"
@@ -6,7 +7,7 @@ import { toast } from "sonner"
 import { Upload } from "lucide-react"
 import { useLedgerCommitImport, useLedgerPreviewImport } from "@/modules/ledger/hooks/use-ledger"
 import { defaultLedgerAccountInput } from "@/modules/ledger/lib/ledger-repository"
-import { formatAmountMinor, formatLedgerDate, formatSourceType } from "@/modules/ledger/lib/ledger-utils"
+import { formatSourceType } from "@/modules/ledger/lib/ledger-utils"
 import { ledgerAccountInputSchema, type LedgerAccount, type LedgerAccountInput, type LedgerPreviewResult, type LedgerFileSourceType } from "@/modules/ledger/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,7 +42,7 @@ interface LedgerImportPanelProps {
 }
 
 export function LedgerImportPanel({ accounts }: LedgerImportPanelProps) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const previewMutation = useLedgerPreviewImport()
   const commitMutation = useLedgerCommitImport()
   const [file, setFile] = useState<File | null>(null)
@@ -145,8 +146,8 @@ export function LedgerImportPanel({ accounts }: LedgerImportPanelProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="dkb.csv">DKB CSV</SelectItem>
-                <SelectItem value="comdirect.csv">comdirect CSV</SelectItem>
+                <SelectItem value="dkb.csv">{formatSourceType("dkb.csv")}</SelectItem>
+                <SelectItem value="comdirect.csv">{formatSourceType("comdirect.csv")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -209,7 +210,7 @@ export function LedgerImportPanel({ accounts }: LedgerImportPanelProps) {
 
             {preview.balance && (
               <div className="text-sm text-muted-foreground">
-                {t("ledger.balance.inFile", { amount: formatAmountMinor(preview.balance.amountMinor, "EUR", i18n.language), date: preview.balance.asOf })}
+                {t("ledger.balance.inFile", { amount: formatMinor(preview.balance.amountMinor), date: preview.balance.asOf })}
               </div>
             )}
 
@@ -333,10 +334,10 @@ export function LedgerImportPanel({ accounts }: LedgerImportPanelProps) {
                 <TableBody>
                   {preview.transactions.map((txn) => (
                     <TableRow key={txn.fingerprint}>
-                      <TableCell>{formatLedgerDate(txn.row.bookingDate)}</TableCell>
-                      <TableCell>{formatLedgerDate(txn.row.valueDate)}</TableCell>
+                      <TableCell>{formatDate(txn.row.bookingDate)}</TableCell>
+                      <TableCell>{txn.row.valueDate ? formatDate(txn.row.valueDate) : "-"}</TableCell>
                       <TableCell className={txn.row.amountMinor < 0 ? "text-destructive" : "text-emerald-600"}>
-                        {formatAmountMinor(txn.row.amountMinor, txn.row.currency, i18n.language)}
+                        {formatMinor(txn.row.amountMinor, txn.row.currency)}
                       </TableCell>
                       <TableCell>{txn.row.counterpartyName || "-"}</TableCell>
                       <TableCell className="max-w-[24rem] truncate">{txn.row.purpose || "-"}</TableCell>

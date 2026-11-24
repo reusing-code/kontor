@@ -1,4 +1,5 @@
 import { createRoute } from "@tanstack/react-router"
+import { formatMoney } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { useQuery } from "@tanstack/react-query"
@@ -80,7 +81,7 @@ function QuickStatsCard() {
             <div className="flex justify-between">
               <dt className="text-muted-foreground">{t("home.yearlyContracts")}</dt>
               <dd className="font-medium">
-                {(contractSummary?.totalYearlyAmount ?? 0).toFixed(2)} {t("common.currency")}
+                {formatMoney(contractSummary?.totalYearlyAmount ?? 0)}
               </dd>
             </div>
           )}

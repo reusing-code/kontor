@@ -13,7 +13,7 @@ export const purchaseItems: CategoryItemConfig<Purchase, PurchaseFormData> = {
     { labelKey: "purchaseFields.type", value: (p) => p.type },
     { labelKey: "purchaseFields.dealer", value: (p) => p.dealer },
     { labelKey: "purchaseFields.price", value: (p) => p.price, price: true },
-    { labelKey: "purchaseFields.purchaseDate", value: (p) => p.purchaseDate },
+    { labelKey: "purchaseFields.purchaseDate", value: (p) => p.purchaseDate, date: true },
     { labelKey: "purchaseFields.comments", value: (p) => p.comments, wide: true },
   ],
   renderTable: ({ items, ...props }) => <PurchasesTable purchases={items} {...props} />,

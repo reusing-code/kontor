@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { formatMoney } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { toast } from "sonner"
@@ -76,7 +77,7 @@ export function PurchasesDashboardPage() {
                 totalAmount={catSummary?.totalSpent ?? 0}
                 itemLabel={t("purchase.purchaseCount", { count: catSummary?.purchaseCount ?? 0 })}
                 totalLabel={t("purchase.totalSpent", {
-                  amount: `${(catSummary?.totalSpent ?? 0).toFixed(2)} ${t("common.currency")}`,
+                  amount: formatMoney(catSummary?.totalSpent ?? 0),
                 })}
                 onEdit={() => setEditingCategory(cat)}
                 onDelete={() => setDeletingCategory(cat)}

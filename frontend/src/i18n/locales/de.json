@@ -316,6 +316,10 @@
     },
     "category": "Kategorie",
     "reviewState": "Prüfstatus",
+    "reviewStatus": {
+      "needsReview": "Zu prüfen",
+      "confirmed": "Bestätigt"
+    },
     "chooseCategory": "Kategorie auswählen",
     "selectCategory": "Kategorie auswählen",
     "noCategory": "Keine Kategorie",
@@ -331,6 +335,11 @@
     "transactionReviewed": "Transaktion geprüft.",
     "importTitle": "Transaktionen importieren",
     "sourceType": "Quelltyp",
+    "sourceTypes": {
+      "dkbCsv": "DKB CSV",
+      "comdirectCsv": "comdirect CSV",
+      "enablebanking": "Enable Banking"
+    },
     "file": "CSV-Datei",
     "preview": "Vorschau",
     "previewing": "Vorschau wird erstellt...",
@@ -366,6 +375,7 @@
     "valueDate": "Wertstellung",
     "amount": "Betrag",
     "counterparty": "Gegenpartei",
+    "noCounterparty": "Keine Gegenpartei",
     "purpose": "Verwendungszweck",
     "status": "Status",
     "source": "Quelle",
@@ -1122,7 +1132,6 @@
     "actions": "Aktionen",
     "confirm": "Bist du sicher?",
     "loading": "Lädt...",
-    "currency": "€",
     "months": "Monate",
     "perMonth": "/ Mon.",
     "perQuarter": "/ Quartal",

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router"
+import { formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import type { LedgerAccount } from "@/modules/ledger/types"
-import { formatAmountMinor } from "@/modules/ledger/lib/ledger-utils"
 import { netWorthFromAccounts } from "@/modules/ledger/lib/net-worth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 // dashboard already has and must not import anything chart related. While
 // that list is loading it shows no statement about the accounts.
 export function LedgerNetWorthCard({ accounts, isPending = false }: { accounts: LedgerAccount[]; isPending?: boolean }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const netWorth = netWorthFromAccounts(accounts)
   const hasBalance = netWorth.included > 0
 
@@ -24,7 +24,7 @@ export function LedgerNetWorthCard({ accounts, isPending = false }: { accounts: 
         </Button>
       </CardHeader>
       <CardContent>
-        <div className="text-3xl font-semibold">{hasBalance ? formatAmountMinor(netWorth.totalMinor, "EUR", i18n.language) : "–"}</div>
+        <div className="text-3xl font-semibold">{hasBalance ? formatMinor(netWorth.totalMinor) : "–"}</div>
         {!isPending && (
           <p className="text-sm text-muted-foreground">
             {hasBalance ? t("ledger.analysis.card.accounts", { count: netWorth.included }) : t("ledger.analysis.card.none")}

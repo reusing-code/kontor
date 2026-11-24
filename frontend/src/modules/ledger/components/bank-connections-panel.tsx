@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
+import { formatDate, formatDateTime } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { format } from "date-fns"
 import { Link2, Plus, RefreshCw, Trash2 } from "lucide-react"
 import {
   useBankConnections,
@@ -14,7 +14,6 @@ import { useStartBankAuthorization } from "@/modules/ledger/hooks/use-bank-autho
 import { bankErrorMessage } from "@/modules/ledger/lib/bank-errors"
 import { useCreateLedgerAccount, useLedgerAccounts } from "@/modules/ledger/hooks/use-ledger"
 import type { BankAccount, BankConnection, LedgerAccount, LedgerAccountInput } from "@/modules/ledger/types"
-import { formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
 import { BankConnectDialog } from "@/modules/ledger/components/bank-connect-dialog"
 import { BankConsentBanner } from "@/modules/ledger/components/bank-consent-banner"
 import { LedgerAccountDialog } from "@/modules/ledger/components/ledger-account-dialog"
@@ -211,7 +210,7 @@ function BankConnectionCard({
             </Badge>
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            {t("ledger.bankImport.validUntil", { date: formatLedgerDate(connection.expiresAt) })}
+            {t("ledger.bankImport.validUntil", { date: formatDate(connection.expiresAt) })}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -322,7 +321,7 @@ function BankAccountRow({ account, balancesRequested, ledgerAccounts, mappedLedg
       <div className="text-xs text-muted-foreground">
         {account.lastSyncAttemptAt
           ? t("ledger.bankImport.lastSync", {
-              time: format(new Date(account.lastSyncAttemptAt), "yyyy-MM-dd HH:mm"),
+              time: formatDateTime(account.lastSyncAttemptAt),
               status: t(`ledger.bankImport.status.${statusKey}`),
             })
           : t("ledger.bankImport.neverSynced")}

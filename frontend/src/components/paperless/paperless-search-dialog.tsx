@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { formatDate } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Check, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
@@ -131,7 +132,7 @@ export function PaperlessSearchDialog({
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">{doc.title}</p>
                     <p className="text-xs text-muted-foreground">
-                      {doc.created ? new Date(doc.created).toLocaleDateString() : ""}
+                      {doc.created ? formatDate(doc.created) : ""}
                       {alreadyLinked && ` · ${t("paperless.alreadyLinked")}`}
                     </p>
                     {doc.snippet && <p className="text-xs text-muted-foreground line-clamp-2">{doc.snippet}</p>}

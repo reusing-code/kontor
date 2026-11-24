@@ -99,9 +99,9 @@ describe("TokensSettingsCard list", () => {
     expect(within(laptopRow).getByText("read")).toBeInTheDocument()
     expect(within(laptopRow).getByText("drafts")).toBeInTheDocument()
     expect(within(laptopRow).queryByText("links")).not.toBeInTheDocument()
-    expect(within(laptopRow).getByText("2026-01-10")).toBeInTheDocument()
-    expect(within(laptopRow).getByText("2999-06-01")).toBeInTheDocument()
-    expect(within(laptopRow).getByText("2026-02-03")).toBeInTheDocument()
+    expect(within(laptopRow).getByText("Jan 10, 2026")).toBeInTheDocument()
+    expect(within(laptopRow).getByText("Jun 1, 2999")).toBeInTheDocument()
+    expect(within(laptopRow).getByText("Feb 3, 2026")).toBeInTheDocument()
     expect(within(laptopRow).queryByText("Expired")).not.toBeInTheDocument()
 
     const oldRow = screen.getByText("Old script").closest("tr")!

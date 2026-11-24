@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react"
+import { formatDate, formatMoney } from "@/lib/format"
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
-import { format } from "date-fns"
 import { ChevronRight, ExternalLink, FileText, BookOpen, MoreVertical } from "lucide-react"
 import type { Purchase } from "@/modules/purchases/types"
 import { purchaseFields } from "@/modules/purchases/config/purchase-fields"
@@ -34,11 +34,11 @@ interface PurchasesTableProps {
   onDelete: (purchase: Purchase) => void
 }
 
-function formatCellValue(purchase: Purchase, key: string, currency: string): string {
+function formatCellValue(purchase: Purchase, key: string): string {
   const value = purchase[key as keyof Purchase]
   if (value === undefined || value === null || value === "") return "-"
-  if (key === "price") return `${Number(value).toFixed(2)} ${currency}`
-  if (key === "purchaseDate") return format(new Date(value as string), "yyyy-MM-dd")
+  if (key === "price") return formatMoney(Number(value))
+  if (key === "purchaseDate") return formatDate(value as string)
   return String(value)
 }
 
@@ -49,14 +49,13 @@ interface PurchaseDetailRowProps {
 
 function PurchaseDetailRow({ purchase, colSpan }: PurchaseDetailRowProps) {
   const { t } = useTranslation()
-  const currency = t("common.currency")
 
   return (
     <TableRow className="bg-muted/30 hover:bg-muted/30">
       <TableCell colSpan={colSpan} className="p-0">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4">
             {detailFields.map((field) => {
-              const value = formatCellValue(purchase, field.key, currency)
+              const value = formatCellValue(purchase, field.key)
               if (value === "-" && field.type === "textarea") return null
               return (
                 <div key={field.key} className={cn(field.type === "textarea" ? "col-span-full" : "")}>
@@ -86,7 +85,6 @@ function PurchaseDetailRow({ purchase, colSpan }: PurchaseDetailRowProps) {
 
 export function PurchasesTable({ purchases, onEdit, onDelete }: PurchasesTableProps) {
   const { t } = useTranslation()
-  const currency = t("common.currency")
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const totalColumns = tableColumns.length + 3 // +1 chevron, +1 links, +1 actions
@@ -143,10 +141,10 @@ export function PurchasesTable({ purchases, onEdit, onDelete }: PurchasesTablePr
                          <TableCell key={col.key}>
                            {col.key === "itemName" ? (
                              <Link to="/purchases/$purchaseId" params={{ purchaseId: purchase.id }} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
-                               {formatCellValue(purchase, col.key, currency)}
+                               {formatCellValue(purchase, col.key)}
                              </Link>
                            ) : (
-                             formatCellValue(purchase, col.key, currency)
+                             formatCellValue(purchase, col.key)
                            )}
                          </TableCell>
                        ))}

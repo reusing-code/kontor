@@ -1,4 +1,5 @@
 import { useRef, useState } from "react"
+import { formatMoney } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { Camera, FileText, Image as ImageIcon, Loader2, Paperclip, X } from "lucide-react"
 import { useCapabilities } from "@/hooks/use-capabilities"
@@ -262,9 +263,8 @@ function formatSize(bytes: number): string {
 }
 
 function CurrencyHint({ currency }: { currency: QuickAddCurrency }) {
-  const { t, i18n } = useTranslation()
-  const original = new Intl.NumberFormat(i18n.language, { style: "currency", currency: currency.code === "???" ? "XXX" : currency.code })
-    .format(currency.amount)
+  const { t } = useTranslation()
+  const original = formatMoney(currency.amount, currency.code)
   return (
     <p className="text-sm text-amber-700 dark:text-amber-400">
       {currency.converted

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { formatDate, formatMoney } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { usePageTitle } from "@/hooks/use-page-title"
@@ -15,9 +16,10 @@ interface ItemDetailPageProps<T extends CategoryItem, F> {
   itemId: string
 }
 
-function detailValue<T>(field: ItemDetailField<T>, item: T, currency: string): string {
+function detailValue<T>(field: ItemDetailField<T>, item: T): string {
   const value = field.value(item)
-  if (field.price) return typeof value === "number" && value ? `${value.toFixed(2)} ${currency}` : "-"
+  if (field.price) return typeof value === "number" && value ? formatMoney(value) : "-"
+  if (field.date) return typeof value === "string" && value ? formatDate(value) : "-"
   return value ? String(value) : "-"
 }
 
@@ -51,7 +53,7 @@ export function ItemDetailPage<T extends CategoryItem, F>({ config, itemId }: It
           {config.detailFields.map((field) => (
             <div key={field.labelKey} className={cn(field.wide && "md:col-span-2")}>
               <div className="text-xs text-muted-foreground">{t(field.labelKey)}</div>
-              <div className={cn(field.wide && "whitespace-pre-wrap")}>{detailValue(field, item, t("common.currency"))}</div>
+              <div className={cn(field.wide && "whitespace-pre-wrap")}>{detailValue(field, item)}</div>
             </div>
           ))}
         </CardContent>

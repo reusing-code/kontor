@@ -1,8 +1,8 @@
 import { useState } from "react"
+import { formatDate } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { CopyIcon } from "lucide-react"
-import { format } from "date-fns"
 import { useCreateToken, useRevokeToken, useTokens } from "@/hooks/use-tokens"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,10 +15,6 @@ import { tokenScopes, type Token } from "@/types/token"
 
 function isExpired(token: Token): boolean {
   return token.expiresAt !== undefined && new Date(token.expiresAt).getTime() <= Date.now()
-}
-
-function day(value: string): string {
-  return format(new Date(value), "yyyy-MM-dd")
 }
 
 function CopyBlock({ label, text }: { label: string; text: string }) {
@@ -127,14 +123,14 @@ export function TokensSettingsCard() {
                       ))}
                     </div>
                   </TableCell>
-                  <TableCell>{day(token.createdAt)}</TableCell>
+                  <TableCell>{formatDate(token.createdAt)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      {token.expiresAt ? day(token.expiresAt) : t("tokens.never")}
+                      {token.expiresAt ? formatDate(token.expiresAt) : t("tokens.never")}
                       {isExpired(token) && <Badge variant="destructive">{t("tokens.expired")}</Badge>}
                     </div>
                   </TableCell>
-                  <TableCell>{token.lastUsedAt ? day(token.lastUsedAt) : t("tokens.never")}</TableCell>
+                  <TableCell>{token.lastUsedAt ? formatDate(token.lastUsedAt) : t("tokens.never")}</TableCell>
                   <TableCell className="text-right">
                     <Button variant="outline" size="sm" onClick={() => setRevoking(token)}>
                       {t("tokens.revoke")}

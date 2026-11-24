@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router"
+import { formatDate, formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useLedgerTransaction, useLedgerTransferCandidates, useLinkLedgerTransfer, useUnlinkLedgerTransfer } from "@/modules/ledger/hooks/use-ledger"
 import { transactionPath } from "@/modules/ledger/lib/module-links"
-import { formatAmountMinor, formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
 import type { LedgerTransaction } from "@/modules/ledger/types"
 import {
   AlertDialog,
@@ -24,7 +24,7 @@ interface LedgerTransferManagerProps {
 }
 
 export function LedgerTransferManager({ transaction, compact = false }: LedgerTransferManagerProps) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { data: transferCandidates } = useLedgerTransferCandidates(transaction.id)
   const pairedTransactionId = transaction.transferPairTransactionId
   const { data: pairedTransaction } = useLedgerTransaction(pairedTransactionId ?? "")
@@ -38,7 +38,7 @@ export function LedgerTransferManager({ transaction, compact = false }: LedgerTr
         <div className="rounded-md border p-3 text-sm">
           <div className="font-medium">{t("ledger.transferLinked")}</div>
           <Link to={transactionPath(pairedTransaction.id)} className="mt-1 block text-primary hover:underline">
-            {formatLedgerDate(pairedTransaction.bookingDate)} • {formatAmountMinor(pairedTransaction.amountMinor, pairedTransaction.currency, i18n.language)}
+            {formatDate(pairedTransaction.bookingDate)} • {formatMinor(pairedTransaction.amountMinor, pairedTransaction.currency)}
           </Link>
           <div className="text-muted-foreground">{pairedTransaction.counterpartyName || pairedTransaction.purpose || "-"}</div>
           <p className="mt-2 text-xs text-muted-foreground">{t("ledger.transferCategoryProtection")}</p>
@@ -77,7 +77,7 @@ export function LedgerTransferManager({ transaction, compact = false }: LedgerTr
             <div key={candidate.transaction.id} className="flex items-center gap-3 rounded-md border p-3 text-sm">
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{candidate.accountName}</div>
-                <div>{formatLedgerDate(candidate.transaction.bookingDate)} • {formatAmountMinor(candidate.transaction.amountMinor, candidate.transaction.currency, i18n.language)}</div>
+                <div>{formatDate(candidate.transaction.bookingDate)} • {formatMinor(candidate.transaction.amountMinor, candidate.transaction.currency)}</div>
                 <div className="text-xs text-muted-foreground">
                   {candidate.dateDeltaDays === 0 ? t("ledger.sameDay") : t("ledger.daysApart", { count: candidate.dateDeltaDays })}
                   {candidate.ibanMatch ? ` • ${t("ledger.ibanMatched")}` : ""}

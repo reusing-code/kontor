@@ -1,10 +1,11 @@
 import { useState } from "react"
+import { formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { AlertTriangle } from "lucide-react"
 import type { LedgerAccount } from "@/modules/ledger/types"
 import { useDeleteLedgerAccountBalance, useSetLedgerAccountBalance } from "@/modules/ledger/hooks/use-ledger"
-import { formatAmountMinor, formatSourceType } from "@/modules/ledger/lib/ledger-utils"
+import { formatSourceType } from "@/modules/ledger/lib/ledger-utils"
 import { hasDrift } from "@/modules/ledger/lib/balance"
 import { LedgerBalanceDialog } from "@/modules/ledger/components/ledger-balance-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -12,12 +13,12 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export function LedgerAccountBalanceCard({ account }: { account: LedgerAccount }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const [setting, setSetting] = useState(false)
   const setBalance = useSetLedgerAccountBalance()
   const deleteBalance = useDeleteLedgerAccountBalance()
   const balance = account.balance
-  const money = (minor: number) => formatAmountMinor(minor, account.currency, i18n.language)
+  const money = (minor: number) => formatMinor(minor, account.currency)
   const source = (value: string) => (value === "manual" ? t("ledger.balance.sourceManual") : formatSourceType(value))
 
   return (

@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next"
+import { formatDate } from "@/lib/format"
 import { Mail } from "lucide-react"
 import { useModules } from "@/hooks/use-modules"
 import { useLedgerEmailLinks } from "@/modules/ledger/hooks/use-ledger"
@@ -20,9 +21,9 @@ function midUrl(messageId: string): string {
 }
 
 function EmailSourceRow({ link }: { link: LedgerEmailLink }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const subject = link.subject || t("drafts.sourceEmailNoSubject")
-  const details = [link.from, link.date && new Date(link.date).toLocaleDateString(i18n.language), link.accountName]
+  const details = [link.from, link.date && formatDate(link.date), link.accountName]
     .filter(Boolean)
     .join(" · ")
   return (

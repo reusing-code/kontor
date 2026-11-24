@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react"
+import { formatDate, formatMoney } from "@/lib/format"
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
-import { format } from "date-fns"
 import { ChevronRight, ExternalLink, FileText, MoreVertical } from "lucide-react"
 import type { BillingInterval, Contract } from "@/modules/contracts/types"
 import { contractFields } from "@/modules/contracts/config/contract-fields"
@@ -42,14 +42,14 @@ interface ContractsTableProps {
   getRowClassName?: (contract: Contract) => string | undefined
 }
 
-function formatCellValue(contract: Contract, key: string, currency: string, t: (key: string) => string): string {
+function formatCellValue(contract: Contract, key: string, t: (key: string) => string): string {
   const value = contract[key as keyof Contract]
   if (value === undefined || value === null || value === "") return "-"
   if (key === "price") {
     const interval = t(intervalSuffixKey[contract.billingInterval] ?? "common.perMonth")
-    return `${Number(value).toFixed(2)} ${currency} ${interval}`
+    return `${formatMoney(Number(value))} ${interval}`
   }
-  if (key === "startDate" || key === "endDate") return format(new Date(value as string), "yyyy-MM-dd")
+  if (key === "startDate" || key === "endDate") return formatDate(value as string)
   if (key === "minimumDurationMonths" || key === "extensionDurationMonths" || key === "noticePeriodMonths") {
     return `${String(value)} ${t("common.months")}`
   }
@@ -63,14 +63,13 @@ interface ContractDetailRowProps {
 
 function ContractDetailRow({ contract, colSpan }: ContractDetailRowProps) {
   const { t } = useTranslation()
-  const currency = t("common.currency")
 
   return (
     <TableRow className="bg-muted/30 hover:bg-muted/30">
       <TableCell colSpan={colSpan} className="p-0">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4">
             {detailFields.map((field) => {
-              const value = formatCellValue(contract, field.key, currency, t)
+              const value = formatCellValue(contract, field.key, t)
               if (value === "-" && field.type === "textarea") return null
               return (
                 <div key={field.key} className={cn(field.type === "textarea" ? "col-span-full" : "")}>
@@ -100,7 +99,6 @@ function ContractDetailRow({ contract, colSpan }: ContractDetailRowProps) {
 
 export function ContractsTable({ contracts, onEdit, onDelete, getRowClassName }: ContractsTableProps) {
   const { t } = useTranslation()
-  const currency = t("common.currency")
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const totalColumns = tableColumns.length + 4 // +1 chevron, +1 cancellation, +1 links, +1 actions
@@ -163,10 +161,10 @@ export function ContractsTable({ contracts, onEdit, onDelete, getRowClassName }:
                          <TableCell key={col.key}>
                            {col.key === "name" ? (
                              <Link to="/contracts/$contractId" params={{ contractId: contract.id }} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
-                               {formatCellValue(contract, col.key, currency, t)}
+                               {formatCellValue(contract, col.key, t)}
                              </Link>
                            ) : (
-                             formatCellValue(contract, col.key, currency, t)
+                             formatCellValue(contract, col.key, t)
                            )}
                          </TableCell>
                        ))}

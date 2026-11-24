@@ -24,6 +24,7 @@ export interface ItemDetailField<T> {
   labelKey: string
   value: (item: T) => string | number | undefined
   price?: boolean
+  date?: boolean
   // Spans the card and keeps line breaks.
   wide?: boolean
 }

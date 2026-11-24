@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router"
+import { formatMoney } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { useQuery } from "@tanstack/react-query"
 import { getSummary } from "@/modules/contracts/lib/contract-repository"
@@ -36,7 +37,7 @@ export function ContractsHomeCard() {
             </div>
             <div>
               <p className="text-2xl font-bold">
-                {(contractSummary?.totalMonthlyAmount ?? 0).toFixed(2)} {t("common.currency")}
+                {formatMoney(contractSummary?.totalMonthlyAmount ?? 0)}
               </p>
               <p className="text-sm text-muted-foreground">{t("home.monthlySpend")}</p>
             </div>

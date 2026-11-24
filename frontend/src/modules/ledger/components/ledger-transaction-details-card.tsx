@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { formatDate, formatMinor, formatMoney } from "@/lib/format"
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -17,7 +18,7 @@ import { LedgerSplitEditor } from "@/modules/ledger/components/ledger-split-edit
 import { usePurchases } from "@/modules/purchases/hooks/use-purchases"
 import { useCostEntry, useCreateVehicle, useVehicles } from "@/modules/auto/hooks/use-vehicles"
 import { moduleReferenceToPath, referenceModuleId, vehiclePath } from "@/modules/ledger/lib/module-links"
-import { emailOrderTitle, formatAmountMinor, formatLedgerDate, formatLedgerReviewStatus, formatLedgerSpecialCategory } from "@/modules/ledger/lib/ledger-utils"
+import { emailOrderTitle, formatLedgerReviewStatus, formatLedgerSpecialCategory } from "@/modules/ledger/lib/ledger-utils"
 import type { ContractFormData } from "@/modules/contracts/types"
 import type { LedgerTransaction, LedgerTransactionReference } from "@/modules/ledger/types"
 import type { VehicleFormData } from "@/modules/auto/types"
@@ -225,7 +226,7 @@ function VehicleReferenceRow({ reference, onRemove }: { reference: LedgerTransac
 }
 
 function CostReferenceRow({ reference, onRemove }: { reference: LedgerTransactionReference; onRemove: () => void }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { data: cost } = useCostEntry(reference.targetId)
   const { data: vehicles = [] } = useVehicles()
   const vehicle = cost ? vehicles.find((item) => item.id === cost.vehicleId) : undefined
@@ -233,8 +234,8 @@ function CostReferenceRow({ reference, onRemove }: { reference: LedgerTransactio
   const description = cost
     ? [
         vehicle?.name,
-        formatLedgerDate(cost.date),
-        cost.amount != null ? formatAmountMinor(Math.round(cost.amount * 100), "EUR", i18n.language) : undefined,
+        formatDate(cost.date),
+        cost.amount != null ? formatMoney(cost.amount) : undefined,
       ].filter(Boolean).join(" • ")
     : undefined
   return (
@@ -273,7 +274,7 @@ function ReferenceRow({ reference, enabled, onRemove }: {
 }
 
 export function LedgerTransactionDetailsCard({ transaction }: { transaction: LedgerTransaction }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { isEnabled } = useModules()
   const { data: ledgerCategories = [] } = useLedgerCategories()
   const { data: emailOrders = [] } = useLedgerEmailOrders()
@@ -355,16 +356,16 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div>
             <div className="text-xs text-muted-foreground">{t("ledger.date")}</div>
-            <div>{formatLedgerDate(transaction.bookingDate)}</div>
+            <div>{formatDate(transaction.bookingDate)}</div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">{t("ledger.valueDate")}</div>
-            <div>{formatLedgerDate(transaction.valueDate)}</div>
+            <div>{transaction.valueDate ? formatDate(transaction.valueDate) : "-"}</div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">{t("ledger.amount")}</div>
             <div className={transaction.amountMinor < 0 ? "text-destructive" : "text-emerald-600"}>
-              {formatAmountMinor(transaction.amountMinor, transaction.currency, i18n.language)}
+              {formatMinor(transaction.amountMinor, transaction.currency)}
             </div>
           </div>
           <div>
@@ -432,7 +433,7 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
               linkedEmailOrders.map((order) => (
                 <div key={order.id} className="rounded-md border p-3 text-sm">
                   <div className="font-medium">{emailOrderTitle(order)}</div>
-                  <div className="text-xs text-muted-foreground">{formatLedgerDate(order.orderDate)}</div>
+                  <div className="text-xs text-muted-foreground">{formatDate(order.orderDate)}</div>
                   <div className="mt-2 space-y-1 text-muted-foreground">
                     {(order.items ?? []).map((item, index) => (
                       <div key={`${order.id}-${index}`}>{item.quantity}x {item.name}</div>

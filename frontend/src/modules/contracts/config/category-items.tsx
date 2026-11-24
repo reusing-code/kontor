@@ -12,8 +12,8 @@ export const contractItems: CategoryItemConfig<Contract, ContractFormData> = {
   detailFields: [
     { labelKey: "fields.company", value: (c) => c.company },
     { labelKey: "fields.price", value: (c) => c.price, price: true },
-    { labelKey: "fields.startDate", value: (c) => c.startDate },
-    { labelKey: "fields.endDate", value: (c) => c.endDate },
+    { labelKey: "fields.startDate", value: (c) => c.startDate, date: true },
+    { labelKey: "fields.endDate", value: (c) => c.endDate, date: true },
     { labelKey: "fields.comments", value: (c) => c.comments, wide: true },
   ],
   renderTable: ({ items, ...props }) => <ContractsTable contracts={items} {...props} />,

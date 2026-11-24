@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react"
+import { formatDate, formatMinor } from "@/lib/format"
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useLedgerEmailAccounts, useLinkLedgerEmailOrder, useRejectLedgerEmailOrder } from "@/modules/ledger/hooks/use-ledger"
-import { emailOrderTitle, formatAmountMinor, formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
+import { emailOrderTitle } from "@/modules/ledger/lib/ledger-utils"
 import type { LedgerEmailOrder } from "@/modules/ledger/types"
 import { LedgerEmailOrderLinkDialog } from "@/modules/ledger/components/ledger-email-order-link-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -11,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { data: emailAccounts = [] } = useLedgerEmailAccounts()
   const emailAccountNames = useMemo(() => new Map(emailAccounts.map((account) => [account.id, account.name])), [emailAccounts])
   const linkOrder = useLinkLedgerEmailOrder()
@@ -31,10 +32,10 @@ export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] 
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="font-medium">{emailOrderTitle(order)}</div>
-                  <div className="text-sm text-muted-foreground">{emailAccountNames.get(order.emailAccountId) ?? order.importerId} • {formatLedgerDate(order.orderDate)}{order.paymentMethod ? ` • ${t(`ledger.email.paymentMethod.${order.paymentMethod}`, { defaultValue: order.paymentMethod })}` : ""}</div>
+                  <div className="text-sm text-muted-foreground">{emailAccountNames.get(order.emailAccountId) ?? order.importerId} • {formatDate(order.orderDate)}{order.paymentMethod ? ` • ${t(`ledger.email.paymentMethod.${order.paymentMethod}`, { defaultValue: order.paymentMethod })}` : ""}</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-medium">{formatAmountMinor(order.totalMinor, order.currency, i18n.language)}</div>
+                  <div className="font-medium">{formatMinor(order.totalMinor, order.currency)}</div>
                   <Badge variant={order.matchStatus === "matched" ? "default" : order.matchStatus === "rejected" ? "secondary" : "outline"}>{t(`ledger.email.status.${order.matchStatus}`)}</Badge>
                 </div>
               </div>

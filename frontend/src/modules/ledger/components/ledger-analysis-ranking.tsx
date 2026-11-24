@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next"
+import { formatMinor } from "@/lib/format"
 import type { LedgerAnalysisRange } from "@/modules/ledger/types"
 import { useLedgerRankingAnalysis } from "@/modules/ledger/hooks/use-ledger"
-import { formatAmountMinor } from "@/modules/ledger/lib/ledger-utils"
 import { LedgerAnalysisCard } from "@/modules/ledger/components/ledger-analysis-card"
 
 interface RankedEntry {
@@ -13,7 +13,6 @@ interface RankedEntry {
 
 // The entries come sorted, so the first one is the widest bar.
 function RankedList({ entries }: { entries: RankedEntry[] }) {
-  const { i18n } = useTranslation()
   const largest = entries[0]?.amountMinor ?? 0
 
   return (
@@ -25,7 +24,7 @@ function RankedList({ entries }: { entries: RankedEntry[] }) {
               {entry.context && <span className="text-muted-foreground">{entry.context} › </span>}
               {entry.name}
             </span>
-            <span className="font-medium tabular-nums">{formatAmountMinor(entry.amountMinor, "EUR", i18n.language)}</span>
+            <span className="font-medium tabular-nums">{formatMinor(entry.amountMinor)}</span>
           </div>
           <div className="h-1.5 rounded-full bg-primary/20" style={{ width: `${largest > 0 ? Math.max((entry.amountMinor / largest) * 100, 1) : 0}%` }} />
         </li>

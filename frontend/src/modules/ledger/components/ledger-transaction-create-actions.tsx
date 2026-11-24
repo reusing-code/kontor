@@ -1,4 +1,5 @@
 import { useRef, useState } from "react"
+import { formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useCategories } from "@/hooks/use-categories"
@@ -6,7 +7,6 @@ import { useCreatePurchaseByCategory } from "@/modules/purchases/hooks/use-purch
 import { useCreateCostEntryByVehicle, useVehicles } from "@/modules/auto/hooks/use-vehicles"
 import type { TransactionLinker } from "@/modules/ledger/hooks/use-transaction-linker"
 import { guessCostType } from "@/modules/ledger/lib/cost-type-guess"
-import { formatAmountMinor } from "@/modules/ledger/lib/ledger-utils"
 import type { LedgerEmailOrder, LedgerEmailOrderItem, LedgerTransaction } from "@/modules/ledger/types"
 import type { PurchaseFormData } from "@/modules/purchases/types"
 import type { CostEntryFormData } from "@/modules/auto/types"
@@ -103,7 +103,7 @@ function ItemPickerDialog({ open, items, onOpenChange, onContinue }: {
   onOpenChange: (open: boolean) => void
   onContinue: (items: OrderItem[]) => void
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const [deselected, setDeselected] = useState<Set<string>>(() => new Set())
   const selected = items.filter((entry) => !deselected.has(entry.key))
 
@@ -129,7 +129,7 @@ function ItemPickerDialog({ open, items, onOpenChange, onContinue }: {
               <Checkbox checked={!deselected.has(entry.key)} onCheckedChange={(checked) => toggle(entry.key, checked === true)} />
               <span className="min-w-0 flex-1 truncate">{entry.item.quantity}× {entry.item.name}</span>
               <span className="shrink-0 text-muted-foreground">
-                {formatAmountMinor(entry.item.totalPriceMinor, entry.order.currency, i18n.language)}
+                {formatMinor(entry.item.totalPriceMinor, entry.order.currency)}
               </span>
             </label>
           ))}

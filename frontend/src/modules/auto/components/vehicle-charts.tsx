@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next"
+import { formatDate, formatMoney } from "@/lib/format"
 import {
   Bar,
   BarChart,
@@ -50,7 +51,6 @@ function StackSegment(props: StackSegmentProps) {
 
 export function CostsByYearChart({ summary }: { summary: VehicleSummary }) {
   const { t } = useTranslation()
-  const currency = t("common.currency")
   const data = summary.costsByYear
   if (data.length === 0) return null
 
@@ -82,11 +82,11 @@ export function CostsByYearChart({ summary }: { summary: VehicleSummary }) {
                   .reverse()
                   .map((p) => ({
                     name: t(`costTypes.${String(p.dataKey)}`),
-                    value: `${(p.value as number).toFixed(2)} ${currency}`,
+                    value: formatMoney(p.value as number),
                     color: costTypeColor(p.dataKey as ChartCostType),
                   }))
                 const total = payload.reduce((sum, p) => sum + ((p.value as number) || 0), 0)
-                rows.push({ name: t("vehicleSummary.total"), value: `${total.toFixed(2)} ${currency}`, color: "" })
+                rows.push({ name: t("vehicleSummary.total"), value: formatMoney(total), color: "" })
                 return <ChartTooltipBox title={String(label)} rows={rows} />
               }}
             />
@@ -118,7 +118,6 @@ export function CostsByYearChart({ summary }: { summary: VehicleSummary }) {
 
 export function CostPerKmChart({ summary }: { summary: VehicleSummary }) {
   const { t } = useTranslation()
-  const currency = t("common.currency")
   const kmByYear = new Map(summary.mileageByYear.map((ym) => [ym.year, ym]))
   const data = summary.costsByYear
     .map((yc) => {
@@ -158,7 +157,7 @@ export function CostPerKmChart({ summary }: { summary: VehicleSummary }) {
                     const s = series.find((sr) => sr.key === p.dataKey)
                     return {
                       name: s?.label ?? String(p.dataKey),
-                      value: `${(p.value as number).toFixed(2)} ${currency}/km`,
+                      value: `${formatMoney(p.value as number)}/km`,
                       color: s?.color,
                     }
                   })
@@ -238,7 +237,7 @@ export function MileageHistoryChart({ summary }: { summary: VehicleSummary }) {
     .sort((a, b) => a.ts - b.ts)
   if (data.length < 2) return null
 
-  const fmtDate = (ts: number) => new Date(ts).toLocaleDateString()
+  const fmtDate = (ts: number) => formatDate(new Date(ts))
 
   const firstYear = new Date(data[0].ts).getFullYear() + 1
   const lastYear = new Date(data[data.length - 1].ts).getFullYear()

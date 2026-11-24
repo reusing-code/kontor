@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router"
+import { formatDate, formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import type { LedgerCategory, LedgerPageBalance, LedgerTransaction } from "@/modules/ledger/types"
 import { transactionPath } from "@/modules/ledger/lib/module-links"
-import { formatAmountMinor, formatLedgerCategorizationSource, formatLedgerDate, formatLedgerReviewStatus, formatLedgerSpecialCategory, formatSourceType } from "@/modules/ledger/lib/ledger-utils"
+import { formatLedgerCategorizationSource, formatLedgerReviewStatus, formatLedgerSpecialCategory, formatSourceType } from "@/modules/ledger/lib/ledger-utils"
 import { LedgerSplitBadge } from "@/modules/ledger/components/ledger-split-badge"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -29,7 +30,7 @@ interface LedgerTransactionsTableProps {
 const columnCount = 8
 
 export function LedgerTransactionsTable({ transactions, categories = [], nextCursor, onLoadMore, loadingMore = false, pageBalance, currency = "EUR" }: LedgerTransactionsTableProps) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const categoryNameById = new Map(categories.map((category) => [category.id, category.name]))
   const showBalance = pageBalance !== undefined && transactions.length > 0
 
@@ -37,7 +38,7 @@ export function LedgerTransactionsTable({ transactions, categories = [], nextCur
     return (
       <TableRow className="bg-muted/50 font-medium hover:bg-muted/50">
         <TableCell colSpan={2}>{label}</TableCell>
-        <TableCell className={minor < 0 ? "text-destructive" : undefined}>{formatAmountMinor(minor, currency, i18n.language)}</TableCell>
+        <TableCell className={minor < 0 ? "text-destructive" : undefined}>{formatMinor(minor, currency)}</TableCell>
         <TableCell colSpan={columnCount - 3} />
       </TableRow>
     )
@@ -73,12 +74,12 @@ export function LedgerTransactionsTable({ transactions, categories = [], nextCur
                   <TableRow key={txn.id}>
                     <TableCell>
                       <Link to={transactionPath(txn.id)} className="text-primary hover:underline">
-                        {formatLedgerDate(txn.bookingDate)}
+                        {formatDate(txn.bookingDate)}
                       </Link>
                     </TableCell>
-                    <TableCell>{formatLedgerDate(txn.valueDate)}</TableCell>
+                    <TableCell>{txn.valueDate ? formatDate(txn.valueDate) : "-"}</TableCell>
                     <TableCell className={txn.amountMinor < 0 ? "text-destructive" : "text-emerald-600"}>
-                      {formatAmountMinor(txn.amountMinor, txn.currency, i18n.language)}
+                      {formatMinor(txn.amountMinor, txn.currency)}
                     </TableCell>
                     <TableCell>{txn.counterpartyName || "-"}</TableCell>
                     <TableCell className="max-w-[24rem] truncate">{txn.purpose || "-"}</TableCell>

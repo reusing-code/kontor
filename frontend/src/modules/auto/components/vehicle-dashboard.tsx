@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next"
+import { formatMoney } from "@/lib/format"
 import type { VehicleSummary } from "@/modules/auto/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -8,8 +9,6 @@ interface VehicleDashboardProps {
 
 export function VehicleDashboard({ summary }: VehicleDashboardProps) {
   const { t } = useTranslation()
-  const currency = t("common.currency")
-  const fmt = (n: number) => n.toFixed(2)
   const fmtInt = (n: number) => Math.round(n).toLocaleString()
 
   return (
@@ -21,7 +20,7 @@ export function VehicleDashboard({ summary }: VehicleDashboardProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{fmt(summary.totalCost)} {currency}</div>
+          <div className="text-2xl font-bold">{formatMoney(summary.totalCost)}</div>
         </CardContent>
       </Card>
       <Card>
@@ -31,7 +30,7 @@ export function VehicleDashboard({ summary }: VehicleDashboardProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{fmt(summary.costPerMonth)} {currency}</div>
+          <div className="text-2xl font-bold">{formatMoney(summary.costPerMonth)}</div>
         </CardContent>
       </Card>
       <Card>
@@ -41,7 +40,7 @@ export function VehicleDashboard({ summary }: VehicleDashboardProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{summary.costPerKm > 0 ? `${fmt(summary.costPerKm)} ${currency}` : "-"}</div>
+          <div className="text-2xl font-bold">{summary.costPerKm > 0 ? formatMoney(summary.costPerKm) : "-"}</div>
         </CardContent>
       </Card>
       <Card>

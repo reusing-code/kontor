@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { formatMoney } from "@/lib/format"
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
@@ -116,10 +117,10 @@ export function ContractsDashboardPage() {
                 secondaryAmount={catSummary?.yearlyTotal ?? 0}
                 itemLabel={t("dashboard.contractCount", { count: catSummary?.contractCount ?? 0 })}
                 totalLabel={t("dashboard.monthlyTotal", {
-                  amount: `${(catSummary?.monthlyTotal ?? 0).toFixed(2)} ${t("common.currency")}`,
+                  amount: formatMoney(catSummary?.monthlyTotal ?? 0),
                 })}
                 secondaryLabel={t("dashboard.yearlyTotal", {
-                  amount: `${(catSummary?.yearlyTotal ?? 0).toFixed(2)} ${t("common.currency")}`,
+                  amount: formatMoney(catSummary?.yearlyTotal ?? 0),
                 })}
                 onEdit={() => setEditingCategory(cat)}
                 onDelete={() => setDeletingCategory(cat)}

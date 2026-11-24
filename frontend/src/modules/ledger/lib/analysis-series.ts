@@ -1,6 +1,6 @@
 import type { TooltipRow } from "@/components/charts/chart-parts"
+import { formatMinor } from "@/lib/format"
 import type { LedgerCashFlowAnalysis, LedgerCategory, LedgerNetWorthAnalysis, LedgerSpendingAnalysis } from "@/modules/ledger/types"
-import { formatAmountMinor } from "@/modules/ledger/lib/ledger-utils"
 
 export const categoryPaletteSize = 10
 export const maxCategorySeries = 9
@@ -110,12 +110,12 @@ export function chartRows(axis: string[], axisKey: string, series: ChartSeries[]
 }
 
 // spendingTooltipRows lists the non-zero series of one month and their sum.
-export function spendingTooltipRows(series: ChartSeries[], index: number, totalLabel: string, locale: string): TooltipRow[] {
+export function spendingTooltipRows(series: ChartSeries[], index: number, totalLabel: string): TooltipRow[] {
   const rows: TooltipRow[] = series
     .filter((s) => s.amountsMinor[index] !== 0)
-    .map((s) => ({ name: s.label, value: formatAmountMinor(s.amountsMinor[index], "EUR", locale), color: s.color }))
+    .map((s) => ({ name: s.label, value: formatMinor(s.amountsMinor[index]), color: s.color }))
   const total = series.reduce((sum, s) => sum + s.amountsMinor[index], 0)
-  return [...rows, { name: totalLabel, value: formatAmountMinor(total, "EUR", locale) }]
+  return [...rows, { name: totalLabel, value: formatMinor(total) }]
 }
 
 // cashFlowSeries: income and expenses (both positive, drawn as bars) and the
@@ -148,8 +148,8 @@ export function netWorthSeries(analysis: LedgerNetWorthAnalysis, totalLabel: str
 }
 
 // seriesTooltipRows lists every series of one axis position, zeros included.
-export function seriesTooltipRows(series: ChartSeries[], index: number, locale: string): TooltipRow[] {
-  return series.map((s) => ({ name: s.label, value: formatAmountMinor(s.amountsMinor[index], "EUR", locale), color: s.color }))
+export function seriesTooltipRows(series: ChartSeries[], index: number): TooltipRow[] {
+  return series.map((s) => ({ name: s.label, value: formatMinor(s.amountsMinor[index]), color: s.color }))
 }
 
 // formatAmountCompact: 123456 minor units -> "€1.2K" (axis ticks).

@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router"
+import { formatMoney } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { useQuery } from "@tanstack/react-query"
 import { getPurchaseSummary } from "@/modules/purchases/lib/purchase-repository"
@@ -36,7 +37,7 @@ export function PurchasesHomeCard() {
             </div>
             <div>
               <p className="text-2xl font-bold">
-                {(purchaseSummary?.totalSpent ?? 0).toFixed(2)} {t("common.currency")}
+                {formatMoney(purchaseSummary?.totalSpent ?? 0)}
               </p>
               <p className="text-sm text-muted-foreground">{t("home.totalSpent")}</p>
             </div>
