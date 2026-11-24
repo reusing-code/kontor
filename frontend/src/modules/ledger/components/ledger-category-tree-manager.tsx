@@ -52,23 +52,17 @@ export function LedgerCategoryTreeManager({ categories }: LedgerCategoryTreeMana
     return map
   }, [categories])
 
-  function handleCreate(data: LedgerCategoryInput) {
-    createCategory.mutate(data, {
-      onSuccess: () => {
-        toast.success(t("ledger.categoryCreated"))
-        setDialogState(null)
-      },
-    })
+  async function handleCreate(data: LedgerCategoryInput) {
+    await createCategory.mutateAsync(data)
+    toast.success(t("ledger.categoryCreated"))
+    setDialogState(null)
   }
 
-  function handleUpdate(data: LedgerCategoryInput) {
+  async function handleUpdate(data: LedgerCategoryInput) {
     if (!dialogState?.category) return
-    updateCategory.mutate({ id: dialogState.category.id, data }, {
-      onSuccess: () => {
-        toast.success(t("ledger.categoryUpdated"))
-        setDialogState(null)
-      },
-    })
+    await updateCategory.mutateAsync({ id: dialogState.category.id, data })
+    toast.success(t("ledger.categoryUpdated"))
+    setDialogState(null)
   }
 
   function handleDelete() {
@@ -226,13 +220,7 @@ export function LedgerCategoryTreeManager({ categories }: LedgerCategoryTreeMana
         category={dialogCategory}
         categories={categories}
         initialParentId={dialogState?.mode === "create" ? dialogState.parentId : undefined}
-        onSubmit={(data) => {
-          if (dialogState?.mode === "edit") {
-            handleUpdate(data)
-            return
-          }
-          handleCreate(data)
-        }}
+        onSubmit={(data) => (dialogState?.mode === "edit" ? handleUpdate(data) : handleCreate(data))}
       />
 
       <DeleteConfirmDialog

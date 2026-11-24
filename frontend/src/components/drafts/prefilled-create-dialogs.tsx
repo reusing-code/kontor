@@ -83,7 +83,7 @@ export function PrefilledCreateDialogs({ entry, onClose, onCreate }: PrefilledCr
     return entry ? onCreate(entry, () => create(entry)) : Promise.resolve()
   }
 
-  // The ledger dialogs neither close nor wait for the promise themselves.
+  // The ledger dialogs wait for the promise but leave closing to the caller.
   async function submitLedger(create: (entry: PrefillEntry) => Promise<{ id: string }>) {
     try {
       await submit(create)
@@ -137,13 +137,13 @@ export function PrefilledCreateDialogs({ entry, onClose, onCreate }: PrefilledCr
         categories={ledgerCategories}
         initialParentId={entry?.type === "ledger_category" && entry.parentId ? entry.parentId : undefined}
         initialValues={ledgerCategoryInitial}
-        onSubmit={(data) => void submitLedger(() => createLedgerCategory.mutateAsync(data))}
+        onSubmit={(data) => submitLedger(() => createLedgerCategory.mutateAsync(data))}
       />
       <LedgerAccountDialog
         open={entry?.type === "ledger_account"}
         onOpenChange={handleOpenChange}
         initialValues={ledgerAccountInitial}
-        onSubmit={(data) => void submitLedger(() => createLedgerAccount.mutateAsync(data))}
+        onSubmit={(data) => submitLedger(() => createLedgerAccount.mutateAsync(data))}
       />
     </>
   )

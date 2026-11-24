@@ -95,6 +95,32 @@ describe("InboxPage accept", () => {
     expect(errorToasts()).toEqual(["name taken"])
   })
 
+  it.each(acceptCases)("disables Save of the $type dialog while the create runs", async (c) => {
+    const d = draft(c.type, c.input, { parentId: c.parentId })
+    let finish: (body: unknown) => void = () => {}
+    const api = mockApi({
+      ...inboxRoutes({ drafts: [d] }),
+      [`POST ${c.createPath}`]: () => new Promise((resolve) => { finish = resolve }),
+    })
+    const { user } = renderWithProviders(<InboxPage />)
+
+    const accept = await findAccept(d)
+    await waitFor(() => expect(accept).toBeEnabled())
+    await user.click(accept)
+    const dialog = await screen.findByRole("dialog", { name: c.dialogTitle })
+    const save = within(dialog).getByRole("button", { name: "Save" })
+    await user.click(save)
+
+    await waitFor(() => expect(save).toBeDisabled())
+    await user.click(save)
+    expect(api.callsTo("POST", c.createPath)).toHaveLength(1)
+
+    finish({ id: ids.created })
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+    expect(api.callsTo("POST", c.createPath)).toHaveLength(1)
+    expect(api.callsTo("POST", `/drafts/${d.id}/accept`)).toHaveLength(1)
+  })
+
   it("does not accept the draft when creating the entry fails", async () => {
     const d = draft("vehicle", { name: "Family car" })
     const api = mockApi({ ...inboxRoutes({ drafts: [d] }), "POST /vehicles": apiError(400, "name taken") })

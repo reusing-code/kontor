@@ -90,15 +90,12 @@ export function BankConnectionsPanel() {
     })
   }
 
-  function handleCreate(input: LedgerAccountInput) {
+  async function handleCreate(input: LedgerAccountInput) {
     if (!pendingCreate) return
     const { connectionId, account } = pendingCreate
-    createAccount.mutate(input, {
-      onSuccess: (created) => {
-        setPendingCreate(null)
-        mapAccount.mutate({ id: connectionId, uid: account.uid, ledgerAccountId: created.id })
-      },
-    })
+    const created = await createAccount.mutateAsync(input)
+    setPendingCreate(null)
+    mapAccount.mutate({ id: connectionId, uid: account.uid, ledgerAccountId: created.id })
   }
 
   return (
