@@ -145,8 +145,8 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(h.logger, w, http.StatusBadRequest, "currentPassword and newPassword are required")
 		return
 	}
-	if len(req.NewPassword) < minPasswordLength {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "password must be at least 8 characters")
+	if msg := checkNewPassword(req.NewPassword); msg != "" {
+		httputil.Error(h.logger, w, http.StatusBadRequest, msg)
 		return
 	}
 
@@ -170,10 +170,23 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user.PasswordHash = string(hash)
+	user.TokenVersion++
 	if err := h.store.UpdateUser(r.Context(), user); err != nil {
 		httputil.StoreError(h.logger, w, err)
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	// The bump ends every other session; this one continues with a new token.
+	token, err := h.issueToken(user)
+	if err != nil {
+		h.logger.Error("issuing token", "error", err)
+		httputil.Error(h.logger, w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	httputil.WriteJSON(h.logger, w, http.StatusOK, changePasswordResponse{Token: token})
+}
+
+type changePasswordResponse struct {
+	Token string `json:"token"`
 }

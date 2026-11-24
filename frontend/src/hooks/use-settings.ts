@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { setToken } from "@/lib/api"
 import { updateSettings, changePassword } from "@/lib/settings-repository"
 import { settingsQueryOptions } from "@/hooks/use-modules"
 import type { SettingsUpdate } from "@/types/settings"
@@ -19,5 +20,6 @@ export function useChangePassword() {
   return useMutation({
     mutationFn: ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) =>
       changePassword(currentPassword, newPassword),
+    onSuccess: ({ token }) => setToken(token),
   })
 }

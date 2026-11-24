@@ -361,13 +361,19 @@ func TestChangePassword_Success(t *testing.T) {
 	}))
 	mux.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("status = %d, want %d; body: %s", rec.Code, http.StatusNoContent, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if resp := decodeJSON[changePasswordResponse](t, rec); resp.Token == "" {
+		t.Error("no new token in the response")
 	}
 
 	updated, err := s.GetUserByID(t.Context(), testUserID)
 	if err != nil {
 		t.Fatalf("getting user: %v", err)
+	}
+	if updated.TokenVersion != 1 {
+		t.Errorf("TokenVersion = %d, want 1", updated.TokenVersion)
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(updated.PasswordHash), []byte("newpass123")); err != nil {
 		t.Error("new password should be valid after change")

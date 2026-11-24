@@ -95,6 +95,9 @@ func Load() (Config, error) {
 	if err := env.Parse(&cfg); err != nil {
 		return cfg, fmt.Errorf("parsing config: %w", err)
 	}
+	if len(cfg.JWTSecret) < MinJWTSecretBytes {
+		return cfg, fmt.Errorf("JWT_SECRET must be at least %d bytes", MinJWTSecretBytes)
+	}
 	registration, err := parseRegistration(cfg.RegistrationEnabled)
 	if err != nil {
 		return cfg, err
@@ -124,6 +127,10 @@ func Load() (Config, error) {
 	}
 	return cfg, nil
 }
+
+// MinJWTSecretBytes is the shortest JWT_SECRET accepted (HS256 keys
+// should be at least as long as the hash).
+const MinJWTSecretBytes = 32
 
 // Registration says who may use POST /auth/register.
 type Registration int

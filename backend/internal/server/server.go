@@ -188,6 +188,7 @@ func (s *Server) buildApp() (*app, error) {
 
 	protectedAPI := middleware.Auth(jwtSecret,
 		middleware.WithPATs(patStore),
+		middleware.WithTokenVersions(coreStore),
 		middleware.WithAuthLogger(s.logger),
 	)(middleware.ScopeGuard(apiMux.ServeMux, routeRules))
 

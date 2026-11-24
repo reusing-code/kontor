@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-
-	"github.com/golang-jwt/jwt/v5"
 )
 
 type contextKey string
@@ -28,6 +26,7 @@ func GetUserID(ctx context.Context) string {
 
 type authConfig struct {
 	pats      PATVerifier
+	versions  TokenVersions
 	patOnly   bool
 	challenge string
 	logger    *slog.Logger
@@ -62,29 +61,24 @@ func Auth(secret []byte, opts ...AuthOption) Middleware {
 			tokenStr := strings.TrimPrefix(header, "Bearer ")
 
 			var (
-				p  Principal
-				ok bool
+				p      Principal
+				status int
 			)
-			if strings.HasPrefix(tokenStr, PATPrefix) {
-				var status int
+			switch {
+			case strings.HasPrefix(tokenStr, PATPrefix):
 				p, status = cfg.authenticatePAT(r.Context(), tokenStr)
-				switch status {
-				case http.StatusUnauthorized:
-					cfg.unauthorized(w)
-					return
-				case http.StatusInternalServerError:
-					writeJSONError(w, http.StatusInternalServerError, "internal error")
-					return
-				}
-			} else {
-				if cfg.patOnly {
-					cfg.unauthorized(w)
-					return
-				}
-				if p, ok = authenticateJWT(secret, tokenStr); !ok {
-					cfg.unauthorized(w)
-					return
-				}
+			case cfg.patOnly:
+				status = http.StatusUnauthorized
+			default:
+				p, status = cfg.authenticateJWT(r.Context(), secret, tokenStr)
+			}
+			switch status {
+			case http.StatusUnauthorized:
+				cfg.unauthorized(w)
+				return
+			case http.StatusInternalServerError:
+				writeJSONError(w, http.StatusInternalServerError, "internal error")
+				return
 			}
 
 			next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))
@@ -105,23 +99,6 @@ func (c authConfig) authenticatePAT(ctx context.Context, raw string) (Principal,
 		return Principal{}, http.StatusInternalServerError
 	}
 	return Principal{UserID: id.UserID, Kind: AuthPAT, TokenID: id.TokenID, Scopes: id.Scopes}, http.StatusOK
-}
-
-func authenticateJWT(secret []byte, tokenStr string) (Principal, bool) {
-	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, jwt.ErrSignatureInvalid
-		}
-		return secret, nil
-	})
-	if err != nil || !token.Valid {
-		return Principal{}, false
-	}
-	sub, err := token.Claims.GetSubject()
-	if err != nil || sub == "" {
-		return Principal{}, false
-	}
-	return Principal{UserID: sub, Kind: AuthJWT}, true
 }
 
 func (c authConfig) unauthorized(w http.ResponseWriter) {

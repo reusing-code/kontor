@@ -9,6 +9,7 @@ export async function updateSettings(data: SettingsUpdate): Promise<Settings> {
   return put<Settings>("/settings", data)
 }
 
-export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
-  return put<void>("/settings/password", { currentPassword, newPassword })
+// The change ends every session; the response carries the token of the new one.
+export async function changePassword(currentPassword: string, newPassword: string): Promise<{ token: string }> {
+  return put<{ token: string }>("/settings/password", { currentPassword, newPassword })
 }

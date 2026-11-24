@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/reusing-code/kontor/backend/internal/config"
@@ -88,5 +89,34 @@ func TestHasUsers(t *testing.T) {
 	}
 	if has, err := s.HasUsers(t.Context()); !has || err != nil {
 		t.Fatalf("after register: %v %v", has, err)
+	}
+}
+
+func TestPasswordsOver72BytesAreRefused(t *testing.T) {
+	h, s := newTestHandler(t)
+	h.SetRegistration(config.RegistrationOpen)
+	long := strings.Repeat("ä", 37) // 74 bytes, 37 characters
+
+	rec := httptest.NewRecorder()
+	h.Register(rec, httptest.NewRequest("POST", "/api/v1/auth/register", jsonBody(map[string]string{"email": "l@example.com", "password": long})))
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "at most 72 bytes") {
+		t.Fatalf("register = %d %s", rec.Code, rec.Body.String())
+	}
+
+	seedTestUser(t, s, "oldpass")
+	rec = httptest.NewRecorder()
+	newSettingsMux(h).ServeHTTP(rec, httptest.NewRequest("PUT", "/api/v1/settings/password", jsonBody(map[string]string{"currentPassword": "oldpass", "newPassword": long})))
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "at most 72 bytes") {
+		t.Fatalf("change = %d %s", rec.Code, rec.Body.String())
+	}
+
+	exact := strings.Repeat("a", 72)
+	if status, body := registerStatus(t, h, "x@example.com"); status != http.StatusCreated {
+		t.Fatalf("register = %d %s", status, body)
+	}
+	rec = httptest.NewRecorder()
+	h.Register(rec, httptest.NewRequest("POST", "/api/v1/auth/register", jsonBody(map[string]string{"email": "e@example.com", "password": exact})))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("72 bytes = %d %s", rec.Code, rec.Body.String())
 	}
 }
