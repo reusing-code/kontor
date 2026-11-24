@@ -26,8 +26,9 @@ const cases = [
   {
     kind: "contracts",
     render: () => <CategoryItemsPage config={contractItems} categoryId={categoryId} />,
-    item: { ...base, name: "Phone", billingInterval: "monthly", startDate: "2026-01-01", minimumDurationMonths: 12, extensionDurationMonths: 12, noticePeriodMonths: 1 },
+    item: { ...base, name: "Phone", billingInterval: "monthly", startDate: "2026-01-01", minimumDurationMonths: 12, extensionDurationMonths: 12, noticePeriodMonths: 1, customerPortalUrl: "https://portal.example" },
     name: "Phone",
+    iconLink: { name: 'Open the customer portal of "Phone"', href: "https://portal.example" },
     create: "Add Contract",
     nameLabel: /Contract Name/,
     created: { name: "Internet", billingInterval: "monthly" },
@@ -36,8 +37,9 @@ const cases = [
   {
     kind: "purchases",
     render: () => <CategoryItemsPage config={purchaseItems} categoryId={categoryId} />,
-    item: { ...base, itemName: "Kettle", purchaseDate: "2026-01-01" },
+    item: { ...base, itemName: "Kettle", purchaseDate: "2026-01-01", invoiceUrl: "https://shop.example/invoice" },
     name: "Kettle",
+    iconLink: { name: 'Open the invoice of "Kettle"', href: "https://shop.example/invoice" },
     create: "Add Purchase",
     nameLabel: /Item Name/,
     created: { itemName: "Internet" },
@@ -70,8 +72,8 @@ describe("CategoryItemsPage", () => {
     await waitFor(() => expect(api.callsTo("GET", `/categories/${categoryId}/${c.kind}`)).toHaveLength(2))
 
     const row = link.closest("tr")!
-    const buttons = within(row).getAllByRole("button")
-    await user.click(buttons[buttons.length - 1])
+    expect(within(row).getByRole("link", { name: c.iconLink.name })).toHaveAttribute("href", c.iconLink.href)
+    await user.click(within(row).getByRole("button", { name: `Actions for "${c.name}"` }))
     await user.click(await screen.findByRole("menuitem", { name: "Delete" }))
     const confirm = await screen.findByRole("alertdialog")
     expect(confirm).toHaveTextContent(c.deleteConfirm)

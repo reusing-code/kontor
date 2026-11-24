@@ -40,7 +40,7 @@ export function LedgerAnalysisCard({ title, isPending, isError, isRefreshing = f
             </Button>
           </div>
         ) : isPending ? (
-          <div role="status" aria-label={t("common.loading")} className="h-[280px] animate-pulse rounded-md bg-muted" />
+          <output aria-label={t("common.loading")} className="block h-[280px] animate-pulse rounded-md bg-muted" />
         ) : (
           <div aria-busy={isRefreshing} className={cn("transition-opacity", isRefreshing && "opacity-60")}>
             {isEmpty ? <p className="text-sm text-muted-foreground">{emptyText}</p> : children}

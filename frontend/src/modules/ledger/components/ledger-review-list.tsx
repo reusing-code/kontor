@@ -73,6 +73,7 @@ export function LedgerReviewList({
 
   function matchWordToggle(ids: string[], word: string) {
     return (
+      // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- only keeps the checkbox click (mouse or keyboard) from selecting the row
       <label className="flex items-center gap-2 text-xs text-muted-foreground" onClick={stopPropagation}>
         <Checkbox
           checked={checkedState(ids, selection.isMatchWordSelected)}

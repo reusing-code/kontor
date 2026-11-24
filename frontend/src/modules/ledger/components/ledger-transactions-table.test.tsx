@@ -7,7 +7,7 @@ import { LedgerTransactionsTable } from "@/modules/ledger/components/ledger-tran
 
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
-  Link: ({ children }: { children: ReactNode }) => <a href="#">{children}</a>,
+  Link: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
 }))
 
 const at = "2026-11-01T10:00:00Z"

@@ -27,7 +27,7 @@ Dev server runs at `http://localhost:5173`.
 |---------|-------------|
 | `bun dev` | Start dev server with HMR |
 | `bun run build` | Type-check and build for production |
-| `bun run lint` | Run Oxlint (type-aware) |
+| `bun run lint` | Run Oxlint (type-aware, with the jsx-a11y rules) |
 | `bun run test` | Run the tests once (Vitest, jsdom) |
 | `bunx vitest` | Run the tests in watch mode |
 | `bun run preview` | Preview production build |

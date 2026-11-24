@@ -44,7 +44,7 @@ function RootLayout() {
           <div className="flex items-center gap-2">
             <QuickAdd />
             <LanguageSwitcher />
-            <Button variant="ghost" size="icon" onClick={logout} title={t("auth.logout")}>
+            <Button variant="ghost" size="icon" onClick={logout} aria-label={t("auth.logout")} title={t("auth.logout")}>
               <LogOut className="h-4 w-4" />
             </Button>
           </div>

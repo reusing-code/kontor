@@ -53,7 +53,6 @@ function BalanceForm({ onOpenChange, pending, onSubmit }: Omit<LedgerBalanceDial
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             aria-invalid={submitted && amountMinor === undefined}
-            autoFocus
           />
           {submitted && amountMinor === undefined && <p className="text-sm text-destructive">{t("ledger.balance.amountInvalid")}</p>}
         </div>

@@ -151,32 +151,32 @@ export function PurchasesTable({ purchases, onEdit, onDelete }: PurchasesTablePr
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-1">
                           {purchase.descriptionUrl && (
-                            <a href={purchase.descriptionUrl} target="_blank" rel="noopener noreferrer">
-                              <Button variant="ghost" size="icon" className="h-8 w-8" title={t("purchaseFields.descriptionUrl")}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                              <a href={purchase.descriptionUrl} target="_blank" rel="noopener noreferrer" aria-label={t("purchase.openDescription", { name: purchase.itemName })} title={t("purchaseFields.descriptionUrl")}>
                                 <ExternalLink className="h-4 w-4" />
-                              </Button>
-                            </a>
+                              </a>
+                            </Button>
                           )}
                           {purchase.invoiceUrl && (
-                            <a href={purchase.invoiceUrl} target="_blank" rel="noopener noreferrer">
-                              <Button variant="ghost" size="icon" className="h-8 w-8" title={t("purchaseFields.invoiceUrl")}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                              <a href={purchase.invoiceUrl} target="_blank" rel="noopener noreferrer" aria-label={t("purchase.openInvoice", { name: purchase.itemName })} title={t("purchaseFields.invoiceUrl")}>
                                 <FileText className="h-4 w-4" />
-                              </Button>
-                            </a>
+                              </a>
+                            </Button>
                           )}
                           {purchase.handbookUrl && (
-                            <a href={purchase.handbookUrl} target="_blank" rel="noopener noreferrer">
-                              <Button variant="ghost" size="icon" className="h-8 w-8" title={t("purchaseFields.handbookUrl")}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                              <a href={purchase.handbookUrl} target="_blank" rel="noopener noreferrer" aria-label={t("purchase.openHandbook", { name: purchase.itemName })} title={t("purchaseFields.handbookUrl")}>
                                 <BookOpen className="h-4 w-4" />
-                              </Button>
-                            </a>
+                              </a>
+                            </Button>
                           )}
                         </div>
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("common.actionsFor", { name: purchase.itemName })} title={t("common.actions")}>
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>

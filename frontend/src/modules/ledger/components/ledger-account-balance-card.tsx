@@ -59,13 +59,13 @@ export function LedgerAccountBalanceCard({ account }: { account: LedgerAccount }
               {t("ledger.balance.reported", { date: balance.asOf, source: source(balance.source) })}
             </div>
             {hasDrift(balance.driftMinor) && (
-              <div className="flex flex-wrap items-start gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm" role="status">
+              <output className="flex flex-wrap items-start gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm">
                 <Badge variant="outline" className="gap-1">
                   <AlertTriangle className="h-3 w-3" aria-hidden />
                   {t("ledger.balance.drift", { amount: money(balance.driftMinor) })}
                 </Badge>
                 <span className="text-muted-foreground">{t("ledger.balance.driftHint", { date: balance.asOf, previous: balance.previousAsOf })}</span>
-              </div>
+              </output>
             )}
           </>
         ) : (

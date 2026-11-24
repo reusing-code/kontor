@@ -148,7 +148,7 @@ export function LedgerEmailOrderLinkDialog({ open, onOpenChange, order, onConfir
               {candidates.map(({ transaction, accountName, dateDeltaDays, amountComparable, score }) => {
                 const checked = selectedIds.includes(transaction.id)
                 return (
-                  <button key={transaction.id} type="button" className="flex w-full items-start gap-3 rounded-md border p-3 text-left" onClick={() => toggle(transaction.id, !checked)}>
+                  <button key={transaction.id} type="button" aria-pressed={checked} className="flex w-full items-start gap-3 rounded-md border p-3 text-left" onClick={() => toggle(transaction.id, !checked)}>
                     <div className="pt-1">
                       <Badge variant={checked ? "default" : "outline"}>{checked ? t("common.selected") : t("common.select")}</Badge>
                     </div>

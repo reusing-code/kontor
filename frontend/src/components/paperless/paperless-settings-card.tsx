@@ -123,10 +123,10 @@ export function PaperlessSettingsCard() {
             )}
           </div>
           {testResult?.ok === true && (
-            <p role="status" className="flex items-center gap-2 text-sm font-medium text-green-700">
+            <output className="flex items-center gap-2 text-sm font-medium text-green-700">
               <CircleCheckIcon className="size-4 shrink-0" />
               {t("paperless.testSuccess")}
-            </p>
+            </output>
           )}
           {testResult?.ok === false && (
             <p role="alert" className="flex items-center gap-2 text-sm font-medium text-destructive">

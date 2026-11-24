@@ -55,6 +55,8 @@
     "edit": "Vertrag bearbeiten",
     "delete": "Vertrag löschen",
     "deleteConfirm": "Der Vertrag \"{{name}}\" wird unwiderruflich gelöscht.",
+    "openCustomerPortal": "Kundenportal von \"{{name}}\" öffnen",
+    "openPaperless": "\"{{name}}\" in paperless öffnen",
     "noContracts": "Noch keine Verträge in dieser Kategorie.",
     "expired": "Abgelaufen",
     "cancellationDate": "Frühestes Kündigungsdatum",
@@ -70,6 +72,9 @@
     "edit": "Anschaffung bearbeiten",
     "delete": "Anschaffung löschen",
     "deleteConfirm": "Die Anschaffung \"{{name}}\" wird unwiderruflich gelöscht.",
+    "openDescription": "Produktseite von \"{{name}}\" öffnen",
+    "openInvoice": "Rechnung von \"{{name}}\" öffnen",
+    "openHandbook": "Handbuch von \"{{name}}\" öffnen",
     "noPurchases": "Noch keine Anschaffungen in dieser Kategorie.",
     "created": "Anschaffung erstellt.",
     "updated": "Anschaffung aktualisiert.",
@@ -194,6 +199,7 @@
     "theoreticalResidual": "Theoretischer Restwert",
     "requiredSalePrice": "Erforderlicher Verkaufspreis",
     "statistics": "Statistiken",
+    "backToVehicle": "Zurück zum Fahrzeug",
     "costPerKmByYear": "Kosten pro km nach Jahr",
     "kmPerYear": "Kilometer pro Jahr",
     "mileageHistory": "Kilometerstand-Verlauf"
@@ -903,6 +909,7 @@
     "attachSelected": "Verknüpfen ({{count}})",
     "attached": "{{count}} Dokument(e) verknüpft",
     "detach": "Dokumentverknüpfung entfernen",
+    "detachDocument": "Verknüpfung mit \"{{title}}\" entfernen",
     "detached": "Dokumentverknüpfung entfernt",
     "detachConfirm": "Verknüpfung mit dem Dokument \"{{title}}\" entfernen? Das Dokument bleibt in paperless erhalten.",
     "openInPaperless": "In paperless öffnen",
@@ -1135,6 +1142,7 @@
     "delete": "Löschen",
     "edit": "Bearbeiten",
     "actions": "Aktionen",
+    "actionsFor": "Aktionen für \"{{name}}\"",
     "confirm": "Bist du sicher?",
     "loading": "Lädt...",
     "months": "Monate",
@@ -1142,6 +1150,8 @@
     "perQuarter": "/ Quartal",
     "perYear": "/ Jahr",
     "viewAll": "Alle anzeigen",
+    "previousPage": "Vorherige Seite",
+    "nextPage": "Nächste Seite",
     "error": "Etwas ist schiefgelaufen."
   }
 }

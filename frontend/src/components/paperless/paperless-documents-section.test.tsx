@@ -22,7 +22,7 @@ describe("PaperlessDocumentsSection detach", () => {
   it("removes the document link after asking", async () => {
     const { user, api } = renderSection()
 
-    await user.click(await screen.findByRole("button", { name: "Remove document link" }))
+    await user.click(await screen.findByRole("button", { name: 'Remove the link to "Contract scan"' }))
     const confirm = await screen.findByRole("alertdialog")
     expect(confirm).toHaveTextContent('Remove the link to the document "Contract scan"?')
     expect(api.callsTo("DELETE", detachPath)).toHaveLength(0)
@@ -36,7 +36,7 @@ describe("PaperlessDocumentsSection detach", () => {
   it("sends nothing when detaching is cancelled", async () => {
     const { user, api } = renderSection()
 
-    await user.click(await screen.findByRole("button", { name: "Remove document link" }))
+    await user.click(await screen.findByRole("button", { name: 'Remove the link to "Contract scan"' }))
     await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Cancel" }))
 
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument())

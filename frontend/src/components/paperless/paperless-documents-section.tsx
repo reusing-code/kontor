@@ -57,6 +57,7 @@ export function PaperlessDocumentsSection({
             size="sm"
             onClick={() => setDetaching(link)}
             disabled={detach.isPending}
+            aria-label={t("paperless.detachDocument", { title: documentTitle(link) })}
             title={t("paperless.detach")}
           >
             <Trash2 className="h-4 w-4" />

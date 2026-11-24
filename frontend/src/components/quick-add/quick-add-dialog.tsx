@@ -160,7 +160,6 @@ export function QuickAddDialog({
         </DialogHeader>
 
         <Textarea
-          autoFocus
           value={text}
           onChange={(e) => {
             onTextChange(e.target.value)

@@ -124,7 +124,7 @@ export function CostEntriesTable({ entries, onEdit, onDelete, onDocuments }: Cos
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("common.actionsFor", { name: entry.description || t(`costTypes.${entry.type}`) })} title={t("common.actions")}>
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>

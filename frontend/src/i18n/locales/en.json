@@ -55,6 +55,8 @@
     "edit": "Edit Contract",
     "delete": "Delete Contract",
     "deleteConfirm": "This will permanently delete the contract \"{{name}}\".",
+    "openCustomerPortal": "Open the customer portal of \"{{name}}\"",
+    "openPaperless": "Open \"{{name}}\" in paperless",
     "noContracts": "No contracts in this category yet.",
     "expired": "Expired",
     "cancellationDate": "Earliest cancellation",
@@ -70,6 +72,9 @@
     "edit": "Edit Purchase",
     "delete": "Delete Purchase",
     "deleteConfirm": "This will permanently delete the purchase \"{{name}}\".",
+    "openDescription": "Open the product page of \"{{name}}\"",
+    "openInvoice": "Open the invoice of \"{{name}}\"",
+    "openHandbook": "Open the handbook of \"{{name}}\"",
     "noPurchases": "No purchases in this category yet.",
     "created": "Purchase created.",
     "updated": "Purchase updated.",
@@ -194,6 +199,7 @@
     "theoreticalResidual": "Theoretical Residual Value",
     "requiredSalePrice": "Required Sale Price",
     "statistics": "Statistics",
+    "backToVehicle": "Back to the vehicle",
     "costPerKmByYear": "Cost per km by year",
     "kmPerYear": "Kilometers per year",
     "mileageHistory": "Odometer history"
@@ -903,6 +909,7 @@
     "attachSelected": "Attach ({{count}})",
     "attached": "{{count}} document(s) attached",
     "detach": "Remove document link",
+    "detachDocument": "Remove the link to \"{{title}}\"",
     "detached": "Document link removed",
     "detachConfirm": "Remove the link to the document \"{{title}}\"? The document stays in paperless.",
     "openInPaperless": "Open in paperless",
@@ -1135,6 +1142,7 @@
     "delete": "Delete",
     "edit": "Edit",
     "actions": "Actions",
+    "actionsFor": "Actions for \"{{name}}\"",
     "confirm": "Are you sure?",
     "loading": "Loading...",
     "months": "months",
@@ -1142,6 +1150,8 @@
     "perQuarter": "/ qtr",
     "perYear": "/ yr",
     "viewAll": "View all",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
     "error": "Something went wrong."
   }
 }

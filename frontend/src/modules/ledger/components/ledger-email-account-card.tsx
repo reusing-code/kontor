@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Pencil, Play, Trash2, Wifi } from "lucide-react"
@@ -30,6 +30,7 @@ export function LedgerEmailAccountCard({ account, llmOff, onEdit }: LedgerEmailA
   const startScan = useStartLedgerEmailScan()
   const upload = useUploadLedgerEmailMessages()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const uploadInput = useRef<HTMLInputElement>(null)
 
   function reportScan(report: ScanReport) {
     toast.success(t("ledger.email.scanSuccess", { count: report.ordersNew }))
@@ -71,7 +72,7 @@ export function LedgerEmailAccountCard({ account, llmOff, onEdit }: LedgerEmailA
         ))}
         <div className="text-xs text-muted-foreground">{t("ledger.email.lastScan")}: {account.lastScanAt ?? "-"}</div>
         {scanning ? (
-          <div className="text-sm" role="status">{t("ledger.email.scanProgress", { scanned: scan.emailsScanned, created: scan.ordersNew })}</div>
+          <output className="block text-sm">{t("ledger.email.scanProgress", { scanned: scan.emailsScanned, created: scan.ordersNew })}</output>
         ) : null}
       </div>
       <div className="flex flex-wrap gap-2">
@@ -92,28 +93,28 @@ export function LedgerEmailAccountCard({ account, llmOff, onEdit }: LedgerEmailA
         >
           <Play className="mr-2 h-4 w-4" />{scanning || startScan.isPending ? t("ledger.email.scanning") : t("ledger.email.scanNow")}
         </Button>
-        <label className="inline-flex">
-          <Input
-            type="file"
-            multiple
-            accept=".eml,message/rfc822"
-            className="hidden"
-            disabled={llmOff || busy}
-            onChange={(event) => {
-              const files = Array.from(event.target.files ?? [])
-              if (files.length === 0) {
-                return
-              }
-              upload.mutate({ id: account.id, files }, {
-                onSuccess: (result) => reportScan({ ordersNew: result.ordersNew, warnings: result.warnings, incomplete: Boolean(result.partial || result.skipped) }),
-              })
-              event.target.value = ""
-            }}
-          />
-          <Button type="button" variant="outline" asChild aria-disabled={llmOff || busy} className={llmOff || busy ? "pointer-events-none opacity-50" : undefined}>
-            <span>{upload.isPending ? t("ledger.email.scanning") : t("ledger.email.scanUpload")}</span>
-          </Button>
-        </label>
+        <Input
+          ref={uploadInput}
+          type="file"
+          multiple
+          accept=".eml,message/rfc822"
+          className="hidden"
+          aria-label={t("ledger.email.scanUpload")}
+          disabled={llmOff || busy}
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? [])
+            if (files.length === 0) {
+              return
+            }
+            upload.mutate({ id: account.id, files }, {
+              onSuccess: (result) => reportScan({ ordersNew: result.ordersNew, warnings: result.warnings, incomplete: Boolean(result.partial || result.skipped) }),
+            })
+            event.target.value = ""
+          }}
+        />
+        <Button type="button" variant="outline" disabled={llmOff || busy} onClick={() => uploadInput.current?.click()}>
+          {upload.isPending ? t("ledger.email.scanning") : t("ledger.email.scanUpload")}
+        </Button>
         <Button type="button" variant="outline" onClick={() => onEdit(account)}><Pencil className="mr-2 h-4 w-4" />{t("common.edit")}</Button>
         <Button type="button" variant="outline" onClick={() => setConfirmingDelete(true)}><Trash2 className="mr-2 h-4 w-4" />{t("common.delete")}</Button>
       </div>

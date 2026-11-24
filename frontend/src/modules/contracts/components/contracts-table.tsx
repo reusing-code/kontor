@@ -180,25 +180,25 @@ export function ContractsTable({ contracts, onEdit, onDelete, getRowClassName }:
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-1">
                           {contract.customerPortalUrl && (
-                            <a href={contract.customerPortalUrl} target="_blank" rel="noopener noreferrer">
-                              <Button variant="ghost" size="icon" className="h-8 w-8" title={t("fields.customerPortalUrl")}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                              <a href={contract.customerPortalUrl} target="_blank" rel="noopener noreferrer" aria-label={t("contract.openCustomerPortal", { name: contract.name })} title={t("fields.customerPortalUrl")}>
                                 <ExternalLink className="h-4 w-4" />
-                              </Button>
-                            </a>
+                              </a>
+                            </Button>
                           )}
                           {contract.paperlessUrl && (
-                            <a href={contract.paperlessUrl} target="_blank" rel="noopener noreferrer">
-                              <Button variant="ghost" size="icon" className="h-8 w-8" title={t("fields.paperlessUrl")}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                              <a href={contract.paperlessUrl} target="_blank" rel="noopener noreferrer" aria-label={t("contract.openPaperless", { name: contract.name })} title={t("fields.paperlessUrl")}>
                                 <FileText className="h-4 w-4" />
-                              </Button>
-                            </a>
+                              </a>
+                            </Button>
                           )}
                         </div>
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("common.actionsFor", { name: contract.name })} title={t("common.actions")}>
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
