@@ -251,7 +251,7 @@ func (s *EmailService) storeOrder(ctx context.Context, userID string, account Le
 		warn(result, m.Label, w)
 	}
 	if err := s.store.CreateScannedLedgerEmailOrder(ctx, userID, order, m.Mailbox); err != nil {
-		if errors.Is(err, storage.ErrConflict) {
+		if errors.Is(err, storage.ErrConflict) && !errors.Is(err, storage.ErrRetriesExhausted) {
 			return s.useExistingOrder(ctx, userID, m, result)
 		}
 		return err

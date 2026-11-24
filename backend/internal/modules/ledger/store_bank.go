@@ -93,9 +93,9 @@ func (s *Store) PutLedgerBankConnection(_ context.Context, userID string, c Ledg
 
 // ModifyLedgerBankConnection applies fn to the stored connection in one
 // transaction, so concurrent per-account state writes are not lost.
-func (s *Store) ModifyLedgerBankConnection(_ context.Context, userID string, id uuid.UUID, fn func(*LedgerBankConnection)) (LedgerBankConnection, error) {
+func (s *Store) ModifyLedgerBankConnection(ctx context.Context, userID string, id uuid.UUID, fn func(*LedgerBankConnection)) (LedgerBankConnection, error) {
 	var updated LedgerBankConnection
-	err := retryOnConflict(func() error {
+	err := retryConflicts(ctx, func() error {
 		return s.e.Update(func(txn *badger.Txn) error {
 			c, err := loadLedgerBankConnection(txn, userID, id)
 			if err != nil {
@@ -136,10 +136,10 @@ func (s *Store) DeleteLedgerBankAuthState(_ context.Context, userID, hash string
 
 // ConsumeLedgerBankAuthState deletes the state and returns it. A missing,
 // expired (deleted on touch) or already used state is ErrBankStateInvalid.
-func (s *Store) ConsumeLedgerBankAuthState(_ context.Context, userID, hash string, now time.Time) (BankAuthState, error) {
+func (s *Store) ConsumeLedgerBankAuthState(ctx context.Context, userID, hash string, now time.Time) (BankAuthState, error) {
 	var state BankAuthState
 	expired := false
-	err := retryOnConflict(func() error {
+	err := retryConflicts(ctx, func() error {
 		expired = false
 		return s.e.Update(func(txn *badger.Txn) error {
 			var err error
@@ -258,13 +258,13 @@ type LedgerSyncCommitResult struct {
 // apart, exact dates first) and absorbed into them instead of stored; the
 // rest is inserted. The batch record accumulates counts across calls and is
 // only written once something was imported.
-func (s *Store) CommitLedgerSync(_ context.Context, userID string, batch LedgerImportBatch, txns []LedgerTransaction) (LedgerSyncCommitResult, error) {
+func (s *Store) CommitLedgerSync(ctx context.Context, userID string, batch LedgerImportBatch, txns []LedgerTransaction) (LedgerSyncCommitResult, error) {
 	var result LedgerSyncCommitResult
 	// The transaction reads candidate transactions the user may be reviewing at
 	// the same time (the review queue edits them), so a lost optimistic
 	// concurrency race is retried instead of failing the whole sync of an
 	// account until the next interval. The closure resets its result.
-	err := retryOnConflict(func() error {
+	err := retryConflicts(ctx, func() error {
 		return s.e.Update(func(txn *badger.Txn) error {
 			result = LedgerSyncCommitResult{}
 			// the ledger account may have been deleted while the sync fetched

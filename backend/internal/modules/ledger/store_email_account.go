@@ -82,9 +82,9 @@ func (s *Store) UpdateLedgerEmailAccount(_ context.Context, userID string, accou
 
 // ModifyLedgerEmailAccount applies fn to the stored account in one
 // transaction, so concurrent scan-state writes are not lost.
-func (s *Store) ModifyLedgerEmailAccount(_ context.Context, userID string, id uuid.UUID, fn func(*LedgerEmailAccount)) (LedgerEmailAccount, error) {
+func (s *Store) ModifyLedgerEmailAccount(ctx context.Context, userID string, id uuid.UUID, fn func(*LedgerEmailAccount)) (LedgerEmailAccount, error) {
 	var updated LedgerEmailAccount
-	err := retryOnConflict(func() error {
+	err := retryConflicts(ctx, func() error {
 		return s.e.Update(func(txn *badger.Txn) error {
 			account, err := loadLedgerEmailAccount(txn, userID, id)
 			if err != nil {
@@ -100,19 +100,19 @@ func (s *Store) ModifyLedgerEmailAccount(_ context.Context, userID string, id uu
 
 // RecordLedgerEmailRejection counts how often the server refused to deliver a
 // message and returns the new count.
-func (s *Store) RecordLedgerEmailRejection(_ context.Context, userID string, accountID uuid.UUID, key string) (int, error) {
-	return s.incrementCounter(idxLedEmailRejectKey(userID, accountID, key))
+func (s *Store) RecordLedgerEmailRejection(ctx context.Context, userID string, accountID uuid.UUID, key string) (int, error) {
+	return s.incrementCounter(ctx, idxLedEmailRejectKey(userID, accountID, key))
 }
 
 // RecordLedgerEmailExtractionFailure counts how often the model gave no
 // usable answer for a message and returns the new count.
-func (s *Store) RecordLedgerEmailExtractionFailure(_ context.Context, userID string, accountID uuid.UUID, key string) (int, error) {
-	return s.incrementCounter(idxLedEmailExtractFailKey(userID, accountID, key))
+func (s *Store) RecordLedgerEmailExtractionFailure(ctx context.Context, userID string, accountID uuid.UUID, key string) (int, error) {
+	return s.incrementCounter(ctx, idxLedEmailExtractFailKey(userID, accountID, key))
 }
 
-func (s *Store) incrementCounter(k []byte) (int, error) {
+func (s *Store) incrementCounter(ctx context.Context, k []byte) (int, error) {
 	count := 0
-	err := retryOnConflict(func() error {
+	err := retryConflicts(ctx, func() error {
 		return s.e.Update(func(txn *badger.Txn) error {
 			count = 0
 			item, err := txn.Get(k)
@@ -137,8 +137,8 @@ func (s *Store) incrementCounter(k []byte) (int, error) {
 
 // SetLedgerEmailAccountScanState records a scan outcome without touching any
 // other account field, so edits made while the scan ran are not reverted.
-func (s *Store) SetLedgerEmailAccountScanState(_ context.Context, userID string, id uuid.UUID, state LedgerEmailScanState) error {
-	return retryOnConflict(func() error { return s.setLedgerEmailAccountScanState(userID, id, state) })
+func (s *Store) SetLedgerEmailAccountScanState(ctx context.Context, userID string, id uuid.UUID, state LedgerEmailScanState) error {
+	return retryConflicts(ctx, func() error { return s.setLedgerEmailAccountScanState(userID, id, state) })
 }
 
 func (s *Store) setLedgerEmailAccountScanState(userID string, id uuid.UUID, state LedgerEmailScanState) error {
@@ -239,22 +239,22 @@ func (s *Store) HasLedgerEmailSeen(_ context.Context, userID string, accountID u
 
 // MarkLedgerEmailsSeen records messages that need no further processing, in
 // one transaction, and drops their extraction failure counters.
-func (s *Store) MarkLedgerEmailsSeen(_ context.Context, userID string, accountID uuid.UUID, reason string, keys ...string) error {
+func (s *Store) MarkLedgerEmailsSeen(ctx context.Context, userID string, accountID uuid.UUID, reason string, keys ...string) error {
 	msgs := make([]emailProcessed, 0, len(keys))
 	for _, key := range keys {
 		msgs = append(msgs, emailProcessed{Key: key})
 	}
-	return s.markLedgerEmailsSeen(userID, accountID, reason, msgs)
+	return s.markLedgerEmailsSeen(ctx, userID, accountID, reason, msgs)
 }
 
 // MarkLedgerEmailsProcessed is MarkLedgerEmailsSeen for messages the scan
 // dealt with as intended (not an order): in the same transaction it queues
 // the mailbox action the account has configured for its order folder.
-func (s *Store) MarkLedgerEmailsProcessed(_ context.Context, userID string, accountID uuid.UUID, reason string, msgs ...emailProcessed) error {
-	return s.markLedgerEmailsSeen(userID, accountID, reason, msgs)
+func (s *Store) MarkLedgerEmailsProcessed(ctx context.Context, userID string, accountID uuid.UUID, reason string, msgs ...emailProcessed) error {
+	return s.markLedgerEmailsSeen(ctx, userID, accountID, reason, msgs)
 }
 
-func (s *Store) markLedgerEmailsSeen(userID string, accountID uuid.UUID, reason string, msgs []emailProcessed) error {
+func (s *Store) markLedgerEmailsSeen(ctx context.Context, userID string, accountID uuid.UUID, reason string, msgs []emailProcessed) error {
 	if len(msgs) == 0 {
 		return nil
 	}
@@ -262,7 +262,7 @@ func (s *Store) markLedgerEmailsSeen(userID string, accountID uuid.UUID, reason 
 	if err != nil {
 		return err
 	}
-	return retryOnConflict(func() error {
+	return retryConflicts(ctx, func() error {
 		return s.e.Update(func(txn *badger.Txn) error {
 			for _, m := range msgs {
 				if err := txn.Set(idxLedEmailSeenKey(userID, accountID, m.Key), data); err != nil {

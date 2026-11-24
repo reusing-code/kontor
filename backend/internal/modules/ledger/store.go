@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"context"
 	"errors"
 
 	"github.com/dgraph-io/badger/v4"
@@ -62,14 +63,12 @@ func deleteIfPresent(txn *badger.Txn, key []byte) error {
 	return txn.Delete(key)
 }
 
-// retryOnConflict reruns a transaction that lost an optimistic-concurrency
-// race; the rerun sees the committed state of the winner.
-func retryOnConflict(fn func() error) error {
-	var err error
-	for range 3 {
-		if err = fn(); !errors.Is(err, badger.ErrConflict) {
-			return err
-		}
-	}
-	return err
+const conflictAttempts = 3
+
+// retryConflicts reruns a write that lost an optimistic-concurrency race
+// against a parallel scan, sync or request. Writes finish even after the
+// caller's context ended (a scan at its time limit still records what it
+// found), so cancellation is not checked between attempts.
+func retryConflicts(ctx context.Context, fn func() error) error {
+	return storage.RetryConflicts(context.WithoutCancel(ctx), conflictAttempts, fn)
 }

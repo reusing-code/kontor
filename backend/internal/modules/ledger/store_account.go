@@ -119,7 +119,7 @@ const deleteAccountChunk = 200
 // batches last, once no transaction is left. An interrupted delete can be
 // repeated and continues where it stopped.
 func (s *Store) DeleteLedgerAccount(ctx context.Context, userID string, id uuid.UUID) error {
-	if err := retryOnConflict(func() error {
+	if err := retryConflicts(ctx, func() error {
 		return s.e.Update(func(txn *badger.Txn) error {
 			if _, err := loadLedgerAccountTxn(txn, userID, id); err != nil {
 				return err
@@ -134,7 +134,7 @@ func (s *Store) DeleteLedgerAccount(ctx context.Context, userID string, id uuid.
 			return err
 		}
 		done := false
-		err := retryOnConflict(func() error {
+		err := retryConflicts(ctx, func() error {
 			return s.e.Update(func(txn *badger.Txn) error {
 				ids, err := accountTransactionIDs(txn, userID, id, deleteAccountChunk)
 				if err != nil {

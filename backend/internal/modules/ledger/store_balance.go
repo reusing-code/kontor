@@ -61,8 +61,8 @@ func accountLedgerTransactions(txn *badger.Txn, userID string, accountID uuid.UU
 	return txns, nil
 }
 
-func (s *Store) PutLedgerBalanceSnapshot(_ context.Context, userID string, snapshot LedgerBalanceSnapshot) error {
-	return retryOnConflict(func() error {
+func (s *Store) PutLedgerBalanceSnapshot(ctx context.Context, userID string, snapshot LedgerBalanceSnapshot) error {
+	return retryConflicts(ctx, func() error {
 		return s.e.Update(func(txn *badger.Txn) error {
 			return putLedgerBalanceSnapshotTxn(txn, userID, snapshot)
 		})
@@ -71,8 +71,8 @@ func (s *Store) PutLedgerBalanceSnapshot(_ context.Context, userID string, snaps
 
 // DeleteManualLedgerBalanceSnapshot deletes a snapshot the user entered by
 // hand; ErrLedgerBalanceNotManual for one from an import or a sync.
-func (s *Store) DeleteManualLedgerBalanceSnapshot(_ context.Context, userID string, accountID uuid.UUID, asOf string) error {
-	return retryOnConflict(func() error {
+func (s *Store) DeleteManualLedgerBalanceSnapshot(ctx context.Context, userID string, accountID uuid.UUID, asOf string) error {
+	return retryConflicts(ctx, func() error {
 		return s.e.Update(func(txn *badger.Txn) error {
 			var snapshot LedgerBalanceSnapshot
 			if err := storage.GetJSON(txn, ledBalKey(userID, accountID, asOf), &snapshot); err != nil {

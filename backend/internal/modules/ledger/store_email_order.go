@@ -227,8 +227,8 @@ func (s *Store) CreateLedgerEmailOrder(_ context.Context, userID string, order L
 // has an order, so two scans sharing a mailbox cannot store a message twice.
 // With mailbox (the message came from the account's folder, not an upload)
 // the mailbox action configured for the order folder is queued with it.
-func (s *Store) CreateScannedLedgerEmailOrder(_ context.Context, userID string, order LedgerEmailOrder, mailbox *emailMailboxRef) error {
-	return retryOnConflict(func() error { return s.createScannedLedgerEmailOrder(userID, order, mailbox) })
+func (s *Store) CreateScannedLedgerEmailOrder(ctx context.Context, userID string, order LedgerEmailOrder, mailbox *emailMailboxRef) error {
+	return retryConflicts(ctx, func() error { return s.createScannedLedgerEmailOrder(userID, order, mailbox) })
 }
 
 func (s *Store) createScannedLedgerEmailOrder(userID string, order LedgerEmailOrder, mailbox *emailMailboxRef) error {

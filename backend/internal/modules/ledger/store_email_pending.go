@@ -122,9 +122,9 @@ func (s *Store) DeleteLedgerEmailPending(_ context.Context, userID string, accou
 
 // RecordLedgerEmailPendingFailure counts a mailbox action the server refused
 // and returns the new count; 0 when the record no longer exists.
-func (s *Store) RecordLedgerEmailPendingFailure(_ context.Context, userID string, accountID uuid.UUID, source, key string) (int, error) {
+func (s *Store) RecordLedgerEmailPendingFailure(ctx context.Context, userID string, accountID uuid.UUID, source, key string) (int, error) {
 	attempts := 0
-	err := retryOnConflict(func() error {
+	err := retryConflicts(ctx, func() error {
 		attempts = 0
 		return s.e.Update(func(txn *badger.Txn) error {
 			dbKey := idxLedEmailPendingKey(userID, accountID, source, key)
