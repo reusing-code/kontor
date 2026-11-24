@@ -192,7 +192,7 @@ func (s *BankService) syncAccount(ctx context.Context, userID string, conn Ledge
 		result.BalanceStatus = s.syncBalance(accountCtx, userID, conn, account)
 	}
 
-	s.recordSyncState(ctx, userID, conn, account.UID, result, started, consentLost)
+	s.recordSyncState(ctx, userID, conn, result, started)
 	if err == nil {
 		s.logger.Info("bank account synced", "user_id", userID, "connection_id", conn.ID, "account_uid", account.UID,
 			"imported", imported, "duplicates", dupes, "skipped_not_booked", stats.notBooked,
@@ -218,9 +218,9 @@ func (s *BankService) sessionLost(ctx context.Context, conn LedgerBankConnection
 // recordSyncState writes the outcome for one account. It is dropped when the
 // connection was re-authorized while the sync ran (the stored session differs
 // from the one the sync used): the old session's failure must not mark the new
-// consent as lost.
-func (s *BankService) recordSyncState(ctx context.Context, userID string, conn LedgerBankConnection, uid string, res BankAccountSyncResult, at time.Time, consentLost bool) {
-	id := conn.ID
+// consent as lost. A consent_expired status marks the consent as lost.
+func (s *BankService) recordSyncState(ctx context.Context, userID string, conn LedgerBankConnection, res BankAccountSyncResult, at time.Time) {
+	id, uid, consentLost := conn.ID, res.UID, res.Status == BankSyncConsentExpired
 	stale := false
 	_, err := s.store.ModifyLedgerBankConnection(context.WithoutCancel(ctx), userID, id, func(c *LedgerBankConnection) {
 		if c.EncryptedSessionID != conn.EncryptedSessionID {

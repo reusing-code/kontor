@@ -135,7 +135,8 @@ func (a *emailActions) drain(ctx context.Context, client *imapClient, userID str
 		return nil, err
 	}
 	var res emailActionResult
-	err = a.run(ctx, client, userID, accountID, source, action, target, entries, &res)
+	pass := emailActionPass{client: client, userID: userID, accountID: accountID, source: source, action: action, target: target}
+	err = a.run(ctx, pass, entries, &res)
 	if res != (emailActionResult{}) {
 		a.logger.Info("mailbox actions", "userID", userID, "accountID", accountID, "source", source, "action", action,
 			"done", res.Done, "failed", res.Failed, "givenUp", res.GivenUp, "notExpunged", res.NotExpunged, "notFound", res.NotFound)
@@ -143,9 +144,20 @@ func (a *emailActions) drain(ctx context.Context, client *imapClient, userID str
 	return res.warnings(action), err
 }
 
-func (a *emailActions) run(ctx context.Context, client *imapClient, userID string, accountID uuid.UUID, source, action, target string,
-	entries []ledgerEmailPendingEntry, res *emailActionResult) error {
-	if action == EmailActionDelete {
+// emailActionPass is the mailbox action of one source, carried out on a
+// client that has the source's folder selected.
+type emailActionPass struct {
+	client    *imapClient
+	userID    string
+	accountID uuid.UUID
+	source    string
+	action    string
+	target    string
+}
+
+func (a *emailActions) run(ctx context.Context, pass emailActionPass, entries []ledgerEmailPendingEntry, res *emailActionResult) error {
+	client, target := pass.client, pass.target
+	if pass.action == EmailActionDelete {
 		// "delete" means the server's trash when it has one: recoverable, and
 		// on Gmail the only way that deletes instead of removing a label
 		trash, err := client.TrashFolder()
@@ -165,7 +177,9 @@ func (a *emailActions) run(ctx context.Context, client *imapClient, userID strin
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		drop := func() error { return a.store.DeleteLedgerEmailPending(ctx, userID, accountID, source, entry.Key) }
+		drop := func() error {
+			return a.store.DeleteLedgerEmailPending(ctx, pass.userID, pass.accountID, pass.source, entry.Key)
+		}
 		uid, found, err := locateEmail(client, entry)
 		switch {
 		case err != nil:
@@ -194,7 +208,7 @@ func (a *emailActions) run(ctx context.Context, client *imapClient, userID strin
 			err = drop()
 		case errors.Is(err, errIMAPCommandFailed):
 			var attempts int
-			if attempts, err = a.store.RecordLedgerEmailPendingFailure(ctx, userID, accountID, source, entry.Key); err != nil {
+			if attempts, err = a.store.RecordLedgerEmailPendingFailure(ctx, pass.userID, pass.accountID, pass.source, entry.Key); err != nil {
 				return err
 			}
 			if attempts < maxEmailActionAttempts {

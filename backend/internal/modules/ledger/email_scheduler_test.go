@@ -150,19 +150,19 @@ func TestFinishScan_AttemptAndCompletion(t *testing.T) {
 		return got
 	}
 
-	scheduler.finishScan(ctx, testUserID, account, "skipped", false, false, false)
+	scheduler.finishScan(ctx, testUserID, account.ID, scanRecord{status: "skipped"})
 	got := get()
 	if got.LastScanAt == nil || !got.LastScanAt.Equal(past) || got.LastScanAttemptAt != nil || got.LastScanStatusMessage != "skipped" {
 		t.Errorf("skip: %+v", got)
 	}
 
-	scheduler.finishScan(ctx, testUserID, account, "failed", true, false, false)
+	scheduler.finishScan(ctx, testUserID, account.ID, scanRecord{status: "failed", attempted: true})
 	got = get()
 	if got.LastScanAt == nil || !got.LastScanAt.Equal(past) || got.LastScanAttemptAt == nil || !got.LastScanAttemptAt.After(past) {
 		t.Errorf("failed attempt must keep LastScanAt and stamp the attempt: %+v", got)
 	}
 
-	scheduler.finishScan(ctx, testUserID, account, "done", true, true, false)
+	scheduler.finishScan(ctx, testUserID, account.ID, scanRecord{status: "done", attempted: true, complete: true})
 	got = get()
 	if got.LastScanAt == nil || !got.LastScanAt.After(past) || got.LastScanStatusMessage != "done" {
 		t.Errorf("complete: %+v", got)

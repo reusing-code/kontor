@@ -180,7 +180,7 @@ func (s *EmailService) processMessage(ctx context.Context, userID string, accoun
 	}
 	switch {
 	case errors.Is(err, errIMAPRejected):
-		return s.handleRejectedFetch(ctx, userID, account, m.Key, m.Label, "could not read message", result)
+		return s.handleRejectedFetch(ctx, userID, account.ID, m, "could not read message", result)
 	case errors.Is(err, errMessageParse):
 		warn(result, m.Label, "could not parse message")
 		return nil
@@ -221,14 +221,15 @@ func (s *EmailService) processMessage(ctx context.Context, userID string, accoun
 		s.logger.Warn("email extraction failed", "message", m.Label, "class", "incomplete")
 		return s.handleFailedExtraction(ctx, userID, account, m, "extraction result was incomplete", result)
 	}
-	return s.storeOrder(ctx, userID, account, m, parsed, extracted, result)
+	return s.storeOrder(ctx, userID, m, newScannedOrder(account.ID, m, parsed.Subject, extracted), result)
 }
 
-func (s *EmailService) storeOrder(ctx context.Context, userID string, account LedgerEmailAccount, m emailMessage, parsed ParsedEmail, e extractedOrder, result *LedgerEmailScanResult) error {
+// newScannedOrder is the unmatched order extracted from a message.
+func newScannedOrder(accountID uuid.UUID, m emailMessage, subject string, e extractedOrder) LedgerEmailOrder {
 	now := time.Now().UTC()
-	order := LedgerEmailOrder{
+	return LedgerEmailOrder{
 		ID:              uuid.New(),
-		EmailAccountID:  account.ID,
+		EmailAccountID:  accountID,
 		ImporterID:      LedgerEmailImporterLLM,
 		Merchant:        e.Merchant,
 		PaymentMethod:   e.PaymentMethod,
@@ -238,11 +239,14 @@ func (s *EmailService) storeOrder(ctx context.Context, userID string, account Le
 		Currency:        e.Currency,
 		Items:           e.Items,
 		EmailMessageID:  m.Key,
-		EmailSubject:    parsed.Subject,
+		EmailSubject:    subject,
 		MatchStatus:     LedgerEmailOrderStatusUnmatched,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
+}
+
+func (s *EmailService) storeOrder(ctx context.Context, userID string, m emailMessage, order LedgerEmailOrder, result *LedgerEmailScanResult) error {
 	linked, linkWarnings, err := s.autoLinkOrder(ctx, userID, matchRuleForOrder(order), &order)
 	if err != nil {
 		return err
@@ -278,16 +282,16 @@ func (s *EmailService) storeOrder(ctx context.Context, userID string, account Le
 // permission) cannot keep every scan incomplete.
 const maxFetchRejections = 3
 
-func (s *EmailService) handleRejectedFetch(ctx context.Context, userID string, account LedgerEmailAccount, key, label, reason string, result *LedgerEmailScanResult) error {
-	count, err := s.store.RecordLedgerEmailRejection(ctx, userID, account.ID, key)
+func (s *EmailService) handleRejectedFetch(ctx context.Context, userID string, accountID uuid.UUID, m emailMessage, reason string, result *LedgerEmailScanResult) error {
+	count, err := s.store.RecordLedgerEmailRejection(ctx, userID, accountID, m.Key)
 	if err != nil {
 		return err
 	}
 	if count >= maxFetchRejections {
-		warn(result, label, "message could not be read repeatedly and is ignored from now on")
-		return s.store.MarkLedgerEmailsSeen(ctx, userID, account.ID, EmailSeenUnreadable, key)
+		warn(result, m.Label, "message could not be read repeatedly and is ignored from now on")
+		return s.store.MarkLedgerEmailsSeen(ctx, userID, accountID, EmailSeenUnreadable, m.Key)
 	}
-	warn(result, label, reason)
+	warn(result, m.Label, reason)
 	result.Skipped++
 	return nil
 }

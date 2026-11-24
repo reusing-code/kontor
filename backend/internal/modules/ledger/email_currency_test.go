@@ -154,7 +154,8 @@ func TestStoreOrder_KeepsOriginalCurrency(t *testing.T) {
 	)
 	result := newScanResult()
 	extracted := extractedOrder{Merchant: "Example Inc", PaymentMethod: PaymentMethodPayPal, OrderDate: "2026-04-01", TotalMinor: 4999, Currency: "USD"}
-	if err := p.svc.storeOrder(context.Background(), testUserID, p.account, emailMessage{Label: "uid 1", Key: "<usd@example.com>"}, ParsedEmail{}, extracted, &result); err != nil {
+	m := emailMessage{Label: "uid 1", Key: "<usd@example.com>"}
+	if err := p.svc.storeOrder(context.Background(), testUserID, m, newScannedOrder(p.account.ID, m, "", extracted), &result); err != nil {
 		t.Fatalf("storeOrder: %v", err)
 	}
 	orders := p.orders(t)

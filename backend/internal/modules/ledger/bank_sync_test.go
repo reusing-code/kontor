@@ -543,8 +543,8 @@ func TestSync_StateWriteIsDroppedAfterReauthorization(t *testing.T) {
 	renewed := f.connect(t, "code-2", bankTestSession("SESSION-2", bankTestAccount("uid-1", bankTestIBAN1)))
 
 	// the old session fails after the user re-authorized
-	f.svc.recordSyncState(t.Context(), testUserID, started, "uid-1",
-		BankAccountSyncResult{UID: "uid-1", Status: BankSyncConsentExpired}, f.now, true)
+	f.svc.recordSyncState(t.Context(), testUserID, started,
+		BankAccountSyncResult{UID: "uid-1", Status: BankSyncConsentExpired}, f.now)
 
 	c, err := f.GetLedgerBankConnection(t.Context(), testUserID, renewed.ID)
 	if err != nil {
@@ -558,8 +558,8 @@ func TestSync_StateWriteIsDroppedAfterReauthorization(t *testing.T) {
 	}
 
 	// a write for the current session still lands
-	f.svc.recordSyncState(t.Context(), testUserID, renewed, "uid-1",
-		BankAccountSyncResult{UID: "uid-1", Status: BankSyncRateLimited}, f.now, false)
+	f.svc.recordSyncState(t.Context(), testUserID, renewed,
+		BankAccountSyncResult{UID: "uid-1", Status: BankSyncRateLimited}, f.now)
 	if a := f.account(t, "uid-1"); a.LastSyncStatus != BankSyncRateLimited {
 		t.Fatalf("current-session write lost: %+v", a)
 	}

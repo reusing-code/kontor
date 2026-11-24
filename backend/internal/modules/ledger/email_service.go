@@ -202,7 +202,7 @@ func (s *EmailService) scanSelected(ctx context.Context, client *imapClient, use
 			return s.store.HasLedgerEmailSeen(ctx, userID, account.ID, uidKey)
 		},
 		rejected: func(uidKey, label string) error {
-			return s.handleRejectedFetch(ctx, userID, account, uidKey, label, "could not read message headers", result)
+			return s.handleRejectedFetch(ctx, userID, account.ID, emailMessage{Key: uidKey, Label: label}, "could not read message headers", result)
 		},
 		warn: func(label, reason string) { warn(result, label, reason) },
 		fetched: func() {

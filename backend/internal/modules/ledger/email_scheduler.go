@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/core"
 )
 
@@ -123,13 +124,13 @@ func (s *EmailScanScheduler) scanAccount(ctx context.Context, userID string, acc
 	}
 	if account.EncryptedPassword == "" {
 		s.logger.Warn("skipping email account without stored password", "userID", userID, "accountID", account.ID)
-		s.finishScan(ctx, userID, account, "Background scan skipped: no stored password, re-enter the account password", true, false, false)
+		s.finishScan(ctx, userID, account.ID, scanRecord{status: "Background scan skipped: no stored password, re-enter the account password", attempted: true})
 		return
 	}
 	password, err := accountPassword(account, s.encryptionKey)
 	if err != nil {
 		s.logger.Error("decrypting email account password", "userID", userID, "accountID", account.ID, "error", err)
-		s.finishScan(ctx, userID, account, fmt.Sprintf("Background scan failed: %v", err), true, false, false)
+		s.finishScan(ctx, userID, account.ID, scanRecord{status: fmt.Sprintf("Background scan failed: %v", err), attempted: true})
 		return
 	}
 	// The outcome is recorded while the scan slot is held, so a client that
@@ -145,7 +146,10 @@ func (s *EmailScanScheduler) scanAccount(ctx context.Context, userID string, acc
 		}
 		status, complete := scanOutcome(account.Folder, result, err, scanCtx.Err() != nil)
 		s.logScanOutcome(userID, account, result, err, complete)
-		s.finishScan(ctx, userID, account, status, true, complete, scanResumesSoon(result, err, scanTimedOut(scanCtx, err)))
+		s.finishScan(ctx, userID, account.ID, scanRecord{
+			status: status, attempted: true, complete: complete,
+			resume: scanResumesSoon(result, err, scanTimedOut(scanCtx, err)),
+		})
 	})
 	if errors.Is(err, ErrEmailScanRunning) {
 		s.logger.Debug("email account is already being scanned", "userID", userID, "accountID", account.ID)
@@ -193,7 +197,7 @@ func (s *EmailScanScheduler) logScanOutcome(userID string, account LedgerEmailAc
 // is retried on the next tick once the cause is fixed.
 func (s *EmailScanScheduler) skipScan(ctx context.Context, userID string, account LedgerEmailAccount, cause error) {
 	s.logger.Debug("skipping email account scan", "userID", userID, "accountID", account.ID, "reason", cause.Error())
-	s.finishScan(ctx, userID, account, "Background scan skipped: "+cause.Error(), false, false, false)
+	s.finishScan(ctx, userID, account.ID, scanRecord{status: "Background scan skipped: " + cause.Error()})
 }
 
 func scanStatusMessage(folder string, result LedgerEmailScanResult) string {
@@ -201,21 +205,29 @@ func scanStatusMessage(folder string, result LedgerEmailScanResult) string {
 		folder, result.EmailsScanned, result.OrdersNew, result.OrdersLinked)
 }
 
-// finishScan records the scan outcome on the account. An attempted scan
+// scanRecord is the outcome of a background scan. An attempted scan
 // schedules the next one after the interval; only a complete one moves
 // LastScanAt, the anchor of the next lookback. Skips (neither) stay due and
 // only a changed status message is written. resume shortens the wait for the
 // next scan to emailScanResumeDelay.
-func (s *EmailScanScheduler) finishScan(ctx context.Context, userID string, account LedgerEmailAccount, status string, attempted, complete, resume bool) {
-	state := LedgerEmailScanState{Status: status, Resume: resume}
+type scanRecord struct {
+	status    string
+	attempted bool
+	complete  bool
+	resume    bool
+}
+
+// finishScan records the scan outcome on the account.
+func (s *EmailScanScheduler) finishScan(ctx context.Context, userID string, accountID uuid.UUID, rec scanRecord) {
+	state := LedgerEmailScanState{Status: rec.status, Resume: rec.resume}
 	now := time.Now().UTC()
-	if attempted {
+	if rec.attempted {
 		state.AttemptedAt = &now
 	}
-	if complete {
+	if rec.complete {
 		state.CompletedAt = &now
 	}
-	if err := s.store.SetLedgerEmailAccountScanState(ctx, userID, account.ID, state); err != nil {
-		s.logger.Error("updating email account after scan", "userID", userID, "accountID", account.ID, "error", err)
+	if err := s.store.SetLedgerEmailAccountScanState(ctx, userID, accountID, state); err != nil {
+		s.logger.Error("updating email account after scan", "userID", userID, "accountID", accountID, "error", err)
 	}
 }
