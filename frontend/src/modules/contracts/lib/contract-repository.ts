@@ -1,6 +1,6 @@
 import type { Contract, ContractFormData } from "@/modules/contracts/types"
 import type { Summary } from "@/modules/contracts/types"
-import { del, get, getToken, post, put } from "@/lib/api"
+import { del, get, post, postForm, put } from "@/lib/api"
 
 export interface ImportResult {
   created: number
@@ -42,19 +42,5 @@ export async function getSummary(): Promise<Summary> {
 export async function importContracts(file: File): Promise<ImportResult> {
   const form = new FormData()
   form.append("file", file)
-  const headers: Record<string, string> = {}
-  const token = getToken()
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`
-  }
-  const res = await fetch("/api/v1/contracts/import", {
-    method: "POST",
-    headers,
-    body: form,
-  })
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}))
-    throw new Error(data.error ?? res.statusText)
-  }
-  return res.json()
+  return postForm<ImportResult>("/contracts/import", form)
 }

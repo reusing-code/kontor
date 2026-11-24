@@ -1,29 +1,10 @@
 import type { AuthResponse, LoginData, RegisterData } from "@/types/auth"
+import { sendJson } from "@/lib/api"
 
-const BASE = "/api/v1"
-
-export async function login(data: LoginData): Promise<AuthResponse> {
-  const res = await fetch(`${BASE}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.error ?? "Login failed")
-  }
-  return res.json()
+export function login(data: LoginData): Promise<AuthResponse> {
+  return sendJson<AuthResponse>("POST", "/auth/login", { json: data, redirectOnUnauthorized: false })
 }
 
-export async function register(data: RegisterData): Promise<AuthResponse> {
-  const res = await fetch(`${BASE}/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.error ?? "Registration failed")
-  }
-  return res.json()
+export function register(data: RegisterData): Promise<AuthResponse> {
+  return sendJson<AuthResponse>("POST", "/auth/register", { json: data, redirectOnUnauthorized: false })
 }
