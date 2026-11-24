@@ -98,5 +98,13 @@ func (c *ContractInput) Validate() error {
 	default:
 		return errors.New("billingInterval must be 'monthly', 'quarterly' or 'yearly'")
 	}
+	switch {
+	case c.MinimumDurationMonths < 0:
+		return errors.New("minimumDurationMonths must not be negative")
+	case c.ExtensionDurationMonths < 0:
+		return errors.New("extensionDurationMonths must not be negative")
+	case c.NoticePeriodMonths < 0:
+		return errors.New("noticePeriodMonths must not be negative")
+	}
 	return nil
 }
