@@ -157,12 +157,11 @@ export function PurchaseFromTransaction({ transaction, orders, link }: {
   const createPurchase = useCreatePurchaseByCategory()
   const [categoryId, setCategoryId] = useState("")
   const [pickerItems, setPickerItems] = useState<OrderItem[] | null>(null)
-  // One prefilled dialog per entry, in order; closing a dialog skips its entry.
+  // One prefilled dialog per entry, in order. The dialog closes itself after a
+  // successful save and on cancel; both move on, so closing one skips it. A
+  // failed save keeps it open with the entered data.
   const [queue, setQueue] = useState<Partial<PurchaseFormData>[]>([])
   const [index, setIndex] = useState(0)
-  const [saving, setSaving] = useState(false)
-  // The dialog closes itself right after onSubmit, which must not skip.
-  const submitted = useRef(false)
   const created = useRef(0)
 
   function start() {
@@ -196,37 +195,14 @@ export function PurchaseFromTransaction({ transaction, orders, link }: {
     }
   }
 
-  async function save(current: number, data: PurchaseFormData) {
-    setSaving(true)
-    try {
-      let purchaseId: string
-      try {
-        purchaseId = (await createPurchase.mutateAsync({ categoryId, data })).id
-      } catch {
-        // reopen the same entry with what the user entered
-        setQueue((entries) => entries.map((entry, i) => (i === current ? data : entry)))
-        return
-      }
-      created.current += 1
-      await link({ type: "purchase", targetId: purchaseId })
-      advance(current)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  function handleSubmit(data: PurchaseFormData) {
-    submitted.current = true
-    void save(index, data)
+  async function handleSubmit(data: PurchaseFormData) {
+    const purchase = await createPurchase.mutateAsync({ categoryId, data })
+    created.current += 1
+    await link({ type: "purchase", targetId: purchase.id })
   }
 
   function handleOpenChange(open: boolean) {
-    if (open) return
-    if (submitted.current) {
-      submitted.current = false
-      return
-    }
-    advance(index)
+    if (!open) advance(index)
   }
 
   return (
@@ -241,7 +217,7 @@ export function PurchaseFromTransaction({ transaction, orders, link }: {
           ))}
         </SelectContent>
       </Select>
-      <Button type="button" variant="secondary" onClick={start} disabled={saving || queue.length > 0}>
+      <Button type="button" variant="secondary" onClick={start} disabled={queue.length > 0}>
         {t("ledger.createFromTransaction.purchase")}
       </Button>
       {pickerItems && (
@@ -256,7 +232,7 @@ export function PurchaseFromTransaction({ transaction, orders, link }: {
         />
       )}
       <PurchaseDialog
-        open={queue.length > 0 && !saving}
+        open={queue.length > 0}
         onOpenChange={handleOpenChange}
         initialValues={queue[index]}
         onSubmit={handleSubmit}
@@ -287,7 +263,7 @@ export function CostFromTransaction({ transaction, orders, link }: {
   }
 
   function handleCreate(data: CostEntryFormData) {
-    createCost.mutate({ vehicleId, data }, {
+    return createCost.mutateAsync({ vehicleId, data }, {
       onSuccess: async (entry) => {
         if (await link({ type: "cost", targetId: entry.id })) {
           toast.success(t("ledger.referenceCreatedAndLinked", { type: t("ledger.referenceTypes.cost") }))

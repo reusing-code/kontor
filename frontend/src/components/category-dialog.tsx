@@ -21,12 +21,13 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { useDialogSubmit } from "@/hooks/use-dialog-submit"
 
 interface CategoryDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   category?: Category | null
-  onSubmit: (data: CategoryFormData) => void
+  onSubmit: (data: CategoryFormData) => Promise<unknown>
   // Prefills the create form; ignored when editing. Pass a stable object.
   initialValues?: Partial<CategoryFormData>
 }
@@ -44,10 +45,7 @@ export function CategoryDialog({ open, onOpenChange, category, onSubmit, initial
     }
   }, [open, category, initialValues, form])
 
-  function handleSubmit(data: CategoryFormData) {
-    onSubmit(data)
-    onOpenChange(false)
-  }
+  const handleSubmit = useDialogSubmit(onSubmit, onOpenChange)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -76,7 +74,9 @@ export function CategoryDialog({ open, onOpenChange, category, onSubmit, initial
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t("common.cancel")}
               </Button>
-              <Button type="submit">{t("common.save")}</Button>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {t("common.save")}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

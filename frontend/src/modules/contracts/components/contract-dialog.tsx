@@ -14,12 +14,13 @@ import {
 } from "@/components/ui/dialog"
 import { Form } from "@/components/ui/form"
 import { Button } from "@/components/ui/button"
+import { useDialogSubmit } from "@/hooks/use-dialog-submit"
 
 interface ContractDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   contract?: Contract | null
-  onSubmit: (data: ContractFormData) => void
+  onSubmit: (data: ContractFormData) => Promise<unknown>
   // Prefills the create form; ignored when editing. Pass a stable object.
   initialValues?: Partial<ContractFormData>
 }
@@ -66,10 +67,7 @@ export function ContractDialog({ open, onOpenChange, contract, onSubmit, initial
     }
   }, [open, contract, initialValues, form])
 
-  function handleSubmit(data: ContractFormData) {
-    onSubmit(data)
-    onOpenChange(false)
-  }
+  const handleSubmit = useDialogSubmit(onSubmit, onOpenChange)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -88,7 +86,9 @@ export function ContractDialog({ open, onOpenChange, contract, onSubmit, initial
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t("common.cancel")}
               </Button>
-              <Button type="submit">{t("common.save")}</Button>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {t("common.save")}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

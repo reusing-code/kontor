@@ -37,18 +37,15 @@ export function QuickAdd() {
 
   if (!available) return null
 
+  // A failed create rejects, so the create dialog stays open with the input.
   async function handleCreate({ type, parentId }: PrefillEntry, create: () => Promise<{ id: string }>) {
-    try {
-      const { id } = await create()
-      setText("")
-      setFile(null)
-      const path = entityPath(type, id, parentId)
-      toast.success(t(`quickAdd.created.${type}`), {
-        action: { label: t("quickAdd.open"), onClick: () => void navigate({ to: path }) },
-      })
-    } catch {
-      // the mutation's error toast reports it
-    }
+    const { id } = await create()
+    setText("")
+    setFile(null)
+    const path = entityPath(type, id, parentId)
+    toast.success(t(`quickAdd.created.${type}`), {
+      action: { label: t("quickAdd.open"), onClick: () => void navigate({ to: path }) },
+    })
   }
 
   return (
@@ -73,7 +70,7 @@ export function QuickAdd() {
           setEntry(next)
         }}
       />
-      <PrefilledCreateDialogs entry={entry} onClose={() => setEntry(null)} onCreate={(e, create) => void handleCreate(e, create)} />
+      <PrefilledCreateDialogs entry={entry} onClose={() => setEntry(null)} onCreate={handleCreate} />
     </>
   )
 }

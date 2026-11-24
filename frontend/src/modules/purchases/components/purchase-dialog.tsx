@@ -14,12 +14,13 @@ import {
 } from "@/components/ui/dialog"
 import { Form } from "@/components/ui/form"
 import { Button } from "@/components/ui/button"
+import { useDialogSubmit } from "@/hooks/use-dialog-submit"
 
 interface PurchaseDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   purchase?: Purchase | null
-  onSubmit: (data: PurchaseFormData) => void
+  onSubmit: (data: PurchaseFormData) => Promise<unknown>
   // Prefills the create form; ignored when editing. Pass a stable object.
   initialValues?: Partial<PurchaseFormData>
 }
@@ -59,10 +60,7 @@ export function PurchaseDialog({ open, onOpenChange, purchase, onSubmit, initial
     }
   }, [open, purchase, initialValues, form])
 
-  function handleSubmit(data: PurchaseFormData) {
-    onSubmit(data)
-    onOpenChange(false)
-  }
+  const handleSubmit = useDialogSubmit(onSubmit, onOpenChange)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -81,7 +79,9 @@ export function PurchaseDialog({ open, onOpenChange, purchase, onSubmit, initial
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t("common.cancel")}
               </Button>
-              <Button type="submit">{t("common.save")}</Button>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {t("common.save")}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

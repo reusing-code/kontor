@@ -74,7 +74,7 @@ export function ContractDetailPage() {
         open={editing}
         onOpenChange={setEditing}
         contract={contract}
-        onSubmit={(data) => updateContract.mutate({ id: contract.id, data }, { onSuccess: () => toast.success(t("contract.updated")) })}
+        onSubmit={(data) => updateContract.mutateAsync({ id: contract.id, data }, { onSuccess: () => toast.success(t("contract.updated")) })}
       />
     </div>
   )

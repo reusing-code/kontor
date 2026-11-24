@@ -110,7 +110,7 @@ function ContractCreateAndLink({ transaction, link }: { transaction: LedgerTrans
   }
 
   function handleCreate(data: ContractFormData) {
-    createContract.mutate({ categoryId, data }, {
+    return createContract.mutateAsync({ categoryId, data }, {
       onSuccess: async (contract) => {
         if (await link({ type: "contract", targetId: contract.id })) {
           toast.success(t("ledger.referenceCreatedAndLinked", { type: t("nav.contracts") }))
@@ -148,9 +148,8 @@ function VehicleCreateAndLink({ link }: { link: TransactionLinker }) {
   const [dialogOpen, setDialogOpen] = useState(false)
 
   function handleCreate(data: VehicleFormData) {
-    createVehicle.mutate(data, {
+    return createVehicle.mutateAsync(data, {
       onSuccess: async (vehicle) => {
-        setDialogOpen(false)
         if (await link({ type: "vehicle", targetId: vehicle.id })) {
           toast.success(t("ledger.referenceCreatedAndLinked", { type: t("nav.auto") }))
         }

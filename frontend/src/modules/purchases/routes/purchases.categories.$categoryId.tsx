@@ -41,16 +41,15 @@ function PurchasesCategoryDetailPage() {
   const [deletingPurchase, setDeletingPurchase] = useState<Purchase | null>(null)
 
   function handleCreate(data: PurchaseFormData) {
-    createPurchase.mutate(data, { onSuccess: () => toast.success(t("purchase.created")) })
+    return createPurchase.mutateAsync(data, { onSuccess: () => toast.success(t("purchase.created")) })
   }
 
   function handleUpdate(data: PurchaseFormData) {
-    if (!editingPurchase) return
-    updatePurchase.mutate(
+    if (!editingPurchase) return Promise.resolve()
+    return updatePurchase.mutateAsync(
       { id: editingPurchase.id, data },
       { onSuccess: () => toast.success(t("purchase.updated")) },
     )
-    setEditingPurchase(null)
   }
 
   function handleDelete() {

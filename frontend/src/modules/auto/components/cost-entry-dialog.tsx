@@ -28,12 +28,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
+import { useDialogSubmit } from "@/hooks/use-dialog-submit"
 
 interface CostEntryDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   costEntry?: CostEntry | null
-  onSubmit: (data: CostEntryFormData) => void
+  onSubmit: (data: CostEntryFormData) => Promise<unknown>
   // Prefills the create form; ignored when editing. Pass a stable object.
   initialValues?: Partial<CostEntryFormData>
 }
@@ -78,10 +79,7 @@ export function CostEntryDialog({ open, onOpenChange, costEntry, onSubmit, initi
     }
   }, [open, costEntry, initialValues, form])
 
-  function handleSubmit(data: CostEntryFormData) {
-    onSubmit(data)
-    onOpenChange(false)
-  }
+  const handleSubmit = useDialogSubmit(onSubmit, onOpenChange)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -219,7 +217,9 @@ export function CostEntryDialog({ open, onOpenChange, costEntry, onSubmit, initi
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t("common.cancel")}
               </Button>
-              <Button type="submit">{t("common.save")}</Button>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {t("common.save")}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

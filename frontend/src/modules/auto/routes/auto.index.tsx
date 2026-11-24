@@ -31,16 +31,15 @@ export function AutoIndexPage() {
   const [deletingVehicle, setDeletingVehicle] = useState<Vehicle | null>(null)
 
   function handleCreate(data: VehicleFormData) {
-    createVehicle.mutate(data, { onSuccess: () => toast.success(t("vehicle.created")) })
+    return createVehicle.mutateAsync(data, { onSuccess: () => toast.success(t("vehicle.created")) })
   }
 
   function handleUpdate(data: VehicleFormData) {
-    if (!editingVehicle) return
-    updateVehicle.mutate(
+    if (!editingVehicle) return Promise.resolve()
+    return updateVehicle.mutateAsync(
       { id: editingVehicle.id, data },
       { onSuccess: () => toast.success(t("vehicle.updated")) },
     )
-    setEditingVehicle(null)
   }
 
   function handleDelete() {

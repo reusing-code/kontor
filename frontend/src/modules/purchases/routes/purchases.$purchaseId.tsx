@@ -74,7 +74,7 @@ export function PurchaseDetailPage() {
         open={editing}
         onOpenChange={setEditing}
         purchase={purchase}
-        onSubmit={(data) => updatePurchase.mutate({ id: purchase.id, data }, { onSuccess: () => toast.success(t("purchase.updated")) })}
+        onSubmit={(data) => updatePurchase.mutateAsync({ id: purchase.id, data }, { onSuccess: () => toast.success(t("purchase.updated")) })}
       />
     </div>
   )

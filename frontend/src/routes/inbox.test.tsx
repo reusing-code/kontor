@@ -59,6 +59,42 @@ describe("InboxPage accept", () => {
     expect(await screen.findByText("No drafts waiting for review.")).toBeInTheDocument()
   })
 
+  it.each(acceptCases)("keeps the $type dialog open with the typed input while the create fails", async (c) => {
+    const d = draft(c.type, c.input, { parentId: c.parentId })
+    let attempts = 0
+    const api = mockApi({
+      ...inboxRoutes({ drafts: [d] }),
+      [`POST ${c.createPath}`]: () => (++attempts === 1 ? apiError(400, "name taken") : { id: ids.created }),
+    })
+    const { user } = renderWithProviders(<InboxPage />)
+
+    const accept = await findAccept(d)
+    await waitFor(() => expect(accept).toBeEnabled())
+    await user.click(accept)
+    const dialog = await screen.findByRole("dialog", { name: c.dialogTitle })
+    const field = within(dialog).getByDisplayValue(c.shown[0])
+    await user.type(field, " typed")
+    const typed = `${c.shown[0]} typed`
+    await user.click(within(dialog).getByRole("button", { name: "Save" }))
+
+    await waitFor(() => expect(errorToasts()).toEqual(["name taken"]))
+    expect(screen.getByRole("dialog", { name: c.dialogTitle })).toBe(dialog)
+    expect(within(dialog).getByDisplayValue(typed)).toBeInTheDocument()
+    expect(api.callsTo("POST", `/drafts/${d.id}/accept`)).toHaveLength(0)
+
+    const save = within(dialog).getByRole("button", { name: "Save" })
+    await waitFor(() => expect(save).toBeEnabled())
+    await user.click(save)
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+    const creates = api.callsTo("POST", c.createPath)
+    expect(creates).toHaveLength(2)
+    expect(Object.values(creates[1].body as Record<string, unknown>)).toContain(typed)
+    expect(api.callsTo("POST", `/drafts/${d.id}/accept`)).toHaveLength(1)
+    expect(await screen.findByText("Draft accepted and document linked")).toBeInTheDocument()
+    expect(errorToasts()).toEqual(["name taken"])
+  })
+
   it("does not accept the draft when creating the entry fails", async () => {
     const d = draft("vehicle", { name: "Family car" })
     const api = mockApi({ ...inboxRoutes({ drafts: [d] }), "POST /vehicles": apiError(400, "name taken") })
@@ -85,6 +121,8 @@ describe("InboxPage accept", () => {
     await waitFor(() =>
       expect(errorToasts()).toEqual(["The entry was created, but the draft could not be accepted: already decided"]),
     )
+    // the entity exists, so its create dialog does not stay open
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
     expect(screen.getByText(d.source.title!)).toBeInTheDocument()
   })
 

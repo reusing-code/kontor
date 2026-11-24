@@ -164,16 +164,13 @@ export function InboxPage() {
   }
 
   // The entity is created through the module's regular endpoint first; only
-  // then is the draft accepted, which links the source document.
+  // then is the draft accepted, which links the source document. A failed
+  // create rejects, so the create dialog stays open; a failed accept does not,
+  // since the entity exists.
   async function finishAccept(draft: Draft, { type, parentId }: PrefillEntry, create: () => Promise<{ id: string }>) {
     setBusyId(draft.id)
     try {
-      let entityId: string
-      try {
-        entityId = (await create()).id
-      } catch {
-        return
-      }
+      const entityId = (await create()).id
       try {
         const res = await acceptDraft.mutateAsync({
           id: draft.id,
@@ -256,9 +253,7 @@ export function InboxPage() {
       <PrefilledCreateDialogs
         entry={acceptEntry}
         onClose={() => setAccepting(null)}
-        onCreate={(entry, create) => {
-          if (accepting) void finishAccept(accepting, entry, create)
-        }}
+        onCreate={(entry, create) => (accepting ? finishAccept(accepting, entry, create) : Promise.resolve())}
       />
     </div>
   )

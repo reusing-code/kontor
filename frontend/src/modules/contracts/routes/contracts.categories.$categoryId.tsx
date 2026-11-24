@@ -41,16 +41,15 @@ function ContractsCategoryDetailPage() {
   const [deletingContract, setDeletingContract] = useState<Contract | null>(null)
 
   function handleCreate(data: ContractFormData) {
-    createContract.mutate(data, { onSuccess: () => toast.success(t("contract.created")) })
+    return createContract.mutateAsync(data, { onSuccess: () => toast.success(t("contract.created")) })
   }
 
   function handleUpdate(data: ContractFormData) {
-    if (!editingContract) return
-    updateContract.mutate(
+    if (!editingContract) return Promise.resolve()
+    return updateContract.mutateAsync(
       { id: editingContract.id, data },
       { onSuccess: () => toast.success(t("contract.updated")) },
     )
-    setEditingContract(null)
   }
 
   function handleDelete() {

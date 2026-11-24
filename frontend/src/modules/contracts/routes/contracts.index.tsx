@@ -73,16 +73,15 @@ export function ContractsDashboardPage() {
   })
 
   function handleCreate(data: CategoryFormData) {
-    createCategory.mutate(data, { onSuccess: () => toast.success(t("category.created")) })
+    return createCategory.mutateAsync(data, { onSuccess: () => toast.success(t("category.created")) })
   }
 
   function handleUpdate(data: CategoryFormData) {
-    if (!editingCategory) return
-    updateCategory.mutate(
+    if (!editingCategory) return Promise.resolve()
+    return updateCategory.mutateAsync(
       { id: editingCategory.id, data },
       { onSuccess: () => toast.success(t("category.updated")) },
     )
-    setEditingCategory(null)
   }
 
   function handleDelete() {
@@ -94,8 +93,8 @@ export function ContractsDashboardPage() {
   }
 
   function handleContractUpdate(data: ContractFormData) {
-    if (!editingContract) return
-    updateContractMutation.mutate({ id: editingContract.id, data })
+    if (!editingContract) return Promise.resolve()
+    return updateContractMutation.mutateAsync({ id: editingContract.id, data })
   }
 
   function handleContractDelete() {

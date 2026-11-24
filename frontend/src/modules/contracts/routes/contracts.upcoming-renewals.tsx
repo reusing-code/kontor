@@ -57,8 +57,8 @@ function UpcomingRenewalsPage() {
   })
 
   function handleUpdate(data: ContractFormData) {
-    if (!editingContract) return
-    updateMutation.mutate({ id: editingContract.id, data })
+    if (!editingContract) return Promise.resolve()
+    return updateMutation.mutateAsync({ id: editingContract.id, data })
   }
 
   function handleDelete() {
