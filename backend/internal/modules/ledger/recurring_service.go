@@ -56,23 +56,18 @@ type RecurringService struct {
 	enabled module.EnablementSource
 	logger  *slog.Logger
 
-	mu      sync.Mutex
-	running map[string]bool
-	baseCtx context.Context
-	wg      *sync.WaitGroup
+	*userRunner
 }
 
 // NewRecurringService builds the service; enabled may be nil (no module
 // check).
 func NewRecurringService(store *Store, draftStore *drafts.Store, enabled module.EnablementSource, logger *slog.Logger) *RecurringService {
 	return &RecurringService{
-		store:   store,
-		drafts:  draftStore,
-		enabled: enabled,
-		logger:  logger,
-		running: map[string]bool{},
-		baseCtx: context.Background(),
-		wg:      &sync.WaitGroup{},
+		store:      store,
+		drafts:     draftStore,
+		enabled:    enabled,
+		logger:     logger,
+		userRunner: newUserRunner(),
 	}
 }
 
@@ -82,25 +77,7 @@ func (s *RecurringService) SetBackground(ctx context.Context, wg *sync.WaitGroup
 	if s == nil {
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.baseCtx, s.wg = ctx, wg
-}
-
-func (s *RecurringService) tryLock(userID string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.running[userID] {
-		return false
-	}
-	s.running[userID] = true
-	return true
-}
-
-func (s *RecurringService) unlock(userID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.running, userID)
+	s.userRunner.SetBackground(ctx, wg)
 }
 
 // RunUser detects recurring payments and creates drafts for new groups.
@@ -119,20 +96,10 @@ func (s *RecurringService) RunUser(ctx context.Context, userID string) (Recurrin
 // RunInBackground starts a best-effort run unless the service has no draft
 // store or a run is already going for the user.
 func (s *RecurringService) RunInBackground(userID string) {
-	if s == nil || s.drafts == nil || !s.tryLock(userID) {
+	if s == nil || s.drafts == nil {
 		return
 	}
-	s.mu.Lock()
-	base, wg := s.baseCtx, s.wg
-	s.mu.Unlock()
-	if base.Err() != nil {
-		s.unlock(userID)
-		return
-	}
-	wg.Go(func() {
-		defer s.unlock(userID)
-		ctx, cancel := context.WithTimeout(base, recurringRunTimeout)
-		defer cancel()
+	s.goBackground(userID, recurringRunTimeout, func(ctx context.Context) {
 		_, err := s.run(ctx, userID)
 		if err != nil && !errors.Is(err, ErrTargetModuleDisabled) {
 			s.logger.Warn("background recurring payment detection failed", "userId", userID, "error", err)

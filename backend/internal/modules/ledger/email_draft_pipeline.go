@@ -59,8 +59,7 @@ type EmailDraftPipeline struct {
 	// actions moves or deletes decided messages in the mailbox; nil: never.
 	actions *emailActions
 
-	mu      sync.Mutex
-	running map[string]bool
+	*userRunner
 }
 
 func NewEmailDraftPipeline(store *Store, draftStore *drafts.Store, classifier *extraction.Classifier, coreStore *core.Store,
@@ -74,7 +73,7 @@ func NewEmailDraftPipeline(store *Store, draftStore *drafts.Store, classifier *e
 		interval:      interval,
 		logger:        logger.With("component", "ledger-email-drafts"),
 		now:           time.Now,
-		running:       map[string]bool{},
+		userRunner:    newUserRunner(),
 	}
 }
 
@@ -140,22 +139,6 @@ func (p *EmailDraftPipeline) runAll(ctx context.Context) {
 	}
 }
 
-func (p *EmailDraftPipeline) lock(userID string) bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.running[userID] {
-		return false
-	}
-	p.running[userID] = true
-	return true
-}
-
-func (p *EmailDraftPipeline) unlock(userID string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	delete(p.running, userID)
-}
-
 // emailDraftRef is the draft source ref of a message: account and dedup key.
 func emailDraftRef(accountID uuid.UUID, key string) string {
 	return accountID.String() + ":" + key
@@ -191,7 +174,7 @@ func (p *EmailDraftPipeline) RunUser(ctx context.Context, userID string) (EmailD
 	if !p.classifier.Enabled() {
 		return run.res, ErrEmailLLMDisabled
 	}
-	if !p.lock(userID) {
+	if !p.tryLock(userID) {
 		return run.res, ErrEmailDraftsBusy
 	}
 	defer p.unlock(userID)

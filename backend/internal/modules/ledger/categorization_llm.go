@@ -8,7 +8,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -89,10 +88,7 @@ type CategorySuggester struct {
 	logger    *slog.Logger
 	cfg       SuggestConfig
 
-	mu      sync.Mutex
-	running map[string]bool
-	baseCtx context.Context
-	wg      *sync.WaitGroup
+	*userRunner
 }
 
 func NewCategorySuggester(store *Store, extractor llm.Extractor, cfg SuggestConfig, logger *slog.Logger) *CategorySuggester {
@@ -100,47 +96,15 @@ func NewCategorySuggester(store *Store, extractor llm.Extractor, cfg SuggestConf
 		extractor = llm.Disabled{}
 	}
 	return &CategorySuggester{
-		store:     store,
-		extractor: extractor,
-		logger:    logger,
-		cfg:       cfg.withDefaults(),
-		running:   map[string]bool{},
-		baseCtx:   context.Background(),
-		wg:        &sync.WaitGroup{},
+		store:      store,
+		extractor:  extractor,
+		logger:     logger,
+		cfg:        cfg.withDefaults(),
+		userRunner: newUserRunner(),
 	}
 }
 
 func (s *CategorySuggester) Enabled() bool { return s.extractor.Enabled() }
-
-// SetBackground bounds background runs by the server's lifetime and starts
-// them on wg, which shutdown waits for.
-func (s *CategorySuggester) SetBackground(ctx context.Context, wg *sync.WaitGroup) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.baseCtx, s.wg = ctx, wg
-}
-
-func (s *CategorySuggester) Running(userID string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.running[userID]
-}
-
-func (s *CategorySuggester) tryLock(userID string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.running[userID] {
-		return false
-	}
-	s.running[userID] = true
-	return true
-}
-
-func (s *CategorySuggester) unlock(userID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.running, userID)
-}
 
 func (s *CategorySuggester) Run(ctx context.Context, userID string) (LedgerSuggestionRunResult, error) {
 	if !s.extractor.Enabled() {
@@ -156,20 +120,10 @@ func (s *CategorySuggester) Run(ctx context.Context, userID string) (LedgerSugge
 // RunInBackground starts a best-effort run unless the LLM is off or a run is
 // already going for the user.
 func (s *CategorySuggester) RunInBackground(userID string) {
-	if !s.extractor.Enabled() || !s.tryLock(userID) {
+	if !s.extractor.Enabled() {
 		return
 	}
-	s.mu.Lock()
-	base, wg := s.baseCtx, s.wg
-	s.mu.Unlock()
-	if base.Err() != nil {
-		s.unlock(userID)
-		return
-	}
-	wg.Go(func() {
-		defer s.unlock(userID)
-		ctx, cancel := context.WithTimeout(base, suggestRunTimeout)
-		defer cancel()
+	s.goBackground(userID, suggestRunTimeout, func(ctx context.Context) {
 		if _, err := s.run(ctx, userID); err != nil {
 			s.logger.Warn("background category suggestion run failed", "userId", userID, "error", err)
 		}
