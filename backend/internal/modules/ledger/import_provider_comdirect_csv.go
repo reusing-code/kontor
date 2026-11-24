@@ -76,7 +76,7 @@ func (p *ComdirectCSVProvider) Parse(r io.Reader) (ParseResult, error) {
 			continue
 		}
 
-		row, warns, err := parseComdirectRow(colIdx, rec, i+1)
+		row, warns, err := parseComdirectRow(colIdx, rec)
 		if err != nil {
 			result.Warnings = append(result.Warnings, fmt.Sprintf("row %d: %v", i+1, err))
 			continue
@@ -103,7 +103,7 @@ func comdirectPendingRowWarning(colIdx map[string]int, rec []string, rowNum int)
 	return "", false
 }
 
-func parseComdirectRow(colIdx map[string]int, rec []string, rowNum int) (ParsedRow, []string, error) {
+func parseComdirectRow(colIdx map[string]int, rec []string) (ParsedRow, []string, error) {
 	get := func(name string) string { return comdirectField(colIdx, rec, name) }
 
 	bookingRaw := get("Buchungstag")

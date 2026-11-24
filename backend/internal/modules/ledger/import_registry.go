@@ -15,11 +15,3 @@ func GetProvider(st SourceType) (Provider, error) {
 	}
 	return p, nil
 }
-
-func RegisteredSourceTypes() []SourceType {
-	types := make([]SourceType, 0, len(providers))
-	for st := range providers {
-		types = append(types, st)
-	}
-	return types
-}

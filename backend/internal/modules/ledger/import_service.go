@@ -223,10 +223,6 @@ func (svc *ImportService) Commit(ctx context.Context, req CommitRequest) (*Commi
 		return nil, invalidImport(errors.New("no account specified and no new account provided"))
 	}
 
-	// If account changed from preview, recompute fingerprints
-	needRecompute := accountIDStr != preview.AccountID || preview.AccountID == ""
-	_ = needRecompute
-
 	// Build transactions, skipping duplicates
 	now := time.Now().UTC()
 	batchID := uuid.New()

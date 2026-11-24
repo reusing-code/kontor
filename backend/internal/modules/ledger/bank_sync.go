@@ -166,7 +166,7 @@ func (s *BankService) syncAccount(ctx context.Context, userID string, conn Ledge
 	accountCtx, cancel := context.WithTimeout(ctx, bankSyncAccountTimeout)
 	defer cancel()
 
-	stats, imported, dupes, err := s.fetchAndCommit(accountCtx, userID, conn, account)
+	stats, imported, dupes, err := s.fetchAndCommit(accountCtx, userID, account)
 	if ctx.Err() != nil {
 		result.Imported, result.Duplicates = imported, dupes
 		return result, false, ctx.Err()
@@ -256,7 +256,7 @@ func (s *BankService) recordSyncState(ctx context.Context, userID string, conn L
 // fetchAndCommit fetches every page first (nothing is stored when one fails)
 // and commits oldest first in chunks, so an interrupted run can never leave a
 // newer stored row with older unfetched ones behind it.
-func (s *BankService) fetchAndCommit(ctx context.Context, userID string, conn LedgerBankConnection, account LedgerBankAccount) (bankFetchStats, int, int, error) {
+func (s *BankService) fetchAndCommit(ctx context.Context, userID string, account LedgerBankAccount) (bankFetchStats, int, int, error) {
 	var stats bankFetchStats
 	ledgerAccountID := *account.LedgerAccountID
 

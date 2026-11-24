@@ -54,7 +54,7 @@ func (p *DKBCSVProvider) Parse(r io.Reader) (ParseResult, error) {
 	result.BankName = "DKB"
 
 	for i, rec := range records[1:] {
-		row, warns, err := parseDKBRow(colIdx, rec, i+1)
+		row, warns, err := parseDKBRow(colIdx, rec)
 		if err != nil {
 			result.Warnings = append(result.Warnings, fmt.Sprintf("row %d: %v", i+1, err))
 			continue
@@ -90,7 +90,7 @@ func parseDKBPreamble(line string) (string, error) {
 	return iban, nil
 }
 
-func parseDKBRow(colIdx map[string]int, rec []string, rowNum int) (ParsedRow, []string, error) {
+func parseDKBRow(colIdx map[string]int, rec []string) (ParsedRow, []string, error) {
 	get := func(name string) string {
 		idx, ok := colIdx[name]
 		if !ok || idx >= len(rec) {
