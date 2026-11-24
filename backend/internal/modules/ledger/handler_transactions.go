@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -23,25 +24,39 @@ type ledgerTransferLinkResponse struct {
 }
 
 type ledgerTransactionListResponse struct {
-	Items      []LedgerTransaction `json:"items"`
-	NextCursor string              `json:"nextCursor,omitempty"`
-	Total      int                 `json:"total"`
+	Items  []LedgerTransaction `json:"items"`
+	Offset int                 `json:"offset"`
+	Total  int                 `json:"total"`
 }
 
-// ListAllLedgerTransactions pages the transactions of all accounts, newest
-// booking date first; repeated accountId parameters narrow it to those
+// pageQuery reads limit (default 100, positive) and offset (default 0, not
+// negative) of a list paged by offset.
+func pageQuery(query url.Values) (limit, offset int, err error) {
+	limit = 100
+	if raw := query.Get("limit"); raw != "" {
+		if limit, err = strconv.Atoi(raw); err != nil || limit <= 0 {
+			return 0, 0, errors.New("invalid limit")
+		}
+	}
+	if raw := query.Get("offset"); raw != "" {
+		if offset, err = strconv.Atoi(raw); err != nil || offset < 0 {
+			return 0, 0, errors.New("invalid offset")
+		}
+	}
+	return limit, offset, nil
+}
+
+// ListAllLedgerTransactions pages the transactions of all accounts by offset,
+// newest booking date first; repeated accountId parameters narrow it to those
 // accounts.
 func (h *Handler) ListAllLedgerTransactions(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
-	options := LedgerTransactionListOptions{Limit: 100, Cursor: query.Get("cursor")}
-	if rawLimit := query.Get("limit"); rawLimit != "" {
-		parsed, err := strconv.Atoi(rawLimit)
-		if err != nil || parsed <= 0 {
-			httputil.Error(h.logger, w, http.StatusBadRequest, "invalid limit")
-			return
-		}
-		options.Limit = parsed
+	limit, offset, err := pageQuery(query)
+	if err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+		return
 	}
+	options := LedgerTransactionListOptions{Limit: limit, Offset: offset}
 	for _, raw := range query["accountId"] {
 		id, err := uuid.Parse(raw)
 		if err != nil {
@@ -55,7 +70,7 @@ func (h *Handler) ListAllLedgerTransactions(w http.ResponseWriter, r *http.Reque
 		h.storeError(w, err)
 		return
 	}
-	httputil.WriteJSON(h.logger, w, http.StatusOK, ledgerTransactionListResponse(page))
+	httputil.WriteJSON(h.logger, w, http.StatusOK, ledgerTransactionListResponse{Items: page.Items, Offset: page.Offset, Total: page.Total})
 }
 
 func (h *Handler) GetLedgerTransaction(w http.ResponseWriter, r *http.Request) {

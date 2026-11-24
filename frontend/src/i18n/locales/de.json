@@ -389,8 +389,6 @@
     "source": "Quelle",
     "duplicate": "Duplikat",
     "new": "Neu",
-    "loadMore": "Mehr laden",
-    "loadingMore": "Lade mehr...",
     "transactionPages": "Seiten der Transaktionen",
     "transactionRange": "{{from}}–{{to}} von {{total}} Transaktionen",
     "transaction": "Transaktion",
@@ -888,9 +886,7 @@
       "accountCount_one": "{{count}} Konto",
       "accountCount_other": "{{count}} Konten",
       "filterLabel": "Konten filtern: {{selection}}",
-      "showAll": "Alle Konten anzeigen",
-      "shown_one": "{{shown}} von {{count}} Transaktion angezeigt",
-      "shown_other": "{{shown}} von {{count}} Transaktionen angezeigt"
+      "showAll": "Alle Konten anzeigen"
     },
     "allTransactionsLink": "Alle Transaktionen"
   },

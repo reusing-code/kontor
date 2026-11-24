@@ -23,3 +23,10 @@ export function pageItems(page: number, pageCount: number, siblings = 1): PageIt
 export function pageCountOf(total: number, pageSize: number): number {
   return Math.max(1, Math.ceil(total / pageSize))
 }
+
+// parsePageParam reads a 1-based page from a URL search param; the first page
+// and anything that is not a page give undefined, so the URL leaves it out.
+export function parsePageParam(value: unknown): number | undefined {
+  const page = typeof value === "string" ? Number(value) : value
+  return typeof page === "number" && Number.isInteger(page) && page > 1 ? page : undefined
+}

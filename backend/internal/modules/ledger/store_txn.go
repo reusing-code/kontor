@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -17,6 +18,8 @@ import (
 type LedgerTransactionPage struct {
 	Items      []LedgerTransaction
 	NextCursor string
+	// Offset is the position of the page's first item in the whole list.
+	Offset int
 	// Total is the number of matching transactions on all pages; only set by
 	// ListLedgerTransactionsFiltered.
 	Total int
@@ -31,7 +34,9 @@ type LedgerTransactionListOptions struct {
 	ReviewStatus string
 	Limit        int
 	Cursor       string
-	// All returns every match in one page; Limit and Cursor are ignored.
+	// Offset is where the page starts when there is no Cursor.
+	Offset int
+	// All returns every match in one page; Limit, Cursor and Offset are ignored.
 	All bool
 }
 
@@ -106,9 +111,9 @@ func sortLedgerTransactions(txns []LedgerTransaction) {
 	})
 }
 
-func paginateLedgerTransactions(txns []LedgerTransaction, limit int, cursor string) LedgerTransactionPage {
-	start, end := ledgerPageBounds(txns, limit, cursor)
-	page := LedgerTransactionPage{Items: txns[start:end]}
+func paginateLedgerTransactions(txns []LedgerTransaction, limit int, cursor string, offset int) LedgerTransactionPage {
+	start, end := ledgerPageBounds(txns, limit, cursor, offset)
+	page := LedgerTransactionPage{Items: txns[start:end], Offset: start}
 	if page.Items == nil {
 		page.Items = []LedgerTransaction{}
 	}
@@ -127,16 +132,14 @@ func clampLedgerPageLimit(limit int) int {
 }
 
 // ledgerPageBounds returns the slice bounds of the page after the cursor (the
-// last ID of the previous page); an unknown cursor starts at the beginning.
-func ledgerPageBounds(txns []LedgerTransaction, limit int, cursor string) (start, end int) {
+// last ID of the previous page; an unknown cursor starts at the beginning) or,
+// without a cursor, of the page at offset (past the end: an empty page).
+func ledgerPageBounds(txns []LedgerTransaction, limit int, cursor string, offset int) (start, end int) {
 	limit = clampLedgerPageLimit(limit)
-	if cursor != "" {
-		for i, txn := range txns {
-			if txn.ID.String() == cursor {
-				start = i + 1
-				break
-			}
-		}
+	if cursor == "" {
+		start = min(max(offset, 0), len(txns))
+	} else if i := slices.IndexFunc(txns, func(txn LedgerTransaction) bool { return txn.ID.String() == cursor }); i >= 0 {
+		start = i + 1
 	}
 	return start, min(start+limit, len(txns))
 }
@@ -188,7 +191,7 @@ func (s *Store) ListLedgerTransactionsFiltered(_ context.Context, userID string,
 		page.Total = len(filtered)
 		return page, nil
 	}
-	page = paginateLedgerTransactions(filtered, options.Limit, options.Cursor)
+	page = paginateLedgerTransactions(filtered, options.Limit, options.Cursor, options.Offset)
 	page.Total = len(filtered)
 	return page, nil
 }

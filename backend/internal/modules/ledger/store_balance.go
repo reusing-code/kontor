@@ -183,8 +183,7 @@ func (s *Store) ListLedgerAccountTransactionsPage(_ context.Context, userID stri
 		if err != nil {
 			return err
 		}
-		start := min(max(offset, 0), len(txns))
-		end := min(start+clampLedgerPageLimit(limit), len(txns))
+		start, end := ledgerPageBounds(txns, limit, "", offset)
 		page.Items = append([]LedgerTransaction{}, txns[start:end]...)
 		page.Offset = start
 		page.Total = len(txns)

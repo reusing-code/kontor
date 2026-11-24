@@ -3,7 +3,6 @@ package ledger
 import (
 	"context"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -243,24 +242,10 @@ func (h *Handler) ListLedgerTransactions(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	limit := 100
-	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
-		parsedLimit, err := strconv.Atoi(rawLimit)
-		if err != nil || parsedLimit <= 0 {
-			httputil.Error(h.logger, w, http.StatusBadRequest, "invalid limit")
-			return
-		}
-		limit = parsedLimit
-	}
-
-	offset := 0
-	if rawOffset := r.URL.Query().Get("offset"); rawOffset != "" {
-		parsedOffset, err := strconv.Atoi(rawOffset)
-		if err != nil || parsedOffset < 0 {
-			httputil.Error(h.logger, w, http.StatusBadRequest, "invalid offset")
-			return
-		}
-		offset = parsedOffset
+	limit, offset, err := pageQuery(r.URL.Query())
+	if err != nil {
+		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	page, err := h.store.ListLedgerAccountTransactionsPage(r.Context(), userID, accountID, limit, offset)

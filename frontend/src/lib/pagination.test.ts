@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { pageCountOf, pageItems } from "@/lib/pagination"
+import { pageCountOf, pageItems, parsePageParam } from "@/lib/pagination"
 
 describe("pageItems", () => {
   it("lists every page when there are few", () => {
@@ -22,6 +22,19 @@ describe("pageItems", () => {
     expect(pageItems(0, 3)).toEqual([1, 2, 3])
     expect(pageItems(9, 3)).toEqual([1, 2, 3])
     expect(pageItems(1, 0)).toEqual([])
+  })
+})
+
+describe("parsePageParam", () => {
+  it("keeps a page after the first", () => {
+    expect(parsePageParam(3)).toBe(3)
+    expect(parsePageParam("4")).toBe(4)
+  })
+
+  it("drops the first page and anything that is not a page", () => {
+    for (const page of [1, 0, -2, 2.5, "abc", "", null, undefined, [2]]) {
+      expect(parsePageParam(page)).toBeUndefined()
+    }
   })
 })
 

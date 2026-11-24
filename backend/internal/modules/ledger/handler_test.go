@@ -340,9 +340,9 @@ func TestLedgerReviewQueue_TotalCountsTheWholeQueue(t *testing.T) {
 }
 
 type ledgerListPage struct {
-	Items      []LedgerTransaction `json:"items"`
-	NextCursor string              `json:"nextCursor"`
-	Total      int                 `json:"total"`
+	Items  []LedgerTransaction `json:"items"`
+	Offset int                 `json:"offset"`
+	Total  int                 `json:"total"`
 }
 
 func listAllTransactions(t *testing.T, mux http.Handler, query string) ledgerListPage {
@@ -379,8 +379,8 @@ func TestLedgerAllTransactions_CombinesAccounts(t *testing.T) {
 	if got, want := transactionIDs(page.Items), []uuid.UUID{b.ID, c.ID, a.ID}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("items = %v, want %v", got, want)
 	}
-	if page.NextCursor != "" || page.Total != 3 {
-		t.Fatalf("nextCursor = %q, total = %d, want none and 3", page.NextCursor, page.Total)
+	if page.Offset != 0 || page.Total != 3 {
+		t.Fatalf("offset = %d, total = %d, want 0 and 3", page.Offset, page.Total)
 	}
 
 	page = listAllTransactions(t, mux, "?accountId="+main.String())
@@ -420,14 +420,12 @@ func TestLedgerAllTransactions_Paging(t *testing.T) {
 	commitTransactions(t, s, savings, savingsTxns...)
 
 	var seen []LedgerTransaction
-	query := "?limit=2"
-	for range 5 {
-		page := listAllTransactions(t, mux, query)
-		seen = append(seen, page.Items...)
-		if page.NextCursor == "" {
-			break
+	for offset := 0; offset < 5; offset += 2 {
+		page := listAllTransactions(t, mux, fmt.Sprintf("?limit=2&offset=%d", offset))
+		if page.Offset != offset || page.Total != 5 {
+			t.Fatalf("offset %d: offset = %d, total = %d", offset, page.Offset, page.Total)
 		}
-		query = "?limit=2&cursor=" + page.NextCursor
+		seen = append(seen, page.Items...)
 	}
 	if len(seen) != 5 {
 		t.Fatalf("paged through %d transactions, want 5", len(seen))
@@ -437,13 +435,22 @@ func TestLedgerAllTransactions_Paging(t *testing.T) {
 			t.Fatalf("not newest first at %d: %s before %s", i, seen[i-1].BookingDate, seen[i].BookingDate)
 		}
 	}
+
+	page := listAllTransactions(t, mux, "?limit=2&offset=2&accountId="+main.String())
+	if got := transactionIDs(page.Items); len(got) != 1 || got[0] != mainTxns[0].ID || page.Total != 3 {
+		t.Fatalf("second page of Main = %v (total %d), want the oldest Main transaction of 3", got, page.Total)
+	}
+	past := listAllTransactions(t, mux, "?offset=50")
+	if past.Items == nil || len(past.Items) != 0 || past.Offset != 5 || past.Total != 5 {
+		t.Fatalf("page past the end = %+v", past)
+	}
 }
 
 func TestLedgerAllTransactions_InvalidParameters(t *testing.T) {
 	h, _ := newTestHandler(t)
 	mux := newMux(h)
 
-	for _, query := range []string{"?accountId=nope", "?limit=0", "?limit=x"} {
+	for _, query := range []string{"?accountId=nope", "?limit=0", "?limit=x", "?offset=-1", "?offset=x"} {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/transactions"+query, nil))
 		if rec.Code != http.StatusBadRequest {

@@ -2,16 +2,10 @@ import { describe, expect, it } from "vitest"
 import { ledgerAccountSearch, parseLedgerAccountSearch } from "@/modules/ledger/lib/account-search"
 
 describe("parseLedgerAccountSearch", () => {
-  it("keeps a page after the first", () => {
-    expect(parseLedgerAccountSearch({ page: 3 })).toEqual({ page: 3 })
-    expect(parseLedgerAccountSearch({ page: "4" })).toEqual({ page: 4 })
-  })
-
-  it("drops the first page and anything that is not a page", () => {
-    for (const page of [1, 0, -2, 2.5, "abc", "", null, undefined, [2]]) {
-      expect(parseLedgerAccountSearch({ page })).toEqual({})
-    }
-    expect(parseLedgerAccountSearch({ other: "x" })).toEqual({})
+  it("keeps a page after the first and nothing else", () => {
+    expect(parseLedgerAccountSearch({ page: 3, other: "x" })).toEqual({ page: 3 })
+    expect(parseLedgerAccountSearch({ page: 1 })).toEqual({})
+    expect(parseLedgerAccountSearch({ page: "abc" })).toEqual({})
   })
 })
 

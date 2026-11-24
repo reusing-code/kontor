@@ -13,5 +13,6 @@ describe("ledger transactions route", () => {
     const validate = ledgerAllTransactionsRoute.options.validateSearch as (search: Record<string, unknown>) => unknown
     expect(validate({ accounts: ["a", "b"] })).toEqual({ accounts: ["a", "b"] })
     expect(validate({ accounts: "junk" })).toEqual({})
+    expect(validate({ accounts: ["a"], page: 2 })).toEqual({ accounts: ["a"], page: 2 })
   })
 })

@@ -109,7 +109,7 @@ Migrations are per module: each module supplies its own `Migrations()` list, app
 | `/auto/vehicles/$vehicleId/statistics` | Vehicle statistics with charts, yearly breakdowns, and projection |
 | `/ledger` | Ledger dashboard with the current net worth (link to the analysis), accounts (link to all transactions), imports, categories, and review queue |
 | `/ledger/accounts/$accountId` | Ledger account detail with the balance (current, source, drift warning, set or remove a balance by hand) and the transactions, 100 per page with page controls (`?page=N`), with the balance after and before each page; rename (name, bank) and delete the account with its transactions and imports |
-| `/ledger/transactions` | Transactions of all accounts combined, newest first, with an account column, "Load more" (appends) and an account filter kept in the URL (`?accounts=[...]`; none selected = all) |
+| `/ledger/transactions` | Transactions of all accounts combined, newest first, with an account column, 100 per page with page controls and an account filter, both kept in the URL (`?accounts=[...]&page=N`; none selected = all, another selection starts at page 1) |
 | `/ledger/categories` | Ledger category tree manager |
 | `/ledger/analysis` | Ledger analysis: time range (6 / 12 months, year to date, all, or custom dates), monthly expenses stacked by category (with the subcategories of one top-level category on demand), monthly cash flow (income, expenses, net result), net worth over time (total, optionally per account, with the accounts left out) and the top categories and counterparties |
 | `/ledger/review` | Ledger review queue: the whole queue, grouped by counterparty and proposed category, paged in the browser, with mass accept of match-word and LLM proposals |

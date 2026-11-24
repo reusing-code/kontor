@@ -159,13 +159,10 @@ export async function getLedgerReviewCount(): Promise<number> {
 
 // getAllLedgerTransactions pages the transactions of all accounts, or of the
 // given ones.
-export async function getAllLedgerTransactions(accountIds: readonly string[], limit: number = 100, cursor?: string): Promise<LedgerTransactionList> {
-  const search = new URLSearchParams({ limit: String(limit) })
+export async function getAllLedgerTransactions(accountIds: readonly string[], limit: number, offset: number): Promise<LedgerTransactionList> {
+  const search = new URLSearchParams({ limit: String(limit), offset: String(offset) })
   for (const id of accountIds) {
     search.append("accountId", id)
-  }
-  if (cursor) {
-    search.set("cursor", cursor)
   }
   return get<LedgerTransactionList>(`/ledger/transactions?${search.toString()}`)
 }

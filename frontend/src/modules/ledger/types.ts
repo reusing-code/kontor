@@ -372,7 +372,7 @@ export interface LedgerTransactionsPage {
 // A page of the cross-account list; total counts the matches on all pages.
 export interface LedgerTransactionList {
   items: LedgerTransaction[]
-  nextCursor?: string
+  offset: number
   total: number
 }
 

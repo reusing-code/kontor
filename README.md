@@ -185,7 +185,7 @@ Contracts, purchases, vehicles, vehicle costs and their categories are validated
 | GET | `/ledger/accounts/{id}/transactions` | List transactions for an account (`limit` + `offset`, with the `total`), with the balance after and before the page |
 | POST | `/ledger/accounts/{id}/balance` | Set the account balance by hand (`{amountMinor, asOf?}`; JWT only) |
 | DELETE | `/ledger/accounts/{id}/balance/{asOf}` | Delete a balance set by hand (JWT only) |
-| GET | `/ledger/transactions` | List the transactions of all accounts, newest first (`limit` + `cursor`, repeatable `accountId` to narrow to some accounts) |
+| GET | `/ledger/transactions` | List the transactions of all accounts, newest first (`limit` + `offset`, with the `total`; repeatable `accountId` to narrow to some accounts) |
 | GET | `/ledger/review-queue` | Review queue for ledger transactions (`limit` + `cursor`, or `limit=all` for the whole queue) |
 | GET | `/ledger/transactions/{id}` | Get ledger transaction details |
 | PUT | `/ledger/transactions/{id}` | Update note, links, and cross references |

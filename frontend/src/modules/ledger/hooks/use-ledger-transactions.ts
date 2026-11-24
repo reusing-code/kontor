@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import i18n from "@/i18n"
 import { vehicleKeys } from "@/modules/auto/keys"
 import { contractKeys } from "@/modules/contracts/keys"
@@ -34,14 +34,14 @@ export function useLedgerTransactions(accountId: string, limit: number, offset: 
   })
 }
 
-export function useAllLedgerTransactions(accountIds: readonly string[], enabled: boolean = true, limit: number = 100) {
+// The shown page stays on screen while another page or selection loads.
+export function useAllLedgerTransactions(accountIds: readonly string[], offset: number, enabled: boolean = true, limit: number = 100) {
   const sorted = [...accountIds].sort()
-  return useInfiniteQuery({
-    queryKey: ledgerKeys.transactionListPages(sorted, limit),
-    queryFn: ({ pageParam }) => getAllLedgerTransactions(sorted, limit, pageParam),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (last) => last.nextCursor,
+  return useQuery({
+    queryKey: ledgerKeys.transactionListPage(sorted, limit, offset),
+    queryFn: () => getAllLedgerTransactions(sorted, limit, offset),
     enabled,
+    placeholderData: keepPreviousData,
   })
 }
 
