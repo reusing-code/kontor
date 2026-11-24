@@ -28,7 +28,9 @@
     "general": "Allgemein",
     "language": "Sprache",
     "en": "English",
-    "de": "Deutsch"
+    "de": "Deutsch",
+    "ledgerAccounts": "Konten",
+    "administration": "Verwaltung"
   },
   "dashboard": {
     "title": "Dashboard",

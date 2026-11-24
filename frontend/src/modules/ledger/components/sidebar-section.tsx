@@ -2,14 +2,21 @@ import { Link, useMatchRoute } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { useLedgerAccounts } from "@/modules/ledger/hooks/use-ledger-accounts"
 import { useCapabilities } from "@/hooks/use-capabilities"
-import { cn } from "@/lib/utils"
-import { SidebarSection } from "@/components/sidebar"
+import { SidebarLink, SidebarSection, SidebarSubSection } from "@/components/sidebar"
+import { sidebarLinkClass } from "@/components/sidebar-link-class"
 
+// The data pages come first, then the accounts (there can be many, so they
+// start collapsed) and last the administrative pages.
 export function LedgerSidebarSection() {
   const { t } = useTranslation()
   const { data: ledgerAccounts = [] } = useLedgerAccounts()
   const { bankImport } = useCapabilities()
   const matchRoute = useMatchRoute()
+
+  const accountActive = !!matchRoute({ to: "/ledger/accounts/$accountId" })
+  const categoriesActive = !!matchRoute({ to: "/ledger/categories" })
+  const bankActive = bankImport && !!matchRoute({ to: "/ledger/bank-connections", fuzzy: true })
+  const emailAccountsActive = !!matchRoute({ to: "/ledger/email-accounts" })
 
   return (
     <SidebarSection
@@ -17,81 +24,45 @@ export function LedgerSidebarSection() {
       to="/ledger"
       isActive={!!matchRoute({ to: "/ledger", fuzzy: true })}
     >
-      <Link
-        to="/ledger/review"
-        className={cn(
-          "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
-          matchRoute({ to: "/ledger/review" }) && "bg-accent font-medium",
-        )}
-      >
+      <SidebarLink to="/ledger/transactions" active={!!matchRoute({ to: "/ledger/transactions" })}>
+        {t("ledger.allTransactions.title")}
+      </SidebarLink>
+      <SidebarLink to="/ledger/review" active={!!matchRoute({ to: "/ledger/review" })}>
         {t("ledger.reviewQueue")}
-      </Link>
-      <Link
-        to="/ledger/analysis"
-        className={cn(
-          "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
-          matchRoute({ to: "/ledger/analysis" }) && "bg-accent font-medium",
-        )}
-      >
+      </SidebarLink>
+      <SidebarLink to="/ledger/analysis" active={!!matchRoute({ to: "/ledger/analysis" })}>
         {t("ledger.analysis.title")}
-      </Link>
-      <Link
-        to="/ledger/categories"
-        className={cn(
-          "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
-          matchRoute({ to: "/ledger/categories" }) && "bg-accent font-medium",
-        )}
-      >
-        {t("ledger.categories")}
-      </Link>
-      <Link
-        to="/ledger/email-accounts"
-        className={cn(
-          "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
-          matchRoute({ to: "/ledger/email-accounts" }) && "bg-accent font-medium",
-        )}
-      >
-        {t("ledger.email.accounts")}
-      </Link>
-      <Link
-        to="/ledger/email-orders"
-        className={cn(
-          "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
-          matchRoute({ to: "/ledger/email-orders" }) && "bg-accent font-medium",
-        )}
-      >
+      </SidebarLink>
+      <SidebarLink to="/ledger/email-orders" active={!!matchRoute({ to: "/ledger/email-orders" })}>
         {t("ledger.email.orders")}
-      </Link>
-      {bankImport && (
-        <Link
-          to="/ledger/bank-connections"
-          className={cn(
-            "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
-            matchRoute({ to: "/ledger/bank-connections", fuzzy: true }) && "bg-accent font-medium",
-          )}
-        >
-          {t("ledger.bankImport.title")}
-        </Link>
+      </SidebarLink>
+      {ledgerAccounts.length > 0 && (
+        <SidebarSubSection title={t("nav.ledgerAccounts")} containsActive={accountActive} defaultOpen={false}>
+          {ledgerAccounts.map((account) => (
+            <Link
+              key={account.id}
+              to="/ledger/accounts/$accountId"
+              params={{ accountId: account.id }}
+              className={sidebarLinkClass(!!matchRoute({ to: "/ledger/accounts/$accountId", params: { accountId: account.id } }))}
+            >
+              {account.name}
+            </Link>
+          ))}
+        </SidebarSubSection>
       )}
-      {ledgerAccounts.map((account) => {
-        const active = matchRoute({
-          to: "/ledger/accounts/$accountId",
-          params: { accountId: account.id },
-        })
-        return (
-          <Link
-            key={account.id}
-            to="/ledger/accounts/$accountId"
-            params={{ accountId: account.id }}
-            className={cn(
-              "rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
-              active && "bg-accent font-medium",
-            )}
-          >
-            {account.name}
-          </Link>
-        )
-      })}
+      <SidebarSubSection title={t("nav.administration")} containsActive={categoriesActive || bankActive || emailAccountsActive}>
+        <SidebarLink to="/ledger/categories" active={categoriesActive}>
+          {t("ledger.categories")}
+        </SidebarLink>
+        {bankImport && (
+          <SidebarLink to="/ledger/bank-connections" active={bankActive}>
+            {t("ledger.bankImport.title")}
+          </SidebarLink>
+        )}
+        <SidebarLink to="/ledger/email-accounts" active={emailAccountsActive}>
+          {t("ledger.email.accounts")}
+        </SidebarLink>
+      </SidebarSubSection>
     </SidebarSection>
   )
 }

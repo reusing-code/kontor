@@ -5,6 +5,7 @@ import { modules } from "@/modules/registry"
 import { useModules } from "@/hooks/use-modules"
 import { useInboxAvailable, usePendingDrafts } from "@/hooks/use-drafts"
 import { cn } from "@/lib/utils"
+import { sidebarLinkClass } from "@/components/sidebar-link-class"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ChevronRight, Home } from "lucide-react"
 
@@ -50,6 +51,49 @@ export function SidebarSection({
       </div>
       <CollapsibleContent>
         <div className="flex flex-col gap-1">
+          {children}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
+export function SidebarLink({ to, active, children }: { to: string; active: boolean; children: React.ReactNode }) {
+  return (
+    <Link to={to} className={sidebarLinkClass(active)}>
+      {children}
+    </Link>
+  )
+}
+
+// SidebarSubSection is a collapsible group inside a section. It opens itself
+// when one of its pages becomes active, so the current page is never hidden.
+export function SidebarSubSection({
+  title,
+  containsActive,
+  defaultOpen = true,
+  children,
+}: {
+  title: string
+  containsActive: boolean
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen || containsActive)
+  const [wasActive, setWasActive] = useState(containsActive)
+  if (containsActive !== wasActive) {
+    setWasActive(containsActive)
+    if (containsActive) setOpen(true)
+  }
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+        <ChevronRight className={cn("h-3 w-3 shrink-0 transition-transform", open && "rotate-90")} />
+        {title}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="ml-4 flex flex-col gap-1 border-l pl-2">
           {children}
         </div>
       </CollapsibleContent>
