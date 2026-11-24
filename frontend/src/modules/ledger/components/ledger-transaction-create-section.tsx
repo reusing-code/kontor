@@ -12,6 +12,7 @@ import { ContractDialog } from "@/modules/contracts/components/contract-dialog"
 import { VehicleDialog } from "@/modules/auto/components/vehicle-dialog"
 import { CostFromTransaction, PurchaseFromTransaction } from "@/modules/ledger/components/ledger-transaction-create-actions"
 import type { TransactionLinker } from "@/modules/ledger/hooks/use-transaction-linker"
+import { contractPrefill } from "@/modules/ledger/lib/transaction-prefill"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -33,12 +34,7 @@ function ContractCreateAndLink({ transaction, link }: { transaction: LedgerTrans
       toast.error(t("ledger.selectCategoryFirst"))
       return
     }
-    const name = transaction.counterpartyName?.trim()
-    setInitialValues({
-      ...(name ? { name, company: name } : {}),
-      ...(transaction.currency === "EUR" ? { price: Math.abs(transaction.amountMinor) / 100 } : {}),
-      startDate: transaction.bookingDate.slice(0, 10),
-    })
+    setInitialValues(contractPrefill(transaction))
   }
 
   function handleCreate(data: ContractFormData) {

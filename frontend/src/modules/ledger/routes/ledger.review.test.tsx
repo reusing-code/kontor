@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
-import { mockApi, type ApiCall } from "@/test/api-mock"
+import { apiError, mockApi, type ApiCall } from "@/test/api-mock"
 import { renderWithProviders } from "@/test/render"
+import { errorToasts } from "@/test/toasts"
 import type { LedgerBatchReviewItem, LedgerCategory, LedgerReviewQueueItem } from "@/modules/ledger/types"
 import { LedgerReviewPage } from "@/modules/ledger/routes/ledger.review"
 
@@ -38,8 +39,10 @@ function category(id: string, name: string, parentId?: string): LedgerCategory {
 
 const defaultCategories = [category(groceries, "Groceries"), category(fuel, "Fuel")]
 
-function setup(initial: LedgerReviewQueueItem[], categories = defaultCategories) {
+// failRequest: the number of the review-batch request that fails (1-based).
+function setup(initial: LedgerReviewQueueItem[], categories = defaultCategories, failRequest?: number) {
   let queue = initial
+  let requests = 0
   const api = mockApi({
     "GET /capabilities": { llm: true, llmVision: false, bankImport: false },
     "GET /ledger/categories": categories,
@@ -47,6 +50,7 @@ function setup(initial: LedgerReviewQueueItem[], categories = defaultCategories)
     "GET /ledger/category-suggestions/status": { running: false },
     "GET /paperless/config": { configured: false },
     "POST /ledger/transactions/review-batch": (call: ApiCall) => {
+      if (++requests === failRequest) return apiError(500, "database gone")
       const items = (call.body as { items: LedgerBatchReviewItem[] }).items
       const done = new Set(items.map((item) => item.transactionId))
       queue = queue.filter((item) => !done.has(item.id))
@@ -209,5 +213,39 @@ describe("LedgerReviewPage", () => {
     await user.click(screen.getByRole("button", { name: "Clear match words" }))
     expect(input).toHaveValue("")
     expect(screen.queryByRole("button", { name: "Clear match words" })).toBeNull()
+  })
+
+  it("keeps the chunks stored before a failed request, shows one error and reloads the queue", async () => {
+    const items = Array.from({ length: 150 }, (_, i) => aldi((i % 28) + 1))
+    const { api, user } = setup(items, defaultCategories, 2)
+
+    await user.click(await screen.findByRole("button", { name: "Accept 150 categories" }))
+
+    await waitFor(() => expect(errorToasts()).toEqual(["database gone"]))
+    expect(batchBodies(api).map((body) => body.length)).toEqual([100, 50])
+    expect(await screen.findByText("50 transactions to review")).toBeInTheDocument()
+    expect(api.callsTo("GET", "/ledger/transactions?limit=all")).toHaveLength(2)
+    expect(screen.getByRole("button", { name: "Accept 50 categories" })).toBeEnabled()
+    expect(errorToasts()).toEqual(["database gone"])
+  })
+
+  it("stays on the last page that still exists when the queue shrinks", async () => {
+    const letters = (i: number) => String.fromCharCode(97 + Math.floor(i / 26), 97 + (i % 26))
+    // distinct counterparty words, so every transaction is a row of its own
+    const proposed = Array.from({ length: 60 }, (_, i) => txn({ counterpartyName: `Shop${letters(i)}`, categoryId: groceries, categorizationSource: "keyword" }))
+    const open = Array.from({ length: 60 }, (_, i) => txn({ counterpartyName: `Payee${letters(i)}` }))
+    const { user } = setup([...proposed, ...open])
+
+    expect(await screen.findByText("120 transactions to review")).toBeInTheDocument()
+    await user.click(screen.getAllByRole("button", { name: "Last page" })[0])
+    expect(screen.getAllByText("Page 3 of 3")).toHaveLength(2)
+
+    await user.click(screen.getByRole("button", { name: "Accept 60 categories" }))
+
+    expect(await screen.findByText("60 transactions to review")).toBeInTheDocument()
+    expect(screen.getAllByText("Page 2 of 2")).toHaveLength(2)
+    expect(screen.getByText("Payeeby")).toBeInTheDocument()
+    expect(screen.getByText("Payeech")).toBeInTheDocument()
+    expect(screen.queryByText("Payeebx")).toBeNull()
   })
 })

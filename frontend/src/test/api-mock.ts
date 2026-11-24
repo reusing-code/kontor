@@ -5,6 +5,8 @@ export interface ApiCall {
   // Path below /api/v1, including the query string.
   path: string
   body: unknown
+  // The body of a multipart request.
+  form?: FormData
 }
 
 class ApiFailure {
@@ -43,6 +45,7 @@ export function mockApi(routes: Record<string, unknown>) {
       method,
       path: path + url.search,
       body: typeof init?.body === "string" ? JSON.parse(init.body) : undefined,
+      ...(init?.body instanceof FormData ? { form: init.body } : {}),
     }
     calls.push(call)
 
