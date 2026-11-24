@@ -4,6 +4,7 @@ import { InboxPage } from "@/routes/inbox"
 import { apiError, mockApi } from "@/test/api-mock"
 import { acceptCases, draft, ids, inboxRoutes } from "@/test/inbox-fixtures"
 import { renderWithProviders } from "@/test/render"
+import { errorToasts } from "@/test/toasts"
 import type { Draft } from "@/types/drafts"
 
 // These tests mount the real module dialogs; prefilled-create-dialogs.test.tsx
@@ -67,8 +68,23 @@ describe("InboxPage accept", () => {
     const dialog = await screen.findByRole("dialog", { name: "Add Vehicle" })
     await user.click(within(dialog).getByRole("button", { name: "Save" }))
 
-    expect(await screen.findByText("Could not create the entry: name taken")).toBeInTheDocument()
+    await waitFor(() => expect(errorToasts()).toEqual(["name taken"]))
     expect(api.callsTo("POST", `/drafts/${d.id}/accept`)).toHaveLength(0)
+    expect(screen.getByText(d.source.title!)).toBeInTheDocument()
+  })
+
+  it("says once that the entry exists when accepting the draft fails", async () => {
+    const d = draft("vehicle", { name: "Family car" })
+    mockApi({ ...inboxRoutes({ drafts: [d] }), [`POST /drafts/${d.id}/accept`]: apiError(409, "already decided") })
+    const { user } = renderWithProviders(<InboxPage />)
+
+    await user.click(await findAccept(d))
+    const dialog = await screen.findByRole("dialog", { name: "Add Vehicle" })
+    await user.click(within(dialog).getByRole("button", { name: "Save" }))
+
+    await waitFor(() =>
+      expect(errorToasts()).toEqual(["The entry was created, but the draft could not be accepted: already decided"]),
+    )
     expect(screen.getByText(d.source.title!)).toBeInTheDocument()
   })
 

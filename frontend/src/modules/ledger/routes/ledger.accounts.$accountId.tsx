@@ -45,7 +45,6 @@ export function LedgerAccountPage() {
         toast.success(t("ledger.accountDelete.done", { name: account.name }))
         void navigate({ to: "/ledger" })
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 
@@ -122,7 +121,6 @@ export function LedgerAccountPage() {
                   setEditing(false)
                   toast.success(t("ledger.accountEdit.saved"))
                 },
-                onError: (error) => toast.error(error.message),
               })
             }
           />

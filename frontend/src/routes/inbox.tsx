@@ -142,7 +142,6 @@ export function InboxPage() {
     updateDraft.mutate(
       { id: draft.id, input: { targetType, parentId, input } },
       {
-        onError: (err) => toast.error(err.message),
         onSettled: () => setBusyId(null),
       },
     )
@@ -160,7 +159,6 @@ export function InboxPage() {
         toast.success(t("drafts.rejected"))
         res.warnings.forEach((w) => toast.warning(w))
       },
-      onError: (err) => toast.error(err.message),
       onSettled: () => setBusyId(null),
     })
   }
@@ -173,8 +171,7 @@ export function InboxPage() {
       let entityId: string
       try {
         entityId = (await create()).id
-      } catch (err) {
-        toast.error(t("drafts.createFailed", { message: (err as Error).message }))
+      } catch {
         return
       }
       try {
@@ -184,8 +181,8 @@ export function InboxPage() {
         })
         toast.success(t(acceptedKeys[draft.source.kind] ?? "drafts.accepted"))
         res.warnings.forEach((w) => toast.warning(w))
-      } catch (err) {
-        toast.error(t("drafts.acceptFailed", { message: (err as Error).message }))
+      } catch {
+        // the mutation's error toast reports it
       }
     } finally {
       setBusyId(null)

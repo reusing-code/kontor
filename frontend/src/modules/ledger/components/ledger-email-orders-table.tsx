@@ -50,7 +50,7 @@ export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] 
                   </Button>
                 ))}
                 {order.matchStatus !== "rejected" ? (
-                  <Button type="button" variant="outline" onClick={() => rejectOrder.mutate(order.id, { onSuccess: () => toast.success(t("ledger.email.orderRejected")), onError: (error) => toast.error(error.message) })}>{t("ledger.email.reject")}</Button>
+                  <Button type="button" variant="outline" onClick={() => rejectOrder.mutate(order.id, { onSuccess: () => toast.success(t("ledger.email.orderRejected")) })}>{t("ledger.email.reject")}</Button>
                 ) : null}
                 {order.linkedTransactionIds?.length ? null : <Button type="button" variant="outline" onClick={() => setSelectedOrder(order)}>{t("ledger.email.review")}</Button>}
               </div>
@@ -72,7 +72,6 @@ export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] 
               toast.success(t("ledger.email.orderLinked"))
               setSelectedOrder(null)
             },
-            onError: (error) => toast.error(error.message),
           })
         }}
       />

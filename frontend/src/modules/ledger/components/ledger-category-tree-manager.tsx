@@ -58,7 +58,6 @@ export function LedgerCategoryTreeManager({ categories }: LedgerCategoryTreeMana
         toast.success(t("ledger.categoryCreated"))
         setDialogState(null)
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 
@@ -69,7 +68,6 @@ export function LedgerCategoryTreeManager({ categories }: LedgerCategoryTreeMana
         toast.success(t("ledger.categoryUpdated"))
         setDialogState(null)
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 
@@ -80,7 +78,6 @@ export function LedgerCategoryTreeManager({ categories }: LedgerCategoryTreeMana
         toast.success(t("ledger.categoryDeleted"))
         setDeleteCandidate(null)
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 

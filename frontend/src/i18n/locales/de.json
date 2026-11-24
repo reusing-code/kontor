@@ -235,13 +235,11 @@
     "reminderBiweekly": "Alle 2 Wochen",
     "reminderMonthly": "Monatlich",
     "saved": "Einstellungen gespeichert.",
-    "saveFailed": "Einstellungen konnten nicht gespeichert werden.",
     "changePassword": "Passwort ändern",
     "changePasswordDescription": "Aktualisiere dein Kontopasswort.",
     "currentPassword": "Aktuelles Passwort",
     "newPassword": "Neues Passwort",
     "passwordChanged": "Passwort erfolgreich geändert.",
-    "passwordChangeFailed": "Passwort konnte nicht geändert werden.",
     "dataExport": "Datenexport",
     "dataExportDescription": "Lade alle deine Daten als JSON-Datei herunter.",
     "exportButton": "Daten exportieren",
@@ -699,7 +697,6 @@
       "continue_other": "Weiter mit {{count}} Artikeln",
       "purchasesCreated_one": "{{count}} Anschaffung erstellt und verknüpft.",
       "purchasesCreated_other": "{{count}} Anschaffungen erstellt und verknüpft.",
-      "createFailed": "Der Eintrag konnte nicht erstellt werden: {{message}}",
       "linkFailed": "Der Eintrag wurde erstellt, konnte aber nicht verknüpft werden: {{message}}. Speichere die Transaktion, um ihn zu verknüpfen."
     },
     "bankImport": {
@@ -929,7 +926,6 @@
     "sourceEmailNoSubject": "(kein Betreff)",
     "sourceEmailOpen": "Im Mailprogramm öffnen",
     "rejected": "Entwurf verworfen",
-    "createFailed": "Der Eintrag konnte nicht angelegt werden: {{message}}",
     "acceptFailed": "Der Eintrag wurde angelegt, aber der Entwurf konnte nicht übernommen werden: {{message}}",
     "hintPickType": "Wähle, worum es sich bei diesem Dokument handelt, oder verwirf es.",
     "hintModuleDisabled": "Dieses Modul ist deaktiviert. Wähle einen anderen Typ oder verwirf den Entwurf.",
@@ -1053,7 +1049,6 @@
     "create": "Token erstellen",
     "createDescription": "Wähle einen Namen, was das Token darf und wie lange es gültig ist.",
     "createButton": "Erstellen",
-    "createFailed": "Das Token konnte nicht erstellt werden",
     "name": "Name",
     "namePlaceholder": "z. B. Claude Code auf meinem Laptop",
     "nameRequired": "Ein Name ist erforderlich",
@@ -1092,7 +1087,6 @@
     "empty": "Noch keine Token.",
     "revoke": "Widerrufen",
     "revoked": "Token widerrufen",
-    "revokeFailed": "Das Token konnte nicht widerrufen werden",
     "revokeConfirm": "Das Token „{{name}}“ widerrufen? Clients, die es nutzen, verlieren sofort den Zugriff.",
     "revealTitle": "Dein neues Token",
     "revealDescription": "Kopiere das Token und hinterlege es jetzt in deinem Client.",
@@ -1129,6 +1123,7 @@
     "perMonth": "/ Mon.",
     "perQuarter": "/ Quartal",
     "perYear": "/ Jahr",
-    "viewAll": "Alle anzeigen"
+    "viewAll": "Alle anzeigen",
+    "error": "Etwas ist schiefgelaufen."
   }
 }

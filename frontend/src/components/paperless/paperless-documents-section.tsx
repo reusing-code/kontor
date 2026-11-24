@@ -33,7 +33,6 @@ export function PaperlessDocumentsSection({
   function handleDetach(documentId: number) {
     detach.mutate(documentId, {
       onSuccess: () => toast.success(t("paperless.detached")),
-      onError: (err) => toast.error(err.message),
     })
   }
 

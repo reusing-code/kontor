@@ -92,9 +92,6 @@ export function LedgerImportPanel({ accounts }: LedgerImportPanelProps) {
           }
           toast.success(t("ledger.previewReady"))
         },
-        onError: (error) => {
-          toast.error(error.message)
-        },
       },
     )
   }
@@ -114,9 +111,6 @@ export function LedgerImportPanel({ accounts }: LedgerImportPanelProps) {
               toast.success(t("ledger.importCommitted", { count: result.importedRows }))
               resetFlow()
             },
-            onError: (error) => {
-              toast.error(error.message)
-            },
           },
         )
       })()
@@ -132,9 +126,6 @@ export function LedgerImportPanel({ accounts }: LedgerImportPanelProps) {
         onSuccess: (result) => {
           toast.success(t("ledger.importCommitted", { count: result.importedRows }))
           resetFlow()
-        },
-        onError: (error) => {
-          toast.error(error.message)
         },
       },
     )

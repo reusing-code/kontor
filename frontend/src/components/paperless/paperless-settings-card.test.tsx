@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { screen, within } from "@testing-library/react"
+import { screen, waitFor, within } from "@testing-library/react"
 import { renderWithProviders } from "@/test/render"
+import { errorToasts } from "@/test/toasts"
 import { apiError, mockApi } from "@/test/api-mock"
 import { PaperlessSettingsCard } from "@/components/paperless/paperless-settings-card"
 
@@ -30,6 +31,7 @@ describe("PaperlessSettingsCard connection test", () => {
     const form = screen.getByRole("button", { name: "Save" }).closest("form")!
     expect(await within(form).findByRole("alert")).toHaveTextContent("Connection failed: paperless answered 401")
     expect(within(form).queryByRole("status")).toBeNull()
+    await waitFor(() => expect(errorToasts()).toEqual(["Connection failed: paperless answered 401"]))
   })
 
   it("clears the result when the connection is edited", async () => {

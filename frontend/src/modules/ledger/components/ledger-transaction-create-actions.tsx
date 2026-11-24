@@ -202,8 +202,7 @@ export function PurchaseFromTransaction({ transaction, orders, link }: {
       let purchaseId: string
       try {
         purchaseId = (await createPurchase.mutateAsync({ categoryId, data })).id
-      } catch (error) {
-        toast.error(t("ledger.createFromTransaction.createFailed", { message: (error as Error).message }))
+      } catch {
         // reopen the same entry with what the user entered
         setQueue((entries) => entries.map((entry, i) => (i === current ? data : entry)))
         return
@@ -294,7 +293,6 @@ export function CostFromTransaction({ transaction, orders, link }: {
           toast.success(t("ledger.referenceCreatedAndLinked", { type: t("ledger.referenceTypes.cost") }))
         }
       },
-      onError: (error) => toast.error(t("ledger.createFromTransaction.createFailed", { message: error.message })),
     })
   }
 

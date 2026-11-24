@@ -116,7 +116,6 @@ function ContractCreateAndLink({ transaction, link }: { transaction: LedgerTrans
           toast.success(t("ledger.referenceCreatedAndLinked", { type: t("nav.contracts") }))
         }
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 
@@ -156,7 +155,6 @@ function VehicleCreateAndLink({ link }: { link: TransactionLinker }) {
           toast.success(t("ledger.referenceCreatedAndLinked", { type: t("nav.auto") }))
         }
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 
@@ -333,7 +331,6 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
     if (!categoryId || categoryId === transaction.categoryId) return
     reviewMutation.mutate({ id: transaction.id, data: { categoryId, addMatchWords: [] } }, {
       onSuccess: () => toast.success(t("ledger.categoryChanged")),
-      onError: (error) => toast.error(error.message),
     })
   }
 
@@ -341,7 +338,6 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
     const links = linksText.split("\n").map((value) => value.trim()).filter(Boolean)
     updateDetails.mutate({ id: transaction.id, data: { note, links, references } }, {
       onSuccess: () => toast.success(t("ledger.transactionDetailsSaved")),
-      onError: (error) => toast.error(error.message),
     })
   }
 

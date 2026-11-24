@@ -235,13 +235,11 @@
     "reminderBiweekly": "Every 2 weeks",
     "reminderMonthly": "Monthly",
     "saved": "Settings saved.",
-    "saveFailed": "Failed to save settings.",
     "changePassword": "Change Password",
     "changePasswordDescription": "Update your account password.",
     "currentPassword": "Current Password",
     "newPassword": "New Password",
     "passwordChanged": "Password changed successfully.",
-    "passwordChangeFailed": "Failed to change password.",
     "dataExport": "Data Export",
     "dataExportDescription": "Download all your data as a JSON file.",
     "exportButton": "Export data",
@@ -699,7 +697,6 @@
       "continue_other": "Continue with {{count}} items",
       "purchasesCreated_one": "{{count}} purchase created and linked.",
       "purchasesCreated_other": "{{count}} purchases created and linked.",
-      "createFailed": "Could not create the entry: {{message}}",
       "linkFailed": "The entry was created but could not be linked: {{message}}. Save the transaction to link it."
     },
     "bankImport": {
@@ -929,7 +926,6 @@
     "sourceEmailNoSubject": "(no subject)",
     "sourceEmailOpen": "Open in the mail client",
     "rejected": "Draft rejected",
-    "createFailed": "Could not create the entry: {{message}}",
     "acceptFailed": "The entry was created, but the draft could not be accepted: {{message}}",
     "hintPickType": "Choose what this document is, or reject it.",
     "hintModuleDisabled": "This module is disabled. Choose another type or reject the draft.",
@@ -1053,7 +1049,6 @@
     "create": "Create token",
     "createDescription": "Choose a name, what the token may do and how long it is valid.",
     "createButton": "Create",
-    "createFailed": "Could not create the token",
     "name": "Name",
     "namePlaceholder": "e.g. Claude Code on my laptop",
     "nameRequired": "A name is required",
@@ -1092,7 +1087,6 @@
     "empty": "No tokens yet.",
     "revoke": "Revoke",
     "revoked": "Token revoked",
-    "revokeFailed": "Could not revoke the token",
     "revokeConfirm": "Revoke the token \"{{name}}\"? Clients using it lose access immediately.",
     "revealTitle": "Your new token",
     "revealDescription": "Copy the token and store it in your client now.",
@@ -1129,6 +1123,7 @@
     "perMonth": "/ mo",
     "perQuarter": "/ qtr",
     "perYear": "/ yr",
-    "viewAll": "View all"
+    "viewAll": "View all",
+    "error": "Something went wrong."
   }
 }

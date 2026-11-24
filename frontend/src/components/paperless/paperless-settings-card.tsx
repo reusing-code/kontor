@@ -46,7 +46,6 @@ export function PaperlessSettingsCard() {
           setToken("")
           setTestResult(null)
         },
-        onError: (err) => toast.error(err.message || t("settings.saveFailed")),
       },
     )
   }
@@ -58,10 +57,7 @@ export function PaperlessSettingsCard() {
         setTestResult({ ok: true })
         toast.success(t("paperless.testSuccess"))
       },
-      onError: (err) => {
-        setTestResult({ ok: false, message: err.message })
-        toast.error(t("paperless.testFailed", { message: err.message }))
-      },
+      onError: (err) => setTestResult({ ok: false, message: err.message }),
     })
   }
 
@@ -73,7 +69,6 @@ export function PaperlessSettingsCard() {
         setToken("")
         setTestResult(null)
       },
-      onError: (err) => toast.error(err.message || t("settings.saveFailed")),
     })
   }
 

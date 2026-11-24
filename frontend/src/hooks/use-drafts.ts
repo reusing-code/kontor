@@ -1,4 +1,5 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import i18n from "@/i18n"
 import { acceptDraft, acceptDraftsBatch, getDraftSummary, listDrafts, rejectDraft, updateDraft } from "@/lib/drafts-repository"
 import { useCapabilities } from "@/hooks/use-capabilities"
 import { usePaperlessConfig } from "@/hooks/use-paperless"
@@ -44,6 +45,7 @@ export function useAcceptDraft() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: DraftAcceptInput }) => acceptDraft(id, input),
+    meta: { errorMessage: (e) => i18n.t("drafts.acceptFailed", { message: e.message }) },
     onSettled: () => qc.invalidateQueries({ queryKey: ["drafts"] }),
     onSuccess: () =>
       Promise.all([

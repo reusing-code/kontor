@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useBankAspsps } from "@/modules/ledger/hooks/use-bank-connections"
-import { bankErrorMessage } from "@/modules/ledger/hooks/use-bank-authorization"
+import { bankErrorMessage } from "@/modules/ledger/lib/bank-errors"
 import type { BankInfo } from "@/modules/ledger/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

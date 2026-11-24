@@ -1,4 +1,5 @@
 import { keepPreviousData, queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import i18n from "@/i18n"
 import {
   attachPaperlessDocuments,
   deletePaperlessConfig,
@@ -45,7 +46,10 @@ export function useDeletePaperlessConfig() {
 }
 
 export function useTestPaperlessConfig() {
-  return useMutation({ mutationFn: testPaperlessConfig })
+  return useMutation({
+    mutationFn: testPaperlessConfig,
+    meta: { errorMessage: (e) => i18n.t("paperless.testFailed", { message: e.message }) },
+  })
 }
 
 export function usePaperlessPipelineSettings(enabled: boolean) {

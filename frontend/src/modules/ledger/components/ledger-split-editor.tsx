@@ -59,7 +59,6 @@ export function LedgerSplitEditor({ transaction, categories }: LedgerSplitEditor
         setRows(stored)
         toast.success(t(splits.length > 0 ? "ledger.split.saved" : "ledger.split.removed"))
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 

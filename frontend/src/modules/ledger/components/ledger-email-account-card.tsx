@@ -77,7 +77,6 @@ export function LedgerEmailAccountCard({ account, llmOff, onEdit }: LedgerEmailA
           variant="outline"
           onClick={() => testAccount.mutate(account.id, {
             onSuccess: () => toast.success(t("ledger.email.testSuccess")),
-            onError: (error) => toast.error(error.message),
           })}
         >
           <Wifi className="mr-2 h-4 w-4" />{t("ledger.email.testConnection")}
@@ -86,7 +85,7 @@ export function LedgerEmailAccountCard({ account, llmOff, onEdit }: LedgerEmailA
           type="button"
           variant="outline"
           disabled={llmOff || !account.folder || busy}
-          onClick={() => startScan.mutate(account.id, { onError: (error) => toast.error(error.message) })}
+          onClick={() => startScan.mutate(account.id)}
         >
           <Play className="mr-2 h-4 w-4" />{scanning || startScan.isPending ? t("ledger.email.scanning") : t("ledger.email.scanNow")}
         </Button>
@@ -104,7 +103,6 @@ export function LedgerEmailAccountCard({ account, llmOff, onEdit }: LedgerEmailA
               }
               upload.mutate({ id: account.id, files }, {
                 onSuccess: (result) => reportScan({ ordersNew: result.ordersNew, warnings: result.warnings, incomplete: Boolean(result.partial || result.skipped) }),
-                onError: (error) => toast.error(error.message),
               })
               event.target.value = ""
             }}
@@ -114,7 +112,7 @@ export function LedgerEmailAccountCard({ account, llmOff, onEdit }: LedgerEmailA
           </Button>
         </label>
         <Button type="button" variant="outline" onClick={() => onEdit(account)}><Pencil className="mr-2 h-4 w-4" />{t("common.edit")}</Button>
-        <Button type="button" variant="outline" onClick={() => deleteAccount.mutate(account.id, { onSuccess: () => toast.success(t("ledger.email.accountDeleted")), onError: (error) => toast.error(error.message) })}><Trash2 className="mr-2 h-4 w-4" />{t("common.delete")}</Button>
+        <Button type="button" variant="outline" onClick={() => deleteAccount.mutate(account.id, { onSuccess: () => toast.success(t("ledger.email.accountDeleted")) })}><Trash2 className="mr-2 h-4 w-4" />{t("common.delete")}</Button>
       </div>
     </div>
   )

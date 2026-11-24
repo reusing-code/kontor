@@ -32,7 +32,6 @@ export function LedgerEmailAccountsPanel() {
         }
         result.warnings.forEach((warning) => toast.warning(warning))
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 
@@ -80,7 +79,6 @@ export function LedgerEmailAccountsPanel() {
                 toast.success(t("ledger.email.accountUpdated"))
                 setDialogOpen(false)
               },
-              onError: (error) => toast.error(error.message),
             })
             return
           }
@@ -89,7 +87,6 @@ export function LedgerEmailAccountsPanel() {
               toast.success(t("ledger.email.accountCreated"))
               setDialogOpen(false)
             },
-            onError: (error) => toast.error(error.message),
           })
         }}
       />

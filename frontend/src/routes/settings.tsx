@@ -55,7 +55,6 @@ export function SettingsPage() {
       { renewalDays: displayDays, reminderFrequency: displayFrequency },
       {
         onSuccess: () => toast.success(t("settings.saved")),
-        onError: () => toast.error(t("settings.saveFailed")),
       },
     )
   }
@@ -69,7 +68,6 @@ export function SettingsPage() {
       { renewalDays: settings.renewalDays, reminderFrequency: settings.reminderFrequency, enabledModules },
       {
         onSuccess: () => toast.success(t("settings.saved")),
-        onError: (err) => toast.error(err.message || t("settings.saveFailed")),
       },
     )
   }
@@ -92,9 +90,6 @@ export function SettingsPage() {
           setCurrentPassword("")
           setNewPassword("")
           setConfirmPassword("")
-        },
-        onError: (err) => {
-          toast.error(err.message || t("settings.passwordChangeFailed"))
         },
       },
     )

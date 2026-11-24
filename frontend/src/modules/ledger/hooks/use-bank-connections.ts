@@ -1,5 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useCapabilities } from "@/hooks/use-capabilities"
+import i18n from "@/i18n"
+import type { KontorMutationMeta } from "@/lib/query-client"
+import { bankErrorMessage } from "@/modules/ledger/lib/bank-errors"
 import {
   authorizeBank,
   disconnectBank,
@@ -11,6 +14,8 @@ import {
 } from "@/modules/ledger/lib/bank-repository"
 
 export const bankConnectionsKey = ["ledger", "bank", "connections"] as const
+
+const bankErrorMeta: KontorMutationMeta = { errorMessage: (e) => bankErrorMessage(i18n.t, e) }
 
 // Without the capability the query never runs, so a server without Enable
 // Banking is not asked.
@@ -35,13 +40,14 @@ export function useBankAspsps(country: string, enabled: boolean) {
 }
 
 export function useAuthorizeBank() {
-  return useMutation({ mutationFn: authorizeBank })
+  return useMutation({ mutationFn: authorizeBank, meta: bankErrorMeta })
 }
 
 export function useDisconnectBank() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: disconnectBank,
+    meta: bankErrorMeta,
     onSuccess: () => qc.invalidateQueries({ queryKey: bankConnectionsKey }),
   })
 }
@@ -51,6 +57,7 @@ export function useMapBankAccount() {
   return useMutation({
     mutationFn: ({ id, uid, ledgerAccountId }: { id: string; uid: string; ledgerAccountId: string }) =>
       mapBankAccount(id, uid, ledgerAccountId),
+    meta: bankErrorMeta,
     onSuccess: () => qc.invalidateQueries({ queryKey: bankConnectionsKey }),
   })
 }
@@ -59,6 +66,7 @@ export function useUnmapBankAccount() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, uid }: { id: string; uid: string }) => unmapBankAccount(id, uid),
+    meta: bankErrorMeta,
     onSuccess: () => qc.invalidateQueries({ queryKey: bankConnectionsKey }),
   })
 }
@@ -69,6 +77,7 @@ export function useSyncBankConnection() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: syncBankConnection,
+    meta: bankErrorMeta,
     onSettled: () => qc.invalidateQueries({ queryKey: ["ledger"] }),
   })
 }

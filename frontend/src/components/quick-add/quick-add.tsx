@@ -46,8 +46,8 @@ export function QuickAdd() {
       toast.success(t(`quickAdd.created.${type}`), {
         action: { label: t("quickAdd.open"), onClick: () => void navigate({ to: path }) },
       })
-    } catch (err) {
-      toast.error(t("drafts.createFailed", { message: (err as Error).message }))
+    } catch {
+      // the mutation's error toast reports it
     }
   }
 

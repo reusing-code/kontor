@@ -57,7 +57,6 @@ export function LedgerTransferManager({ transaction, compact = false }: LedgerTr
                   <AlertDialogAction
                     onClick={() => unlinkTransfer.mutate(transaction.id, {
                       onSuccess: () => toast.success(t("ledger.transferUnlinked")),
-                      onError: (error) => toast.error(error.message),
                     })}
                   >
                     {t("ledger.unlinkTransfer")}
@@ -90,7 +89,6 @@ export function LedgerTransferManager({ transaction, compact = false }: LedgerTr
                 size={compact ? "sm" : "default"}
                 onClick={() => linkTransfer.mutate({ id: transaction.id, data: { pairedTransactionId: candidate.transaction.id } }, {
                   onSuccess: () => toast.success(t("ledger.transferLinkedSuccess")),
-                  onError: (error) => toast.error(error.message),
                 })}
                 disabled={linkTransfer.isPending || Boolean(pairedTransactionId)}
               >

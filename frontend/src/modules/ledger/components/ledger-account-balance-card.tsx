@@ -35,7 +35,7 @@ export function LedgerAccountBalanceCard({ account }: { account: LedgerAccount }
               onClick={() =>
                 deleteBalance.mutate(
                   { id: account.id, asOf: balance.asOf },
-                  { onSuccess: () => toast.success(t("ledger.balance.removed")), onError: (error) => toast.error(error.message) },
+                  { onSuccess: () => toast.success(t("ledger.balance.removed")) },
                 )
               }
             >
@@ -83,7 +83,6 @@ export function LedgerAccountBalanceCard({ account }: { account: LedgerAccount }
                 setSetting(false)
                 toast.success(t("ledger.balance.saved"))
               },
-              onError: (error) => toast.error(error.message),
             },
           )
         }

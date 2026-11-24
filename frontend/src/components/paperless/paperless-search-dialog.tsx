@@ -81,7 +81,6 @@ export function PaperlessSearchDialog({
           }
           onOpenChange(false)
         },
-        onError: (err) => toast.error(err.message),
       },
     )
   }

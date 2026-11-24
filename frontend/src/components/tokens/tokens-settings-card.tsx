@@ -72,7 +72,6 @@ export function TokensSettingsCard() {
         setRevealed(created.token)
         createToken.reset()
       },
-      onError: (err) => toast.error(err.message || t("tokens.createFailed")),
     })
   }
 
@@ -80,7 +79,6 @@ export function TokensSettingsCard() {
     if (!revoking) return
     revokeToken.mutate(revoking.id, {
       onSuccess: () => toast.success(t("tokens.revoked")),
-      onError: (err) => toast.error(err.message || t("tokens.revokeFailed")),
     })
     setRevoking(null)
   }

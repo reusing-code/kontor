@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { Link2, Plus, RefreshCw, Trash2 } from "lucide-react"
-import { ApiError } from "@/lib/api"
 import {
   useBankConnections,
   useDisconnectBank,
@@ -11,7 +10,8 @@ import {
   useSyncBankConnection,
   useUnmapBankAccount,
 } from "@/modules/ledger/hooks/use-bank-connections"
-import { bankErrorMessage, useStartBankAuthorization } from "@/modules/ledger/hooks/use-bank-authorization"
+import { useStartBankAuthorization } from "@/modules/ledger/hooks/use-bank-authorization"
+import { bankErrorMessage } from "@/modules/ledger/lib/bank-errors"
 import { useCreateLedgerAccount, useLedgerAccounts } from "@/modules/ledger/hooks/use-ledger"
 import type { BankAccount, BankConnection, LedgerAccount, LedgerAccountInput } from "@/modules/ledger/types"
 import { formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
@@ -88,7 +88,6 @@ export function BankConnectionsPanel() {
         toast.success(t("ledger.bankImport.disconnected", { bank: target.aspspName }))
         if (!remoteClosed) toast.warning(t("ledger.bankImport.remoteNotClosed"))
       },
-      onError: (e) => toast.error(bankErrorMessage(t, e)),
     })
   }
 
@@ -98,12 +97,8 @@ export function BankConnectionsPanel() {
     createAccount.mutate(input, {
       onSuccess: (created) => {
         setPendingCreate(null)
-        mapAccount.mutate(
-          { id: connectionId, uid: account.uid, ledgerAccountId: created.id },
-          { onError: (e) => toast.error(bankErrorMessage(t, e)) },
-        )
+        mapAccount.mutate({ id: connectionId, uid: account.uid, ledgerAccountId: created.id })
       },
-      onError: (e) => toast.error(e.message),
     })
   }
 
@@ -134,19 +129,11 @@ export function BankConnectionsPanel() {
             reauthorizing={authorizing}
             onReauthorize={() => start({ aspspName: connection.aspspName, aspspCountry: connection.aspspCountry })}
             onDisconnect={() => setToDisconnect(connection)}
-            onMap={(uid, ledgerAccountId) =>
-              mapAccount.mutate(
-                { id: connection.id, uid, ledgerAccountId },
-                { onError: (e) => toast.error(bankErrorMessage(t, e)) },
-              )
-            }
+            onMap={(uid, ledgerAccountId) => mapAccount.mutate({ id: connection.id, uid, ledgerAccountId })}
             onUnmap={(uid) =>
               unmapAccount.mutate(
                 { id: connection.id, uid },
-                {
-                  onSuccess: () => toast.success(t("ledger.bankImport.unmapped")),
-                  onError: (e) => toast.error(bankErrorMessage(t, e)),
-                },
+                { onSuccess: () => toast.success(t("ledger.bankImport.unmapped")) },
               )
             }
             onCreate={(account) => setPendingCreate({ connectionId: connection.id, account, bank: connection.aspspName })}
@@ -206,10 +193,6 @@ function BankConnectionCard({
   function handleSync() {
     sync.mutate(connection.id, {
       onSuccess: (summary) => toast.success(t("ledger.bankImport.syncDone", { imported: summary.imported, duplicates: summary.duplicates })),
-      onError: (e) => {
-        const busy = e instanceof ApiError && e.code === "sync_running"
-        toast.error(busy ? t("ledger.bankImport.errors.sync_running") : bankErrorMessage(t, e))
-      },
     })
   }
 

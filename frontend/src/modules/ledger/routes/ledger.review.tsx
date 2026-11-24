@@ -159,7 +159,6 @@ export function LedgerReviewPage() {
           toast.success(runSummary(result))
         }
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 
@@ -175,7 +174,6 @@ export function LedgerReviewPage() {
           toast.warning(t("ledger.queue.acceptFailed", { count: result.failed.length }), { description: codes.join(", ") })
         }
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 

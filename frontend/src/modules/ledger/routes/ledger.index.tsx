@@ -2,7 +2,6 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Repeat } from "lucide-react"
-import { ApiError } from "@/lib/api"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { useCapabilities } from "@/hooks/use-capabilities"
 import { useModules } from "@/hooks/use-modules"
@@ -39,9 +38,6 @@ function DetectRecurringButton() {
         toast.success(t("ledger.recurring.created", { count: created }), {
           action: { label: t("ledger.recurring.openInbox"), onClick: () => void navigate({ to: "/inbox" }) },
         })
-      },
-      onError: (error) => {
-        toast.error(error instanceof ApiError && error.status === 409 ? t("ledger.recurring.busy") : error.message)
       },
     })
   }

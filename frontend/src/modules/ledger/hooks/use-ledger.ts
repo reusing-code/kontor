@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react"
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
+import i18n from "@/i18n"
+import { ApiError } from "@/lib/api"
+import { defaultErrorMessage } from "@/lib/query-client"
 import {
   addLedgerTransactionReference,
   commitLedgerImport,
@@ -300,6 +303,9 @@ export function useRunLedgerRecurringDetection() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: runLedgerRecurringDetection,
+    meta: {
+      errorMessage: (e) => (e instanceof ApiError && e.status === 409 ? i18n.t("ledger.recurring.busy") : defaultErrorMessage(e)),
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["drafts"] }),
   })
 }
@@ -447,6 +453,7 @@ export function useAddLedgerTransactionReference() {
   return useMutation({
     mutationFn: ({ id, reference }: { id: string; reference: LedgerTransactionReference }) =>
       addLedgerTransactionReference(id, reference),
+    meta: { errorMessage: (e) => i18n.t("ledger.createFromTransaction.linkFailed", { message: e.message }) },
     onSuccess: (transaction) => invalidateTransactionDetails(qc, transaction),
   })
 }
@@ -591,6 +598,8 @@ export function useLedgerEmailLinks(entityType: LedgerEmailLinkEntityType, entit
 export function useLedgerEmailFolders() {
   return useMutation({
     mutationFn: (data: LedgerEmailFoldersRequest) => listLedgerEmailFolders(data),
+    // The dialog shows the translated error below the folder input.
+    meta: { errorToast: false },
   })
 }
 

@@ -58,7 +58,6 @@ function LedgerReviewPanelInner({
         setMatchWords("")
         onReviewed?.(transaction.id)
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 
