@@ -16,6 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 import { BulkAcceptBar, type DraftTypeFilter } from "@/components/drafts/bulk-accept-bar"
 import { DraftCard } from "@/components/drafts/draft-card"
 import { PrefilledCreateDialogs } from "@/components/drafts/prefilled-create-dialogs"
@@ -55,6 +56,7 @@ export function InboxPage() {
   const parentOptions = useParentOptions()
 
   const [accepting, setAccepting] = useState<Draft | null>(null)
+  const [rejecting, setRejecting] = useState<Draft | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const acceptBatch = useAcceptDraftsBatch()
@@ -152,15 +154,16 @@ export function InboxPage() {
     update(draft, type, "", convertInput(draft.targetType, type, draft.input))
   }
 
-  function handleReject(draft: Draft) {
-    setBusyId(draft.id)
-    rejectDraft.mutate(draft.id, {
-      onSuccess: (res) => {
-        toast.success(t("drafts.rejected"))
-        res.warnings.forEach((w) => toast.warning(w))
-      },
-      onSettled: () => setBusyId(null),
-    })
+  async function handleReject() {
+    if (!rejecting) return
+    setBusyId(rejecting.id)
+    try {
+      const res = await rejectDraft.mutateAsync(rejecting.id)
+      toast.success(t("drafts.rejected"))
+      res.warnings.forEach((w) => toast.warning(w))
+    } finally {
+      setBusyId(null)
+    }
   }
 
   // The entity is created through the module's regular endpoint first; only
@@ -232,7 +235,7 @@ export function InboxPage() {
             onChangeType={(type) => handleChangeType(draft, type)}
             onChangeParent={(parentId) => update(draft, draft.targetType, parentId, draft.input)}
             onAccept={() => setAccepting(draft)}
-            onReject={() => handleReject(draft)}
+            onReject={() => setRejecting(draft)}
           />
         ))}
       </div>
@@ -249,6 +252,14 @@ export function InboxPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DeleteConfirmDialog
+        open={rejecting !== null}
+        onOpenChange={(open) => { if (!open) setRejecting(null) }}
+        description={t("drafts.rejectConfirm", { title: rejecting ? rejecting.source.title || `#${rejecting.source.ref}` : "" })}
+        actionLabel={t("drafts.reject")}
+        onConfirm={handleReject}
+      />
 
       <PrefilledCreateDialogs
         entry={acceptEntry}

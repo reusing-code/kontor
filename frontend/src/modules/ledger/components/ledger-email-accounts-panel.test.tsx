@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { screen, waitFor } from "@testing-library/react"
+import { screen, waitFor, within } from "@testing-library/react"
 import { apiError, mockApi } from "@/test/api-mock"
 import { renderWithProviders } from "@/test/render"
 import { LedgerEmailAccountsPanel } from "@/modules/ledger/components/ledger-email-accounts-panel"
@@ -55,5 +55,33 @@ describe("LedgerEmailAccountsPanel Kontor inbox folders", () => {
     const { user } = renderPanel("Kontor", apiError(409, "the LLM is not configured"))
     await user.click(await screen.findByRole("button", { name: "Check Kontor inbox folders" }))
     expect(await screen.findByText("the LLM is not configured")).toBeInTheDocument()
+  })
+})
+
+describe("LedgerEmailAccountsPanel delete", () => {
+  const deletePath = `/ledger/email-accounts/${account.id}`
+
+  it("deletes an account after asking", async () => {
+    const { user, api } = renderPanel(undefined, {})
+    api.routes[`DELETE ${deletePath}`] = undefined
+
+    await user.click(await screen.findByRole("button", { name: "Delete" }))
+    const confirm = await screen.findByRole("alertdialog")
+    expect(confirm).toHaveTextContent('Delete the email account "Mail"?')
+    expect(api.callsTo("DELETE", deletePath)).toHaveLength(0)
+
+    await user.click(within(confirm).getByRole("button", { name: "Delete" }))
+    expect(await screen.findByText("Email account deleted.")).toBeInTheDocument()
+    expect(api.callsTo("DELETE", deletePath)).toHaveLength(1)
+  })
+
+  it("sends nothing when deleting is cancelled", async () => {
+    const { user, api } = renderPanel(undefined, {})
+
+    await user.click(await screen.findByRole("button", { name: "Delete" }))
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Cancel" }))
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument())
+    expect(api.callsTo("DELETE", deletePath)).toHaveLength(0)
   })
 })

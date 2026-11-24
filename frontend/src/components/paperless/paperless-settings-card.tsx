@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { useCapabilities } from "@/hooks/use-capabilities"
 import { PaperlessPipelineSection } from "@/components/paperless/paperless-pipeline-section"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 
 type TestResult = { ok: true } | { ok: false; message: string }
 
@@ -28,6 +29,7 @@ export function PaperlessSettingsCard() {
   const [baseUrl, setBaseUrl] = useState<string | null>(null)
   const [token, setToken] = useState("")
   const [testResult, setTestResult] = useState<TestResult | null>(null)
+  const [confirmingRemove, setConfirmingRemove] = useState(false)
 
   const configured = config?.configured ?? false
   const displayBaseUrl = baseUrl ?? config?.baseUrl ?? ""
@@ -61,15 +63,12 @@ export function PaperlessSettingsCard() {
     })
   }
 
-  function handleRemove() {
-    deleteConfig.mutate(undefined, {
-      onSuccess: () => {
-        toast.success(t("paperless.removed"))
-        setBaseUrl(null)
-        setToken("")
-        setTestResult(null)
-      },
-    })
+  async function handleRemove() {
+    await deleteConfig.mutateAsync()
+    toast.success(t("paperless.removed"))
+    setBaseUrl(null)
+    setToken("")
+    setTestResult(null)
   }
 
   return (
@@ -117,7 +116,7 @@ export function PaperlessSettingsCard() {
                 <Button type="button" variant="outline" onClick={handleTest} disabled={testConfig.isPending}>
                   {testConfig.isPending ? t("paperless.testing") : t("paperless.testConnection")}
                 </Button>
-                <Button type="button" variant="destructive" onClick={handleRemove} disabled={deleteConfig.isPending}>
+                <Button type="button" variant="destructive" onClick={() => setConfirmingRemove(true)} disabled={deleteConfig.isPending}>
                   {t("paperless.remove")}
                 </Button>
               </>
@@ -138,6 +137,13 @@ export function PaperlessSettingsCard() {
           {configured && <p className="text-sm text-muted-foreground">{t("paperless.removeHint")}</p>}
         </form>
         {configured && llm && <PaperlessPipelineSection />}
+        <DeleteConfirmDialog
+          open={confirmingRemove}
+          onOpenChange={setConfirmingRemove}
+          description={t("paperless.removeConfirm")}
+          actionLabel={t("paperless.remove")}
+          onConfirm={handleRemove}
+        />
       </CardContent>
     </Card>
   )

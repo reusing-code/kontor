@@ -213,17 +213,49 @@ describe("InboxPage list", () => {
     expect(screen.queryByRole("button", { name: "Accept…" })).not.toBeInTheDocument()
   })
 
-  it("rejects a draft", async () => {
+  it("rejects a draft after asking", async () => {
     const d = draft("vehicle", { name: "Family car" })
     const api = mockApi(inboxRoutes({ drafts: [d] }))
     const { user } = renderWithProviders(<InboxPage />)
 
     await findAccept(d)
     await user.click(within(card(d)).getByRole("button", { name: "Reject" }))
+    const confirm = await screen.findByRole("alertdialog")
+    expect(confirm).toHaveTextContent(`Reject the draft "${d.source.title}"?`)
+    expect(api.callsTo("POST", `/drafts/${d.id}/reject`)).toHaveLength(0)
+    await user.click(within(confirm).getByRole("button", { name: "Reject" }))
 
     expect(await screen.findByText("Draft rejected")).toBeInTheDocument()
     expect(api.callsTo("POST", `/drafts/${d.id}/reject`)).toHaveLength(1)
     await waitFor(() => expect(screen.queryByText(d.source.title!)).not.toBeInTheDocument())
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+  })
+
+  it("sends nothing when rejecting is cancelled", async () => {
+    const d = draft("vehicle", { name: "Family car" })
+    const api = mockApi(inboxRoutes({ drafts: [d] }))
+    const { user } = renderWithProviders(<InboxPage />)
+
+    await findAccept(d)
+    await user.click(within(card(d)).getByRole("button", { name: "Reject" }))
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Cancel" }))
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument())
+    expect(api.callsTo("POST", `/drafts/${d.id}/reject`)).toHaveLength(0)
+    expect(screen.getByText(d.source.title!)).toBeInTheDocument()
+  })
+
+  it("keeps the reject confirmation open while it fails", async () => {
+    const d = draft("vehicle", { name: "Family car" })
+    mockApi({ ...inboxRoutes({ drafts: [d] }), [`POST /drafts/${d.id}/reject`]: apiError(409, "already decided") })
+    const { user } = renderWithProviders(<InboxPage />)
+
+    await findAccept(d)
+    await user.click(within(card(d)).getByRole("button", { name: "Reject" }))
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Reject" }))
+
+    await waitFor(() => expect(errorToasts()).toEqual(["already decided"]))
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument()
   })
 })
 

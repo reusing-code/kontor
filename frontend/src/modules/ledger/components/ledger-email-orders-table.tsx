@@ -10,6 +10,7 @@ import { LedgerEmailOrderLinkDialog } from "@/modules/ledger/components/ledger-e
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 
 export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] }) {
   const { t } = useTranslation()
@@ -18,6 +19,7 @@ export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] 
   const linkOrder = useLinkLedgerEmailOrder()
   const rejectOrder = useRejectLedgerEmailOrder()
   const [selectedOrder, setSelectedOrder] = useState<LedgerEmailOrder | null>(null)
+  const [rejecting, setRejecting] = useState<LedgerEmailOrder | null>(null)
 
   return (
     <Card>
@@ -51,7 +53,7 @@ export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] 
                   </Button>
                 ))}
                 {order.matchStatus !== "rejected" ? (
-                  <Button type="button" variant="outline" onClick={() => rejectOrder.mutate(order.id, { onSuccess: () => toast.success(t("ledger.email.orderRejected")) })}>{t("ledger.email.reject")}</Button>
+                  <Button type="button" variant="outline" onClick={() => setRejecting(order)}>{t("ledger.email.reject")}</Button>
                 ) : null}
                 {order.linkedTransactionIds?.length ? null : <Button type="button" variant="outline" onClick={() => setSelectedOrder(order)}>{t("ledger.email.review")}</Button>}
               </div>
@@ -75,6 +77,13 @@ export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] 
             },
           })
         }}
+      />
+      <DeleteConfirmDialog
+        open={rejecting !== null}
+        onOpenChange={(open) => { if (!open) setRejecting(null) }}
+        description={t("ledger.email.rejectConfirm", { order: rejecting ? emailOrderTitle(rejecting) : "" })}
+        actionLabel={t("ledger.email.reject")}
+        onConfirm={() => rejecting ? rejectOrder.mutateAsync(rejecting.id).then(() => toast.success(t("ledger.email.orderRejected"))) : undefined}
       />
     </Card>
   )

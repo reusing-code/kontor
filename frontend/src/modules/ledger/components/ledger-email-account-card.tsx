@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Pencil, Play, Trash2, Wifi } from "lucide-react"
@@ -5,6 +6,7 @@ import { useDeleteLedgerEmailAccount, useLedgerEmailScanStatus, useStartLedgerEm
 import type { LedgerEmailAccount } from "@/modules/ledger/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 
 const MAX_SHOWN_WARNINGS = 5
 
@@ -27,6 +29,7 @@ export function LedgerEmailAccountCard({ account, llmOff, onEdit }: LedgerEmailA
   const testAccount = useTestLedgerEmailAccount()
   const startScan = useStartLedgerEmailScan()
   const upload = useUploadLedgerEmailMessages()
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   function reportScan(report: ScanReport) {
     toast.success(t("ledger.email.scanSuccess", { count: report.ordersNew }))
@@ -112,8 +115,14 @@ export function LedgerEmailAccountCard({ account, llmOff, onEdit }: LedgerEmailA
           </Button>
         </label>
         <Button type="button" variant="outline" onClick={() => onEdit(account)}><Pencil className="mr-2 h-4 w-4" />{t("common.edit")}</Button>
-        <Button type="button" variant="outline" onClick={() => deleteAccount.mutate(account.id, { onSuccess: () => toast.success(t("ledger.email.accountDeleted")) })}><Trash2 className="mr-2 h-4 w-4" />{t("common.delete")}</Button>
+        <Button type="button" variant="outline" onClick={() => setConfirmingDelete(true)}><Trash2 className="mr-2 h-4 w-4" />{t("common.delete")}</Button>
       </div>
+      <DeleteConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        description={t("ledger.email.accountDeleteConfirm", { name: account.name })}
+        onConfirm={() => deleteAccount.mutateAsync(account.id).then(() => toast.success(t("ledger.email.accountDeleted")))}
+      />
     </div>
   )
 }

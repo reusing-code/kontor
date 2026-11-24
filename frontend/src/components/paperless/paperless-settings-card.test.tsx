@@ -47,3 +47,31 @@ describe("PaperlessSettingsCard connection test", () => {
     expect(within(form).queryByText("Connection to paperless succeeded")).toBeNull()
   })
 })
+
+describe("PaperlessSettingsCard remove", () => {
+  it("removes the connection after asking", async () => {
+    const api = mockApi({ ...baseRoutes, "DELETE /paperless/config": undefined })
+    const { user } = renderWithProviders(<PaperlessSettingsCard />)
+
+    await user.click(await screen.findByRole("button", { name: "Remove connection" }))
+    const confirm = await screen.findByRole("alertdialog")
+    expect(confirm).toHaveTextContent("Remove the paperless connection?")
+    expect(api.callsTo("DELETE", "/paperless/config")).toHaveLength(0)
+
+    await user.click(within(confirm).getByRole("button", { name: "Remove connection" }))
+    expect(await screen.findByText("Paperless connection removed")).toBeInTheDocument()
+    expect(api.callsTo("DELETE", "/paperless/config")).toHaveLength(1)
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument())
+  })
+
+  it("sends nothing when removing is cancelled", async () => {
+    const api = mockApi({ ...baseRoutes, "DELETE /paperless/config": undefined })
+    const { user } = renderWithProviders(<PaperlessSettingsCard />)
+
+    await user.click(await screen.findByRole("button", { name: "Remove connection" }))
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Cancel" }))
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument())
+    expect(api.callsTo("DELETE", "/paperless/config")).toHaveLength(0)
+  })
+})
