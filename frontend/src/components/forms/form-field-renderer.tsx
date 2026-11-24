@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import type { FieldConfig } from "@/modules/contracts/config/contract-fields"
+import type { FieldConfig } from "@/components/forms/field-config"
 import type { Control, FieldValues, Path } from "react-hook-form"
 import {
   FormControl,
@@ -73,6 +73,3 @@ export function FormFieldRenderer<T extends FieldValues>({ config, control }: Fo
     />
   )
 }
-
-// Re-export for backward compatibility
-export const ContractFormField = FormFieldRenderer

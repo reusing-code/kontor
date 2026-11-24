@@ -4,7 +4,7 @@ import { useForm, type Resolver } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { vehicleFormSchema, type VehicleFormData, type Vehicle } from "@/modules/auto/types"
 import { vehicleFields } from "@/modules/auto/config/vehicle-fields"
-import { FormFieldRenderer } from "@/modules/contracts/components/contract-form-field"
+import { FormFieldRenderer } from "@/components/forms/form-field-renderer"
 import {
   Dialog,
   DialogContent,

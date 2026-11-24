@@ -4,7 +4,7 @@ import { useForm, type Resolver } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { purchaseFormSchema, type PurchaseFormData, type Purchase } from "@/modules/purchases/types"
 import { purchaseFields } from "@/modules/purchases/config/purchase-fields"
-import { FormFieldRenderer } from "@/modules/contracts/components/contract-form-field"
+import { FormFieldRenderer } from "@/components/forms/form-field-renderer"
 import {
   Dialog,
   DialogContent,
