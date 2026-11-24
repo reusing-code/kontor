@@ -35,7 +35,7 @@ function setup(accounts: LedgerAccount[], reviewTotal = 0) {
     "GET /ledger/email-accounts": [],
     "GET /ledger/email-orders": [],
     "GET /ledger/imports": [],
-    "GET /ledger/transactions": { items: [], total: reviewTotal },
+    "GET /ledger/review-queue": { items: [], total: reviewTotal },
   })
   return { api, ...renderWithProviders(<LedgerIndexPage />) }
 }
@@ -78,6 +78,6 @@ describe("LedgerIndexPage review queue card", () => {
 
     const card = within(screen.getByText("Review queue").closest<HTMLElement>('[data-slot="card"]') as HTMLElement)
     expect(await card.findByText("137")).toBeInTheDocument()
-    expect(api.calls.filter((call) => call.path.startsWith("/ledger/transactions")).map((call) => call.path)).toEqual(["/ledger/transactions?limit=1"])
+    expect(api.calls.filter((call) => call.path.startsWith("/ledger/review-queue")).map((call) => call.path)).toEqual(["/ledger/review-queue?limit=1"])
   })
 })

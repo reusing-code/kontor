@@ -58,7 +58,8 @@ func newMux(h *Handler) http.Handler {
 	mux.HandleFunc("POST /api/v1/ledger/accounts/{accountId}/balance", h.SetLedgerAccountBalance)
 	mux.HandleFunc("DELETE /api/v1/ledger/accounts/{accountId}/balance/{asOf}", h.DeleteLedgerAccountBalance)
 	mux.HandleFunc("GET /api/v1/ledger/imports", h.ListLedgerImports)
-	mux.HandleFunc("GET /api/v1/ledger/transactions", h.ListLedgerTransactionsReviewQueue)
+	mux.HandleFunc("GET /api/v1/ledger/review-queue", h.ListLedgerTransactionsReviewQueue)
+	mux.HandleFunc("GET /api/v1/ledger/transactions", h.ListAllLedgerTransactions)
 	mux.HandleFunc("GET /api/v1/ledger/transactions/{transactionId}", h.GetLedgerTransaction)
 	mux.HandleFunc("PUT /api/v1/ledger/transactions/{transactionId}", h.UpdateLedgerTransactionDetails)
 	mux.HandleFunc("POST /api/v1/ledger/transactions/{transactionId}/references", h.AddLedgerTransactionReference)
@@ -289,7 +290,7 @@ func TestLedgerReviewQueue_OnlyNeedsReview(t *testing.T) {
 	)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/api/v1/ledger/transactions?limit=10", nil)
+	req := httptest.NewRequest("GET", "/api/v1/ledger/review-queue?limit=10", nil)
 	mux.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -320,7 +321,7 @@ func TestLedgerReviewQueue_TotalCountsTheWholeQueue(t *testing.T) {
 
 	for _, query := range []string{"limit=1", "limit=all", ""} {
 		rec := httptest.NewRecorder()
-		mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/transactions?"+query, nil))
+		mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/review-queue?"+query, nil))
 		if rec.Code != http.StatusOK {
 			t.Fatalf("%s: status = %d; body: %s", query, rec.Code, rec.Body.String())
 		}
@@ -333,6 +334,119 @@ func TestLedgerReviewQueue_TotalCountsTheWholeQueue(t *testing.T) {
 		}
 		if query == "limit=1" && len(page.Items) != 1 {
 			t.Fatalf("limit=1: len(items) = %d, want 1", len(page.Items))
+		}
+	}
+}
+
+type ledgerListPage struct {
+	Items      []LedgerTransaction `json:"items"`
+	NextCursor string              `json:"nextCursor"`
+	Total      int                 `json:"total"`
+}
+
+func listAllTransactions(t *testing.T, mux http.Handler, query string) ledgerListPage {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/transactions"+query, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	return decodeJSON[ledgerListPage](t, rec)
+}
+
+func transactionIDs(txns []LedgerTransaction) []uuid.UUID {
+	ids := make([]uuid.UUID, len(txns))
+	for i, txn := range txns {
+		ids[i] = txn.ID
+	}
+	return ids
+}
+
+func TestLedgerAllTransactions_CombinesAccounts(t *testing.T) {
+	h, s := newTestHandler(t)
+	mux := newMux(h)
+
+	main := addAccount(t, s, "Main")
+	savings := addAccount(t, s, "Savings")
+	a := LedgerTransaction{ID: uuid.New(), AccountID: main, BookingDate: "2026-04-01", Currency: "EUR", ReviewStatus: LedgerTransactionReviewConfirmed}
+	b := LedgerTransaction{ID: uuid.New(), AccountID: savings, BookingDate: "2026-04-03", Currency: "EUR", ReviewStatus: LedgerTransactionReviewNeedsReview}
+	c := LedgerTransaction{ID: uuid.New(), AccountID: main, BookingDate: "2026-04-02", Currency: "EUR", ReviewStatus: LedgerTransactionReviewNeedsReview}
+	commitTransactions(t, s, main, a, c)
+	commitTransactions(t, s, savings, b)
+
+	page := listAllTransactions(t, mux, "")
+	if got, want := transactionIDs(page.Items), []uuid.UUID{b.ID, c.ID, a.ID}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("items = %v, want %v", got, want)
+	}
+	if page.NextCursor != "" || page.Total != 3 {
+		t.Fatalf("nextCursor = %q, total = %d, want none and 3", page.NextCursor, page.Total)
+	}
+
+	page = listAllTransactions(t, mux, "?accountId="+main.String())
+	if got, want := transactionIDs(page.Items), []uuid.UUID{c.ID, a.ID}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("filtered items = %v, want %v", got, want)
+	}
+
+	page = listAllTransactions(t, mux, "?accountId="+main.String()+"&accountId="+savings.String())
+	if len(page.Items) != 3 {
+		t.Fatalf("len(items) with both accounts = %d, want 3", len(page.Items))
+	}
+
+	page = listAllTransactions(t, mux, "?accountId="+uuid.NewString())
+	if len(page.Items) != 0 {
+		t.Fatalf("len(items) for an unknown account = %d, want 0", len(page.Items))
+	}
+}
+
+func TestLedgerAllTransactions_Paging(t *testing.T) {
+	h, s := newTestHandler(t)
+	mux := newMux(h)
+
+	main := addAccount(t, s, "Main")
+	savings := addAccount(t, s, "Savings")
+	var mainTxns, savingsTxns []LedgerTransaction
+	for i := range 5 {
+		txn := LedgerTransaction{ID: uuid.New(), BookingDate: fmt.Sprintf("2026-04-%02d", i+1), Currency: "EUR", ReviewStatus: LedgerTransactionReviewConfirmed}
+		if i%2 == 0 {
+			txn.AccountID = main
+			mainTxns = append(mainTxns, txn)
+		} else {
+			txn.AccountID = savings
+			savingsTxns = append(savingsTxns, txn)
+		}
+	}
+	commitTransactions(t, s, main, mainTxns...)
+	commitTransactions(t, s, savings, savingsTxns...)
+
+	var seen []LedgerTransaction
+	query := "?limit=2"
+	for range 5 {
+		page := listAllTransactions(t, mux, query)
+		seen = append(seen, page.Items...)
+		if page.NextCursor == "" {
+			break
+		}
+		query = "?limit=2&cursor=" + page.NextCursor
+	}
+	if len(seen) != 5 {
+		t.Fatalf("paged through %d transactions, want 5", len(seen))
+	}
+	for i := 1; i < len(seen); i++ {
+		if seen[i-1].BookingDate < seen[i].BookingDate {
+			t.Fatalf("not newest first at %d: %s before %s", i, seen[i-1].BookingDate, seen[i].BookingDate)
+		}
+	}
+}
+
+func TestLedgerAllTransactions_InvalidParameters(t *testing.T) {
+	h, _ := newTestHandler(t)
+	mux := newMux(h)
+
+	for _, query := range []string{"?accountId=nope", "?limit=0", "?limit=x"} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/transactions"+query, nil))
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s: status = %d, want %d", query, rec.Code, http.StatusBadRequest)
 		}
 	}
 }
@@ -356,7 +470,7 @@ func TestLedgerReviewQueue_LimitAll(t *testing.T) {
 	commitTransactions(t, s, accountID, txns...)
 
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/transactions?limit=all&cursor="+txns[0].ID.String(), nil))
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/review-queue?limit=all&cursor="+txns[0].ID.String(), nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body: %s", rec.Code, http.StatusOK, rec.Body.String())
 	}

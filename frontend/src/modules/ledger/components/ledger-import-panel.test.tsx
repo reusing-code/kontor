@@ -58,12 +58,12 @@ function ImportedDataObserver() {
   return null
 }
 
-const observedGets = ["/ledger/accounts", "/ledger/transactions?limit=1", "/ledger/category-suggestions/status", "/drafts?status=pending"]
+const observedGets = ["/ledger/accounts", "/ledger/review-queue?limit=1", "/ledger/category-suggestions/status", "/drafts?status=pending"]
 
 function mockLedger(routes: Record<string, unknown>) {
   return mockApi({
     "GET /ledger/accounts": [giro, savings],
-    "GET /ledger/transactions": { items: [], total: 0 },
+    "GET /ledger/review-queue": { items: [], total: 0 },
     "GET /ledger/category-suggestions/status": { running: false },
     "GET /drafts": [],
     ...routes,

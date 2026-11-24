@@ -155,12 +155,12 @@ export async function getLedgerTransactions(accountId: string, limit: number = 1
 
 // The size of the whole queue comes with every page; one item is enough.
 export async function getLedgerReviewCount(): Promise<number> {
-  const page = await get<LedgerReviewQueuePage>("/ledger/transactions?limit=1")
+  const page = await get<LedgerReviewQueuePage>("/ledger/review-queue?limit=1")
   return page.total
 }
 
 export async function getLedgerReviewQueueAll(): Promise<LedgerReviewQueuePage> {
-  return get<LedgerReviewQueuePage>("/ledger/transactions?limit=all")
+  return get<LedgerReviewQueuePage>("/ledger/review-queue?limit=all")
 }
 
 // The backend takes at most this many items per review-batch request.

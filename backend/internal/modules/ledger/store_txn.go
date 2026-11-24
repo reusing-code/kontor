@@ -23,7 +23,10 @@ type LedgerTransactionPage struct {
 }
 
 type LedgerTransactionListOptions struct {
-	AccountID    *uuid.UUID
+	AccountID *uuid.UUID
+	// AccountIDs keeps the transactions of any of these accounts; empty does
+	// not filter.
+	AccountIDs   []uuid.UUID
 	CategoryID   *uuid.UUID
 	ReviewStatus string
 	Limit        int
@@ -194,9 +197,16 @@ func filterLedgerTransactions(txn *badger.Txn, userID string, options LedgerTran
 	if err != nil {
 		return nil, err
 	}
+	accountSet := make(map[uuid.UUID]struct{}, len(options.AccountIDs))
+	for _, id := range options.AccountIDs {
+		accountSet[id] = struct{}{}
+	}
 	var filtered []LedgerTransaction
 	for _, ledgerTxn := range all {
 		if options.AccountID != nil && ledgerTxn.AccountID != *options.AccountID {
+			continue
+		}
+		if _, ok := accountSet[ledgerTxn.AccountID]; len(accountSet) > 0 && !ok {
 			continue
 		}
 		if options.CategoryID != nil && !hasLedgerCategory(ledgerTxn, *options.CategoryID) {

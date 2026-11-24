@@ -426,7 +426,7 @@ func TestCategorySuggestionHandlers(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/transactions", nil))
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/review-queue", nil))
 	queue := decodeJSON[ledgerReviewQueueResponse](t, rec)
 	if len(queue.Items) != 2 || queue.Items[0].ID != bakery.ID || queue.Items[0].Suggestion == nil ||
 		queue.Items[0].Suggestion.CategoryID != food || queue.Items[0].Suggestion.MatchWord != "Krume" || queue.Items[1].Suggestion == nil {
@@ -459,7 +459,7 @@ func TestCategorySuggestionHandlers(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/transactions", nil))
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/review-queue", nil))
 	if queue := decodeJSON[ledgerReviewQueueResponse](t, rec); len(queue.Items) != 0 {
 		t.Errorf("queue after batch review = %+v", queue.Items)
 	}

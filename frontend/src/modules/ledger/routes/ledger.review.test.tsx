@@ -46,7 +46,7 @@ function setup(initial: LedgerReviewQueueItem[], categories = defaultCategories,
   const api = mockApi({
     "GET /capabilities": { llm: true, llmVision: false, bankImport: false },
     "GET /ledger/categories": categories,
-    "GET /ledger/transactions": () => ({ items: queue, total: queue.length }),
+    "GET /ledger/review-queue": () => ({ items: queue, total: queue.length }),
     "GET /ledger/category-suggestions/status": { running: false },
     "GET /paperless/config": { configured: false },
     "POST /ledger/transactions/review-batch": (call: ApiCall) => {
@@ -70,7 +70,7 @@ describe("LedgerReviewPage", () => {
   it("loads the whole queue in one request", async () => {
     const { api } = setup([txn({ counterpartyName: "Someone" })])
     await screen.findByText("Someone")
-    expect(api.calls.filter((call) => call.path.startsWith("/ledger/transactions")).map((call) => call.path)).toEqual(["/ledger/transactions?limit=all"])
+    expect(api.calls.filter((call) => call.path.startsWith("/ledger/review-queue")).map((call) => call.path)).toEqual(["/ledger/review-queue?limit=all"])
   })
 
   it("shows no transaction until one is picked and only lets it go with the close button", async () => {
@@ -224,7 +224,7 @@ describe("LedgerReviewPage", () => {
     await waitFor(() => expect(errorToasts()).toEqual(["database gone"]))
     expect(batchBodies(api).map((body) => body.length)).toEqual([100, 50])
     expect(await screen.findByText("50 transactions to review")).toBeInTheDocument()
-    expect(api.callsTo("GET", "/ledger/transactions?limit=all")).toHaveLength(2)
+    expect(api.callsTo("GET", "/ledger/review-queue?limit=all")).toHaveLength(2)
     expect(screen.getByRole("button", { name: "Accept 50 categories" })).toBeEnabled()
     expect(errorToasts()).toEqual(["database gone"])
   })

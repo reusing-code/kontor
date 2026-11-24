@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/httputil"
@@ -19,6 +20,42 @@ type ledgerTransferCandidatesResponse struct {
 type ledgerTransferLinkResponse struct {
 	Transaction       LedgerTransaction  `json:"transaction"`
 	PairedTransaction *LedgerTransaction `json:"pairedTransaction,omitempty"`
+}
+
+type ledgerTransactionListResponse struct {
+	Items      []LedgerTransaction `json:"items"`
+	NextCursor string              `json:"nextCursor,omitempty"`
+	Total      int                 `json:"total"`
+}
+
+// ListAllLedgerTransactions pages the transactions of all accounts, newest
+// booking date first; repeated accountId parameters narrow it to those
+// accounts.
+func (h *Handler) ListAllLedgerTransactions(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	options := LedgerTransactionListOptions{Limit: 100, Cursor: query.Get("cursor")}
+	if rawLimit := query.Get("limit"); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err != nil || parsed <= 0 {
+			httputil.Error(h.logger, w, http.StatusBadRequest, "invalid limit")
+			return
+		}
+		options.Limit = parsed
+	}
+	for _, raw := range query["accountId"] {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			httputil.Error(h.logger, w, http.StatusBadRequest, "invalid accountId")
+			return
+		}
+		options.AccountIDs = append(options.AccountIDs, id)
+	}
+	page, err := h.store.ListLedgerTransactionsFiltered(r.Context(), middleware.GetUserID(r.Context()), options)
+	if err != nil {
+		h.storeError(w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, ledgerTransactionListResponse(page))
 }
 
 func (h *Handler) GetLedgerTransaction(w http.ResponseWriter, r *http.Request) {
