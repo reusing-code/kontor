@@ -42,6 +42,10 @@ export async function listPaperlessLinks(entityType: PaperlessEntityType, entity
   return get<PaperlessLink[]>(`/paperless/links/${entityType}/${entityId}`)
 }
 
+export async function listPaperlessLinksByType(entityType: PaperlessEntityType): Promise<PaperlessLink[]> {
+  return get<PaperlessLink[]>(`/paperless/links/${entityType}`)
+}
+
 export async function attachPaperlessDocuments(
   entityType: PaperlessEntityType,
   entityId: string,

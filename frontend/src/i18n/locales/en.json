@@ -907,6 +907,8 @@
     "removeConfirm": "Remove the paperless connection? The URL and token are deleted; already attached document links stay.",
     "saved": "Paperless connection saved",
     "documents": "Paperless documents",
+    "linkedDocuments_one": "{{count}} linked paperless document",
+    "linkedDocuments_other": "{{count}} linked paperless documents",
     "noDocuments": "No documents attached",
     "attachDocuments": "Attach documents",
     "searchDescription": "Search your paperless archive and attach documents.",

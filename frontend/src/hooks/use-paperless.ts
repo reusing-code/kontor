@@ -8,6 +8,7 @@ import {
   getPaperlessPipelineSettings,
   getPaperlessThumbnail,
   listPaperlessLinks,
+  listPaperlessLinksByType,
   runPaperlessPipeline,
   searchPaperlessDocuments,
   testPaperlessConfig,
@@ -15,7 +16,7 @@ import {
   updatePaperlessPipelineSettings,
 } from "@/lib/paperless-repository"
 import { draftKeys, paperlessKeys } from "@/lib/query-keys"
-import type { PaperlessConfigInput, PaperlessEntityType, PaperlessPipelineSettings } from "@/types/paperless"
+import type { PaperlessConfigInput, PaperlessEntityType, PaperlessLink, PaperlessPipelineSettings } from "@/types/paperless"
 
 export const paperlessConfigQueryOptions = queryOptions({
   queryKey: paperlessKeys.config(),
@@ -82,6 +83,30 @@ export function usePaperlessLinks(entityType: PaperlessEntityType, entityId: str
   })
 }
 
+export type PaperlessLinkIndex = ReadonlyMap<string, PaperlessLink[]>
+
+function indexLinksByEntity(links: PaperlessLink[]): PaperlessLinkIndex {
+  const index = new Map<string, PaperlessLink[]>()
+  for (const link of links) {
+    index.set(link.entityId, [...(index.get(link.entityId) ?? []), link])
+  }
+  return index
+}
+
+// usePaperlessLinkIndex loads all links of one entity type in one request, for
+// the indicators in list rows. Undefined while paperless is not configured.
+export function usePaperlessLinkIndex(entityType: PaperlessEntityType): PaperlessLinkIndex | undefined {
+  const { data: config } = usePaperlessConfig()
+  const configured = config?.configured ?? false
+  const { data } = useQuery({
+    queryKey: paperlessKeys.typeLinks(entityType),
+    queryFn: () => listPaperlessLinksByType(entityType),
+    enabled: configured,
+    select: indexLinksByEntity,
+  })
+  return configured ? data : undefined
+}
+
 export function usePaperlessSearch(query: string, page: number, enabled: boolean) {
   return useQuery({
     queryKey: paperlessKeys.search(query, page),
@@ -97,7 +122,7 @@ export function useAttachPaperlessDocuments(entityType: PaperlessEntityType, ent
   return useMutation({
     mutationFn: ({ entityUrl, documents }: { entityUrl: string; documents: { id: number; title: string }[] }) =>
       attachPaperlessDocuments(entityType, entityId, entityUrl, documents),
-    onSuccess: () => qc.invalidateQueries({ queryKey: paperlessKeys.entityLinks(entityType, entityId) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: paperlessKeys.typeLinks(entityType) }),
   })
 }
 
@@ -105,7 +130,7 @@ export function useDetachPaperlessDocument(entityType: PaperlessEntityType, enti
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (documentId: number) => detachPaperlessDocument(entityType, entityId, documentId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: paperlessKeys.entityLinks(entityType, entityId) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: paperlessKeys.typeLinks(entityType) }),
   })
 }
 

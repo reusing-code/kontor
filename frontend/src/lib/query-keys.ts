@@ -48,6 +48,9 @@ export const paperlessKeys = {
   config: () => [...paperless, "config"] as const,
   pipeline: () => [...paperless, "pipeline"] as const,
   links: () => [...paperless, "links"] as const,
+  // entityLinks extends typeLinks, so invalidating a type refreshes the list
+  // indicators and every entity's own links.
+  typeLinks: (entityType: PaperlessEntityType) => [...paperless, "links", entityType] as const,
   entityLinks: (entityType: PaperlessEntityType, entityId: string) => [...paperless, "links", entityType, entityId] as const,
   search: (query: string, page: number) => [...paperless, "search", query, page] as const,
   thumbnail: (documentId: number) => [...paperless, "thumb", documentId] as const,

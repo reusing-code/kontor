@@ -18,6 +18,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { PaperlessLinksIndicator } from "@/components/paperless/paperless-links-indicator"
+import { usePaperlessLinkIndex } from "@/hooks/use-paperless"
 import { cn } from "@/lib/utils"
 
 interface CostEntriesTableProps {
@@ -55,6 +57,7 @@ function CostEntryDetailRow({ entry, colSpan }: { entry: CostEntry; colSpan: num
 export function CostEntriesTable({ entries, onEdit, onDelete, onDocuments }: CostEntriesTableProps) {
   const { t } = useTranslation()
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const paperlessLinks = usePaperlessLinkIndex("cost")
 
   const totalColumns = 7 // chevron + date + type + description + amount + mileage + actions
 
@@ -75,7 +78,7 @@ export function CostEntriesTable({ entries, onEdit, onDelete, onDocuments }: Cos
             <TableHead>{t("costEntryFields.description")}</TableHead>
             <TableHead className="text-right">{t("costEntryFields.amount")}</TableHead>
             <TableHead className="text-right">{t("costEntryFields.mileage")}</TableHead>
-            <TableHead className="w-12" />
+            <TableHead className="w-24" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -122,26 +125,34 @@ export function CostEntriesTable({ entries, onEdit, onDelete, onDocuments }: Cos
                       {entry.mileage != null ? `${entry.mileage.toLocaleString()} km` : "-"}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("common.actionsFor", { name: entry.description || t(`costTypes.${entry.type}`) })} title={t("common.actions")}>
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => onEdit(entry)}>
-                            {t("common.edit")}
-                          </DropdownMenuItem>
-                          {onDocuments && (
-                            <DropdownMenuItem onClick={() => onDocuments(entry)}>
-                              {t("paperless.documents")}
+                      <div className="flex items-center justify-end gap-1">
+                        {onDocuments && (
+                          <PaperlessLinksIndicator
+                            links={paperlessLinks?.get(entry.id)}
+                            onOpen={() => onDocuments(entry)}
+                          />
+                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("common.actionsFor", { name: entry.description || t(`costTypes.${entry.type}`) })} title={t("common.actions")}>
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => onEdit(entry)}>
+                              {t("common.edit")}
                             </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => onDelete(entry)} className="text-destructive">
-                            {t("common.delete")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            {onDocuments && (
+                              <DropdownMenuItem onClick={() => onDocuments(entry)}>
+                                {t("paperless.documents")}
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => onDelete(entry)} className="text-destructive">
+                              {t("common.delete")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                   {isExpanded && hasDetails && (

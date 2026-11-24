@@ -907,6 +907,8 @@
     "removeConfirm": "Paperless-Verbindung entfernen? URL und Token werden gelöscht, bereits verknüpfte Dokumente bleiben erhalten.",
     "saved": "Paperless-Verbindung gespeichert",
     "documents": "Paperless-Dokumente",
+    "linkedDocuments_one": "{{count}} verknüpftes Paperless-Dokument",
+    "linkedDocuments_other": "{{count}} verknüpfte Paperless-Dokumente",
     "noDocuments": "Keine Dokumente verknüpft",
     "attachDocuments": "Dokumente verknüpfen",
     "searchDescription": "Durchsuche dein Paperless-Archiv und verknüpfe Dokumente.",
