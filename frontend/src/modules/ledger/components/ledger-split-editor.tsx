@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { PlusIcon, Trash2Icon } from "lucide-react"
 import type { LedgerCategory, LedgerTransaction } from "@/modules/ledger/types"
-import { useSetLedgerTransactionSplits } from "@/modules/ledger/hooks/use-ledger"
+import { useSetLedgerTransactionSplits } from "@/modules/ledger/hooks/use-ledger-transactions"
 import {
   maxSplitParts,
   rowsFromSplits,

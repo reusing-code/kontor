@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
-import { useLedgerCategories } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerCategories } from "@/modules/ledger/hooks/use-ledger-categories"
 import { LedgerCategoryTreeManager } from "@/modules/ledger/components/ledger-category-tree-manager"
 
 export function LedgerCategoriesPage() {

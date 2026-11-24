@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next"
 import { formatDate } from "@/lib/format"
 import { Mail } from "lucide-react"
 import { useModules } from "@/hooks/use-modules"
-import { useLedgerEmailLinks } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerEmailLinks } from "@/modules/ledger/hooks/use-ledger-email"
 import type { LedgerEmailLink, LedgerEmailLinkEntityType } from "@/modules/ledger/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 

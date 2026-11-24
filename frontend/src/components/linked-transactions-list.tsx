@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router"
 import { formatDate, formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { useModules } from "@/hooks/use-modules"
-import { useLedgerTransaction } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerTransaction } from "@/modules/ledger/hooks/use-ledger-transactions"
 import { transactionPath } from "@/modules/ledger/lib/module-links"
 
 interface LinkedTransactionsListProps {

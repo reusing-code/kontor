@@ -1,4 +1,4 @@
-import { useAddLedgerTransactionReference } from "@/modules/ledger/hooks/use-ledger"
+import { useAddLedgerTransactionReference } from "@/modules/ledger/hooks/use-ledger-transactions"
 import type { LedgerTransactionReference } from "@/modules/ledger/types"
 
 // Links a newly created entity to the transaction. Resolves to false when the

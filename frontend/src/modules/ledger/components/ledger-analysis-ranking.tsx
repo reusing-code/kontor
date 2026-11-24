@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { formatMinor } from "@/lib/format"
 import type { LedgerAnalysisRange } from "@/modules/ledger/types"
-import { useLedgerRankingAnalysis } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerRankingAnalysis } from "@/modules/ledger/hooks/use-ledger-analysis"
 import { LedgerAnalysisCard } from "@/modules/ledger/components/ledger-analysis-card"
 
 interface RankedEntry {

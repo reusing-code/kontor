@@ -12,7 +12,7 @@ import {
 } from "@/modules/ledger/hooks/use-bank-connections"
 import { useStartBankAuthorization } from "@/modules/ledger/hooks/use-bank-authorization"
 import { bankErrorMessage } from "@/modules/ledger/lib/bank-errors"
-import { useCreateLedgerAccount, useLedgerAccounts } from "@/modules/ledger/hooks/use-ledger"
+import { useCreateLedgerAccount, useLedgerAccounts } from "@/modules/ledger/hooks/use-ledger-accounts"
 import type { BankAccount, BankConnection, LedgerAccount, LedgerAccountInput } from "@/modules/ledger/types"
 import { BankConnectDialog } from "@/modules/ledger/components/bank-connect-dialog"
 import { BankConsentBanner } from "@/modules/ledger/components/bank-consent-banner"

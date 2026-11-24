@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { formatDate, formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
-import { useLedgerEmailOrderCandidates } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerEmailOrderCandidates } from "@/modules/ledger/hooks/use-ledger-email"
 import { emailOrderTitle, tokenizeLedgerMatchWords } from "@/modules/ledger/lib/ledger-utils"
 import type { LedgerEmailOrder, LedgerEmailOrderCandidate, LedgerEmailOrderConversion } from "@/modules/ledger/types"
 import { Badge } from "@/components/ui/badge"

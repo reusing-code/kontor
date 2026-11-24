@@ -5,13 +5,9 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Pencil, Trash2 } from "lucide-react"
 import { usePageTitle } from "@/hooks/use-page-title"
-import {
-  useDeleteLedgerAccount,
-  useLedgerAccount,
-  useLedgerCategories,
-  useLedgerTransactions,
-  useUpdateLedgerAccount,
-} from "@/modules/ledger/hooks/use-ledger"
+import { useDeleteLedgerAccount, useLedgerAccount, useUpdateLedgerAccount } from "@/modules/ledger/hooks/use-ledger-accounts"
+import { useLedgerCategories } from "@/modules/ledger/hooks/use-ledger-categories"
+import { useLedgerTransactions } from "@/modules/ledger/hooks/use-ledger-transactions"
 import { LedgerTransactionsTable } from "@/modules/ledger/components/ledger-transactions-table"
 import { LedgerAccountEditDialog } from "@/modules/ledger/components/ledger-account-edit-dialog"
 import { LedgerAccountDeleteDialog } from "@/modules/ledger/components/ledger-account-delete-dialog"

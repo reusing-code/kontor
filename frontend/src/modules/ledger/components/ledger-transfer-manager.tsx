@@ -2,7 +2,12 @@ import { Link } from "@tanstack/react-router"
 import { formatDate, formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { useLedgerTransaction, useLedgerTransferCandidates, useLinkLedgerTransfer, useUnlinkLedgerTransfer } from "@/modules/ledger/hooks/use-ledger"
+import {
+  useLedgerTransaction,
+  useLedgerTransferCandidates,
+  useLinkLedgerTransfer,
+  useUnlinkLedgerTransfer,
+} from "@/modules/ledger/hooks/use-ledger-transactions"
 import { transactionPath } from "@/modules/ledger/lib/module-links"
 import type { LedgerTransaction } from "@/modules/ledger/types"
 import {

@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
-import { useLedgerAccounts, useLedgerImports, useLedgerReviewCount } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerAccounts } from "@/modules/ledger/hooks/use-ledger-accounts"
+import { useLedgerImports } from "@/modules/ledger/hooks/use-ledger-imports"
+import { useLedgerReviewCount } from "@/modules/ledger/hooks/use-ledger-review"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Landmark, ArrowRight } from "lucide-react"
 

@@ -9,7 +9,7 @@ import {
   resolveRange,
   type AnalysisRangeState,
 } from "@/modules/ledger/lib/analysis-range"
-import { useLedgerCashFlowAnalysis } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerCashFlowAnalysis } from "@/modules/ledger/hooks/use-ledger-analysis"
 import { LedgerAnalysisCashFlow } from "@/modules/ledger/components/ledger-analysis-cash-flow"
 import { LedgerAnalysisNetWorth } from "@/modules/ledger/components/ledger-analysis-net-worth"
 import { LedgerAnalysisRanking } from "@/modules/ledger/components/ledger-analysis-ranking"

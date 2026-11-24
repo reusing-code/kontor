@@ -5,15 +5,12 @@ import { Repeat } from "lucide-react"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { useCapabilities } from "@/hooks/use-capabilities"
 import { useModules } from "@/hooks/use-modules"
-import {
-  useLedgerAccounts,
-  useLedgerCategories,
-  useLedgerEmailAccounts,
-  useLedgerEmailOrders,
-  useLedgerImports,
-  useLedgerReviewCount,
-  useRunLedgerRecurringDetection,
-} from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerAccounts } from "@/modules/ledger/hooks/use-ledger-accounts"
+import { useLedgerCategories } from "@/modules/ledger/hooks/use-ledger-categories"
+import { useLedgerEmailAccounts, useLedgerEmailOrders } from "@/modules/ledger/hooks/use-ledger-email"
+import { useLedgerImports } from "@/modules/ledger/hooks/use-ledger-imports"
+import { useRunLedgerRecurringDetection } from "@/modules/ledger/hooks/use-ledger-recurring"
+import { useLedgerReviewCount } from "@/modules/ledger/hooks/use-ledger-review"
 import { useBankConnections } from "@/modules/ledger/hooks/use-bank-connections"
 import { BankConsentBanner } from "@/modules/ledger/components/bank-consent-banner"
 import { LedgerAccountList } from "@/modules/ledger/components/ledger-account-list"

@@ -4,13 +4,13 @@ import { toast } from "sonner"
 import { ChevronLeftIcon, ChevronRightIcon, ChevronsLeftIcon, ChevronsRightIcon, SparklesIcon } from "lucide-react"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { useCapabilities } from "@/hooks/use-capabilities"
+import { useLedgerCategories } from "@/modules/ledger/hooks/use-ledger-categories"
 import {
-  useLedgerCategories,
   useLedgerReviewQueueAll,
   useLedgerSuggestionStatus,
   useReviewLedgerTransactionsBatch,
   useRunLedgerCategorySuggestions,
-} from "@/modules/ledger/hooks/use-ledger"
+} from "@/modules/ledger/hooks/use-ledger-review"
 import { LedgerReviewList, type LedgerReviewSelection } from "@/modules/ledger/components/ledger-review-list"
 import { LedgerReviewPanel } from "@/modules/ledger/components/ledger-review-panel"
 import {

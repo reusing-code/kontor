@@ -3,11 +3,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { ChevronRight, ChevronsDownUp, ChevronsUpDown, Pencil, Plus, Trash2 } from "lucide-react"
 import type { LedgerCategory, LedgerCategoryInput } from "@/modules/ledger/types"
-import {
-  useCreateLedgerCategory,
-  useDeleteLedgerCategory,
-  useUpdateLedgerCategory,
-} from "@/modules/ledger/hooks/use-ledger"
+import { useCreateLedgerCategory, useDeleteLedgerCategory, useUpdateLedgerCategory } from "@/modules/ledger/hooks/use-ledger-categories"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"

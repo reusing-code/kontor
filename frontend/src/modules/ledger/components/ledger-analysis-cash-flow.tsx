@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next"
 import type { LedgerAnalysisRange } from "@/modules/ledger/types"
-import { useLedgerCashFlowAnalysis } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerCashFlowAnalysis } from "@/modules/ledger/hooks/use-ledger-analysis"
 import { cashFlowSeries } from "@/modules/ledger/lib/analysis-series"
 import { LedgerAnalysisCard } from "@/modules/ledger/components/ledger-analysis-card"
 import { CashFlowChart } from "@/modules/ledger/components/ledger-analysis-charts"

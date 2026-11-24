@@ -2,7 +2,13 @@ import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Pencil, Play, Trash2, Wifi } from "lucide-react"
-import { useDeleteLedgerEmailAccount, useLedgerEmailScanStatus, useStartLedgerEmailScan, useTestLedgerEmailAccount, useUploadLedgerEmailMessages } from "@/modules/ledger/hooks/use-ledger"
+import {
+  useDeleteLedgerEmailAccount,
+  useLedgerEmailScanStatus,
+  useStartLedgerEmailScan,
+  useTestLedgerEmailAccount,
+  useUploadLedgerEmailMessages,
+} from "@/modules/ledger/hooks/use-ledger-email"
 import type { LedgerEmailAccount } from "@/modules/ledger/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
