@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
@@ -427,4 +429,137 @@ func deleteKeysWithPrefix(txn *badger.Txn, prefix []byte, match func(key []byte)
 		}
 	}
 	return nil
+}
+
+func collectLedgerAccounts(txn *badger.Txn, userID string) ([]LedgerAccount, error) {
+	var accounts []LedgerAccount
+	prefix := ledAccPrefix(userID)
+	it := txn.NewIterator(badger.DefaultIteratorOptions)
+	defer it.Close()
+	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+		var account LedgerAccount
+		if err := it.Item().Value(func(val []byte) error {
+			return json.Unmarshal(val, &account)
+		}); err != nil {
+			return nil, err
+		}
+		accounts = append(accounts, account)
+	}
+	if accounts == nil {
+		accounts = []LedgerAccount{}
+	}
+	return accounts, nil
+}
+
+func (s *Store) ListLedgerAccounts(_ context.Context, userID string) ([]LedgerAccount, error) {
+	var accounts []LedgerAccount
+	prefix := ledAccPrefix(userID)
+
+	err := s.e.View(func(txn *badger.Txn) error {
+		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		defer it.Close()
+
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			var a LedgerAccount
+			if err := it.Item().Value(func(val []byte) error {
+				return json.Unmarshal(val, &a)
+			}); err != nil {
+				return err
+			}
+			accounts = append(accounts, a)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if accounts == nil {
+		accounts = []LedgerAccount{}
+	}
+	sortLedgerAccounts(accounts)
+	return accounts, nil
+}
+
+// sortLedgerAccounts puts accounts into list order (name).
+func sortLedgerAccounts(accounts []LedgerAccount) {
+	sort.Slice(accounts, func(i, j int) bool {
+		if accounts[i].Name == accounts[j].Name {
+			return accounts[i].CreatedAt.Before(accounts[j].CreatedAt)
+		}
+		return strings.ToLower(accounts[i].Name) < strings.ToLower(accounts[j].Name)
+	})
+}
+
+func (s *Store) GetLedgerAccount(_ context.Context, userID string, id uuid.UUID) (LedgerAccount, error) {
+	var a LedgerAccount
+	err := s.e.View(func(txn *badger.Txn) error {
+		item, err := txn.Get(ledAccKey(userID, id))
+		if err != nil {
+			return err
+		}
+		return item.Value(func(val []byte) error {
+			return json.Unmarshal(val, &a)
+		})
+	})
+	if errors.Is(err, badger.ErrKeyNotFound) {
+		return a, storage.ErrNotFound
+	}
+	return a, err
+}
+
+func (s *Store) FindLedgerAccountByIBAN(_ context.Context, userID string, iban string) (LedgerAccount, error) {
+	var a LedgerAccount
+	err := s.e.View(func(txn *badger.Txn) error {
+		item, err := txn.Get(idxLedAccIBANKey(userID, iban))
+		if err != nil {
+			return err
+		}
+		var idStr string
+		if err := item.Value(func(val []byte) error {
+			idStr = string(val)
+			return nil
+		}); err != nil {
+			return err
+		}
+		accID, err := uuid.Parse(idStr)
+		if err != nil {
+			return err
+		}
+		accItem, err := txn.Get(ledAccKey(userID, accID))
+		if err != nil {
+			return err
+		}
+		return accItem.Value(func(val []byte) error {
+			return json.Unmarshal(val, &a)
+		})
+	})
+	if errors.Is(err, badger.ErrKeyNotFound) {
+		return a, storage.ErrNotFound
+	}
+	return a, err
+}
+
+func (s *Store) CreateLedgerAccount(_ context.Context, userID string, a LedgerAccount) error {
+	data, err := json.Marshal(a)
+	if err != nil {
+		return err
+	}
+	return s.e.Update(func(txn *badger.Txn) error {
+		if a.IBAN != "" {
+			if _, err := txn.Get(idxLedAccIBANKey(userID, a.IBAN)); err == nil {
+				return storage.ErrConflict
+			} else if !errors.Is(err, badger.ErrKeyNotFound) {
+				return err
+			}
+		}
+		if err := txn.Set(ledAccKey(userID, a.ID), data); err != nil {
+			return err
+		}
+		if a.IBAN != "" {
+			if err := txn.Set(idxLedAccIBANKey(userID, a.IBAN), []byte(a.ID.String())); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
