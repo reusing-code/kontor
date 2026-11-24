@@ -180,14 +180,15 @@ func TestImportSection_WithoutBalancesStillWorks(t *testing.T) {
 
 type accountPageBody struct {
 	Items          []LedgerTransaction   `json:"items"`
-	NextCursor     string                `json:"nextCursor"`
+	Offset         int                   `json:"offset"`
+	Total          int                   `json:"total"`
 	PageBalance    *LedgerPageBalance    `json:"pageBalance"`
 	AccountBalance *LedgerAccountBalance `json:"accountBalance"`
 }
 
-func getAccountPage(t *testing.T, mux http.Handler, accountID uuid.UUID, limit int, cursor string) accountPageBody {
+func getAccountPage(t *testing.T, mux http.Handler, accountID uuid.UUID, limit, offset int) accountPageBody {
 	t.Helper()
-	url := fmt.Sprintf("/api/v1/ledger/accounts/%s/transactions?limit=%d&cursor=%s", accountID, limit, cursor)
+	url := fmt.Sprintf("/api/v1/ledger/accounts/%s/transactions?limit=%d&offset=%d", accountID, limit, offset)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest("GET", url, nil))
 	if rec.Code != http.StatusOK {
@@ -228,11 +229,14 @@ func TestAccountTransactionPages_BalancesMatchARunningSum(t *testing.T) {
 	}
 	oldestOpening := running
 
-	cursor, offset, pages := "", 0, 0
+	offset, pages := 0, 0
 	var previousOpening *int64
-	for {
-		page := getAccountPage(t, mux, accountID, 5, cursor)
+	for offset < len(txns) {
+		page := getAccountPage(t, mux, accountID, 5, offset)
 		pages++
+		if page.Offset != offset || page.Total != len(txns) {
+			t.Fatalf("page %d offset = %d, total = %d, want %d and %d", pages, page.Offset, page.Total, offset, len(txns))
+		}
 		if page.PageBalance == nil || page.AccountBalance == nil {
 			t.Fatalf("page %d has no balances", pages)
 		}
@@ -248,10 +252,6 @@ func TestAccountTransactionPages_BalancesMatchARunningSum(t *testing.T) {
 		opening := page.PageBalance.OpeningMinor
 		previousOpening = &opening
 		offset += len(page.Items)
-		if page.NextCursor == "" {
-			break
-		}
-		cursor = page.NextCursor
 	}
 	if offset != len(txns) || pages != 5 {
 		t.Fatalf("paged %d transactions in %d pages", offset, pages)
@@ -267,14 +267,14 @@ func TestAccountTransactionPages_NoSnapshotNoBalances(t *testing.T) {
 	accountID := addAccount(t, s, "Main")
 	addBooking(t, s, accountID, "2026-03-01", 100)
 
-	page := getAccountPage(t, mux, accountID, 10, "")
+	page := getAccountPage(t, mux, accountID, 10, 0)
 	if len(page.Items) != 1 || page.PageBalance != nil || page.AccountBalance != nil {
 		t.Fatalf("page = %+v", page)
 	}
 
 	empty := addAccount(t, s, "Empty")
 	putSnapshot(t, s, empty, "2026-03-01", 4200, LedgerBalanceSourceManual)
-	page = getAccountPage(t, mux, empty, 10, "")
+	page = getAccountPage(t, mux, empty, 10, 0)
 	if page.PageBalance == nil || page.PageBalance.ClosingMinor != 4200 || page.PageBalance.OpeningMinor != 4200 {
 		t.Fatalf("empty account page balance = %+v", page.PageBalance)
 	}

@@ -6,6 +6,7 @@ import { queryClient } from "@/lib/query-client"
 import { capabilitiesQueryOptions } from "@/hooks/use-capabilities"
 import { parseBankResult } from "@/modules/ledger/lib/bank-result"
 import { parseAllTransactionsSearch } from "@/modules/ledger/lib/transaction-filter"
+import { parseLedgerAccountSearch } from "@/modules/ledger/lib/account-search"
 
 const LedgerIndexPage = lazy(() => import("./ledger.index").then((module) => ({ default: module.LedgerIndexPage })))
 const LedgerAccountPage = lazy(() => import("./ledger.accounts.$accountId").then((module) => ({ default: module.LedgerAccountPage })))
@@ -44,6 +45,7 @@ export const ledgerIndexRoute = createRoute({
 export const ledgerAccountRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/ledger/accounts/$accountId",
+  validateSearch: parseLedgerAccountSearch,
   beforeLoad: moduleGuard("ledger"),
   component: LedgerAccountPage,
 })

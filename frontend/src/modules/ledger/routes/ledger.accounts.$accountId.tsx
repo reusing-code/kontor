@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { formatDate } from "@/lib/format"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
@@ -7,8 +7,8 @@ import { Pencil, Trash2 } from "lucide-react"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { useDeleteLedgerAccount, useLedgerAccount, useUpdateLedgerAccount } from "@/modules/ledger/hooks/use-ledger-accounts"
 import { useLedgerCategories } from "@/modules/ledger/hooks/use-ledger-categories"
-import { useLedgerTransactions } from "@/modules/ledger/hooks/use-ledger-transactions"
-import { LedgerTransactionsTable } from "@/modules/ledger/components/ledger-transactions-table"
+import { LedgerAccountTransactions } from "@/modules/ledger/components/ledger-account-transactions"
+import { ledgerAccountSearch } from "@/modules/ledger/lib/account-search"
 import { LedgerAccountEditDialog } from "@/modules/ledger/components/ledger-account-edit-dialog"
 import { LedgerAccountDeleteDialog } from "@/modules/ledger/components/ledger-account-delete-dialog"
 import { LedgerAccountBalanceCard } from "@/modules/ledger/components/ledger-account-balance-card"
@@ -21,17 +21,21 @@ export function LedgerAccountPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { accountId } = routeApi.useParams()
+  const { page = 1 } = routeApi.useSearch()
   const { data: account } = useLedgerAccount(accountId)
   const { data: categories = [] } = useLedgerCategories()
-  const [cursorStack, setCursorStack] = useState<string[]>([])
-  const cursor = cursorStack.length > 0 ? cursorStack[cursorStack.length - 1] : undefined
-  const { data: page, isFetching } = useLedgerTransactions(accountId, 100, cursor)
   const updateAccount = useUpdateLedgerAccount()
   const deleteAccount = useDeleteLedgerAccount()
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   usePageTitle(account?.name ?? t("nav.ledger"), t("app.title"))
+
+  const changePage = useCallback(
+    (next: number, options?: { replace?: boolean }) =>
+      void navigate({ to: "/ledger/accounts/$accountId", params: { accountId }, search: ledgerAccountSearch(next), replace: options?.replace }),
+    [navigate, accountId],
+  )
 
   function handleDelete() {
     if (!account) return
@@ -93,15 +97,7 @@ export function LedgerAccountPage() {
 
       <div className="space-y-3">
         <h2 className="text-xl font-semibold">{t("ledger.transactions")}</h2>
-        <LedgerTransactionsTable
-          transactions={page?.items ?? []}
-          categories={categories}
-          hasMore={!!page?.nextCursor}
-          loadingMore={isFetching}
-          pageBalance={page?.pageBalance}
-          currency={account?.currency}
-          onLoadMore={page?.nextCursor ? () => setCursorStack((prev) => [...prev, page.nextCursor as string]) : undefined}
-        />
+        <LedgerAccountTransactions accountId={accountId} categories={categories} currency={account?.currency} page={page} onPageChange={changePage} />
       </div>
 
       {account && (

@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
@@ -678,37 +679,52 @@ func TestListLedgerTransactions_Paginated(t *testing.T) {
 		LedgerTransaction{ID: uuid.New(), AccountID: accountID, BookingDate: "2026-04-01", Currency: "EUR"},
 	)
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/api/v1/ledger/accounts/"+accountID.String()+"/transactions?limit=2", nil)
-	mux.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body: %s", rec.Code, http.StatusOK, rec.Body.String())
+	get := func(query string) accountPageBody {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/accounts/"+accountID.String()+"/transactions?"+query, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d, want %d; body: %s", query, rec.Code, http.StatusOK, rec.Body.String())
+		}
+		return decodeJSON[accountPageBody](t, rec)
+	}
+	dates := func(page accountPageBody) []string {
+		var out []string
+		for _, txn := range page.Items {
+			out = append(out, txn.BookingDate)
+		}
+		return out
 	}
 
-	page := decodeJSON[struct {
-		Items      []LedgerTransaction `json:"items"`
-		NextCursor string              `json:"nextCursor"`
-	}](t, rec)
-	if len(page.Items) != 2 {
-		t.Fatalf("len(items) = %d, want 2", len(page.Items))
+	first := get("limit=2")
+	if got := dates(first); !slices.Equal(got, []string{"2026-04-03", "2026-04-02"}) || first.Offset != 0 || first.Total != 3 {
+		t.Fatalf("first page = %v (offset %d, total %d)", got, first.Offset, first.Total)
 	}
-	if page.NextCursor == "" {
-		t.Fatal("expected nextCursor")
+	second := get("limit=2&offset=2")
+	if got := dates(second); !slices.Equal(got, []string{"2026-04-01"}) || second.Offset != 2 || second.Total != 3 {
+		t.Fatalf("second page = %v (offset %d, total %d)", got, second.Offset, second.Total)
 	}
+	middle := get("limit=2&offset=1")
+	if got := dates(middle); !slices.Equal(got, []string{"2026-04-02", "2026-04-01"}) {
+		t.Fatalf("page at offset 1 = %v", got)
+	}
+	past := get("limit=2&offset=10")
+	if past.Items == nil || len(past.Items) != 0 || past.Offset != 3 || past.Total != 3 {
+		t.Fatalf("page past the end = %+v", past)
+	}
+}
 
-	rec = httptest.NewRecorder()
-	req = httptest.NewRequest("GET", "/api/v1/ledger/accounts/"+accountID.String()+"/transactions?limit=2&cursor="+page.NextCursor, nil)
-	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("second page status = %d, want %d; body: %s", rec.Code, http.StatusOK, rec.Body.String())
-	}
-	page = decodeJSON[struct {
-		Items      []LedgerTransaction `json:"items"`
-		NextCursor string              `json:"nextCursor"`
-	}](t, rec)
-	if len(page.Items) != 1 {
-		t.Fatalf("second page len(items) = %d, want 1", len(page.Items))
+func TestListLedgerTransactions_InvalidOffset(t *testing.T) {
+	h, s := newTestHandler(t)
+	mux := newMux(h)
+	accountID := addAccount(t, s, "Main")
+
+	for _, offset := range []string{"abc", "-1", "1.5"} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/accounts/"+accountID.String()+"/transactions?offset="+offset, nil))
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("offset %q: status = %d, want %d", offset, rec.Code, http.StatusBadRequest)
+		}
 	}
 }
 

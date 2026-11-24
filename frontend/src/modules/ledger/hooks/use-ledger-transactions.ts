@@ -24,11 +24,13 @@ import type {
   LedgerTransferLinkResult,
 } from "@/modules/ledger/types"
 
-export function useLedgerTransactions(accountId: string, limit: number = 100, cursor?: string) {
+// The shown page stays on screen while another page of the same account loads.
+export function useLedgerTransactions(accountId: string, limit: number, offset: number) {
   return useQuery({
-    queryKey: ledgerKeys.accountTransactionsPage(accountId, limit, cursor),
-    queryFn: () => getLedgerTransactions(accountId, limit, cursor),
+    queryKey: ledgerKeys.accountTransactionsPage(accountId, limit, offset),
+    queryFn: () => getLedgerTransactions(accountId, limit, offset),
     enabled: accountId !== "",
+    placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[2] === accountId ? previous : undefined),
   })
 }
 

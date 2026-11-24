@@ -170,7 +170,8 @@ func (h *Handler) writeAccountWithBalance(w http.ResponseWriter, r *http.Request
 
 type ledgerAccountTransactionPageResponse struct {
 	Items          []LedgerTransaction   `json:"items"`
-	NextCursor     string                `json:"nextCursor,omitempty"`
+	Offset         int                   `json:"offset"`
+	Total          int                   `json:"total"`
 	PageBalance    *LedgerPageBalance    `json:"pageBalance,omitempty"`
 	AccountBalance *LedgerAccountBalance `json:"accountBalance,omitempty"`
 }
@@ -252,13 +253,23 @@ func (h *Handler) ListLedgerTransactions(w http.ResponseWriter, r *http.Request)
 		limit = parsedLimit
 	}
 
-	page, err := h.store.ListLedgerAccountTransactionsPage(r.Context(), userID, accountID, limit, r.URL.Query().Get("cursor"))
+	offset := 0
+	if rawOffset := r.URL.Query().Get("offset"); rawOffset != "" {
+		parsedOffset, err := strconv.Atoi(rawOffset)
+		if err != nil || parsedOffset < 0 {
+			httputil.Error(h.logger, w, http.StatusBadRequest, "invalid offset")
+			return
+		}
+		offset = parsedOffset
+	}
+
+	page, err := h.store.ListLedgerAccountTransactionsPage(r.Context(), userID, accountID, limit, offset)
 	if err != nil {
 		h.storeError(w, err)
 		return
 	}
 
 	httputil.WriteJSON(h.logger, w, http.StatusOK, ledgerAccountTransactionPageResponse{
-		Items: page.Items, NextCursor: page.NextCursor, PageBalance: page.PageBalance, AccountBalance: page.Balance,
+		Items: page.Items, Offset: page.Offset, Total: page.Total, PageBalance: page.PageBalance, AccountBalance: page.Balance,
 	})
 }

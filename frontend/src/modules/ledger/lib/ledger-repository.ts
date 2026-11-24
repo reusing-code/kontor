@@ -146,11 +146,8 @@ export async function getLedgerImports(): Promise<LedgerImportBatch[]> {
   return get<LedgerImportBatch[]>("/ledger/imports")
 }
 
-export async function getLedgerTransactions(accountId: string, limit: number = 100, cursor?: string): Promise<LedgerTransactionsPage> {
-  const search = new URLSearchParams({ limit: String(limit) })
-  if (cursor) {
-    search.set("cursor", cursor)
-  }
+export async function getLedgerTransactions(accountId: string, limit: number, offset: number): Promise<LedgerTransactionsPage> {
+  const search = new URLSearchParams({ limit: String(limit), offset: String(offset) })
   return get<LedgerTransactionsPage>(`/ledger/accounts/${accountId}/transactions?${search.toString()}`)
 }
 

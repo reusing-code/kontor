@@ -161,32 +161,39 @@ type LedgerPageBalance struct {
 	OpeningMinor int64 `json:"openingMinor"`
 }
 
-// LedgerAccountTransactionPage is a page of an account's transactions with
-// the balances; both are nil when the account has no snapshot.
+// LedgerAccountTransactionPage is a page of an account's transactions in list
+// order with its offset, the number of all the account's transactions and the
+// balances; both balances are nil when the account has no snapshot.
 type LedgerAccountTransactionPage struct {
-	LedgerTransactionPage
+	Items       []LedgerTransaction
+	Offset      int
+	Total       int
 	PageBalance *LedgerPageBalance
 	Balance     *LedgerAccountBalance
 }
 
-// ListLedgerAccountTransactionsPage pages an account's transactions like
-// ListLedgerTransactionsPage and adds the balances around the page, derived
-// from the current balance by taking back every transaction listed above it.
-func (s *Store) ListLedgerAccountTransactionsPage(_ context.Context, userID string, accountID uuid.UUID, limit int, cursor string) (LedgerAccountTransactionPage, error) {
+// ListLedgerAccountTransactionsPage returns up to limit (default 100, at most
+// 500) of an account's transactions starting at offset (an offset past the
+// end gives an empty page) and the balances around the page, derived from the
+// current balance by taking back every transaction listed above it.
+func (s *Store) ListLedgerAccountTransactionsPage(_ context.Context, userID string, accountID uuid.UUID, limit, offset int) (LedgerAccountTransactionPage, error) {
 	var page LedgerAccountTransactionPage
 	err := s.e.View(func(txn *badger.Txn) error {
 		txns, err := filterLedgerTransactions(txn, userID, LedgerTransactionListOptions{AccountID: &accountID})
 		if err != nil {
 			return err
 		}
-		page.LedgerTransactionPage = paginateLedgerTransactions(txns, limit, cursor)
+		start := min(max(offset, 0), len(txns))
+		end := min(start+clampLedgerPageLimit(limit), len(txns))
+		page.Items = append([]LedgerTransaction{}, txns[start:end]...)
+		page.Offset = start
+		page.Total = len(txns)
 		snapshots, err := collectLedgerBalanceSnapshots(txn, ledBalAccountPrefix(userID, accountID))
 		if err != nil {
 			return err
 		}
 		page.Balance = computeLedgerAccountBalance(snapshots, txns)
 		if page.Balance != nil {
-			start, end := ledgerPageBounds(txns, limit, cursor)
 			closing := page.Balance.CurrentMinor - sumAmounts(txns[:start])
 			page.PageBalance = &LedgerPageBalance{ClosingMinor: closing, OpeningMinor: closing - sumAmounts(txns[start:end])}
 		}

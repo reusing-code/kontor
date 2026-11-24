@@ -360,9 +360,11 @@ export interface LedgerPageBalance {
   openingMinor: number
 }
 
+// A page of one account's transactions; total counts the account's transactions.
 export interface LedgerTransactionsPage {
   items: LedgerTransaction[]
-  nextCursor?: string
+  offset: number
+  total: number
   pageBalance?: LedgerPageBalance
   accountBalance?: LedgerAccountBalance
 }

@@ -9,8 +9,8 @@ export const ledgerKeys = {
   account: (id: string) => [...all, "accounts", id] as const,
   accountDeleteSummary: (id: string) => [...all, "accounts", id, "delete-summary"] as const,
   accountTransactions: (id: string) => [...all, "accounts", id, "transactions"] as const,
-  accountTransactionsPage: (id: string, limit: number, cursor?: string) =>
-    [...all, "accounts", id, "transactions", { limit, cursor: cursor ?? "" }] as const,
+  accountTransactionsPage: (id: string, limit: number, offset: number) =>
+    [...all, "accounts", id, "transactions", { limit, offset }] as const,
   // the cross-account list; refreshed together with every account's list
   transactionList: () => [...all, "transaction-list"] as const,
   transactionListPages: (accountIds: readonly string[], limit: number) =>

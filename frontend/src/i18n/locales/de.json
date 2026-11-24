@@ -391,6 +391,8 @@
     "new": "Neu",
     "loadMore": "Mehr laden",
     "loadingMore": "Lade mehr...",
+    "transactionPages": "Seiten der Transaktionen",
+    "transactionRange": "{{from}}–{{to}} von {{total}} Transaktionen",
     "transaction": "Transaktion",
     "transactionDetails": "Transaktionsdetails",
     "additionalInformation": "Zusatzinformationen",

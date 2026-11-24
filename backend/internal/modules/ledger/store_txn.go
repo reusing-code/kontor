@@ -118,15 +118,18 @@ func paginateLedgerTransactions(txns []LedgerTransaction, limit int, cursor stri
 	return page
 }
 
+// clampLedgerPageLimit applies the default (100) and the maximum (500) page size.
+func clampLedgerPageLimit(limit int) int {
+	if limit <= 0 {
+		return 100
+	}
+	return min(limit, 500)
+}
+
 // ledgerPageBounds returns the slice bounds of the page after the cursor (the
 // last ID of the previous page); an unknown cursor starts at the beginning.
 func ledgerPageBounds(txns []LedgerTransaction, limit int, cursor string) (start, end int) {
-	if limit <= 0 {
-		limit = 100
-	}
-	if limit > 500 {
-		limit = 500
-	}
+	limit = clampLedgerPageLimit(limit)
 	if cursor != "" {
 		for i, txn := range txns {
 			if txn.ID.String() == cursor {

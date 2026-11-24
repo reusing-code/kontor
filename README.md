@@ -182,7 +182,7 @@ Contracts, purchases, vehicles, vehicle costs and their categories are validated
 | PUT | `/ledger/accounts/{id}` | Rename a ledger account (`{name, bank}`; IBAN and currency are fixed) |
 | GET | `/ledger/accounts/{id}/delete-summary` | What deleting the account removes (transactions, imports, links, mapped bank accounts) |
 | DELETE | `/ledger/accounts/{id}` | Delete a ledger account with its transactions and imports |
-| GET | `/ledger/accounts/{id}/transactions` | List transactions for an account, with the balance after and before the page |
+| GET | `/ledger/accounts/{id}/transactions` | List transactions for an account (`limit` + `offset`, with the `total`), with the balance after and before the page |
 | POST | `/ledger/accounts/{id}/balance` | Set the account balance by hand (`{amountMinor, asOf?}`; JWT only) |
 | DELETE | `/ledger/accounts/{id}/balance/{asOf}` | Delete a balance set by hand (JWT only) |
 | GET | `/ledger/transactions` | List the transactions of all accounts, newest first (`limit` + `cursor`, repeatable `accountId` to narrow to some accounts) |
