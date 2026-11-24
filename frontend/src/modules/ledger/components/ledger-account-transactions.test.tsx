@@ -60,7 +60,7 @@ function setup(initialPage = 1, onPageChange?: (page: number, options?: { replac
   return { api, ...renderWithProviders(<Harness initialPage={initialPage} onPageChange={onPageChange} />) }
 }
 
-const requests = (api: ReturnType<typeof mockApi>) => api.calls.map((call) => call.path)
+const requests = (api: ReturnType<typeof mockApi>) => api.calls.map((call) => call.path).filter((path) => path.startsWith("/ledger/"))
 const balanceRow = (label: string) => screen.getByText(label).closest("tr")!
 
 describe("LedgerAccountTransactions", () => {

@@ -5,6 +5,8 @@ import type { LedgerAccount, LedgerCategory, LedgerPageBalance, LedgerTransactio
 import { transactionPath } from "@/modules/ledger/lib/module-links"
 import { formatLedgerCategorizationSource, formatLedgerReviewStatus, formatLedgerSpecialCategory, formatSourceType } from "@/modules/ledger/lib/ledger-utils"
 import { LedgerSplitBadge } from "@/modules/ledger/components/ledger-split-badge"
+import { PaperlessLinksIndicator } from "@/components/paperless/paperless-links-indicator"
+import { usePaperlessLinkIndex } from "@/hooks/use-paperless"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -29,9 +31,10 @@ export function LedgerTransactionsTable({ transactions, categories = [], pageBal
   const { t } = useTranslation()
   const categoryNameById = new Map(categories.map((category) => [category.id, category.name]))
   const accountNameById = accounts ? new Map(accounts.map((account) => [account.id, account.name])) : undefined
-  const columnCount = accountNameById ? 9 : 8
+  const columnCount = accountNameById ? 10 : 9
   const columnsBeforeAmount = accountNameById ? 3 : 2
   const showBalance = pageBalance !== undefined && transactions.length > 0
+  const paperlessLinks = usePaperlessLinkIndex("transaction")
 
   function balanceRow(label: string, minor: number) {
     return (
@@ -57,6 +60,7 @@ export function LedgerTransactionsTable({ transactions, categories = [], pageBal
             <TableHead>{t("ledger.category")}</TableHead>
             <TableHead>{t("ledger.reviewState")}</TableHead>
             <TableHead>{t("ledger.source")}</TableHead>
+            <TableHead className="w-16"><span className="sr-only">{t("paperless.documents")}</span></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -107,6 +111,9 @@ export function LedgerTransactionsTable({ transactions, categories = [], pageBal
                     </div>
                   </TableCell>
                   <TableCell>{formatSourceType(txn.sourceType)}</TableCell>
+                  <TableCell>
+                    <PaperlessLinksIndicator links={paperlessLinks?.get(txn.id)} to={transactionPath(txn.id)} />
+                  </TableCell>
                 </TableRow>
               ))}
               {showBalance && balanceRow(t("ledger.balance.beforePage"), pageBalance.openingMinor)}

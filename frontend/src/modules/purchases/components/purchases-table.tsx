@@ -20,6 +20,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { PaperlessLinksIndicator } from "@/components/paperless/paperless-links-indicator"
+import { usePaperlessLinkIndex } from "@/hooks/use-paperless"
 import { cn } from "@/lib/utils"
 
 const tableColumns = purchaseFields
@@ -86,6 +88,7 @@ function PurchaseDetailRow({ purchase, colSpan }: PurchaseDetailRowProps) {
 export function PurchasesTable({ purchases, onEdit, onDelete }: PurchasesTableProps) {
   const { t } = useTranslation()
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const paperlessLinks = usePaperlessLinkIndex("purchase")
 
   const totalColumns = tableColumns.length + 3 // +1 chevron, +1 links, +1 actions
 
@@ -149,7 +152,8 @@ export function PurchasesTable({ purchases, onEdit, onDelete }: PurchasesTablePr
                          </TableCell>
                        ))}
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        <div className="flex gap-1">
+                        <div className="flex items-center gap-1">
+                          <PaperlessLinksIndicator links={paperlessLinks?.get(purchase.id)} to={`/purchases/${purchase.id}`} />
                           {purchase.descriptionUrl && (
                             <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                               <a href={purchase.descriptionUrl} target="_blank" rel="noopener noreferrer" aria-label={t("purchase.openDescription", { name: purchase.itemName })} title={t("purchaseFields.descriptionUrl")}>

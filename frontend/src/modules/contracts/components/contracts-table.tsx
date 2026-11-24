@@ -21,6 +21,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { PaperlessLinksIndicator } from "@/components/paperless/paperless-links-indicator"
+import { usePaperlessLinkIndex } from "@/hooks/use-paperless"
 import { cn } from "@/lib/utils"
 
 const tableColumns = contractFields
@@ -100,6 +102,7 @@ function ContractDetailRow({ contract, colSpan }: ContractDetailRowProps) {
 export function ContractsTable({ contracts, onEdit, onDelete, getRowClassName }: ContractsTableProps) {
   const { t } = useTranslation()
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const paperlessLinks = usePaperlessLinkIndex("contract")
 
   const totalColumns = tableColumns.length + 4 // +1 chevron, +1 cancellation, +1 links, +1 actions
 
@@ -132,6 +135,7 @@ export function ContractsTable({ contracts, onEdit, onDelete, getRowClassName }:
             contracts.map((contract) => {
               const rowClass = getRowClassName?.(contract)
               const isExpanded = expandedId === contract.id
+              const documents = paperlessLinks?.get(contract.id)
               return (
                 <Fragment key={contract.id}>
                     <TableRow
@@ -178,7 +182,7 @@ export function ContractsTable({ contracts, onEdit, onDelete, getRowClassName }:
                         )}
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        <div className="flex gap-1">
+                        <div className="flex items-center gap-1">
                           {contract.customerPortalUrl && (
                             <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                               <a href={contract.customerPortalUrl} target="_blank" rel="noopener noreferrer" aria-label={t("contract.openCustomerPortal", { name: contract.name })} title={t("fields.customerPortalUrl")}>
@@ -186,7 +190,8 @@ export function ContractsTable({ contracts, onEdit, onDelete, getRowClassName }:
                               </a>
                             </Button>
                           )}
-                          {contract.paperlessUrl && (
+                          <PaperlessLinksIndicator links={documents} to={`/contracts/${contract.id}`} />
+                          {contract.paperlessUrl && !documents?.length && (
                             <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                               <a href={contract.paperlessUrl} target="_blank" rel="noopener noreferrer" aria-label={t("contract.openPaperless", { name: contract.name })} title={t("fields.paperlessUrl")}>
                                 <FileText className="h-4 w-4" />
