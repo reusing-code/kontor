@@ -48,6 +48,7 @@ func newTestAppWithLogger(t *testing.T, logger *slog.Logger, mutate ...func(*con
 		FXRatesURL:    "off",
 		EncryptionKey: testEncryptionKey,
 		AuthRateLimit: 0,
+		Registration:  config.RegistrationOpen,
 	}
 	for _, m := range mutate {
 		m(&cfg)

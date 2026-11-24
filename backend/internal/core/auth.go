@@ -5,10 +5,12 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/config"
 	"github.com/reusing-code/kontor/backend/internal/email"
 	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/module"
@@ -45,6 +47,9 @@ type Handler struct {
 	registry       *module.Registry
 	paperlessLinks PaperlessLinkStore
 	capabilities   Capabilities
+	registration   config.Registration
+	// registerMu makes the first-user check and the create one step.
+	registerMu sync.Mutex
 }
 
 func NewHandler(store *Store, logger *slog.Logger, jwtSecret []byte, emailClient *email.Client, seeds []SeedFunc, registry *module.Registry) *Handler {
@@ -58,6 +63,37 @@ func NewHandler(store *Store, logger *slog.Logger, jwtSecret []byte, emailClient
 	}
 }
 
+// SetRegistration sets who may register; the zero value is
+// config.RegistrationFirstUser.
+func (h *Handler) SetRegistration(r config.Registration) { h.registration = r }
+
+func (h *Handler) registrationOpen(ctx context.Context) (bool, error) {
+	switch h.registration {
+	case config.RegistrationOpen:
+		return true, nil
+	case config.RegistrationClosed:
+		return false, nil
+	}
+	hasUsers, err := h.store.HasUsers(ctx)
+	return !hasUsers, err
+}
+
+type authConfigResponse struct {
+	RegistrationOpen bool `json:"registrationOpen"`
+}
+
+// AuthConfig tells the login page whether it may offer registration.
+func (h *Handler) AuthConfig(w http.ResponseWriter, r *http.Request) {
+	open, err := h.registrationOpen(r.Context())
+	if err != nil {
+		h.logger.Error("checking registration", "error", err)
+		httputil.Error(h.logger, w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	httputil.WriteJSON(h.logger, w, http.StatusOK, authConfigResponse{RegistrationOpen: open})
+}
+
 type authRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -69,6 +105,19 @@ type authResponse struct {
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
+	h.registerMu.Lock()
+	defer h.registerMu.Unlock()
+	open, err := h.registrationOpen(r.Context())
+	if err != nil {
+		h.logger.Error("checking registration", "error", err)
+		httputil.Error(h.logger, w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	if !open {
+		httputil.WriteJSON(h.logger, w, http.StatusForbidden, map[string]string{"error": "registration is closed", "code": "registration_closed"})
+		return
+	}
+
 	var req authRequest
 	if err := httputil.ReadJSON(r, &req); err != nil {
 		httputil.BodyError(h.logger, w, err, "invalid request body")

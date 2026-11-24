@@ -108,6 +108,22 @@ func (s *Store) UpdateUser(_ context.Context, u User) error {
 	})
 }
 
+// HasUsers reports whether any user exists.
+func (s *Store) HasUsers(_ context.Context) (bool, error) {
+	found := false
+	err := s.e.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		opts.Prefix = []byte("usr/")
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		it.Rewind()
+		found = it.Valid()
+		return nil
+	})
+	return found, err
+}
+
 func (s *Store) ListUsers(_ context.Context) ([]User, error) {
 	users := []User{}
 	err := s.e.View(func(txn *badger.Txn) error {

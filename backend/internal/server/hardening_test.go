@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/reusing-code/kontor/backend/internal/config"
 	"github.com/reusing-code/kontor/backend/internal/pat"
 )
 
@@ -45,5 +46,21 @@ func TestOversizedMCPBodyIsRefused(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusRequestEntityTooLarge {
 		t.Errorf("status = %d, want 400 or 413", resp.StatusCode)
+	}
+}
+
+func TestRegistrationClosedAfterFirstUserByDefault(t *testing.T) {
+	a := newTestApp(t, func(c *config.Config) { c.Registration = config.RegistrationFirstUser })
+	status, body := a.request(t, "GET", "/api/v1/auth/config", "", "")
+	if status != http.StatusOK || !strings.Contains(body, `"registrationOpen":true`) {
+		t.Fatalf("auth config = %d %s", status, body)
+	}
+	a.register(t, "first@example.com")
+	status, body = a.request(t, "POST", "/api/v1/auth/register", "", `{"email":"second@example.com","password":"password123"}`)
+	if status != http.StatusForbidden || !strings.Contains(body, "registration_closed") {
+		t.Fatalf("second register = %d %s", status, body)
+	}
+	if status, body = a.request(t, "GET", "/api/v1/auth/config", "", ""); !strings.Contains(body, `"registrationOpen":false`) {
+		t.Fatalf("auth config = %d %s", status, body)
 	}
 }

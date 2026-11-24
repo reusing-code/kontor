@@ -113,6 +113,7 @@ func (s *Server) buildApp() (*app, error) {
 	}
 	coreHandler := core.NewHandler(coreStore, s.logger, jwtSecret, emailClient, seeds, registry)
 
+	coreHandler.SetRegistration(s.cfg.Registration)
 	coreHandler.SetCapabilities(core.Capabilities{LLM: extractor.Enabled(), LLMVision: s.cfg.LLMVisionEnabled(), BankImport: ledgerMod.BankImportEnabled()})
 
 	paperlessStore := paperless.NewStore(engine)
@@ -202,6 +203,7 @@ func (s *Server) buildApp() (*app, error) {
 	}
 	mux.Handle("POST /api/v1/auth/register", authRateLimit(http.HandlerFunc(coreHandler.Register)))
 	mux.Handle("POST /api/v1/auth/login", authRateLimit(http.HandlerFunc(coreHandler.Login)))
+	mux.HandleFunc("GET /api/v1/auth/config", coreHandler.AuthConfig)
 	mux.HandleFunc("GET /api/version", version.Handler)
 	// Redirect target of the bank consent; authenticated by its state only.
 	mux.HandleFunc("GET /api/v1/ledger/bank/callback", ledgerMod.BankCallback)

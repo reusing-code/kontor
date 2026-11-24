@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/config"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 	"github.com/reusing-code/kontor/backend/internal/module"
 	"github.com/reusing-code/kontor/backend/internal/storage"
@@ -159,6 +160,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 
 func TestRegister_DuplicateEmail(t *testing.T) {
 	h, _ := newTestHandler(t)
+	h.SetRegistration(config.RegistrationOpen)
 	mux := newAuthMux(h)
 
 	creds := map[string]string{"email": "dup@test.com", "password": "password1"}

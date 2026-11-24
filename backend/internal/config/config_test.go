@@ -366,3 +366,38 @@ func TestLoadEncryptionKey(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadRegistration(t *testing.T) {
+	tests := []struct {
+		value   string
+		unset   bool
+		want    Registration
+		wantErr bool
+	}{
+		{unset: true, want: RegistrationFirstUser},
+		{value: "", want: RegistrationFirstUser},
+		{value: "true", want: RegistrationOpen},
+		{value: "1", want: RegistrationOpen},
+		{value: "false", want: RegistrationClosed},
+		{value: "maybe", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			t.Setenv("JWT_SECRET", "test")
+			t.Setenv("REGISTRATION_ENABLED", tt.value)
+			if tt.unset {
+				os.Unsetenv("REGISTRATION_ENABLED")
+			}
+			cfg, err := Load()
+			if tt.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "REGISTRATION_ENABLED") {
+					t.Fatalf("err = %v", err)
+				}
+				return
+			}
+			if err != nil || cfg.Registration != tt.want {
+				t.Fatalf("Registration = %v, err = %v, want %v", cfg.Registration, err, tt.want)
+			}
+		})
+	}
+}
