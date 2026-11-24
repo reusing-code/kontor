@@ -25,7 +25,7 @@ import {
   getLedgerEmailOrderCandidates,
   getLedgerEmailOrders,
   getLedgerImports,
-  getLedgerReviewQueue,
+  getLedgerReviewCount,
   getLedgerReviewQueueAll,
   getLedgerSpendingAnalysis,
   getLedgerCashFlowAnalysis,
@@ -243,10 +243,10 @@ export function useLedgerNetWorthAnalysis(range: LedgerAnalysisRange) {
   })
 }
 
-export function useLedgerReviewQueue(limit: number = 100, cursor?: string) {
+export function useLedgerReviewCount() {
   return useQuery({
-    queryKey: ledgerReviewQueueKey(limit, cursor),
-    queryFn: () => getLedgerReviewQueue(limit, cursor),
+    queryKey: ["ledger", "review", "count"],
+    queryFn: getLedgerReviewCount,
   })
 }
 

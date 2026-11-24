@@ -153,12 +153,10 @@ export async function getLedgerTransactions(accountId: string, limit: number = 1
   return get<LedgerTransactionsPage>(`/ledger/accounts/${accountId}/transactions?${search.toString()}`)
 }
 
-export async function getLedgerReviewQueue(limit: number = 100, cursor?: string): Promise<LedgerReviewQueuePage> {
-  const search = new URLSearchParams({ limit: String(limit) })
-  if (cursor) {
-    search.set("cursor", cursor)
-  }
-  return get<LedgerReviewQueuePage>(`/ledger/transactions?${search.toString()}`)
+// The size of the whole queue comes with every page; one item is enough.
+export async function getLedgerReviewCount(): Promise<number> {
+  const page = await get<LedgerReviewQueuePage>("/ledger/transactions?limit=1")
+  return page.total
 }
 
 export async function getLedgerReviewQueueAll(): Promise<LedgerReviewQueuePage> {

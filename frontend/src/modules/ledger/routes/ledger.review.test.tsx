@@ -43,7 +43,7 @@ function setup(initial: LedgerReviewQueueItem[], categories = defaultCategories)
   const api = mockApi({
     "GET /capabilities": { llm: true, llmVision: false, bankImport: false },
     "GET /ledger/categories": categories,
-    "GET /ledger/transactions": () => ({ items: queue }),
+    "GET /ledger/transactions": () => ({ items: queue, total: queue.length }),
     "GET /ledger/category-suggestions/status": { running: false },
     "GET /paperless/config": { configured: false },
     "POST /ledger/transactions/review-batch": (call: ApiCall) => {

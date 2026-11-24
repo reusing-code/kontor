@@ -427,6 +427,7 @@ export type LedgerReviewQueueItem = z.infer<typeof ledgerReviewQueueItemSchema>
 export const ledgerReviewQueuePageSchema = z.object({
   items: z.array(ledgerReviewQueueItemSchema),
   nextCursor: z.string().optional(),
+  total: z.number().int(),
 })
 
 export type LedgerReviewQueuePage = z.infer<typeof ledgerReviewQueuePageSchema>

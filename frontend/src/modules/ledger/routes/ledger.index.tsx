@@ -11,7 +11,7 @@ import {
   useLedgerEmailAccounts,
   useLedgerEmailOrders,
   useLedgerImports,
-  useLedgerReviewQueue,
+  useLedgerReviewCount,
   useRunLedgerRecurringDetection,
 } from "@/modules/ledger/hooks/use-ledger"
 import { useBankConnections } from "@/modules/ledger/hooks/use-bank-connections"
@@ -62,7 +62,7 @@ export function LedgerIndexPage() {
   const { data: emailOrders = [] } = useLedgerEmailOrders()
   const { data: imports = [] } = useLedgerImports()
   const { data: categories = [] } = useLedgerCategories()
-  const { data: reviewPage } = useLedgerReviewQueue(10)
+  const { data: reviewCount = 0 } = useLedgerReviewCount()
 
   return (
     <div className="space-y-6">
@@ -87,7 +87,7 @@ export function LedgerIndexPage() {
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold">{reviewPage?.items.length ?? 0}</div>
+            <div className="text-3xl font-semibold">{reviewCount}</div>
             <p className="text-sm text-muted-foreground">{t("ledger.transactionsNeedReview")}</p>
           </CardContent>
         </Card>

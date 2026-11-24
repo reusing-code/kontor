@@ -26,7 +26,7 @@ function account(name: string, currency: string, currentMinor?: number): LedgerA
   }
 }
 
-function setup(accounts: LedgerAccount[]) {
+function setup(accounts: LedgerAccount[], reviewTotal = 0) {
   const api = mockApi({
     "GET /settings": { renewalDays: 90, reminderFrequency: "disabled", enabledModules: ["ledger"] },
     "GET /capabilities": { llm: false, llmVision: false, bankImport: false },
@@ -35,7 +35,7 @@ function setup(accounts: LedgerAccount[]) {
     "GET /ledger/email-accounts": [],
     "GET /ledger/email-orders": [],
     "GET /ledger/imports": [],
-    "GET /ledger/transactions": { items: [] },
+    "GET /ledger/transactions": { items: [], total: reviewTotal },
   })
   return { api, ...renderWithProviders(<LedgerIndexPage />) }
 }
@@ -69,5 +69,15 @@ describe("LedgerIndexPage net worth card", () => {
     expect(within(card).queryByText(/€/)).toBeNull()
     expect(within(card).getByRole("link", { name: "Open analysis" })).toHaveAttribute("href", "/ledger/analysis")
     expect(container.querySelector('.grid > [data-slot="card"]')).toBe(card)
+  })
+})
+
+describe("LedgerIndexPage review queue card", () => {
+  it("shows the size of the whole queue from one small request", async () => {
+    const { api } = setup([], 137)
+
+    const card = within(screen.getByText("Review queue").closest<HTMLElement>('[data-slot="card"]') as HTMLElement)
+    expect(await card.findByText("137")).toBeInTheDocument()
+    expect(api.calls.filter((call) => call.path.startsWith("/ledger/transactions")).map((call) => call.path)).toEqual(["/ledger/transactions?limit=1"])
   })
 })
