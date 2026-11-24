@@ -57,12 +57,8 @@ func (m *Module) ExportSection(ctx context.Context, userID string) (json.RawMess
 	if section.Imports, err = m.store.ListLedgerImports(ctx, userID); err != nil {
 		return nil, err
 	}
-	for _, account := range section.Accounts {
-		txns, err := m.store.ListLedgerTransactions(ctx, userID, account.ID)
-		if err != nil {
-			return nil, err
-		}
-		section.Transactions = append(section.Transactions, txns...)
+	if section.Transactions, err = m.store.ListAllLedgerTransactions(ctx, userID); err != nil {
+		return nil, err
 	}
 	if section.EmailAccounts, err = m.store.ListLedgerEmailAccounts(ctx, userID); err != nil {
 		return nil, err
