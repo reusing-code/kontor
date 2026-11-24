@@ -68,7 +68,7 @@ func (h *Handler) ImportContracts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cats, err := h.categories.List(r.Context(), userID, "contracts")
+	cats, err := h.categories.List(r.Context(), userID, ModuleID)
 	if err != nil {
 		httputil.StoreError(h.logger, w, err)
 		return
@@ -107,14 +107,8 @@ func (h *Handler) ImportContracts(w http.ResponseWriter, r *http.Request) {
 
 		catID, ok := catByName[strings.ToLower(entry.Category)]
 		if !ok {
-			now := time.Now().UTC()
-			cat := categories.Category{
-				ID:        uuid.New(),
-				Name:      entry.Category,
-				CreatedAt: now,
-				UpdatedAt: now,
-			}
-			if err := h.categories.Create(r.Context(), userID, "contracts", cat); err != nil {
+			cat := categories.New(uuid.New(), categories.CategoryInput{Name: entry.Category}, time.Now().UTC())
+			if err := h.categories.Create(r.Context(), userID, ModuleID, cat); err != nil {
 				result.Errors = append(result.Errors, importError{Row: row, Error: fmt.Sprintf("failed to create category: %v", err)})
 				continue
 			}

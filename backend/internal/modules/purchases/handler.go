@@ -38,7 +38,7 @@ func (h *Handler) CreatePurchaseInCategory(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if _, err := h.categories.Get(r.Context(), middleware.GetUserID(r.Context()), "purchases", catID); err != nil {
+	if _, err := h.categories.Get(r.Context(), middleware.GetUserID(r.Context()), ModuleID, catID); err != nil {
 		httputil.StoreError(h.logger, w, err)
 		return
 	}

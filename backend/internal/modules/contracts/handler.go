@@ -38,8 +38,7 @@ func (h *Handler) CreateContractInCategory(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Verify category exists (contracts module)
-	if _, err := h.categories.Get(r.Context(), middleware.GetUserID(r.Context()), "contracts", catID); err != nil {
+	if _, err := h.categories.Get(r.Context(), middleware.GetUserID(r.Context()), ModuleID, catID); err != nil {
 		httputil.StoreError(h.logger, w, err)
 		return
 	}

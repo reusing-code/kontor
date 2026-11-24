@@ -24,7 +24,7 @@ type purchaseSummaryResponse struct {
 func (h *Handler) PurchaseSummary(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
-	cats, err := h.categories.List(r.Context(), userID, "purchases")
+	cats, err := h.categories.List(r.Context(), userID, ModuleID)
 	if err != nil {
 		httputil.StoreError(h.logger, w, err)
 		return
