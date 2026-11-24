@@ -441,7 +441,7 @@ func (a *LedgerEmailAccountInput) Validate() error {
 		return errors.New("scanSince is required")
 	}
 	if _, err := time.Parse("2006-01-02", a.ScanSince); err != nil {
-		return errors.New("scanSince must be in YYYY-MM-DD format")
+		return ErrLedgerScanSinceInvalid
 	}
 	return nil
 }
@@ -486,15 +486,21 @@ func (a *LedgerEmailAccountUpdateInput) Validate() error {
 		return errors.New("scanSince is required")
 	}
 	if _, err := time.Parse("2006-01-02", a.ScanSince); err != nil {
-		return errors.New("scanSince must be in YYYY-MM-DD format")
+		return ErrLedgerScanSinceInvalid
 	}
 	return nil
 }
 
+// Validation errors of email accounts and order links, answered with 400.
+var (
+	ErrLedgerScanSinceInvalid    = errors.New("scanSince must be in YYYY-MM-DD format")
+	ErrLedgerTransactionIDsEmpty = errors.New("transactionIds must contain at least one id")
+)
+
 func (i *LedgerEmailOrderLinkInput) Validate() error {
 	i.TransactionIDs = NormalizeLinkedTransactionIDs(i.TransactionIDs)
 	if len(i.TransactionIDs) == 0 {
-		return errors.New("transactionIds must contain at least one id")
+		return ErrLedgerTransactionIDsEmpty
 	}
 	return nil
 }

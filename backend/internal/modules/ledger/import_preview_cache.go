@@ -1,9 +1,10 @@
 package ledger
 
 import (
-	"fmt"
 	"sync"
 	"time"
+
+	"github.com/reusing-code/kontor/backend/internal/storage"
 )
 
 const DefaultPreviewTTL = 15 * time.Minute
@@ -44,11 +45,11 @@ func (c *PreviewCache) Get(id string) (*PreviewResult, error) {
 
 	entry, ok := c.entries[id]
 	if !ok {
-		return nil, fmt.Errorf("preview %q not found", id)
+		return nil, storage.ErrNotFound
 	}
 	if time.Now().After(entry.expiresAt) {
 		delete(c.entries, id)
-		return nil, fmt.Errorf("preview %q expired", id)
+		return nil, ErrLedgerPreviewExpired
 	}
 	return entry.result, nil
 }

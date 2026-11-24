@@ -299,10 +299,8 @@ func (h *Handler) storeError(w http.ResponseWriter, err error) {
 		httputil.Error(h.logger, w, http.StatusConflict, err.Error())
 	case errors.Is(err, ErrLedgerCategoryHasChild), errors.Is(err, ErrLedgerCategoryHasCycle), errors.Is(err, ErrLedgerTransferInvalid), errors.Is(err, ErrLedgerSplitInvalid):
 		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
-	case err != nil && (err.Error() == "links must contain valid absolute URLs" ||
-		err.Error() == "references contain an invalid type" ||
-		err.Error() == "scanSince must be in YYYY-MM-DD format" ||
-		err.Error() == "transactionIds must contain at least one id"):
+	case errors.Is(err, ErrLedgerLinksInvalid), errors.Is(err, ErrLedgerReferencesInvalid),
+		errors.Is(err, ErrLedgerScanSinceInvalid), errors.Is(err, ErrLedgerTransactionIDsEmpty):
 		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, ErrLedgerPreviewExpired):
 		httputil.Error(h.logger, w, http.StatusGone, err.Error())

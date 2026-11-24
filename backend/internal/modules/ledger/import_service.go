@@ -4,14 +4,26 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
-	"github.com/reusing-code/kontor/backend/internal/storage"
 	"io"
 	"log/slog"
 	"time"
 
+	"github.com/reusing-code/kontor/backend/internal/storage"
+
 	"github.com/google/uuid"
 )
+
+// importInputError is an import failure caused by the request or the file
+// (unknown source, unreadable CSV, invalid account choice); the handlers
+// answer it with 400 and its message.
+type importInputError struct{ err error }
+
+func (e importInputError) Error() string { return e.err.Error() }
+func (e importInputError) Unwrap() error { return e.err }
+
+func invalidImport(err error) error { return importInputError{err} }
 
 type ImportService struct {
 	store  *Store
@@ -38,13 +50,13 @@ type PreviewRequest struct {
 func (svc *ImportService) Preview(ctx context.Context, req PreviewRequest) (*PreviewResult, error) {
 	provider, err := GetProvider(req.SourceType)
 	if err != nil {
-		return nil, err
+		return nil, invalidImport(err)
 	}
 
 	// Read all data so we can hash and parse
 	data, err := io.ReadAll(req.File)
 	if err != nil {
-		return nil, fmt.Errorf("reading file: %w", err)
+		return nil, invalidImport(fmt.Errorf("reading file: %w", err))
 	}
 
 	fileHash := fmt.Sprintf("%x", sha256.Sum256(data))
@@ -61,7 +73,7 @@ func (svc *ImportService) Preview(ctx context.Context, req PreviewRequest) (*Pre
 	// Parse
 	parsed, err := provider.Parse(bytes.NewReader(data))
 	if err != nil {
-		return nil, fmt.Errorf("parsing CSV: %w", err)
+		return nil, invalidImport(fmt.Errorf("parsing CSV: %w", err))
 	}
 
 	// Resolve account
@@ -165,10 +177,7 @@ type CommitResult struct {
 func (svc *ImportService) Commit(ctx context.Context, req CommitRequest) (*CommitResult, error) {
 	preview, err := svc.cache.Get(req.PreviewID)
 	if err != nil {
-		if err.Error() == fmt.Sprintf("preview %q expired", req.PreviewID) {
-			return nil, ErrLedgerPreviewExpired
-		}
-		return nil, storage.ErrNotFound
+		return nil, err
 	}
 
 	// Resolve account
@@ -182,7 +191,7 @@ func (svc *ImportService) Commit(ctx context.Context, req CommitRequest) (*Commi
 	if accountIDStr != "" {
 		accountID, err = uuid.Parse(accountIDStr)
 		if err != nil {
-			return nil, fmt.Errorf("invalid accountId: %w", err)
+			return nil, invalidImport(fmt.Errorf("invalid accountId: %w", err))
 		}
 		// Verify it exists
 		_, err = svc.store.GetLedgerAccount(ctx, req.UserID, accountID)
@@ -191,7 +200,7 @@ func (svc *ImportService) Commit(ctx context.Context, req CommitRequest) (*Commi
 		}
 	} else if req.NewAccount != nil {
 		if err := req.NewAccount.Validate(); err != nil {
-			return nil, fmt.Errorf("invalid new account: %w", err)
+			return nil, invalidImport(fmt.Errorf("invalid new account: %w", err))
 		}
 		now := time.Now().UTC()
 		accountID = uuid.New()
@@ -205,13 +214,13 @@ func (svc *ImportService) Commit(ctx context.Context, req CommitRequest) (*Commi
 			UpdatedAt: now,
 		}
 		if err := svc.store.CreateLedgerAccount(ctx, req.UserID, acc); err != nil {
-			if err == storage.ErrConflict {
+			if errors.Is(err, storage.ErrConflict) {
 				return nil, err
 			}
 			return nil, fmt.Errorf("creating account: %w", err)
 		}
 	} else {
-		return nil, fmt.Errorf("no account specified and no new account provided")
+		return nil, invalidImport(errors.New("no account specified and no new account provided"))
 	}
 
 	// If account changed from preview, recompute fingerprints
@@ -262,7 +271,7 @@ func (svc *ImportService) Commit(ctx context.Context, req CommitRequest) (*Commi
 
 	commitResult, err := svc.store.CommitLedgerImportWithBalance(ctx, req.UserID, batch, txns, balance)
 	if err != nil {
-		if err == ErrLedgerFileImported {
+		if errors.Is(err, ErrLedgerFileImported) {
 			return nil, err
 		}
 		return nil, fmt.Errorf("committing import: %w", err)
@@ -321,5 +330,5 @@ func newLedgerTransactionFromRow(row ParsedRow, accountID, batchID uuid.UUID, so
 }
 
 func isNotFound(err error) bool {
-	return err == storage.ErrNotFound
+	return errors.Is(err, storage.ErrNotFound)
 }

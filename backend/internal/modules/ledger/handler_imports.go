@@ -6,7 +6,6 @@ import (
 
 	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
-	"github.com/reusing-code/kontor/backend/internal/storage"
 )
 
 // maxLedgerImportBytes caps the whole multipart request of a CSV preview.
@@ -42,8 +41,7 @@ func (h *Handler) LedgerImportPreview(w http.ResponseWriter, r *http.Request) {
 		UserID:     userID,
 	})
 	if err != nil {
-		h.logger.Error("ledger import preview failed", "error", err)
-		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+		h.importError(w, err)
 		return
 	}
 
@@ -86,12 +84,7 @@ func (h *Handler) LedgerImportCommit(w http.ResponseWriter, r *http.Request) {
 		UserID:     userID,
 	})
 	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) || errors.Is(err, storage.ErrConflict) || errors.Is(err, ErrLedgerFileImported) || errors.Is(err, ErrLedgerPreviewExpired) {
-			h.storeError(w, err)
-			return
-		}
-		h.logger.Error("ledger import commit failed", "error", err)
-		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+		h.importError(w, err)
 		return
 	}
 
@@ -109,4 +102,15 @@ func (h *Handler) ListLedgerImports(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httputil.WriteJSON(h.logger, w, http.StatusOK, imports)
+}
+
+// importError answers a failed preview or commit: problems with the request
+// or the file get 400 with their message, everything else (missing preview
+// or account, duplicate file, store failures) goes through storeError.
+func (h *Handler) importError(w http.ResponseWriter, err error) {
+	if _, ok := errors.AsType[importInputError](err); ok {
+		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+		return
+	}
+	h.storeError(w, err)
 }

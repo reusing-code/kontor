@@ -167,6 +167,12 @@ func NormalizeLinkedTransactionIDs(ids []uuid.UUID) []uuid.UUID {
 	return normalized
 }
 
+// Validation errors of the transaction details, answered with 400.
+var (
+	ErrLedgerLinksInvalid      = errors.New("links must contain valid absolute URLs")
+	ErrLedgerReferencesInvalid = errors.New("references contain an invalid type")
+)
+
 func (i *LedgerTransactionDetailsInput) Validate() error {
 	i.Note = strings.TrimSpace(i.Note)
 	i.Links = NormalizeLedgerTransactionLinks(i.Links)
@@ -174,14 +180,14 @@ func (i *LedgerTransactionDetailsInput) Validate() error {
 	for _, link := range i.Links {
 		parsed, err := url.ParseRequestURI(link)
 		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-			return errors.New("links must contain valid absolute URLs")
+			return ErrLedgerLinksInvalid
 		}
 	}
 	for _, reference := range i.References {
 		switch reference.Type {
 		case LedgerReferencePurchase, LedgerReferenceContract, LedgerReferenceVehicle, LedgerReferenceCost:
 		default:
-			return errors.New("references contain an invalid type")
+			return ErrLedgerReferencesInvalid
 		}
 	}
 	return nil
