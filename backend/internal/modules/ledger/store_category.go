@@ -2,8 +2,6 @@ package ledger
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -22,17 +20,7 @@ func normalizeLedgerCategory(c LedgerCategory) LedgerCategory {
 }
 
 func loadLedgerCategory(txn *badger.Txn, userID string, id uuid.UUID) (LedgerCategory, error) {
-	var cat LedgerCategory
-	item, err := txn.Get(ledCatKey(userID, id))
-	if err != nil {
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			return cat, storage.ErrNotFound
-		}
-		return cat, err
-	}
-	err = item.Value(func(val []byte) error {
-		return json.Unmarshal(val, &cat)
-	})
+	cat, err := storage.Get[LedgerCategory](txn, ledCatKey(userID, id))
 	if err != nil {
 		return cat, err
 	}
@@ -41,29 +29,16 @@ func loadLedgerCategory(txn *badger.Txn, userID string, id uuid.UUID) (LedgerCat
 
 func storeLedgerCategory(txn *badger.Txn, userID string, cat LedgerCategory) error {
 	cat = normalizeLedgerCategory(cat)
-	data, err := json.Marshal(cat)
-	if err != nil {
-		return err
-	}
-	return txn.Set(ledCatKey(userID, cat.ID), data)
+	return storage.SetJSON(txn, ledCatKey(userID, cat.ID), cat)
 }
 
 func collectLedgerCategories(txn *badger.Txn, userID string) ([]LedgerCategory, error) {
-	var categories []LedgerCategory
-	prefix := ledCatPrefix(userID)
-	it := txn.NewIterator(badger.DefaultIteratorOptions)
-	defer it.Close()
-	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-		var cat LedgerCategory
-		if err := it.Item().Value(func(val []byte) error {
-			return json.Unmarshal(val, &cat)
-		}); err != nil {
-			return nil, err
-		}
-		categories = append(categories, normalizeLedgerCategory(cat))
+	categories, err := storage.List[LedgerCategory](txn, ledCatPrefix(userID))
+	if err != nil {
+		return nil, err
 	}
-	if categories == nil {
-		categories = []LedgerCategory{}
+	for i := range categories {
+		categories[i] = normalizeLedgerCategory(categories[i])
 	}
 	return categories, nil
 }

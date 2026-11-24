@@ -2,7 +2,6 @@ package ledger
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -32,26 +31,19 @@ func isSuggestionCandidate(t LedgerTransaction) bool {
 }
 
 func collectLedgerCategorySuggestions(txn *badger.Txn, userID string) (map[uuid.UUID]LedgerCategorySuggestion, error) {
-	items := map[uuid.UUID]LedgerCategorySuggestion{}
-	prefix := ledSugPrefix(userID)
-	it := txn.NewIterator(badger.DefaultIteratorOptions)
-	defer it.Close()
-	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-		var sug LedgerCategorySuggestion
-		if err := it.Item().Value(func(val []byte) error { return json.Unmarshal(val, &sug) }); err != nil {
-			return nil, err
-		}
+	list, err := storage.List[LedgerCategorySuggestion](txn, ledSugPrefix(userID))
+	if err != nil {
+		return nil, err
+	}
+	items := make(map[uuid.UUID]LedgerCategorySuggestion, len(list))
+	for _, sug := range list {
 		items[sug.TransactionID] = sug
 	}
 	return items, nil
 }
 
 func storeLedgerCategorySuggestion(txn *badger.Txn, userID string, sug LedgerCategorySuggestion) error {
-	data, err := json.Marshal(sug)
-	if err != nil {
-		return err
-	}
-	return txn.Set(ledSugKey(userID, sug.TransactionID), data)
+	return storage.SetJSON(txn, ledSugKey(userID, sug.TransactionID), sug)
 }
 
 type suggestionState struct {

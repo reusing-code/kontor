@@ -2,7 +2,6 @@ package ledger
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -38,16 +37,7 @@ func putLedgerBalanceSnapshotTxn(txn *badger.Txn, userID string, snapshot Ledger
 // collectLedgerBalanceSnapshots returns the snapshots under prefix, sorted by
 // account and date (the key order).
 func collectLedgerBalanceSnapshots(txn *badger.Txn, prefix []byte) ([]LedgerBalanceSnapshot, error) {
-	snapshots := []LedgerBalanceSnapshot{}
-	err := storage.IteratePrefix(txn, prefix, func(_, val []byte) error {
-		var s LedgerBalanceSnapshot
-		if err := json.Unmarshal(val, &s); err != nil {
-			return err
-		}
-		snapshots = append(snapshots, s)
-		return nil
-	})
-	return snapshots, err
+	return storage.List[LedgerBalanceSnapshot](txn, prefix)
 }
 
 // accountLedgerTransactions loads an account's transactions through its

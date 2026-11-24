@@ -2,7 +2,6 @@ package ledger
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"sort"
 	"strings"
@@ -15,17 +14,7 @@ import (
 )
 
 func loadLedgerEmailOrder(txn *badger.Txn, userID string, id uuid.UUID) (LedgerEmailOrder, error) {
-	var order LedgerEmailOrder
-	item, err := txn.Get(ledEmailOrderKey(userID, id))
-	if err != nil {
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			return order, storage.ErrNotFound
-		}
-		return order, err
-	}
-	err = item.Value(func(val []byte) error {
-		return json.Unmarshal(val, &order)
-	})
+	order, err := storage.Get[LedgerEmailOrder](txn, ledEmailOrderKey(userID, id))
 	if err != nil {
 		return order, err
 	}
@@ -34,11 +23,7 @@ func loadLedgerEmailOrder(txn *badger.Txn, userID string, id uuid.UUID) (LedgerE
 
 func storeLedgerEmailOrder(txn *badger.Txn, userID string, order LedgerEmailOrder) error {
 	order = NormalizeLedgerEmailOrder(order)
-	data, err := json.Marshal(order)
-	if err != nil {
-		return err
-	}
-	if err := txn.Set(ledEmailOrderKey(userID, order.ID), data); err != nil {
+	if err := storage.SetJSON(txn, ledEmailOrderKey(userID, order.ID), order); err != nil {
 		return err
 	}
 	if err := txn.Set(idxLedEmailAccOrderKey(userID, order.EmailAccountID, order.ID), nil); err != nil {
@@ -53,16 +38,12 @@ func storeLedgerEmailOrder(txn *badger.Txn, userID string, order LedgerEmailOrde
 }
 
 func collectLedgerEmailOrders(txn *badger.Txn, userID string) ([]LedgerEmailOrder, error) {
-	items := []LedgerEmailOrder{}
-	it := txn.NewIterator(badger.DefaultIteratorOptions)
-	defer it.Close()
-	prefix := ledEmailOrderPrefix(userID)
-	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-		var item LedgerEmailOrder
-		if err := it.Item().Value(func(val []byte) error { return json.Unmarshal(val, &item) }); err != nil {
-			return nil, err
-		}
-		items = append(items, NormalizeLedgerEmailOrder(item))
+	items, err := storage.List[LedgerEmailOrder](txn, ledEmailOrderPrefix(userID))
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		items[i] = NormalizeLedgerEmailOrder(items[i])
 	}
 	return items, nil
 }

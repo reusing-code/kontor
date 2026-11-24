@@ -2,7 +2,6 @@ package ledger
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"sort"
 
@@ -34,13 +33,8 @@ func (s *Store) GetLedgerImportByFileHash(_ context.Context, userID string, sha2
 		if err != nil {
 			return err
 		}
-		batchItem, err := txn.Get(ledImpKey(userID, batchID))
-		if err != nil {
-			return err
-		}
-		return batchItem.Value(func(val []byte) error {
-			return json.Unmarshal(val, &batch)
-		})
+		batch, err = storage.Get[LedgerImportBatch](txn, ledImpKey(userID, batchID))
+		return err
 	})
 	if errors.Is(err, badger.ErrKeyNotFound) {
 		return batch, storage.ErrNotFound
@@ -99,11 +93,7 @@ func (s *Store) CommitLedgerImportWithBalance(_ context.Context, userID string, 
 
 		batch.ImportedRows = result.ImportedRows
 		batch.DuplicateRows = result.DuplicateRows
-		batchData, err := json.Marshal(batch)
-		if err != nil {
-			return err
-		}
-		if err := txn.Set(ledImpKey(userID, batch.ID), batchData); err != nil {
+		if err := storage.SetJSON(txn, ledImpKey(userID, batch.ID), batch); err != nil {
 			return err
 		}
 		if batch.FileSHA256 != "" {
@@ -138,28 +128,13 @@ func insertLedgerImportedTxn(txn *badger.Txn, userID string, batchID uuid.UUID, 
 
 func (s *Store) ListLedgerImports(_ context.Context, userID string) ([]LedgerImportBatch, error) {
 	var batches []LedgerImportBatch
-	prefix := ledImpPrefix(userID)
-
 	err := s.e.View(func(txn *badger.Txn) error {
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
-		defer it.Close()
-
-		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-			var b LedgerImportBatch
-			if err := it.Item().Value(func(val []byte) error {
-				return json.Unmarshal(val, &b)
-			}); err != nil {
-				return err
-			}
-			batches = append(batches, b)
-		}
-		return nil
+		var err error
+		batches, err = storage.List[LedgerImportBatch](txn, ledImpPrefix(userID))
+		return err
 	})
 	if err != nil {
 		return nil, err
-	}
-	if batches == nil {
-		batches = []LedgerImportBatch{}
 	}
 	sort.Slice(batches, func(i, j int) bool {
 		if batches[i].CreatedAt.Equal(batches[j].CreatedAt) {

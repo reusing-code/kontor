@@ -15,40 +15,23 @@ import (
 )
 
 func loadLedgerEmailAccount(txn *badger.Txn, userID string, id uuid.UUID) (LedgerEmailAccount, error) {
-	var stored storableLedgerEmailAccount
-	item, err := txn.Get(ledEmailAccKey(userID, id))
-	if err != nil {
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			return LedgerEmailAccount{}, storage.ErrNotFound
-		}
-		return LedgerEmailAccount{}, err
-	}
-	err = item.Value(func(val []byte) error {
-		return json.Unmarshal(val, &stored)
-	})
+	stored, err := storage.Get[storableLedgerEmailAccount](txn, ledEmailAccKey(userID, id))
 	return LedgerEmailAccount(stored), err
 }
 
 func storeLedgerEmailAccount(txn *badger.Txn, userID string, account LedgerEmailAccount) error {
-	data, err := json.Marshal(storableLedgerEmailAccount(account))
-	if err != nil {
-		return err
-	}
-	return txn.Set(ledEmailAccKey(userID, account.ID), data)
+	return storage.SetJSON(txn, ledEmailAccKey(userID, account.ID), storableLedgerEmailAccount(account))
 }
 
 func (s *Store) ListLedgerEmailAccounts(_ context.Context, userID string) ([]LedgerEmailAccount, error) {
 	items := []LedgerEmailAccount{}
 	err := s.e.View(func(txn *badger.Txn) error {
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
-		defer it.Close()
-		prefix := ledEmailAccPrefix(userID)
-		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-			var stored storableLedgerEmailAccount
-			if err := it.Item().Value(func(val []byte) error { return json.Unmarshal(val, &stored) }); err != nil {
-				return err
-			}
-			items = append(items, LedgerEmailAccount(stored))
+		stored, err := storage.List[storableLedgerEmailAccount](txn, ledEmailAccPrefix(userID))
+		if err != nil {
+			return err
+		}
+		for _, a := range stored {
+			items = append(items, LedgerEmailAccount(a))
 		}
 		return nil
 	})

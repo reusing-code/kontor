@@ -15,16 +15,7 @@ import (
 )
 
 func loadLedgerAccountTxn(txn *badger.Txn, userID string, id uuid.UUID) (LedgerAccount, error) {
-	var a LedgerAccount
-	item, err := txn.Get(ledAccKey(userID, id))
-	if err != nil {
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			return a, storage.ErrNotFound
-		}
-		return a, err
-	}
-	err = item.Value(func(val []byte) error { return json.Unmarshal(val, &a) })
-	return a, err
+	return storage.Get[LedgerAccount](txn, ledAccKey(userID, id))
 }
 
 // UpdateLedgerAccount changes name and bank; IBAN and currency stay as they
@@ -37,12 +28,8 @@ func (s *Store) UpdateLedgerAccount(_ context.Context, userID string, id uuid.UU
 			return err
 		}
 		a.Name, a.Bank, a.UpdatedAt = input.Name, input.Bank, time.Now().UTC()
-		data, err := json.Marshal(a)
-		if err != nil {
-			return err
-		}
 		updated = a
-		return txn.Set(ledAccKey(userID, id), data)
+		return storage.SetJSON(txn, ledAccKey(userID, id), a)
 	})
 	return updated, err
 }
@@ -353,15 +340,12 @@ func accountTransactionIDs(txn *badger.Txn, userID string, accountID uuid.UUID, 
 }
 
 func accountImportBatches(txn *badger.Txn, userID string, accountID uuid.UUID) ([]LedgerImportBatch, error) {
-	prefix := ledImpPrefix(userID)
-	it := txn.NewIterator(badger.DefaultIteratorOptions)
-	defer it.Close()
+	all, err := storage.List[LedgerImportBatch](txn, ledImpPrefix(userID))
+	if err != nil {
+		return nil, err
+	}
 	var batches []LedgerImportBatch
-	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-		var b LedgerImportBatch
-		if err := it.Item().Value(func(val []byte) error { return json.Unmarshal(val, &b) }); err != nil {
-			return nil, err
-		}
+	for _, b := range all {
 		if b.AccountID == accountID {
 			batches = append(batches, b)
 		}
@@ -370,16 +354,13 @@ func accountImportBatches(txn *badger.Txn, userID string, accountID uuid.UUID) (
 }
 
 func collectLedgerBankConnections(txn *badger.Txn, userID string) ([]LedgerBankConnection, error) {
-	prefix := ledBankConnPrefix(userID)
-	it := txn.NewIterator(badger.DefaultIteratorOptions)
-	defer it.Close()
+	stored, err := storage.List[storableLedgerBankConnection](txn, ledBankConnPrefix(userID))
+	if err != nil {
+		return nil, err
+	}
 	var items []LedgerBankConnection
-	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-		var stored storableLedgerBankConnection
-		if err := it.Item().Value(func(val []byte) error { return json.Unmarshal(val, &stored) }); err != nil {
-			return nil, err
-		}
-		items = append(items, LedgerBankConnection(stored))
+	for _, c := range stored {
+		items = append(items, LedgerBankConnection(c))
 	}
 	return items, nil
 }
@@ -432,49 +413,18 @@ func deleteKeysWithPrefix(txn *badger.Txn, prefix []byte, match func(key []byte)
 }
 
 func collectLedgerAccounts(txn *badger.Txn, userID string) ([]LedgerAccount, error) {
-	var accounts []LedgerAccount
-	prefix := ledAccPrefix(userID)
-	it := txn.NewIterator(badger.DefaultIteratorOptions)
-	defer it.Close()
-	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-		var account LedgerAccount
-		if err := it.Item().Value(func(val []byte) error {
-			return json.Unmarshal(val, &account)
-		}); err != nil {
-			return nil, err
-		}
-		accounts = append(accounts, account)
-	}
-	if accounts == nil {
-		accounts = []LedgerAccount{}
-	}
-	return accounts, nil
+	return storage.List[LedgerAccount](txn, ledAccPrefix(userID))
 }
 
 func (s *Store) ListLedgerAccounts(_ context.Context, userID string) ([]LedgerAccount, error) {
 	var accounts []LedgerAccount
-	prefix := ledAccPrefix(userID)
-
 	err := s.e.View(func(txn *badger.Txn) error {
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
-		defer it.Close()
-
-		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-			var a LedgerAccount
-			if err := it.Item().Value(func(val []byte) error {
-				return json.Unmarshal(val, &a)
-			}); err != nil {
-				return err
-			}
-			accounts = append(accounts, a)
-		}
-		return nil
+		var err error
+		accounts, err = collectLedgerAccounts(txn, userID)
+		return err
 	})
 	if err != nil {
 		return nil, err
-	}
-	if accounts == nil {
-		accounts = []LedgerAccount{}
 	}
 	sortLedgerAccounts(accounts)
 	return accounts, nil
@@ -493,17 +443,10 @@ func sortLedgerAccounts(accounts []LedgerAccount) {
 func (s *Store) GetLedgerAccount(_ context.Context, userID string, id uuid.UUID) (LedgerAccount, error) {
 	var a LedgerAccount
 	err := s.e.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(ledAccKey(userID, id))
-		if err != nil {
-			return err
-		}
-		return item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &a)
-		})
+		var err error
+		a, err = loadLedgerAccountTxn(txn, userID, id)
+		return err
 	})
-	if errors.Is(err, badger.ErrKeyNotFound) {
-		return a, storage.ErrNotFound
-	}
 	return a, err
 }
 
@@ -525,13 +468,8 @@ func (s *Store) FindLedgerAccountByIBAN(_ context.Context, userID string, iban s
 		if err != nil {
 			return err
 		}
-		accItem, err := txn.Get(ledAccKey(userID, accID))
-		if err != nil {
-			return err
-		}
-		return accItem.Value(func(val []byte) error {
-			return json.Unmarshal(val, &a)
-		})
+		a, err = loadLedgerAccountTxn(txn, userID, accID)
+		return err
 	})
 	if errors.Is(err, badger.ErrKeyNotFound) {
 		return a, storage.ErrNotFound

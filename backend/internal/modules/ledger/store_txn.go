@@ -2,7 +2,6 @@ package ledger
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -69,17 +68,7 @@ func normalizeLedgerTransaction(t LedgerTransaction) LedgerTransaction {
 }
 
 func loadLedgerTransaction(txn *badger.Txn, userID string, id uuid.UUID) (LedgerTransaction, error) {
-	var t LedgerTransaction
-	item, err := txn.Get(ledTxnKey(userID, id))
-	if err != nil {
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			return t, storage.ErrNotFound
-		}
-		return t, err
-	}
-	err = item.Value(func(val []byte) error {
-		return json.Unmarshal(val, &t)
-	})
+	t, err := storage.Get[LedgerTransaction](txn, ledTxnKey(userID, id))
 	if err != nil {
 		return t, err
 	}
@@ -88,29 +77,16 @@ func loadLedgerTransaction(txn *badger.Txn, userID string, id uuid.UUID) (Ledger
 
 func storeLedgerTransaction(txn *badger.Txn, userID string, t LedgerTransaction) error {
 	t = normalizeLedgerTransaction(t)
-	data, err := json.Marshal(t)
-	if err != nil {
-		return err
-	}
-	return txn.Set(ledTxnKey(userID, t.ID), data)
+	return storage.SetJSON(txn, ledTxnKey(userID, t.ID), t)
 }
 
 func collectLedgerTransactions(txn *badger.Txn, userID string) ([]LedgerTransaction, error) {
-	var txns []LedgerTransaction
-	prefix := ledTxnPrefix(userID)
-	it := txn.NewIterator(badger.DefaultIteratorOptions)
-	defer it.Close()
-	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-		var t LedgerTransaction
-		if err := it.Item().Value(func(val []byte) error {
-			return json.Unmarshal(val, &t)
-		}); err != nil {
-			return nil, err
-		}
-		txns = append(txns, normalizeLedgerTransaction(t))
+	txns, err := storage.List[LedgerTransaction](txn, ledTxnPrefix(userID))
+	if err != nil {
+		return nil, err
 	}
-	if txns == nil {
-		txns = []LedgerTransaction{}
+	for i := range txns {
+		txns[i] = normalizeLedgerTransaction(txns[i])
 	}
 	return txns, nil
 }

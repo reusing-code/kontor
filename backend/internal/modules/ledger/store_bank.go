@@ -31,40 +31,20 @@ func ledBankStatePrefix(userID string) []byte {
 }
 
 func loadLedgerBankConnection(txn *badger.Txn, userID string, id uuid.UUID) (LedgerBankConnection, error) {
-	item, err := txn.Get(ledBankConnKey(userID, id))
-	if err != nil {
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			return LedgerBankConnection{}, storage.ErrNotFound
-		}
-		return LedgerBankConnection{}, err
-	}
-	var stored storableLedgerBankConnection
-	err = item.Value(func(val []byte) error { return json.Unmarshal(val, &stored) })
+	stored, err := storage.Get[storableLedgerBankConnection](txn, ledBankConnKey(userID, id))
 	return LedgerBankConnection(stored), err
 }
 
 func storeLedgerBankConnection(txn *badger.Txn, userID string, c LedgerBankConnection) error {
-	data, err := json.Marshal(storableLedgerBankConnection(c))
-	if err != nil {
-		return err
-	}
-	return txn.Set(ledBankConnKey(userID, c.ID), data)
+	return storage.SetJSON(txn, ledBankConnKey(userID, c.ID), storableLedgerBankConnection(c))
 }
 
 func (s *Store) ListLedgerBankConnections(_ context.Context, userID string) ([]LedgerBankConnection, error) {
 	items := []LedgerBankConnection{}
 	err := s.e.View(func(txn *badger.Txn) error {
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
-		defer it.Close()
-		prefix := ledBankConnPrefix(userID)
-		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-			var stored storableLedgerBankConnection
-			if err := it.Item().Value(func(val []byte) error { return json.Unmarshal(val, &stored) }); err != nil {
-				return err
-			}
-			items = append(items, LedgerBankConnection(stored))
-		}
-		return nil
+		stored, err := collectLedgerBankConnections(txn, userID)
+		items = append(items, stored...)
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -142,12 +122,8 @@ func (s *Store) DeleteLedgerBankConnection(_ context.Context, userID string, id 
 }
 
 func (s *Store) CreateLedgerBankAuthState(_ context.Context, userID, hash string, state BankAuthState) error {
-	data, err := json.Marshal(state)
-	if err != nil {
-		return err
-	}
 	return s.e.Update(func(txn *badger.Txn) error {
-		return txn.Set(ledBankStateKey(userID, hash), data)
+		return storage.SetJSON(txn, ledBankStateKey(userID, hash), state)
 	})
 }
 
@@ -166,14 +142,12 @@ func (s *Store) ConsumeLedgerBankAuthState(_ context.Context, userID, hash strin
 	err := retryOnConflict(func() error {
 		expired = false
 		return s.e.Update(func(txn *badger.Txn) error {
-			item, err := txn.Get(ledBankStateKey(userID, hash))
-			if err != nil {
-				if errors.Is(err, badger.ErrKeyNotFound) {
-					return ErrBankStateInvalid
-				}
-				return err
+			var err error
+			state, err = storage.Get[BankAuthState](txn, ledBankStateKey(userID, hash))
+			if errors.Is(err, storage.ErrNotFound) {
+				return ErrBankStateInvalid
 			}
-			if err := item.Value(func(val []byte) error { return json.Unmarshal(val, &state) }); err != nil {
+			if err != nil {
 				return err
 			}
 			if err := txn.Delete(ledBankStateKey(userID, hash)); err != nil {
