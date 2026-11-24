@@ -62,18 +62,47 @@ type app struct {
 }
 
 func (s *Server) buildApp() (*app, error) {
-	background := &sync.WaitGroup{}
-	jwtSecret := []byte(s.cfg.JWTSecret)
-	emailClient := email.NewClient(s.cfg)
+	svc, err := s.buildModules()
+	if err != nil {
+		return nil, err
+	}
+	handler, patterns := s.buildRoutes(svc)
+	return &app{handler: handler, patterns: patterns, start: s.buildBackground(svc), background: svc.background}, nil
+}
 
+// services is everything buildModules wires that the routes and the
+// background start need.
+type services struct {
+	background       *sync.WaitGroup
+	jwtSecret        []byte
+	registry         *module.Registry
+	coreStore        *core.Store
+	coreHandler      *core.Handler
+	catHandler       *categories.Handler
+	ledger           *ledger.Module
+	drafts           *drafts.Store
+	draftHandler     *drafts.Handler
+	paperless        *paperless.Service
+	paperlessHandler *paperless.Handler
+	pipeline         *paperless.Pipeline
+	classifier       *extraction.Classifier
+	patStore         *pat.Store
+}
+
+// buildModules builds the stores, the modules with their registry (and runs
+// their migrations) and the cross-cutting services: core, paperless, the
+// draft inbox and personal access tokens.
+func (s *Server) buildModules() (*services, error) {
 	engine := s.engine
+	svc := &services{background: &sync.WaitGroup{}, jwtSecret: []byte(s.cfg.JWTSecret)}
+	emailClient := email.NewClient(s.cfg)
 
 	links := link.NewRegistry()
 	catStore := categories.NewStore(engine)
-	catHandler := categories.NewHandler(catStore, s.logger)
-	coreStore := core.NewStore(engine)
+	svc.catHandler = categories.NewHandler(catStore, s.logger)
+	svc.coreStore = core.NewStore(engine)
 
-	contractsMod := contracts.New(engine, links, catStore, coreStore, emailClient, s.logger)
+	contractsMod := contracts.New(engine, links, catStore, svc.coreStore, emailClient, s.logger)
 	purchasesMod := purchases.New(engine, links, catStore, s.logger)
 	autoMod := auto.New(engine, links, s.logger)
 	extractor := s.newExtractor()
@@ -82,10 +111,10 @@ func (s *Server) buildApp() (*app, error) {
 	if err != nil {
 		return nil, err
 	}
-	draftStore := drafts.NewStore(engine)
+	svc.drafts = drafts.NewStore(engine)
 	targetModules := draftTargetModules(contractsMod, purchasesMod, autoMod)
-	classifier := extraction.New(extractor, extractionDeps(coreStore, catStore, autoMod.Store(), targetModules), rates, s.logger)
-	ledgerMod := ledger.New(engine, links, coreStore, ledger.Config{
+	svc.classifier = extraction.New(extractor, extractionDeps(svc.coreStore, catStore, autoMod.Store(), targetModules), rates, s.logger)
+	svc.ledger = ledger.New(engine, links, svc.coreStore, ledger.Config{
 		EmailScanInterval:          s.cfg.LedgerEmailScanInterval,
 		EmailMaxExtractionFailures: s.cfg.LedgerEmailMaxExtractionFailures,
 		EncryptionKey:              s.cfg.EncryptionKey,
@@ -95,16 +124,16 @@ func (s *Server) buildApp() (*app, error) {
 			BatchSize: s.cfg.LedgerSuggestBatchSize,
 			MaxPerRun: s.cfg.LedgerSuggestMaxPerRun,
 		},
-		Drafts:     draftStore,
-		Classifier: classifier,
+		Drafts:     svc.drafts,
+		Classifier: svc.classifier,
 		Bank: ledger.BankConfig{
 			Client: bankClient, PublicURL: s.cfg.PublicURL,
 			SyncInterval: s.cfg.EnableBankingSyncInterval, Mailer: emailClient,
 		},
 	}, s.logger)
-	registry := module.NewRegistry(contractsMod, purchasesMod, autoMod, ledgerMod)
+	svc.registry = module.NewRegistry(contractsMod, purchasesMod, autoMod, svc.ledger)
 
-	for _, m := range registry.All() {
+	for _, m := range svc.registry.All() {
 		if err := migration.RunModule(engine.DB(), s.logger, m.ID(), m.Migrations()); err != nil {
 			return nil, fmt.Errorf("running %s migrations: %w", m.ID(), err)
 		}
@@ -114,51 +143,60 @@ func (s *Server) buildApp() (*app, error) {
 		s.logger.Info("backup scheduler disabled", "reason", "BACKUP_DIR is not set")
 	}
 
-	seeds := make([]core.SeedFunc, 0, len(registry.All()))
-	for _, m := range registry.All() {
-		seeds = append(seeds, core.EnabledOnlySeed(coreStore, m.ID(), m.Seed))
+	seeds := make([]core.SeedFunc, 0, len(svc.registry.All()))
+	for _, m := range svc.registry.All() {
+		seeds = append(seeds, core.EnabledOnlySeed(svc.coreStore, m.ID(), m.Seed))
 	}
-	coreHandler := core.NewHandler(coreStore, s.logger, jwtSecret, emailClient, seeds, registry)
+	svc.coreHandler = core.NewHandler(svc.coreStore, s.logger, svc.jwtSecret, emailClient, seeds, svc.registry)
 
-	coreHandler.SetRegistration(s.cfg.Registration)
-	coreHandler.SetBackground(background)
-	coreHandler.SetCapabilities(core.Capabilities{LLM: extractor.Enabled(), LLMVision: s.cfg.LLMVisionEnabled(), BankImport: ledgerMod.BankImportEnabled()})
+	svc.coreHandler.SetRegistration(s.cfg.Registration)
+	svc.coreHandler.SetBackground(svc.background)
+	svc.coreHandler.SetCapabilities(core.Capabilities{LLM: extractor.Enabled(), LLMVision: s.cfg.LLMVisionEnabled(), BankImport: svc.ledger.BankImportEnabled()})
 
 	paperlessStore := paperless.NewStore(engine)
-	paperlessService := paperless.NewService(paperlessStore, s.logger, s.cfg.EncryptionKey)
-	paperlessHandler := paperless.NewHandler(paperlessService, s.logger)
-	coreHandler.SetPaperlessLinks(paperlessStore)
+	svc.paperless = paperless.NewService(paperlessStore, s.logger, s.cfg.EncryptionKey)
+	svc.paperlessHandler = paperless.NewHandler(svc.paperless, s.logger)
+	svc.coreHandler.SetPaperlessLinks(paperlessStore)
 
-	draftHandler := drafts.NewHandler(draftStore, s.logger)
-	draftHandler.RegisterSource(drafts.SourcePaperless, paperless.NewDraftHooks(paperlessService))
-	draftHandler.RegisterSource(drafts.SourceLedger, ledgerMod.DraftHooks())
-	draftHandler.RegisterSource(drafts.SourceEmail, ledgerMod.EmailDraftHooks())
-	draftHandler.SetEnabled(coreStore.ModuleEnabled)
-	for _, m := range registry.All() {
+	svc.draftHandler = drafts.NewHandler(svc.drafts, s.logger)
+	svc.draftHandler.RegisterSource(drafts.SourcePaperless, paperless.NewDraftHooks(svc.paperless))
+	svc.draftHandler.RegisterSource(drafts.SourceLedger, svc.ledger.DraftHooks())
+	svc.draftHandler.RegisterSource(drafts.SourceEmail, svc.ledger.EmailDraftHooks())
+	svc.draftHandler.SetEnabled(svc.coreStore.ModuleEnabled)
+	for _, m := range svc.registry.All() {
 		if p, ok := m.(draftCreatorProvider); ok {
 			for target, create := range p.DraftCreators() {
-				draftHandler.RegisterTarget(target, m.ID(), create)
+				svc.draftHandler.RegisterTarget(target, m.ID(), create)
 			}
 		}
 	}
-	pipeline := paperless.NewPipeline(paperlessService, draftStore, classifier,
-		userIDs(coreStore), s.cfg.PaperlessPipelineInterval, s.logger)
+	svc.pipeline = paperless.NewPipeline(svc.paperless, svc.drafts, svc.classifier,
+		userIDs(svc.coreStore), s.cfg.PaperlessPipelineInterval, s.logger)
+	svc.patStore = pat.NewStore(engine, s.logger)
+	return svc, nil
+}
+
+// buildRoutes builds the protected API (JWT or PAT, scope guarded), the MCP
+// endpoint, the public routes and the middleware chain. It returns the
+// handler and the API patterns.
+func (s *Server) buildRoutes(svc *services) (http.Handler, []string) {
+	coreHandler := svc.coreHandler
 
 	// Protected API routes (require auth)
 	apiMux := newAPIMux()
 
 	// Module routes, each gated on the user's enabled modules
-	for _, m := range registry.All() {
-		m.RegisterRoutes(module.NewRouter(apiMux, module.Gate(m.ID(), coreStore)))
+	for _, m := range svc.registry.All() {
+		m.RegisterRoutes(module.NewRouter(apiMux, module.Gate(m.ID(), svc.coreStore)))
 	}
 
 	// Module-scoped category routes, gated via the {module} path parameter
-	catGate := module.GateParam(coreStore, contracts.ModuleID, purchases.ModuleID)
-	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories", catGate(catHandler.List))
-	apiMux.HandleFunc("POST /api/v1/modules/{module}/categories", catGate(catHandler.Create))
-	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Get))
-	apiMux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Update))
-	apiMux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", catGate(catHandler.Delete))
+	catGate := module.GateParam(svc.coreStore, contracts.ModuleID, purchases.ModuleID)
+	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories", catGate(svc.catHandler.List))
+	apiMux.HandleFunc("POST /api/v1/modules/{module}/categories", catGate(svc.catHandler.Create))
+	apiMux.HandleFunc("GET /api/v1/modules/{module}/categories/{id}", catGate(svc.catHandler.Get))
+	apiMux.HandleFunc("PUT /api/v1/modules/{module}/categories/{id}", catGate(svc.catHandler.Update))
+	apiMux.HandleFunc("DELETE /api/v1/modules/{module}/categories/{id}", catGate(svc.catHandler.Delete))
 
 	// Module directory and server-wide capabilities
 	apiMux.HandleFunc("GET /api/v1/modules", coreHandler.ListModules)
@@ -176,26 +214,25 @@ func (s *Server) buildApp() (*app, error) {
 	apiMux.HandleFunc("PUT /api/v1/settings/password", coreHandler.ChangePassword)
 
 	// Personal access token management
-	patStore := pat.NewStore(engine, s.logger)
-	patHandler := pat.NewHandler(patStore, s.logger)
+	patHandler := pat.NewHandler(svc.patStore, s.logger)
 	apiMux.HandleFunc("GET /api/v1/tokens", patHandler.List)
 	apiMux.HandleFunc("POST /api/v1/tokens", patHandler.Create)
 	apiMux.HandleFunc("DELETE /api/v1/tokens/{id}", patHandler.Revoke)
 
 	// Paperless-ngx integration (per-user, hidden until configured), the
 	// draft inbox it feeds and free-text quick add
-	registerPaperlessRoutes(apiMux, paperlessHandler, pipeline)
-	registerDraftRoutes(apiMux, draftHandler)
-	apiMux.HandleFunc("POST /api/v1/quick-add", quickadd.NewHandler(classifier, s.cfg.LLMVisionEnabled(), s.logger).Classify)
+	registerPaperlessRoutes(apiMux, svc.paperlessHandler, svc.pipeline)
+	registerDraftRoutes(apiMux, svc.draftHandler)
+	apiMux.HandleFunc("POST /api/v1/quick-add", quickadd.NewHandler(svc.classifier, s.cfg.LLMVisionEnabled(), s.logger).Classify)
 
 	mcpHandler := s.newMCPHandler(mcpDeps{
-		registry: registry, coreStore: coreStore, drafts: draftStore, paperless: paperlessService,
-		patStore: patStore, jwtSecret: jwtSecret,
+		registry: svc.registry, coreStore: svc.coreStore, drafts: svc.drafts, paperless: svc.paperless,
+		patStore: svc.patStore, jwtSecret: svc.jwtSecret,
 	})
 
-	protectedAPI := middleware.Auth(jwtSecret,
-		middleware.WithPATs(patStore),
-		middleware.WithTokenVersions(coreStore),
+	protectedAPI := middleware.Auth(svc.jwtSecret,
+		middleware.WithPATs(svc.patStore),
+		middleware.WithTokenVersions(svc.coreStore),
 		middleware.WithAuthLogger(s.logger),
 	)(middleware.ScopeGuard(apiMux.ServeMux, routeRules))
 
@@ -214,7 +251,7 @@ func (s *Server) buildApp() (*app, error) {
 	mux.HandleFunc("GET /api/v1/auth/config", coreHandler.AuthConfig)
 	mux.HandleFunc("GET /api/version", version.Handler)
 	// Redirect target of the bank consent; authenticated by its state only.
-	mux.HandleFunc("GET /api/v1/ledger/bank/callback", ledgerMod.BankCallback)
+	mux.HandleFunc("GET /api/v1/ledger/bank/callback", svc.ledger.BankCallback)
 
 	// Mount protected API routes
 	mux.Handle("/api/v1/", protectedAPI)
@@ -232,22 +269,25 @@ func (s *Server) buildApp() (*app, error) {
 		middleware.Logging(s.logger),
 		middleware.CORS(s.cfg.CORSOrigin),
 	)
+	return chain, apiMux.patterns
+}
 
-	start := func(ctx context.Context) {
+// buildBackground returns the start of the background services: backups,
+// the paperless pipeline and the module jobs, all on svc.background.
+func (s *Server) buildBackground(svc *services) func(ctx context.Context) {
+	return func(ctx context.Context) {
 		if s.cfg.BackupDir != "" {
-			engine.StartBackups(ctx, background, storage.BackupConfig{
+			s.engine.StartBackups(ctx, svc.background, storage.BackupConfig{
 				Dir:      s.cfg.BackupDir,
 				Interval: s.cfg.BackupInterval,
 				Keep:     s.cfg.BackupKeep,
 			})
 		}
-		pipeline.Start(ctx, background)
-		for _, m := range registry.All() {
-			m.StartBackground(ctx, background)
+		svc.pipeline.Start(ctx, svc.background)
+		for _, m := range svc.registry.All() {
+			m.StartBackground(ctx, svc.background)
 		}
 	}
-
-	return &app{handler: chain, patterns: apiMux.patterns, start: start, background: background}, nil
 }
 
 // Shutdown budget: requests first, then the background work. Together they
