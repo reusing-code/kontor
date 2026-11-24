@@ -2,13 +2,11 @@ package ledger
 
 import (
 	"errors"
-	"github.com/google/uuid"
-	"github.com/reusing-code/kontor/backend/internal/httputil"
-	"github.com/reusing-code/kontor/backend/internal/storage"
 	"net/http"
-	"strconv"
 
+	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
+	"github.com/reusing-code/kontor/backend/internal/storage"
 )
 
 // maxLedgerImportBytes caps the whole multipart request of a CSV preview.
@@ -57,20 +55,6 @@ type ledgerCommitBody struct {
 	NewAccount *LedgerAccountInput `json:"newAccount,omitempty"`
 }
 
-type ledgerAccountTransactionPageResponse struct {
-	Items          []LedgerTransaction   `json:"items"`
-	NextCursor     string                `json:"nextCursor,omitempty"`
-	PageBalance    *LedgerPageBalance    `json:"pageBalance,omitempty"`
-	AccountBalance *LedgerAccountBalance `json:"accountBalance,omitempty"`
-}
-
-// ledgerAccountResponse is an account with its balance (omitted without a
-// balance snapshot).
-type ledgerAccountResponse struct {
-	LedgerAccount
-	Balance *LedgerAccountBalance `json:"balance,omitempty"`
-}
-
 func (h *Handler) LedgerImportCommit(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	previewID := r.PathValue("previewId")
@@ -115,47 +99,6 @@ func (h *Handler) LedgerImportCommit(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(h.logger, w, http.StatusOK, result)
 }
 
-func (h *Handler) GetLedgerAccount(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r.Context())
-	accountIDStr := r.PathValue("accountId")
-	if accountIDStr == "" {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "accountId is required")
-		return
-	}
-
-	accountID, err := uuid.Parse(accountIDStr)
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid accountId")
-		return
-	}
-
-	h.writeAccountWithBalance(w, r, userID, accountID)
-}
-
-func (h *Handler) ListLedgerAccounts(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r.Context())
-
-	accounts, err := h.store.ListLedgerAccounts(r.Context(), userID)
-	if err != nil {
-		h.storeError(w, err)
-		return
-	}
-	balances, err := h.store.ListLedgerAccountBalances(r.Context(), userID)
-	if err != nil {
-		h.storeError(w, err)
-		return
-	}
-	items := make([]ledgerAccountResponse, len(accounts))
-	for i, account := range accounts {
-		items[i] = ledgerAccountResponse{LedgerAccount: account}
-		if balance, ok := balances[account.ID]; ok {
-			items[i].Balance = &balance
-		}
-	}
-
-	httputil.WriteJSON(h.logger, w, http.StatusOK, items)
-}
-
 func (h *Handler) ListLedgerImports(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
@@ -166,44 +109,4 @@ func (h *Handler) ListLedgerImports(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httputil.WriteJSON(h.logger, w, http.StatusOK, imports)
-}
-
-func (h *Handler) ListLedgerTransactions(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r.Context())
-	accountIDStr := r.PathValue("accountId")
-	if accountIDStr == "" {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "accountId is required")
-		return
-	}
-
-	accountID, err := uuid.Parse(accountIDStr)
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid accountId")
-		return
-	}
-
-	if _, err := h.store.GetLedgerAccount(r.Context(), userID, accountID); err != nil {
-		h.storeError(w, err)
-		return
-	}
-
-	limit := 100
-	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
-		parsedLimit, err := strconv.Atoi(rawLimit)
-		if err != nil || parsedLimit <= 0 {
-			httputil.Error(h.logger, w, http.StatusBadRequest, "invalid limit")
-			return
-		}
-		limit = parsedLimit
-	}
-
-	page, err := h.store.ListLedgerAccountTransactionsPage(r.Context(), userID, accountID, limit, r.URL.Query().Get("cursor"))
-	if err != nil {
-		h.storeError(w, err)
-		return
-	}
-
-	httputil.WriteJSON(h.logger, w, http.StatusOK, ledgerAccountTransactionPageResponse{
-		Items: page.Items, NextCursor: page.NextCursor, PageBalance: page.PageBalance, AccountBalance: page.Balance,
-	})
 }
