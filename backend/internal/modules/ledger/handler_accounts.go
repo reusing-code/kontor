@@ -30,7 +30,7 @@ func (h *Handler) UpdateLedgerAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	var input LedgerAccountUpdateInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -77,7 +77,7 @@ func (h *Handler) DeleteLedgerAccount(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateLedgerAccount(w http.ResponseWriter, r *http.Request) {
 	var input LedgerAccountInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.ValidateForCreate(); err != nil {
@@ -115,7 +115,7 @@ func (h *Handler) SetLedgerAccountBalance(w http.ResponseWriter, r *http.Request
 	}
 	var input LedgerManualBalanceInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	now := time.Now().UTC()

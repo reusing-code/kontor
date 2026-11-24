@@ -33,7 +33,7 @@ func (h *Handler) CreateLedgerEmailAccount(w http.ResponseWriter, r *http.Reques
 	}
 	var input LedgerEmailAccountInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -91,7 +91,7 @@ func (h *Handler) UpdateLedgerEmailAccount(w http.ResponseWriter, r *http.Reques
 	}
 	var input LedgerEmailAccountUpdateInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -194,7 +194,7 @@ func (h *Handler) emailFolderError(w http.ResponseWriter, status int, code, msg 
 func (h *Handler) ListLedgerEmailFolders(w http.ResponseWriter, r *http.Request) {
 	var input LedgerEmailFoldersInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -324,7 +324,7 @@ func (h *Handler) LinkLedgerEmailOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	var input LedgerEmailOrderLinkInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -418,13 +418,18 @@ func (h *Handler) ScanLedgerEmailAccount(w http.ResponseWriter, r *http.Request)
 	httputil.WriteJSON(h.logger, w, http.StatusAccepted, status)
 }
 
+// maxEmailUploadBytes caps the whole multipart request of an .eml upload;
+// a single message is refused above 25 MB anyway.
+const maxEmailUploadBytes = 64 << 20
+
 func (h *Handler) scanUploadedLedgerEmails(w http.ResponseWriter, r *http.Request, userID string, account LedgerEmailAccount) {
 	if err := h.ledgerEmail.CanScan(account, false); err != nil {
 		h.scanError(w, err)
 		return
 	}
+	httputil.LimitBody(w, r, maxEmailUploadBytes)
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid multipart form")
+		httputil.BodyError(h.logger, w, err, "invalid multipart form")
 		return
 	}
 	files := r.MultipartForm.File["files"]

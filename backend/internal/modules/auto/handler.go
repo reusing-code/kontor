@@ -36,7 +36,7 @@ func (h *Handler) GetVehicle(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateVehicle(w http.ResponseWriter, r *http.Request) {
 	var input VehicleInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -68,7 +68,7 @@ func (h *Handler) UpdateVehicle(w http.ResponseWriter, r *http.Request) {
 
 	var input VehicleInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {

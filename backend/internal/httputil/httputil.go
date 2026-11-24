@@ -17,11 +17,50 @@ func WriteJSON(logger *slog.Logger, w http.ResponseWriter, status int, v any) {
 	}
 }
 
+// MaxJSONBytes caps a JSON request body read by ReadJSON.
+const MaxJSONBytes = 1 << 20
+
+// ReadJSON decodes a JSON body of at most MaxJSONBytes, refusing unknown fields.
 func ReadJSON(r *http.Request, v any) error {
-	defer r.Body.Close()
-	dec := json.NewDecoder(r.Body)
+	return ReadJSONLimit(r, v, MaxJSONBytes)
+}
+
+// ReadJSONLimit is ReadJSON with its own size limit. A body over the limit
+// fails with an error IsTooLarge reports.
+func ReadJSONLimit(r *http.Request, v any, limit int64) error {
+	body := http.MaxBytesReader(nil, r.Body, limit)
+	defer body.Close()
+	dec := json.NewDecoder(body)
 	dec.DisallowUnknownFields()
 	return dec.Decode(v)
+}
+
+// LimitBody caps what handlers can read from r.Body. Wrap the body before
+// ParseMultipartForm, which otherwise only caps memory and spills the rest
+// to disk.
+func LimitBody(w http.ResponseWriter, r *http.Request, limit int64) {
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
+}
+
+// IsTooLarge reports whether err comes from a body over its size limit.
+func IsTooLarge(err error) bool {
+	_, ok := errors.AsType[*http.MaxBytesError](err)
+	return ok
+}
+
+// TooLarge answers 413 with the code body_too_large.
+func TooLarge(logger *slog.Logger, w http.ResponseWriter) {
+	WriteJSON(logger, w, http.StatusRequestEntityTooLarge, map[string]string{"error": "request body too large", "code": "body_too_large"})
+}
+
+// BodyError answers a failed ReadJSON: 413 for a body over the limit,
+// otherwise 400 with msg.
+func BodyError(logger *slog.Logger, w http.ResponseWriter, err error, msg string) {
+	if IsTooLarge(err) {
+		TooLarge(logger, w)
+		return
+	}
+	Error(logger, w, http.StatusBadRequest, msg)
 }
 
 func Error(logger *slog.Logger, w http.ResponseWriter, status int, msg string) {

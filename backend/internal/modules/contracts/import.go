@@ -27,6 +27,9 @@ var categoryTranslations = map[string][]string{
 	"categoryNames.telecommunications": {"telekommunikation"},
 }
 
+// maxImportBytes caps the whole multipart request of a batch import.
+const maxImportBytes = 10 << 20
+
 type importResult struct {
 	Created int           `json:"created"`
 	Errors  []importError `json:"errors"`
@@ -40,8 +43,9 @@ type importError struct {
 func (h *Handler) ImportContracts(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
-	if err := r.ParseMultipartForm(10 << 20); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid multipart form")
+	httputil.LimitBody(w, r, maxImportBytes)
+	if err := r.ParseMultipartForm(maxImportBytes); err != nil {
+		httputil.BodyError(h.logger, w, err, "invalid multipart form")
 		return
 	}
 

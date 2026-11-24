@@ -71,7 +71,7 @@ type authResponse struct {
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req authRequest
 	if err := httputil.ReadJSON(r, &req); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if req.Email == "" || req.Password == "" {
@@ -126,7 +126,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req authRequest
 	if err := httputil.ReadJSON(r, &req); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if req.Email == "" || req.Password == "" {

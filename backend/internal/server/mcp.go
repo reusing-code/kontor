@@ -20,6 +20,9 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/paperless"
 )
 
+// maxMCPBodyBytes caps a JSON-RPC request to /mcp.
+const maxMCPBodyBytes = 1 << 20
+
 type mcpDeps struct {
 	registry  *module.Registry
 	coreStore *core.Store
@@ -56,7 +59,7 @@ func (s *Server) newMCPHandler(d mcpDeps) http.Handler {
 		middleware.PATOnly(),
 		middleware.WithChallenge("Bearer"),
 		middleware.WithAuthLogger(s.logger),
-	)(mcpserver.Handler(deps))
+	)(middleware.MaxBody(maxMCPBodyBytes)(mcpserver.Handler(deps)))
 }
 
 func moduleStatuses(registry *module.Registry, coreStore *core.Store) func(context.Context, string) ([]mcpserver.ModuleStatus, error) {

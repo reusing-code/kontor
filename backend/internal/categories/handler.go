@@ -49,7 +49,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	module := r.PathValue("module")
 	var input CategoryInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -82,7 +82,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 
 	var input CategoryInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {

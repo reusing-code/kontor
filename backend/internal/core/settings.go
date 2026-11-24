@@ -70,7 +70,7 @@ type updateSettingsRequest struct {
 func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	var req updateSettingsRequest
 	if err := httputil.ReadJSON(r, &req); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if req.RenewalDays < 1 || req.RenewalDays > 365 {
@@ -138,7 +138,7 @@ type changePasswordRequest struct {
 func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	var req changePasswordRequest
 	if err := httputil.ReadJSON(r, &req); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if req.CurrentPassword == "" || req.NewPassword == "" {
