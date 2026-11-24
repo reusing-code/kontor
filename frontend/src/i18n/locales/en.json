@@ -255,7 +255,11 @@
     "moduleData": "Per-module export/import",
     "moduleExportButton": "Export",
     "moduleImportButton": "Import",
-    "moduleImportSucceeded": "{{module}} data imported."
+    "moduleImportSucceeded": "{{module}} data imported.",
+    "restoreConfirm": "Restore from \"{{file}}\"? Your settings and the categories of every module in the file are replaced by those from the file. The restore only works while these modules hold no other data.",
+    "restoreAction": "Restore",
+    "moduleImportFile": "Export file for {{module}}",
+    "moduleImportConfirm": "Import {{module}} data from \"{{file}}\"? The categories of {{module}} are replaced by those from the file. The import only works while {{module}} holds no other data."
   },
   "import": {
     "button": "Import",

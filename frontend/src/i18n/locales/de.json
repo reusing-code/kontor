@@ -255,7 +255,11 @@
     "moduleData": "Export/Import pro Modul",
     "moduleExportButton": "Exportieren",
     "moduleImportButton": "Importieren",
-    "moduleImportSucceeded": "Daten für {{module}} importiert."
+    "moduleImportSucceeded": "Daten für {{module}} importiert.",
+    "restoreConfirm": "Aus „{{file}}“ wiederherstellen? Deine Einstellungen und die Kategorien aller Module in der Datei werden durch die aus der Datei ersetzt. Die Wiederherstellung klappt nur, solange diese Module keine weiteren Daten enthalten.",
+    "restoreAction": "Wiederherstellen",
+    "moduleImportFile": "Export-Datei für {{module}}",
+    "moduleImportConfirm": "Daten für {{module}} aus „{{file}}“ importieren? Die Kategorien von {{module}} werden durch die aus der Datei ersetzt. Der Import klappt nur, solange {{module}} keine weiteren Daten enthält."
   },
   "import": {
     "button": "Importieren",

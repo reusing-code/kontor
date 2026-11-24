@@ -28,7 +28,7 @@ A self-hosted personal finance manager for tracking contracts, subscriptions, pu
 - **Email reminders** — Configurable SMTP-based reminder emails for approaching renewals
 - **Batch import** — Import contracts from JSON via file upload or paste
 - **Multi-user** — JWT authentication with per-user data isolation
-- **Data export & import** — Download all data or a single module as JSON (versioned envelope) and import it back per module or all at once; optional periodic BadgerDB snapshots with retention (`BACKUP_DIR`, `BACKUP_INTERVAL`, `BACKUP_KEEP`)
+- **Data export & import** — Download all data or a single module as JSON (versioned envelope) and import it back per module or all at once (into modules without entries; the page asks first, since settings and categories are replaced); optional periodic BadgerDB snapshots with retention (`BACKUP_DIR`, `BACKUP_INTERVAL`, `BACKUP_KEEP`)
 - **Observability** — Prometheus metrics, structured logging, health/readiness probes
 
 ## Tech Stack

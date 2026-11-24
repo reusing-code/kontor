@@ -4,11 +4,12 @@ import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { toast } from "sonner"
 import { rootRoute } from "./__root"
-import { useSettings, useUpdateSettings, useChangePassword } from "@/hooks/use-settings"
+import { useSettings, useUpdateSettings, useChangePassword, useImportModule, useRestoreBackup } from "@/hooks/use-settings"
 import { useModules } from "@/hooks/use-modules"
 import { modules } from "@/modules/registry"
 import type { ModuleId } from "@/types/modules"
-import { download, post } from "@/lib/api"
+import { download } from "@/lib/api"
+import type { ImportResult } from "@/lib/settings-repository"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { PaperlessSettingsCard } from "@/components/paperless/paperless-settings-card"
 import { TokensSettingsCard } from "@/components/tokens/tokens-settings-card"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 
 export const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -24,9 +26,15 @@ export const settingsRoute = createRoute({
   component: SettingsPage,
 })
 
-type ImportResult = {
-  restored?: Record<string, number>
-  warnings?: string[]
+// The backend imports a module only while it holds no entries, but swaps the
+// module's categories for those in the file (replaceCategories); the auto
+// module has none, so importing it replaces nothing and needs no confirmation.
+const importReplacesCategories: ReadonlySet<ModuleId> = new Set(["contracts", "purchases", "ledger"])
+
+function showWarnings(result: ImportResult) {
+  for (const warning of result.warnings ?? []) {
+    toast.warning(warning)
+  }
 }
 
 export function SettingsPage() {
@@ -36,6 +44,7 @@ export function SettingsPage() {
   const { isEnabled } = useModules()
   const updateSettings = useUpdateSettings()
   const changePassword = useChangePassword()
+  const restoreBackup = useRestoreBackup()
 
   const [renewalDays, setRenewalDays] = useState<number | null>(null)
   const [reminderFrequency, setReminderFrequency] = useState<string | null>(null)
@@ -43,7 +52,8 @@ export function SettingsPage() {
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [exporting, setExporting] = useState(false)
-  const [restoring, setRestoring] = useState(false)
+  // The picked file waits here until the user confirmed the restore.
+  const [restoreFile, setRestoreFile] = useState<File | null>(null)
   const restoreInputRef = useRef<HTMLInputElement>(null)
 
   const displayDays = renewalDays ?? settings?.renewalDays ?? 90
@@ -106,23 +116,21 @@ export function SettingsPage() {
     }
   }
 
-  async function handleRestoreFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleRestoreFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ""
-    if (!file) return
-    setRestoring(true)
-    try {
-      const payload: unknown = JSON.parse(await file.text())
-      const result = await post<ImportResult>("/import", payload)
-      toast.success(t("settings.restoreSucceeded"))
-      for (const warning of result.warnings ?? []) {
-        toast.warning(warning)
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("settings.restoreFailed"))
-    } finally {
-      setRestoring(false)
-    }
+    if (file) setRestoreFile(file)
+  }
+
+  function handleRestore() {
+    if (!restoreFile) return
+    restoreBackup.mutate(restoreFile, {
+      onSuccess: (result) => {
+        toast.success(t("settings.restoreSucceeded"))
+        showWarnings(result)
+      },
+    })
+    setRestoreFile(null)
   }
 
   return (
@@ -261,19 +269,27 @@ export function SettingsPage() {
             </Button>
             <Button
               onClick={() => restoreInputRef.current?.click()}
-              disabled={restoring}
+              disabled={restoreBackup.isPending}
               variant="outline"
             >
-              {restoring ? t("settings.restoring") : t("settings.restoreButton")}
+              {restoreBackup.isPending ? t("settings.restoring") : t("settings.restoreButton")}
             </Button>
             <input
               ref={restoreInputRef}
               type="file"
               accept="application/json,.json"
               className="hidden"
+              aria-label={t("settings.restoreButton")}
               onChange={handleRestoreFile}
             />
           </div>
+          <DeleteConfirmDialog
+            open={restoreFile !== null}
+            onOpenChange={(open) => { if (!open) setRestoreFile(null) }}
+            description={t("settings.restoreConfirm", { file: restoreFile?.name ?? "" })}
+            actionLabel={t("settings.restoreAction")}
+            onConfirm={handleRestore}
+          />
           <p className="text-sm text-muted-foreground">{t("settings.restoreHint")}</p>
 
           <div className="space-y-3 border-t pt-4">
@@ -293,7 +309,8 @@ export function SettingsPage() {
 function ModuleDataRow({ id, label, Icon }: { id: ModuleId; label: string; Icon: React.ComponentType<{ className?: string }> }) {
   const { t } = useTranslation()
   const [exporting, setExporting] = useState(false)
-  const [importing, setImporting] = useState(false)
+  const importModule = useImportModule(id)
+  const [importFile, setImportFile] = useState<File | null>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
 
   async function handleExport() {
@@ -307,23 +324,26 @@ function ModuleDataRow({ id, label, Icon }: { id: ModuleId; label: string; Icon:
     }
   }
 
-  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ""
     if (!file) return
-    setImporting(true)
-    try {
-      const payload: unknown = JSON.parse(await file.text())
-      const result = await post<ImportResult>(`/modules/${id}/import`, payload)
-      toast.success(t("settings.moduleImportSucceeded", { module: label }))
-      for (const warning of result.warnings ?? []) {
-        toast.warning(warning)
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("settings.restoreFailed"))
-    } finally {
-      setImporting(false)
-    }
+    if (importReplacesCategories.has(id)) setImportFile(file)
+    else runImport(file)
+  }
+
+  function runImport(file: File) {
+    importModule.mutate(file, {
+      onSuccess: (result) => {
+        toast.success(t("settings.moduleImportSucceeded", { module: label }))
+        showWarnings(result)
+      },
+    })
+    setImportFile(null)
+  }
+
+  function handleImport() {
+    if (importFile) runImport(importFile)
   }
 
   return (
@@ -336,7 +356,7 @@ function ModuleDataRow({ id, label, Icon }: { id: ModuleId; label: string; Icon:
         <Button onClick={handleExport} disabled={exporting} variant="outline" size="sm">
           {t("settings.moduleExportButton")}
         </Button>
-        <Button onClick={() => importInputRef.current?.click()} disabled={importing} variant="outline" size="sm">
+        <Button onClick={() => importInputRef.current?.click()} disabled={importModule.isPending} variant="outline" size="sm">
           {t("settings.moduleImportButton")}
         </Button>
         <input
@@ -344,9 +364,17 @@ function ModuleDataRow({ id, label, Icon }: { id: ModuleId; label: string; Icon:
           type="file"
           accept="application/json,.json"
           className="hidden"
+          aria-label={t("settings.moduleImportFile", { module: label })}
           onChange={handleImportFile}
         />
       </div>
+      <DeleteConfirmDialog
+        open={importFile !== null}
+        onOpenChange={(open) => { if (!open) setImportFile(null) }}
+        description={t("settings.moduleImportConfirm", { module: label, file: importFile?.name ?? "" })}
+        actionLabel={t("settings.moduleImportButton")}
+        onConfirm={handleImport}
+      />
     </div>
   )
 }
