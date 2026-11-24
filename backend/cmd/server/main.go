@@ -10,10 +10,18 @@ import (
 )
 
 func main() {
+	if !run() {
+		os.Exit(1)
+	}
+}
+
+// run returns only after the database is closed, so a serve error does not
+// skip the close.
+func run() bool {
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("loading config", "error", err)
-		os.Exit(1)
+		return false
 	}
 
 	var handler slog.Handler
@@ -33,13 +41,17 @@ func main() {
 	engine, err := storage.Open(cfg.DBPath, logger)
 	if err != nil {
 		logger.Error("opening database", "error", err)
-		os.Exit(1)
+		return false
 	}
-	defer engine.Close()
+	defer func() {
+		if err := engine.Close(); err != nil {
+			logger.Error("closing database", "error", err)
+		}
+	}()
 
-	srv := server.New(cfg, logger, engine)
-	if err := srv.Run(); err != nil {
+	if err := server.New(cfg, logger, engine).Run(); err != nil {
 		logger.Error("server error", "error", err)
-		os.Exit(1)
+		return false
 	}
+	return true
 }

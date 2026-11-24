@@ -1,6 +1,6 @@
 import type { Settings, SettingsUpdate } from "@/types/settings"
 import type { ModuleId } from "@/types/modules"
-import { get, post, put, sendJson } from "./api"
+import { get, post, put } from "./api"
 
 export interface ImportResult {
   restored?: Record<string, number>
@@ -15,12 +15,9 @@ export async function updateSettings(data: SettingsUpdate): Promise<Settings> {
   return put<Settings>("/settings", data)
 }
 
-export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
-  // A wrong current password answers 401 (#52), which must not end the session.
-  return sendJson<void>("PUT", "/settings/password", {
-    json: { currentPassword, newPassword },
-    redirectOnUnauthorized: false,
-  })
+// The change ends every session; the response carries the token of the new one.
+export async function changePassword(currentPassword: string, newPassword: string): Promise<{ token: string }> {
+  return put<{ token: string }>("/settings/password", { currentPassword, newPassword })
 }
 
 // Both read the export file in the browser; a file that is no JSON fails

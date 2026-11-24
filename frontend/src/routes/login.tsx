@@ -1,10 +1,13 @@
 import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { createRoute, useNavigate } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { Eye, EyeOff } from "lucide-react"
 import { rootRoute } from "./__root"
 import { useAuth } from "@/hooks/use-auth"
+import { getAuthConfig } from "@/lib/auth-repository"
+import { authKeys } from "@/lib/query-keys"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -55,12 +58,15 @@ function PasswordInput({
   )
 }
 
-function LoginPage() {
+export function LoginPage() {
   const { t } = useTranslation()
   const { login, register } = useAuth()
   const navigate = useNavigate()
+  const authConfig = useQuery({ queryKey: authKeys.config(), queryFn: getAuthConfig, staleTime: 0 })
+  const registrationOpen = authConfig.data?.registrationOpen ?? false
 
-  const [isRegister, setIsRegister] = useState(false)
+  const [registerSelected, setIsRegister] = useState(false)
+  const isRegister = registerSelected && registrationOpen
   usePageTitle(isRegister ? t("auth.register") : t("auth.login"), t("app.title"))
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -153,17 +159,19 @@ function LoginPage() {
             </Button>
           </form>
 
-          <button
-            type="button"
-            className="mt-4 w-full text-center text-sm text-muted-foreground hover:underline"
-            onClick={() => {
-              setIsRegister(!isRegister)
-              setError("")
-              setConfirmPassword("")
-            }}
-          >
-            {isRegister ? t("auth.switchToLogin") : t("auth.switchToRegister")}
-          </button>
+          {registrationOpen && (
+            <button
+              type="button"
+              className="mt-4 w-full text-center text-sm text-muted-foreground hover:underline"
+              onClick={() => {
+                setIsRegister(!isRegister)
+                setError("")
+                setConfirmPassword("")
+              }}
+            >
+              {isRegister ? t("auth.switchToLogin") : t("auth.switchToRegister")}
+            </button>
+          )}
         </CardContent>
       </Card>
     </div>

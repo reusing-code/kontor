@@ -11,6 +11,9 @@ type User struct {
 	Email        string    `json:"email"`
 	PasswordHash string    `json:"-"`
 	CreatedAt    time.Time `json:"createdAt"`
+	// TokenVersion is bumped on a password change; JWTs carry the version
+	// they were issued with and fail once it changed.
+	TokenVersion int `json:"-"`
 }
 
 type UserSettings struct {

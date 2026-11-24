@@ -27,6 +27,9 @@ var categoryTranslations = map[string][]string{
 	"categoryNames.telecommunications": {"telekommunikation"},
 }
 
+// maxImportBytes caps the whole multipart request of a batch import.
+const maxImportBytes = 10 << 20
+
 type importResult struct {
 	Created int           `json:"created"`
 	Errors  []importError `json:"errors"`
@@ -40,8 +43,9 @@ type importError struct {
 func (h *Handler) ImportContracts(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
-	if err := r.ParseMultipartForm(10 << 20); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid multipart form")
+	httputil.LimitBody(w, r, maxImportBytes)
+	if err := r.ParseMultipartForm(maxImportBytes); err != nil {
+		httputil.BodyError(h.logger, w, err, "invalid multipart form")
 		return
 	}
 
@@ -64,7 +68,7 @@ func (h *Handler) ImportContracts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cats, err := h.categories.List(r.Context(), userID, "contracts")
+	cats, err := h.categories.List(r.Context(), userID, ModuleID)
 	if err != nil {
 		httputil.StoreError(h.logger, w, err)
 		return
@@ -103,14 +107,8 @@ func (h *Handler) ImportContracts(w http.ResponseWriter, r *http.Request) {
 
 		catID, ok := catByName[strings.ToLower(entry.Category)]
 		if !ok {
-			now := time.Now().UTC()
-			cat := categories.Category{
-				ID:        uuid.New(),
-				Name:      entry.Category,
-				CreatedAt: now,
-				UpdatedAt: now,
-			}
-			if err := h.categories.Create(r.Context(), userID, "contracts", cat); err != nil {
+			cat := categories.New(uuid.New(), categories.CategoryInput{Name: entry.Category}, time.Now().UTC())
+			if err := h.categories.Create(r.Context(), userID, ModuleID, cat); err != nil {
 				result.Errors = append(result.Errors, importError{Row: row, Error: fmt.Sprintf("failed to create category: %v", err)})
 				continue
 			}
@@ -118,33 +116,7 @@ func (h *Handler) ImportContracts(w http.ResponseWriter, r *http.Request) {
 			catByName[strings.ToLower(entry.Category)] = catID
 		}
 
-		now := time.Now().UTC()
-		bi := entry.BillingInterval
-		if bi == "" {
-			bi = BillingMonthly
-		}
-		con := Contract{
-			ID:                      uuid.New(),
-			CategoryID:              catID,
-			Name:                    entry.Name,
-			ProductName:             entry.ProductName,
-			Company:                 entry.Company,
-			ContractNumber:          entry.ContractNumber,
-			CustomerNumber:          entry.CustomerNumber,
-			Price:                   entry.Price,
-			BillingInterval:         bi,
-			StartDate:               entry.StartDate,
-			EndDate:                 entry.EndDate,
-			MinimumDurationMonths:   entry.MinimumDurationMonths,
-			ExtensionDurationMonths: entry.ExtensionDurationMonths,
-			NoticePeriodMonths:      entry.NoticePeriodMonths,
-			CustomerPortalURL:       entry.CustomerPortalURL,
-			PaperlessURL:            entry.PaperlessURL,
-			Comments:                entry.Comments,
-			CreatedAt:               now,
-			UpdatedAt:               now,
-		}
-
+		con := newContract(uuid.New(), catID, entry.ContractInput, time.Now().UTC())
 		if err := h.store.Create(r.Context(), userID, con); err != nil {
 			result.Errors = append(result.Errors, importError{Row: row, Error: fmt.Sprintf("failed to create contract: %v", err)})
 			continue

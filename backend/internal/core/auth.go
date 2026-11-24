@@ -5,18 +5,36 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/config"
 	"github.com/reusing-code/kontor/backend/internal/email"
 	"github.com/reusing-code/kontor/backend/internal/httputil"
+	"github.com/reusing-code/kontor/backend/internal/middleware"
 	"github.com/reusing-code/kontor/backend/internal/module"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 	"golang.org/x/crypto/bcrypt"
 )
 
-const minPasswordLength = 8
+const (
+	minPasswordLength = 8
+	// bcrypt only takes 72 bytes and refuses longer input.
+	maxPasswordBytes = 72
+)
+
+// checkNewPassword returns the client error for an unusable new password.
+func checkNewPassword(password string) string {
+	switch {
+	case len(password) < minPasswordLength:
+		return "password must be at least 8 characters"
+	case len(password) > maxPasswordBytes:
+		return "password must be at most 72 bytes"
+	}
+	return ""
+}
 
 // SeedFunc initializes default data for a new or returning user.
 type SeedFunc func(ctx context.Context, userID string) error
@@ -45,6 +63,10 @@ type Handler struct {
 	registry       *module.Registry
 	paperlessLinks PaperlessLinkStore
 	capabilities   Capabilities
+	registration   config.Registration
+	background     *sync.WaitGroup
+	// registerMu makes the first-user check and the create one step.
+	registerMu sync.Mutex
 }
 
 func NewHandler(store *Store, logger *slog.Logger, jwtSecret []byte, emailClient *email.Client, seeds []SeedFunc, registry *module.Registry) *Handler {
@@ -55,7 +77,43 @@ func NewHandler(store *Store, logger *slog.Logger, jwtSecret []byte, emailClient
 		emailClient: emailClient,
 		seeds:       seeds,
 		registry:    registry,
+		background:  &sync.WaitGroup{},
 	}
+}
+
+// SetBackground makes the welcome mail count as background work that
+// shutdown waits for.
+func (h *Handler) SetBackground(wg *sync.WaitGroup) { h.background = wg }
+
+// SetRegistration sets who may register; the zero value is
+// config.RegistrationFirstUser.
+func (h *Handler) SetRegistration(r config.Registration) { h.registration = r }
+
+func (h *Handler) registrationOpen(ctx context.Context) (bool, error) {
+	switch h.registration {
+	case config.RegistrationOpen:
+		return true, nil
+	case config.RegistrationClosed:
+		return false, nil
+	}
+	hasUsers, err := h.store.HasUsers(ctx)
+	return !hasUsers, err
+}
+
+type authConfigResponse struct {
+	RegistrationOpen bool `json:"registrationOpen"`
+}
+
+// AuthConfig tells the login page whether it may offer registration.
+func (h *Handler) AuthConfig(w http.ResponseWriter, r *http.Request) {
+	open, err := h.registrationOpen(r.Context())
+	if err != nil {
+		h.logger.Error("checking registration", "error", err)
+		httputil.Error(h.logger, w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	httputil.WriteJSON(h.logger, w, http.StatusOK, authConfigResponse{RegistrationOpen: open})
 }
 
 type authRequest struct {
@@ -69,17 +127,30 @@ type authResponse struct {
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
+	h.registerMu.Lock()
+	defer h.registerMu.Unlock()
+	open, err := h.registrationOpen(r.Context())
+	if err != nil {
+		h.logger.Error("checking registration", "error", err)
+		httputil.Error(h.logger, w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	if !open {
+		httputil.WriteJSON(h.logger, w, http.StatusForbidden, map[string]string{"error": "registration is closed", "code": "registration_closed"})
+		return
+	}
+
 	var req authRequest
 	if err := httputil.ReadJSON(r, &req); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if req.Email == "" || req.Password == "" {
 		httputil.Error(h.logger, w, http.StatusBadRequest, "email and password are required")
 		return
 	}
-	if len(req.Password) < minPasswordLength {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "password must be at least 8 characters")
+	if msg := checkNewPassword(req.Password); msg != "" {
+		httputil.Error(h.logger, w, http.StatusBadRequest, msg)
 		return
 	}
 
@@ -110,10 +181,10 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	h.runSeeds(r.Context(), user.ID.String())
 
 	if h.emailClient != nil {
-		go h.sendWelcomeEmail(user.Email)
+		h.background.Go(func() { h.sendWelcomeEmail(user.Email) })
 	}
 
-	token, err := h.issueToken(user.ID.String())
+	token, err := h.issueToken(user)
 	if err != nil {
 		h.logger.Error("issuing token", "error", err)
 		httputil.Error(h.logger, w, http.StatusInternalServerError, "internal error")
@@ -126,7 +197,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req authRequest
 	if err := httputil.ReadJSON(r, &req); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if req.Email == "" || req.Password == "" {
@@ -152,7 +223,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	h.runSeeds(r.Context(), user.ID.String())
 
-	token, err := h.issueToken(user.ID.String())
+	token, err := h.issueToken(user)
 	if err != nil {
 		h.logger.Error("issuing token", "error", err)
 		httputil.Error(h.logger, w, http.StatusInternalServerError, "internal error")
@@ -170,11 +241,14 @@ func (h *Handler) runSeeds(ctx context.Context, userID string) {
 	}
 }
 
-func (h *Handler) issueToken(userID string) (string, error) {
-	claims := jwt.RegisteredClaims{
-		Subject:   userID,
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
+func (h *Handler) issueToken(user User) (string, error) {
+	claims := middleware.JWTClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   user.ID.String(),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+		TokenVersion: user.TokenVersion,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(h.jwtSecret)

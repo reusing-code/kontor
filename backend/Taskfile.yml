@@ -18,7 +18,7 @@ tasks:
     desc: Run with Air (live reload)
     env:
       CORS_ORIGIN: "http://localhost:5173"
-      JWT_SECRET: "dev-secret-change-in-production"
+      JWT_SECRET: "dev-secret-change-in-production-0123456789"
     cmds:
       - air
 

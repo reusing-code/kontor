@@ -100,7 +100,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	var input UpdateInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -143,7 +143,7 @@ func (h *Handler) Accept(w http.ResponseWriter, r *http.Request) {
 	}
 	var input AcceptInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(d); err != nil {

@@ -92,7 +92,7 @@ type CategorySuggester struct {
 	mu      sync.Mutex
 	running map[string]bool
 	baseCtx context.Context
-	wg      sync.WaitGroup
+	wg      *sync.WaitGroup
 }
 
 func NewCategorySuggester(store *Store, extractor llm.Extractor, cfg SuggestConfig, logger *slog.Logger) *CategorySuggester {
@@ -106,16 +106,18 @@ func NewCategorySuggester(store *Store, extractor llm.Extractor, cfg SuggestConf
 		cfg:       cfg.withDefaults(),
 		running:   map[string]bool{},
 		baseCtx:   context.Background(),
+		wg:        &sync.WaitGroup{},
 	}
 }
 
 func (s *CategorySuggester) Enabled() bool { return s.extractor.Enabled() }
 
-// SetBackgroundContext bounds background runs by the server's lifetime.
-func (s *CategorySuggester) SetBackgroundContext(ctx context.Context) {
+// SetBackground bounds background runs by the server's lifetime and starts
+// them on wg, which shutdown waits for.
+func (s *CategorySuggester) SetBackground(ctx context.Context, wg *sync.WaitGroup) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.baseCtx = ctx
+	s.baseCtx, s.wg = ctx, wg
 }
 
 func (s *CategorySuggester) Running(userID string) bool {
@@ -158,9 +160,13 @@ func (s *CategorySuggester) RunInBackground(userID string) {
 		return
 	}
 	s.mu.Lock()
-	base := s.baseCtx
+	base, wg := s.baseCtx, s.wg
 	s.mu.Unlock()
-	s.wg.Go(func() {
+	if base.Err() != nil {
+		s.unlock(userID)
+		return
+	}
+	wg.Go(func() {
 		defer s.unlock(userID)
 		ctx, cancel := context.WithTimeout(base, suggestRunTimeout)
 		defer cancel()

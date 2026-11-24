@@ -33,7 +33,7 @@ func (h *Handler) CreateLedgerEmailAccount(w http.ResponseWriter, r *http.Reques
 	}
 	var input LedgerEmailAccountInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -91,7 +91,7 @@ func (h *Handler) UpdateLedgerEmailAccount(w http.ResponseWriter, r *http.Reques
 	}
 	var input LedgerEmailAccountUpdateInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -178,8 +178,17 @@ func (h *Handler) TestLedgerEmailAccount(w http.ResponseWriter, r *http.Request)
 		httputil.Error(h.logger, w, http.StatusInternalServerError, "could not decrypt stored email password")
 		return
 	}
-	if err := h.ledgerEmail.TestConnection(account, password); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadGateway, err.Error())
+	// The server's text and dial errors are neither returned nor logged.
+	switch err := h.ledgerEmail.TestConnection(account, password); {
+	case errors.Is(err, ErrIMAPLogin):
+		h.emailFolderError(w, http.StatusBadGateway, "imap_login_failed", "the mail server refused the login")
+		return
+	case errors.Is(err, ErrIMAPFolder):
+		h.emailFolderError(w, http.StatusBadGateway, "imap_folder_failed", "the mail server could not open the folder")
+		return
+	case err != nil:
+		h.logger.Warn("testing imap connection failed", "accountID", account.ID)
+		h.emailFolderError(w, http.StatusBadGateway, "imap_unavailable", "could not connect to the mail server")
 		return
 	}
 	httputil.WriteJSON(h.logger, w, http.StatusOK, map[string]any{"ok": true})
@@ -194,7 +203,7 @@ func (h *Handler) emailFolderError(w http.ResponseWriter, status int, code, msg 
 func (h *Handler) ListLedgerEmailFolders(w http.ResponseWriter, r *http.Request) {
 	var input LedgerEmailFoldersInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -324,7 +333,7 @@ func (h *Handler) LinkLedgerEmailOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	var input LedgerEmailOrderLinkInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -364,7 +373,7 @@ func (h *Handler) scanError(w http.ResponseWriter, err error) {
 	case errors.Is(err, ErrEmailPasswordMissing):
 		httputil.Error(h.logger, w, http.StatusConflict, ErrEmailPasswordMissing.Error())
 	case errors.Is(err, ErrIMAP):
-		httputil.Error(h.logger, w, http.StatusBadGateway, err.Error())
+		httputil.Error(h.logger, w, http.StatusBadGateway, imapFailureText)
 	default:
 		h.storeError(w, err)
 	}
@@ -418,13 +427,18 @@ func (h *Handler) ScanLedgerEmailAccount(w http.ResponseWriter, r *http.Request)
 	httputil.WriteJSON(h.logger, w, http.StatusAccepted, status)
 }
 
+// maxEmailUploadBytes caps the whole multipart request of an .eml upload;
+// a single message is refused above 25 MB anyway.
+const maxEmailUploadBytes = 64 << 20
+
 func (h *Handler) scanUploadedLedgerEmails(w http.ResponseWriter, r *http.Request, userID string, account LedgerEmailAccount) {
 	if err := h.ledgerEmail.CanScan(account, false); err != nil {
 		h.scanError(w, err)
 		return
 	}
+	httputil.LimitBody(w, r, maxEmailUploadBytes)
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid multipart form")
+		httputil.BodyError(h.logger, w, err, "invalid multipart form")
 		return
 	}
 	files := r.MultipartForm.File["files"]

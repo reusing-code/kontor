@@ -40,7 +40,7 @@ func (h *Handler) GetLedgerCategory(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateLedgerCategory(w http.ResponseWriter, r *http.Request) {
 	var input LedgerCategoryInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -68,7 +68,7 @@ func (h *Handler) UpdateLedgerCategory(w http.ResponseWriter, r *http.Request) {
 	}
 	var input LedgerCategoryInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -169,7 +169,7 @@ func (h *Handler) UpdateLedgerTransactionDetails(w http.ResponseWriter, r *http.
 	}
 	var input LedgerTransactionDetailsInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -194,7 +194,7 @@ func (h *Handler) SetLedgerTransactionSplits(w http.ResponseWriter, r *http.Requ
 	}
 	var input LedgerTransactionSplitsInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	ledgerTxn, err := h.store.SetLedgerTransactionSplits(r.Context(), middleware.GetUserID(r.Context()), id, input.Splits)
@@ -246,7 +246,7 @@ func (h *Handler) AddLedgerTransactionReference(w http.ResponseWriter, r *http.R
 	}
 	var input LedgerTransactionReferenceInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -284,7 +284,7 @@ func (h *Handler) LinkLedgerTransfer(w http.ResponseWriter, r *http.Request) {
 	}
 	var input LedgerTransferLinkInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {
@@ -321,7 +321,7 @@ func (h *Handler) ReviewLedgerTransaction(w http.ResponseWriter, r *http.Request
 	}
 	var input LedgerTransactionReviewInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {

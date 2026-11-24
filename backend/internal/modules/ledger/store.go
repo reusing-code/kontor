@@ -1061,12 +1061,25 @@ func (s *Store) ListLedgerImports(_ context.Context, userID string) ([]LedgerImp
 
 // Ledger Transactions
 
-func (s *Store) ListLedgerTransactions(_ context.Context, userID string, accountID uuid.UUID) ([]LedgerTransaction, error) {
-	page, err := s.ListLedgerTransactionsPage(context.Background(), userID, accountID, 1000, "")
+// ListLedgerTransactions returns every transaction of an account, unpaged.
+func (s *Store) ListLedgerTransactions(ctx context.Context, userID string, accountID uuid.UUID) ([]LedgerTransaction, error) {
+	page, err := s.ListLedgerTransactionsFiltered(ctx, userID, LedgerTransactionListOptions{AccountID: &accountID, All: true})
 	if err != nil {
 		return nil, err
 	}
 	return page.Items, nil
+}
+
+// ListAllLedgerTransactions returns every transaction of the user, including
+// those of an account that no longer exists, in key order.
+func (s *Store) ListAllLedgerTransactions(_ context.Context, userID string) ([]LedgerTransaction, error) {
+	var txns []LedgerTransaction
+	err := s.e.View(func(txn *badger.Txn) error {
+		var err error
+		txns, err = collectLedgerTransactions(txn, userID)
+		return err
+	})
+	return txns, err
 }
 
 func (s *Store) ListLedgerTransactionsPage(_ context.Context, userID string, accountID uuid.UUID, limit int, cursor string) (LedgerTransactionPage, error) {

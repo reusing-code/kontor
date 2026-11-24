@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/reusing-code/kontor/backend/internal/mcptool"
 	"github.com/reusing-code/kontor/backend/internal/storage/migration"
@@ -30,9 +31,10 @@ type Module interface {
 	RegisterRoutes(r *Router)
 	// Seed initializes default data for a user. Must be idempotent.
 	Seed(ctx context.Context, userID string) error
-	// StartBackground launches the module's background services, if any.
+	// StartBackground launches the module's background services, if any,
+	// on wg; they end once ctx is done, and shutdown waits for wg.
 	// Each module checks its own configuration and may do nothing.
-	StartBackground(ctx context.Context)
+	StartBackground(ctx context.Context, wg *sync.WaitGroup)
 	// IsEmpty reports whether the user has no data in this module.
 	IsEmpty(ctx context.Context, userID string) (bool, error)
 	// ExportSection marshals the user's module data for the export envelope.
@@ -81,7 +83,7 @@ type Base struct{}
 
 func (Base) Seed(context.Context, string) error { return nil }
 
-func (Base) StartBackground(context.Context) {}
+func (Base) StartBackground(context.Context, *sync.WaitGroup) {}
 
 func (Base) Migrations() []migration.Migration { return nil }
 

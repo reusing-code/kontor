@@ -12,6 +12,7 @@ import (
 	"mime/multipart"
 	"mime/quotedprintable"
 	"net/mail"
+	"net/textproto"
 	"regexp"
 	"strings"
 	"time"
@@ -83,45 +84,8 @@ func parseMessage(r io.Reader) (ParsedEmail, error) {
 		return ParsedEmail{}, fmt.Errorf("reading message: %w", err)
 	}
 	parsed := headerFields(msg.Header)
-	bodyBytes, err := io.ReadAll(msg.Body)
-	if err != nil {
-		return ParsedEmail{}, fmt.Errorf("reading body: %w", err)
-	}
-	mediaType, params, _ := mime.ParseMediaType(msg.Header.Get("Content-Type"))
-	if strings.HasPrefix(mediaType, "multipart/") {
-		reader := multipart.NewReader(bytes.NewReader(bodyBytes), params["boundary"])
-		for {
-			part, err := reader.NextPart()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return ParsedEmail{}, fmt.Errorf("reading multipart body: %w", err)
-			}
-			partBytes, err := readMessagePart(part)
-			if err != nil {
-				return ParsedEmail{}, fmt.Errorf("reading part body: %w", err)
-			}
-			partType, _, _ := mime.ParseMediaType(part.Header.Get("Content-Type"))
-			switch partType {
-			case "text/plain":
-				parsed.TextBody = string(partBytes)
-			case "text/html":
-				parsed.HTMLBody = string(partBytes)
-			}
-		}
-	} else if mediaType == "text/html" {
-		decodedBody, err := decodeBody(bodyBytes, msg.Header.Get("Content-Transfer-Encoding"))
-		if err != nil {
-			return ParsedEmail{}, fmt.Errorf("decoding html body: %w", err)
-		}
-		parsed.HTMLBody = string(decodedBody)
-	} else {
-		decodedBody, err := decodeBody(bodyBytes, msg.Header.Get("Content-Transfer-Encoding"))
-		if err != nil {
-			return ParsedEmail{}, fmt.Errorf("decoding text body: %w", err)
-		}
-		parsed.TextBody = string(decodedBody)
+	if err := collectBodies(&parsed, textproto.MIMEHeader(msg.Header), msg.Body, 0); err != nil {
+		return ParsedEmail{}, err
 	}
 	if parsed.TextBody == "" && parsed.HTMLBody != "" {
 		parsed.TextBody = stripHTML(parsed.HTMLBody)
@@ -129,24 +93,95 @@ func parseMessage(r io.Reader) (ParsedEmail, error) {
 	return parsed, nil
 }
 
-func readMessagePart(part *multipart.Part) ([]byte, error) {
-	partBytes, err := io.ReadAll(part)
+// maxMIMEDepth bounds the nesting of multipart parts that is walked.
+const maxMIMEDepth = 10
+
+// collectBodies walks a MIME entity depth first and keeps the first
+// text/plain and the first text/html body that is not an attachment, decoded
+// to UTF-8. An entity without (or with an unparsable) Content-Type is plain
+// text.
+func collectBodies(parsed *ParsedEmail, header textproto.MIMEHeader, body io.Reader, depth int) error {
+	mediaType, params, err := mime.ParseMediaType(header.Get("Content-Type"))
 	if err != nil {
-		return nil, err
+		mediaType, params = "text/plain", nil
 	}
-	return decodeBody(partBytes, part.Header.Get("Content-Transfer-Encoding"))
+	if strings.HasPrefix(mediaType, "multipart/") {
+		if depth >= maxMIMEDepth {
+			return nil
+		}
+		reader := multipart.NewReader(body, params["boundary"])
+		for {
+			part, err := reader.NextPart()
+			if err == io.EOF {
+				return nil
+			}
+			if err != nil {
+				return fmt.Errorf("reading multipart body: %w", err)
+			}
+			if isAttachment(part.Header) {
+				continue
+			}
+			if err := collectBodies(parsed, part.Header, part, depth+1); err != nil {
+				return err
+			}
+		}
+	}
+
+	var target *string
+	switch {
+	case mediaType == "text/plain" && parsed.TextBody == "":
+		target = &parsed.TextBody
+	case mediaType == "text/html" && parsed.HTMLBody == "":
+		target = &parsed.HTMLBody
+	default:
+		return nil
+	}
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		return fmt.Errorf("reading %s body: %w", mediaType, err)
+	}
+	decoded, err := decodeBody(raw, header.Get("Content-Transfer-Encoding"))
+	if err != nil {
+		return fmt.Errorf("decoding %s body: %w", mediaType, err)
+	}
+	*target = decodeCharset(decoded, params["charset"])
+	return nil
 }
 
+func isAttachment(header textproto.MIMEHeader) bool {
+	disposition, params, err := mime.ParseMediaType(header.Get("Content-Disposition"))
+	return err == nil && (disposition == "attachment" || params["filename"] != "")
+}
+
+// decodeCharset converts a body in the given charset to UTF-8; an unknown
+// charset leaves the bytes as they are.
+func decodeCharset(body []byte, label string) string {
+	label = strings.ToLower(strings.TrimSpace(label))
+	if label == "" || label == "utf-8" || label == "us-ascii" {
+		return string(body)
+	}
+	reader, err := charset.NewReaderLabel(label, bytes.NewReader(body))
+	if err != nil {
+		return string(body)
+	}
+	decoded, err := io.ReadAll(reader)
+	if err != nil {
+		return string(body)
+	}
+	return string(decoded)
+}
+
+// decodeBody undoes the transfer encoding. Base64 is read leniently: all
+// whitespace is dropped and missing padding is accepted.
 func decodeBody(body []byte, transferEncoding string) ([]byte, error) {
 	switch strings.ToLower(strings.TrimSpace(transferEncoding)) {
 	case "quoted-printable":
 		reader := quotedprintable.NewReader(bytes.NewReader(body))
 		return io.ReadAll(reader)
 	case "base64":
-		cleaned := bytes.ReplaceAll(body, []byte("\r"), nil)
-		cleaned = bytes.ReplaceAll(cleaned, []byte("\n"), nil)
-		decoded := make([]byte, base64.StdEncoding.DecodedLen(len(cleaned)))
-		n, err := base64.StdEncoding.Decode(decoded, cleaned)
+		cleaned := bytes.TrimRight(bytes.Join(bytes.Fields(body), nil), "=")
+		decoded := make([]byte, base64.RawStdEncoding.DecodedLen(len(cleaned)))
+		n, err := base64.RawStdEncoding.Decode(decoded, cleaned)
 		if err != nil {
 			return nil, err
 		}

@@ -162,7 +162,7 @@ func CalculateVehicleSummary(vehicle Vehicle, entries []CostEntry, now time.Time
 
 	// Projections
 	if vehicle.TargetMonths != nil || vehicle.TargetMileage != nil {
-		summary.Projection = calcProjection(vehicle, summary, monthsOwned, kmDriven, totalNonPurchaseCost, purchaseTotal)
+		summary.Projection = calcProjection(vehicle, summary, monthsOwned, totalNonPurchaseCost, purchaseTotal)
 	}
 
 	return summary
@@ -344,40 +344,26 @@ func interpolateMileage(points []MileagePoint, target time.Time) float64 {
 		return -1
 	}
 
-	targetTime := target
-
-	// Before first point
-	firstDate := parseDateOrNow(points[0].Date, time.Now())
-	if targetTime.Before(firstDate) {
+	prevDate := parseDateOrNow(points[0].Date, time.Now())
+	if target.Before(prevDate) {
 		return points[0].Mileage
 	}
 
-	// After last point
-	lastDate := parseDateOrNow(points[len(points)-1].Date, time.Now())
-	if !targetTime.Before(lastDate) {
-		return points[len(points)-1].Mileage
-	}
-
-	// Find bracketing points
+	// prevDate <= target holds on every iteration, so a bracketing point
+	// always lies strictly after prevDate.
 	for i := 1; i < len(points); i++ {
 		d := parseDateOrNow(points[i].Date, time.Now())
-		if !targetTime.Before(d) {
-			continue
+		if target.Before(d) {
+			fraction := target.Sub(prevDate).Hours() / d.Sub(prevDate).Hours()
+			return points[i-1].Mileage + fraction*(points[i].Mileage-points[i-1].Mileage)
 		}
-		prevDate := parseDateOrNow(points[i-1].Date, time.Now())
-		totalDays := d.Sub(prevDate).Hours() / 24
-		if totalDays <= 0 {
-			return points[i-1].Mileage
-		}
-		elapsed := targetTime.Sub(prevDate).Hours() / 24
-		fraction := elapsed / totalDays
-		return points[i-1].Mileage + fraction*(points[i].Mileage-points[i-1].Mileage)
+		prevDate = d
 	}
 
 	return points[len(points)-1].Mileage
 }
 
-func calcProjection(vehicle Vehicle, summary VehicleSummary, monthsOwned, kmDriven, totalRunningCost, purchaseTotal float64) *VehicleProjection {
+func calcProjection(vehicle Vehicle, summary VehicleSummary, monthsOwned, totalRunningCost, purchaseTotal float64) *VehicleProjection {
 	proj := &VehicleProjection{}
 
 	targetMonths := monthsOwned

@@ -131,6 +131,9 @@ func (h *Handler) writeError(w http.ResponseWriter, e *requestError) {
 func parseNote(r *http.Request) (submission, *requestError) {
 	var req Request
 	if err := httputil.ReadJSON(r, &req); err != nil {
+		if httputil.IsTooLarge(err) {
+			return submission{}, &requestError{status: http.StatusRequestEntityTooLarge, code: "body_too_large", msg: "request body too large"}
+		}
 		return submission{}, badRequest("invalid request body")
 	}
 	text, reqErr := checkText(req.Text, true)

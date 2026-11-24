@@ -84,8 +84,9 @@ func (svc *ImportService) Preview(ctx context.Context, req PreviewRequest) (*Pre
 		return nil, fmt.Errorf("listing ledger categories: %w", err)
 	}
 
-	for _, row := range parsed.Rows {
-		fp := Fingerprint(accountID, row)
+	fingerprints := ImportFingerprints(accountID, parsed.Rows)
+	for i, row := range parsed.Rows {
+		fp := fingerprints[i]
 		match := MatchFields(categories, row.CounterpartyName, row.Purpose)
 
 		isDup := false
@@ -225,9 +226,13 @@ func (svc *ImportService) Commit(ctx context.Context, req CommitRequest) (*Commi
 	if err != nil {
 		return nil, fmt.Errorf("listing ledger categories: %w", err)
 	}
-	for _, pt := range preview.Transactions {
-		fp := Fingerprint(accountID.String(), pt.Row)
-		txns = append(txns, newLedgerTransactionFromRow(pt.Row, accountID, batchID, preview.SourceType, fp, categories, now))
+	rows := make([]ParsedRow, len(preview.Transactions))
+	for i, pt := range preview.Transactions {
+		rows[i] = pt.Row
+	}
+	fingerprints := ImportFingerprints(accountID.String(), rows)
+	for i, row := range rows {
+		txns = append(txns, newLedgerTransactionFromRow(row, accountID, batchID, preview.SourceType, fingerprints[i], categories, now))
 	}
 
 	batch := LedgerImportBatch{

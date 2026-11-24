@@ -11,11 +11,15 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 )
 
+// maxLedgerImportBytes caps the whole multipart request of a CSV preview.
+const maxLedgerImportBytes = 10 << 20
+
 func (h *Handler) LedgerImportPreview(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid multipart form")
+	httputil.LimitBody(w, r, maxLedgerImportBytes)
+	if err := r.ParseMultipartForm(maxLedgerImportBytes); err != nil {
+		httputil.BodyError(h.logger, w, err, "invalid multipart form")
 		return
 	}
 
@@ -78,6 +82,10 @@ func (h *Handler) LedgerImportCommit(w http.ResponseWriter, r *http.Request) {
 	var body ledgerCommitBody
 	if r.Body != nil && r.ContentLength > 0 {
 		if err := httputil.ReadJSON(r, &body); err != nil {
+			if httputil.IsTooLarge(err) {
+				httputil.TooLarge(h.logger, w)
+				return
+			}
 			httputil.Error(h.logger, w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
 			return
 		}

@@ -46,19 +46,8 @@ func (m *Module) ImportSection(ctx context.Context, userID string, data json.Raw
 		return fmt.Errorf("%w: purchases section has schema version %d, this version supports %d", module.ErrInvalidSection, section.SchemaVersion, sectionSchemaVersion)
 	}
 
-	existing, err := m.categories.List(ctx, userID, ModuleID)
-	if err != nil {
+	if err := m.categories.Replace(ctx, userID, ModuleID, section.Categories); err != nil {
 		return err
-	}
-	for _, category := range existing {
-		if err := m.categories.Delete(ctx, userID, ModuleID, category.ID); err != nil {
-			return err
-		}
-	}
-	for _, category := range section.Categories {
-		if err := m.categories.Create(ctx, userID, ModuleID, category); err != nil {
-			return err
-		}
 	}
 	res.Add(ModuleID+"Categories", len(section.Categories))
 

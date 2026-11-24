@@ -131,6 +131,19 @@ func TestCreateContract_MissingStartDate(t *testing.T) {
 	}
 }
 
+func TestCreateContract_NegativeExtension(t *testing.T) {
+	env := newTestEnv(t)
+	cat := env.addCategory(t, "Cat")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/categories/"+cat.ID.String()+"/contracts", jsonBody(map[string]any{"name": "X", "startDate": "2025-01-01", "extensionDurationMonths": -1}))
+	env.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
 func TestCreateContract_CategoryNotFound(t *testing.T) {
 	env := newTestEnv(t)
 

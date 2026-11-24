@@ -18,3 +18,7 @@ export interface AuthResponse {
   token: string
   user: AuthUser
 }
+
+export interface AuthConfig {
+  registrationOpen: boolean
+}

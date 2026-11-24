@@ -95,6 +95,27 @@ func (s *Store) Delete(_ context.Context, userID, module string, id uuid.UUID) e
 	})
 }
 
+// Replace deletes the module's categories (with their cascades) and creates
+// the given ones; importing a module swaps the seeded defaults for the
+// exported categories this way.
+func (s *Store) Replace(ctx context.Context, userID, module string, cats []Category) error {
+	existing, err := s.List(ctx, userID, module)
+	if err != nil {
+		return err
+	}
+	for _, category := range existing {
+		if err := s.Delete(ctx, userID, module, category.ID); err != nil {
+			return err
+		}
+	}
+	for _, category := range cats {
+		if err := s.Create(ctx, userID, module, category); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // SeedDefaults creates the given defaults if the module has no categories yet.
 func (s *Store) SeedDefaults(ctx context.Context, userID, module string, defaults []Default) error {
 	existing, err := s.List(ctx, userID, module)

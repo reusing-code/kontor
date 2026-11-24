@@ -10,6 +10,7 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/middleware"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 )
 
@@ -41,6 +42,7 @@ type storableUser struct {
 	Email        string    `json:"email"`
 	PasswordHash string    `json:"passwordHash"`
 	CreatedAt    time.Time `json:"createdAt"`
+	TokenVersion int       `json:"tokenVersion,omitempty"`
 }
 
 func toStorableUser(u User) storableUser {
@@ -75,6 +77,15 @@ func (s *Store) GetUserByID(_ context.Context, id string) (User, error) {
 	return su.toModel(), err
 }
 
+// TokenVersion implements middleware.TokenVersions.
+func (s *Store) TokenVersion(ctx context.Context, userID string) (int, error) {
+	u, err := s.GetUserByID(ctx, userID)
+	if errors.Is(err, storage.ErrNotFound) {
+		return 0, middleware.ErrUnknownUser
+	}
+	return u.TokenVersion, err
+}
+
 func (s *Store) GetUserByEmail(_ context.Context, email string) (User, error) {
 	var su storableUser
 	err := s.e.View(func(txn *badger.Txn) error {
@@ -106,6 +117,22 @@ func (s *Store) UpdateUser(_ context.Context, u User) error {
 		}
 		return storage.SetJSON(txn, usrKey(u.ID), toStorableUser(u))
 	})
+}
+
+// HasUsers reports whether any user exists.
+func (s *Store) HasUsers(_ context.Context) (bool, error) {
+	found := false
+	err := s.e.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		opts.Prefix = []byte("usr/")
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		it.Rewind()
+		found = it.Valid()
+		return nil
+	})
+	return found, err
 }
 
 func (s *Store) ListUsers(_ context.Context) ([]User, error) {

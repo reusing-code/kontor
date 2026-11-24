@@ -37,7 +37,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var in CreateInput
 	if err := httputil.ReadJSON(r, &in); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := in.Validate(time.Now()); err != nil {

@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+const testJWTSecret = "test-secret-with-at-least-32-bytes"
+
+func TestLoadJWTSecretLength(t *testing.T) {
+	t.Setenv("JWT_SECRET", strings.Repeat("x", MinJWTSecretBytes-1))
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "JWT_SECRET must be at least 32 bytes") {
+		t.Fatalf("short secret: err = %v", err)
+	}
+	t.Setenv("JWT_SECRET", strings.Repeat("x", MinJWTSecretBytes))
+	if _, err := Load(); err != nil {
+		t.Fatalf("32 byte secret: err = %v", err)
+	}
+}
+
 func TestLoadLLM(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -42,7 +55,7 @@ func TestLoadLLM(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("JWT_SECRET", "test")
+			t.Setenv("JWT_SECRET", testJWTSecret)
 			for _, k := range []string{"LLM_BASE_URL", "LLM_MODEL", "LLM_VISION_MODEL", "LLM_API_KEY", "LLM_TIMEOUT"} {
 				v, ok := tt.env[k]
 				t.Setenv(k, v)
@@ -86,7 +99,7 @@ func TestLoadFXRatesURL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("JWT_SECRET", "test")
+			t.Setenv("JWT_SECRET", testJWTSecret)
 			t.Setenv("FX_RATES_URL", "")
 			if tt.value == nil {
 				os.Unsetenv("FX_RATES_URL")
@@ -130,7 +143,7 @@ func TestLoadPublicURL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("JWT_SECRET", "test")
+			t.Setenv("JWT_SECRET", testJWTSecret)
 			t.Setenv("PUBLIC_URL", tt.value)
 			cfg, err := Load()
 			if tt.wantErr {
@@ -164,7 +177,7 @@ func TestLoadLedgerSuggest(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("JWT_SECRET", "test")
+			t.Setenv("JWT_SECRET", testJWTSecret)
 			for key, value := range map[string]string{"LEDGER_SUGGEST_BATCH_SIZE": tt.batch, "LEDGER_SUGGEST_MAX_PER_RUN": tt.max} {
 				t.Setenv(key, value)
 				if value == "" {
@@ -202,7 +215,7 @@ func TestLoadLedgerEmailMaxExtractionFailures(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("JWT_SECRET", "test")
+			t.Setenv("JWT_SECRET", testJWTSecret)
 			t.Setenv("LEDGER_EMAIL_MAX_EXTRACTION_FAILURES", tt.value)
 			if tt.value == "" {
 				os.Unsetenv("LEDGER_EMAIL_MAX_EXTRACTION_FAILURES")
@@ -274,7 +287,7 @@ func TestLoadEnableBanking(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("JWT_SECRET", "test")
+			t.Setenv("JWT_SECRET", testJWTSecret)
 			for _, k := range vars {
 				v, ok := tt.env[k]
 				t.Setenv(k, v)
@@ -338,7 +351,7 @@ func TestLoadEncryptionKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("JWT_SECRET", "test")
+			t.Setenv("JWT_SECRET", testJWTSecret)
 			for _, k := range []string{"ENCRYPTION_KEY", "EMAIL_ENCRYPTION_KEY"} {
 				v, ok := tt.env[k]
 				t.Setenv(k, v)
@@ -362,6 +375,41 @@ func TestLoadEncryptionKey(t *testing.T) {
 			}
 			if cfg.UsesDeprecatedEncryptionKey() != tt.wantDeprecated {
 				t.Errorf("UsesDeprecatedEncryptionKey() = %v, want %v", cfg.UsesDeprecatedEncryptionKey(), tt.wantDeprecated)
+			}
+		})
+	}
+}
+
+func TestLoadRegistration(t *testing.T) {
+	tests := []struct {
+		value   string
+		unset   bool
+		want    Registration
+		wantErr bool
+	}{
+		{unset: true, want: RegistrationFirstUser},
+		{value: "", want: RegistrationFirstUser},
+		{value: "true", want: RegistrationOpen},
+		{value: "1", want: RegistrationOpen},
+		{value: "false", want: RegistrationClosed},
+		{value: "maybe", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			t.Setenv("JWT_SECRET", testJWTSecret)
+			t.Setenv("REGISTRATION_ENABLED", tt.value)
+			if tt.unset {
+				os.Unsetenv("REGISTRATION_ENABLED")
+			}
+			cfg, err := Load()
+			if tt.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "REGISTRATION_ENABLED") {
+					t.Fatalf("err = %v", err)
+				}
+				return
+			}
+			if err != nil || cfg.Registration != tt.want {
+				t.Fatalf("Registration = %v, err = %v, want %v", cfg.Registration, err, tt.want)
 			}
 		})
 	}

@@ -67,4 +67,3 @@ func (m *Module) createAccountFromDraft(ctx context.Context, userID string, req 
 	}
 	return path, err
 }
-

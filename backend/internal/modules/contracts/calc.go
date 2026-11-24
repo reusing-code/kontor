@@ -17,7 +17,9 @@ func (c Contract) CancellationDate() *string {
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	minEnd := start.AddDate(0, c.MinimumDurationMonths, 0)
 
-	if c.ExtensionDurationMonths == 0 {
+	// A negative extension (stored before validation, or restored) would
+	// never reach today; it is treated like none.
+	if c.ExtensionDurationMonths <= 0 {
 		cancellation := minEnd.AddDate(0, -c.NoticePeriodMonths, 0)
 		if cancellation.Before(today) {
 			return datePtr(today)

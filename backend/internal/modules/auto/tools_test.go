@@ -178,6 +178,7 @@ func TestCreateVehicleCostDraft_InvalidInputStoresNothing(t *testing.T) {
 		"bad type":          costArgs(golf, func(a map[string]any) { a["input"].(map[string]any)["type"] = "wash" }),
 		"bad date":          costArgs(golf, func(a map[string]any) { a["input"].(map[string]any)["date"] = "15.09.2026" }),
 		"mileage w/o value": costArgs(golf, func(a map[string]any) { a["input"].(map[string]any)["type"] = "mileage" }),
+		"negative amount":   costArgs(golf, func(a map[string]any) { a["input"].(map[string]any)["amount"] = -250.0 }),
 		"unknown vehicle":   costArgs(uuid.New(), nil),
 		"foreign vehicle":   costArgs(foreign, nil),
 		"bad vehicle id":    costArgs(golf, func(a map[string]any) { a["vehicleId"] = "x" }),
@@ -218,8 +219,9 @@ func TestCreateVehicleDraft(t *testing.T) {
 		t.Fatalf("duplicate: %q", text)
 	}
 	for name, input := range map[string]map[string]any{
-		"no name":  {"name": ""},
-		"bad date": {"name": "x", "purchaseDate": "soon"},
+		"no name":        {"name": ""},
+		"bad date":       {"name": "x", "purchaseDate": "soon"},
+		"negative price": {"name": "x", "purchasePrice": -1},
 	} {
 		if res, _ := mcptooltest.Call(t, cs, "create_vehicle_draft", map[string]any{"title": "t", "input": input}); !res.IsError {
 			t.Errorf("%s accepted", name)

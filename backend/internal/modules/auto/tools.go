@@ -151,9 +151,6 @@ func (m *Module) RegisterTools(r *mcptool.Registrar) {
 			if err := input.Validate(); err != nil {
 				return mcptool.DraftResult{}, mcptool.Errorf(mcptool.CodeInvalidInput, "%s", err.Error())
 			}
-			if err := mcptool.CheckDate("date", input.Date); err != nil {
-				return mcptool.DraftResult{}, err
-			}
 			id, err := uuid.Parse(in.VehicleID)
 			if err != nil {
 				return mcptool.DraftResult{}, mcptool.Errorf(mcptool.CodeInvalidInput, "vehicleId must be a UUID")

@@ -174,11 +174,11 @@ func TestScanJob_FailedScan(t *testing.T) {
 	x := newScanJobTest(t, server, llmtest.New())
 	x.start(t)
 	st := x.waitFinished(t)
-	if st.State != EmailScanStateFailed || !strings.HasPrefix(st.Error, "imap") || st.Resumes {
+	if st.State != EmailScanStateFailed || st.Error != imapFailureText || st.Resumes {
 		t.Fatalf("status = %+v", st)
 	}
 	got := x.stored(t)
-	if got.LastScanAt != nil || got.LastScanAttemptAt == nil || got.ScanResumePending || !strings.HasPrefix(got.LastScanStatusMessage, `Scan of folder "Orders" failed: imap`) {
+	if got.LastScanAt != nil || got.LastScanAttemptAt == nil || got.ScanResumePending || got.LastScanStatusMessage != `Scan of folder "Orders" failed: `+imapFailureText {
 		t.Errorf("account = %+v", got)
 	}
 }

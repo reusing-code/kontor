@@ -46,9 +46,10 @@ func (m *Module) ImportSection(ctx context.Context, userID string, data json.Raw
 		return fmt.Errorf("%w: contracts section has schema version %d, this version supports %d", module.ErrInvalidSection, section.SchemaVersion, sectionSchemaVersion)
 	}
 
-	if err := replaceCategories(ctx, m.categories, userID, ModuleID, section.Categories, res); err != nil {
+	if err := m.categories.Replace(ctx, userID, ModuleID, section.Categories); err != nil {
 		return err
 	}
+	res.Add(ModuleID+"Categories", len(section.Categories))
 	for _, contract := range section.Contracts {
 		if err := m.store.Create(ctx, userID, contract); err != nil {
 			return err
@@ -66,26 +67,5 @@ func (m *Module) PruneDeadLinks(ctx context.Context, userID string, res *module.
 	if pruned > 0 {
 		res.Warnf("contracts: removed %d link(s) to missing ledger transactions", pruned)
 	}
-	return nil
-}
-
-// replaceCategories swaps the seeded default categories for the exported
-// ones so item category references resolve again.
-func replaceCategories(ctx context.Context, store *categories.Store, userID, moduleID string, cats []categories.Category, res *module.ImportResult) error {
-	existing, err := store.List(ctx, userID, moduleID)
-	if err != nil {
-		return err
-	}
-	for _, category := range existing {
-		if err := store.Delete(ctx, userID, moduleID, category.ID); err != nil {
-			return err
-		}
-	}
-	for _, category := range cats {
-		if err := store.Create(ctx, userID, moduleID, category); err != nil {
-			return err
-		}
-	}
-	res.Add(moduleID+"Categories", len(cats))
 	return nil
 }

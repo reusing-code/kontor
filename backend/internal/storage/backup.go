@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -33,8 +34,8 @@ func (e *Engine) Backup(w io.Writer) error {
 // StartBackups periodically writes full snapshots to cfg.Dir, keeping the
 // cfg.Keep most recent files. The age of the newest existing snapshot decides
 // whether a backup is due, so restarts do not trigger redundant backups.
-func (e *Engine) StartBackups(ctx context.Context, cfg BackupConfig) {
-	go func() {
+func (e *Engine) StartBackups(ctx context.Context, wg *sync.WaitGroup, cfg BackupConfig) {
+	wg.Go(func() {
 		logger := e.logger.With("component", "backup")
 		logger.Info("backup scheduler started", "dir", cfg.Dir, "interval", cfg.Interval, "keep", cfg.Keep)
 		e.backupIfDue(cfg, logger)
@@ -55,7 +56,7 @@ func (e *Engine) StartBackups(ctx context.Context, cfg BackupConfig) {
 				e.backupIfDue(cfg, logger)
 			}
 		}
-	}()
+	})
 }
 
 func (e *Engine) backupIfDue(cfg BackupConfig, logger *slog.Logger) {

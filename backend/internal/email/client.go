@@ -8,11 +8,19 @@ import (
 	"net"
 	"net/mail"
 	"net/smtp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
 	"github.com/reusing-code/kontor/backend/internal/config"
+)
+
+// A stalled server must not block the reminder loop: the dial has its own
+// limit and the whole conversation one deadline.
+const (
+	defaultDialTimeout = 10 * time.Second
+	defaultSendTimeout = 60 * time.Second
 )
 
 type Client struct {
@@ -22,16 +30,21 @@ type Client struct {
 	user     string
 	password string
 	from     string
+
+	dialTimeout time.Duration
+	sendTimeout time.Duration
 }
 
 func NewClient(cfg config.Config) *Client {
 	return &Client{
-		host:     cfg.SMTPHost,
-		port:     cfg.SMTPPort,
-		protocol: cfg.SMTPProtocol,
-		user:     cfg.SMTPUser,
-		password: cfg.SMTPPassword,
-		from:     cfg.SMTPFrom,
+		host:        cfg.SMTPHost,
+		port:        cfg.SMTPPort,
+		protocol:    cfg.SMTPProtocol,
+		user:        cfg.SMTPUser,
+		password:    cfg.SMTPPassword,
+		from:        cfg.SMTPFrom,
+		dialTimeout: defaultDialTimeout,
+		sendTimeout: defaultSendTimeout,
 	}
 }
 
@@ -60,7 +73,7 @@ func (c *Client) Send(to []string, subject, body string) error {
 		return err
 	}
 
-	addr := fmt.Sprintf("%s:%d", c.host, c.port)
+	addr := net.JoinHostPort(c.host, strconv.Itoa(c.port))
 
 	var conn net.Conn
 
@@ -69,16 +82,20 @@ func (c *Client) Send(to []string, subject, body string) error {
 		ServerName:         c.host,
 	}
 
+	dialer := &net.Dialer{Timeout: c.dialTimeout}
 	if c.protocol == "tls" {
-		conn, err = tls.Dial("tcp", addr, tlsConfig)
+		conn, err = tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
 	} else {
-		conn, err = net.DialTimeout("tcp", addr, 10*time.Second)
+		conn, err = dialer.Dial("tcp", addr)
 	}
 
 	if err != nil {
 		return fmt.Errorf("failed to connect to SMTP server: %w", err)
 	}
 	defer conn.Close()
+	if err := conn.SetDeadline(time.Now().Add(c.sendTimeout)); err != nil {
+		return fmt.Errorf("setting SMTP deadline: %w", err)
+	}
 
 	client, err := smtp.NewClient(conn, c.host)
 	if err != nil {

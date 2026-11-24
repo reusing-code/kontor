@@ -157,3 +157,17 @@ func TestIsExpired_InvalidEndDate(t *testing.T) {
 		t.Error("contract with invalid endDate should not be expired")
 	}
 }
+
+func TestCancellationDate_NegativeExtensionTerminates(t *testing.T) {
+	c := Contract{StartDate: monthsAgo(24), MinimumDurationMonths: 12, ExtensionDurationMonths: -1, NoticePeriodMonths: 1}
+	done := make(chan *string, 1)
+	go func() { done <- c.CancellationDate() }()
+	select {
+	case got := <-done:
+		if got == nil || *got != today() {
+			t.Errorf("CancellationDate = %v, want today (treated like no extension)", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("CancellationDate did not return for a negative extension")
+	}
+}

@@ -18,6 +18,8 @@ import (
 const (
 	exportFormat        = "kontor-export"
 	exportFormatVersion = 2
+	// MaxImportBytes caps an uploaded export file.
+	MaxImportBytes = 64 << 20
 )
 
 // PaperlessLinkStore is the slice of paperless.Store the export orchestrator
@@ -135,8 +137,8 @@ func (h *Handler) importEnvelope(w http.ResponseWriter, r *http.Request, onlyMod
 	userID := middleware.GetUserID(ctx)
 
 	var envelope exportEnvelope
-	if err := httputil.ReadJSON(r, &envelope); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid export file")
+	if err := httputil.ReadJSONLimit(r, &envelope, MaxImportBytes); err != nil {
+		httputil.BodyError(h.logger, w, err, "invalid export file")
 		return
 	}
 	if envelope.Format != exportFormat || envelope.FormatVersion != exportFormatVersion {

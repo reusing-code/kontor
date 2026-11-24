@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/reusing-code/kontor/backend/internal/core"
@@ -271,19 +272,19 @@ func (m *Module) Seed(ctx context.Context, userID string) error {
 	return m.handler.SeedLedgerDefaults(ctx, userID)
 }
 
-func (m *Module) StartBackground(ctx context.Context) {
-	m.handler.suggester.SetBackgroundContext(ctx)
-	m.handler.recurring.SetBackgroundContext(ctx)
-	m.handler.ledgerEmail.SetBackgroundContext(ctx)
-	m.startBankScheduler(ctx)
+func (m *Module) StartBackground(ctx context.Context, wg *sync.WaitGroup) {
+	m.handler.suggester.SetBackground(ctx, wg)
+	m.handler.recurring.SetBackground(ctx, wg)
+	m.handler.ledgerEmail.SetBackground(ctx, wg)
+	m.startBankScheduler(ctx, wg)
 	if m.handler.emailDrafts != nil {
-		m.handler.emailDrafts.Start(ctx)
+		m.handler.emailDrafts.Start(ctx, wg)
 	}
 	if !m.emailScanEnabled {
 		return
 	}
 	sched := NewEmailScanScheduler(m.store, m.coreStore, m.handler.ledgerEmail, m.encryptionKey, m.scanInterval, m.logger)
-	sched.Start(ctx)
+	sched.Start(ctx, wg)
 }
 
 // storeError maps ledger store errors, including module-specific sentinels,
@@ -317,14 +318,14 @@ func (m *Module) Prefix(userID string) []byte {
 
 func (m *Module) Migrations() []migration.Migration { return nil }
 
-func (m *Module) startBankScheduler(ctx context.Context) {
+func (m *Module) startBankScheduler(ctx context.Context, wg *sync.WaitGroup) {
 	if m.handler.bank == nil || m.coreStore == nil {
 		return
 	}
 	if m.bank.SyncInterval <= 0 {
 		m.logger.Info("automatic bank sync disabled", "reason", "ENABLE_BANKING_SYNC_INTERVAL is 0")
 	}
-	NewBankSyncScheduler(m.bankSchedulerConfig()).Start(ctx)
+	NewBankSyncScheduler(m.bankSchedulerConfig()).Start(ctx, wg)
 }
 
 func (m *Module) bankSchedulerConfig() BankSyncSchedulerConfig {

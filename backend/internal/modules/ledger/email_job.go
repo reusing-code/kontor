@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,12 +55,13 @@ func (st *LedgerEmailScanStatus) setCounts(result LedgerEmailScanResult) {
 	st.Warnings = append([]string{}, result.Warnings...)
 }
 
-// SetBackgroundContext bounds manual scan jobs by the server's lifetime.
-func (s *EmailService) SetBackgroundContext(ctx context.Context) {
-	s.actions.setBackgroundContext(ctx)
+// SetBackground bounds manual scan jobs by the server's lifetime and starts
+// them on wg, which shutdown waits for.
+func (s *EmailService) SetBackground(ctx context.Context, wg *sync.WaitGroup) {
+	s.actions.setBackground(ctx, wg)
 	s.scanMu.Lock()
 	defer s.scanMu.Unlock()
-	s.baseCtx = ctx
+	s.baseCtx, s.wg = ctx, wg
 }
 
 // ScanStatus returns the running or last finished scan of an account.
@@ -137,14 +139,22 @@ func scanResumesSoon(result LedgerEmailScanResult, err error, timedOut bool) boo
 	return timedOut || (err == nil && result.Partial)
 }
 
+// imapFailureText replaces an IMAP error for the user: the error carries
+// dial errors and the server's own text, which the client must not see.
+const imapFailureText = "the connection to the mail server failed"
+
 // scanErrorText is the failure as shown to the user; unexpected errors stay in
 // the log.
 func scanErrorText(err error) string {
 	switch {
-	case errors.Is(err, ErrIMAP), errors.Is(err, ErrEmailLLMDisabled), errors.Is(err, ErrEmailFolderMissing):
+	case errors.Is(err, ErrIMAP):
+		return imapFailureText
+	case errors.Is(err, ErrEmailLLMDisabled), errors.Is(err, ErrEmailFolderMissing):
 		return err.Error()
 	case errors.Is(err, context.Canceled):
 		return "scan interrupted"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "scan timed out"
 	default:
 		return "internal error"
 	}
@@ -169,15 +179,15 @@ func (s *EmailService) StartScan(userID string, account LedgerEmailAccount, encr
 		return LedgerEmailScanStatus{}, ErrEmailScanRunning
 	}
 	s.scanMu.Lock()
-	base := s.baseCtx
+	base, wg := s.baseCtx, s.wg
 	s.scanMu.Unlock()
-	go func() {
+	wg.Go(func() {
 		ctx, cancel := context.WithTimeout(base, emailScanTimeout)
 		defer cancel()
 		_, _ = s.runScan(ctx, userID, account, password, func(result LedgerEmailScanResult, err error) {
 			s.recordManualScan(ctx, userID, account, result, err)
 		})
-	}()
+	})
 	return status, nil
 }
 

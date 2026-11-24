@@ -33,7 +33,7 @@ Differences that matter:
 
 ## Fingerprints and the cross-source rule
 
-The CSV fingerprint (`Fingerprint`) hashes account, booking date, amount, counterparty, purpose and bank reference as exact strings. Because the API text differs, an API row can never produce a CSV fingerprint, and changing the CSV fingerprint would invalidate existing data, so it stays untouched.
+The CSV fingerprint (`Fingerprint`) hashes account, booking date, amount, counterparty, purpose and bank reference as exact strings. Because the API text differs, an API row can never produce a CSV fingerprint, and changing the CSV fingerprint would invalidate existing data, so it stays untouched. Identical rows of one file are told apart by occurrence (`ImportFingerprints`): the first keeps the plain `Fingerprint`, the n-th (n ≥ 2) gets SHA-256 of the plain fingerprint with `#n`, so two identical payments in one CSV both import while existing keys stay valid. Files imported before this rule kept only one of such rows; a later overlapping CSV that contains them all adds the missing ones, nothing else repairs them.
 
 API rows get their own namespace, `eb1:` + hex SHA-256 (hex-only CSV fingerprints can never collide with it). The hashed input is an unambiguous encoding: every field is prefixed with its byte length (`encodeFields`), so a `|` or digits inside a counterparty, purpose or reference can never shift the boundary between two fields and make two different payments collide:
 

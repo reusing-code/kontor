@@ -31,6 +31,8 @@ export const settingsKeys = { all: ["settings"] } as const
 
 export const capabilitiesKeys = { all: ["capabilities"] } as const
 
+export const authKeys = { config: () => ["auth", "config"] as const } as const
+
 export const tokenKeys = { all: ["tokens"] } as const
 
 const drafts = ["drafts"] as const

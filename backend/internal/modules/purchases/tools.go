@@ -145,11 +145,6 @@ func (m *Module) RegisterTools(r *mcptool.Registrar) {
 			if err := input.Validate(); err != nil {
 				return mcptool.DraftResult{}, mcptool.Errorf(mcptool.CodeInvalidInput, "%s", err.Error())
 			}
-			if input.PurchaseDate != "" {
-				if err := mcptool.CheckDate("purchaseDate", input.PurchaseDate); err != nil {
-					return mcptool.DraftResult{}, err
-				}
-			}
 			id, err := uuid.Parse(in.CategoryID)
 			if err != nil {
 				return mcptool.DraftResult{}, mcptool.Errorf(mcptool.CodeInvalidInput, "categoryId must be a UUID")
@@ -167,12 +162,8 @@ func (m *Module) RegisterTools(r *mcptool.Registrar) {
 		mcptool.ScopeDrafts, false),
 		func(ctx context.Context, c mcptool.Call, in createPurchaseCategoryDraftIn) (mcptool.DraftResult, error) {
 			input := in.Input
-			input.Name = strings.TrimSpace(input.Name)
 			if err := input.Validate(); err != nil {
 				return mcptool.DraftResult{}, mcptool.Errorf(mcptool.CodeInvalidInput, "%s", err.Error())
-			}
-			if err := mcptool.CheckLen("name", input.Name, 1, 200); err != nil {
-				return mcptool.DraftResult{}, err
 			}
 			return r.CreateDraftFrom(ctx, c, mcptool.DraftSpec{Target: drafts.TargetPurchaseCategory, Input: input, Title: in.Title, Key: in.Key, Note: in.Note})
 		})

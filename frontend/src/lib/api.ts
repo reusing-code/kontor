@@ -38,8 +38,8 @@ export class ApiError extends Error {
 export interface SendOptions {
   json?: unknown
   form?: FormData
-  // false: a 401 is an ordinary error (wrong credentials on login, register
-  // and the password change) instead of an expired session.
+  // false: a 401 is an ordinary error (wrong credentials on login and
+  // register) instead of an expired session.
   redirectOnUnauthorized?: boolean
 }
 

@@ -57,12 +57,8 @@ func (m *Module) ExportSection(ctx context.Context, userID string) (json.RawMess
 	if section.Imports, err = m.store.ListLedgerImports(ctx, userID); err != nil {
 		return nil, err
 	}
-	for _, account := range section.Accounts {
-		txns, err := m.store.ListLedgerTransactions(ctx, userID, account.ID)
-		if err != nil {
-			return nil, err
-		}
-		section.Transactions = append(section.Transactions, txns...)
+	if section.Transactions, err = m.store.ListAllLedgerTransactions(ctx, userID); err != nil {
+		return nil, err
 	}
 	if section.EmailAccounts, err = m.store.ListLedgerEmailAccounts(ctx, userID); err != nil {
 		return nil, err
@@ -83,6 +79,11 @@ func (m *Module) ImportSection(ctx context.Context, userID string, data json.Raw
 	}
 	if section.SchemaVersion != sectionSchemaVersion {
 		return fmt.Errorf("%w: ledger section has schema version %d, this version supports %d", module.ErrInvalidSection, section.SchemaVersion, sectionSchemaVersion)
+	}
+	for _, account := range section.EmailAccounts {
+		if !validImportedEmailAccount(account) {
+			return fmt.Errorf("%w: ledger section has an email account with invalid connection settings", module.ErrInvalidSection)
+		}
 	}
 
 	if err := m.replaceCategories(ctx, userID, section.Categories, res); err != nil {

@@ -51,7 +51,7 @@ func (h *Handler) GetLedgerCategorySuggestionStatus(w http.ResponseWriter, r *ht
 func (h *Handler) ReviewLedgerTransactionsBatch(w http.ResponseWriter, r *http.Request) {
 	var input LedgerBatchReviewInput
 	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid request body")
+		httputil.BodyError(h.logger, w, err, "invalid request body")
 		return
 	}
 	if err := input.Validate(); err != nil {

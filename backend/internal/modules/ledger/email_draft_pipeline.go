@@ -78,7 +78,7 @@ func NewEmailDraftPipeline(store *Store, draftStore *drafts.Store, classifier *e
 	}
 }
 
-func (p *EmailDraftPipeline) Start(ctx context.Context) {
+func (p *EmailDraftPipeline) Start(ctx context.Context, wg *sync.WaitGroup) {
 	switch {
 	case p.interval <= 0:
 		p.logger.Info("email draft pipeline disabled", "reason", "LEDGER_EMAIL_SCAN_INTERVAL is 0")
@@ -90,7 +90,7 @@ func (p *EmailDraftPipeline) Start(ctx context.Context) {
 		p.logger.Info("email draft pipeline disabled", "reason", "LLM is not configured")
 		return
 	}
-	go func() {
+	wg.Go(func() {
 		p.logger.Info("email draft pipeline started", "interval", p.interval)
 		p.runAll(ctx)
 		ticker := time.NewTicker(p.interval)
@@ -104,7 +104,7 @@ func (p *EmailDraftPipeline) Start(ctx context.Context) {
 				p.runAll(ctx)
 			}
 		}
-	}()
+	})
 }
 
 func (p *EmailDraftPipeline) runAll(ctx context.Context) {

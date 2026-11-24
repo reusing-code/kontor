@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -59,6 +60,11 @@ type Config struct {
 	// reverse proxy that sets these headers, as clients can spoof them otherwise.
 	TrustProxy bool `env:"TRUST_PROXY" envDefault:"false"`
 
+	// POST /auth/register: unset = open until the first user exists, then
+	// closed; true = always open; false = always closed.
+	RegistrationEnabled string       `env:"REGISTRATION_ENABLED"`
+	Registration        Registration `env:"-"`
+
 	// Server-wide OpenAI-compatible LLM endpoint; empty base URL disables LLM features.
 	LLMBaseURL string        `env:"LLM_BASE_URL"`
 	LLMModel   string        `env:"LLM_MODEL"`
@@ -89,6 +95,14 @@ func Load() (Config, error) {
 	if err := env.Parse(&cfg); err != nil {
 		return cfg, fmt.Errorf("parsing config: %w", err)
 	}
+	if len(cfg.JWTSecret) < MinJWTSecretBytes {
+		return cfg, fmt.Errorf("JWT_SECRET must be at least %d bytes", MinJWTSecretBytes)
+	}
+	registration, err := parseRegistration(cfg.RegistrationEnabled)
+	if err != nil {
+		return cfg, err
+	}
+	cfg.Registration = registration
 	if err := cfg.resolveEncryptionKey(); err != nil {
 		return cfg, err
 	}
@@ -112,6 +126,36 @@ func Load() (Config, error) {
 		return cfg, errors.New("PUBLIC_URL must be an absolute http(s) URL")
 	}
 	return cfg, nil
+}
+
+// MinJWTSecretBytes is the shortest JWT_SECRET accepted (HS256 keys
+// should be at least as long as the hash).
+const MinJWTSecretBytes = 32
+
+// Registration says who may use POST /auth/register.
+type Registration int
+
+const (
+	// RegistrationFirstUser is open while no user exists.
+	RegistrationFirstUser Registration = iota
+	RegistrationOpen
+	RegistrationClosed
+)
+
+func parseRegistration(raw string) (Registration, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return RegistrationFirstUser, nil
+	}
+	open, err := strconv.ParseBool(raw)
+	switch {
+	case err != nil:
+		return 0, errors.New("REGISTRATION_ENABLED must be true, false or unset")
+	case open:
+		return RegistrationOpen, nil
+	default:
+		return RegistrationClosed, nil
+	}
 }
 
 func validPublicURL(raw string) bool {
