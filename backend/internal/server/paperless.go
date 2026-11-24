@@ -18,6 +18,7 @@ func registerPaperlessRoutes(mux handleFuncer, h *paperless.Handler, pipeline *p
 	mux.HandleFunc("POST /api/v1/paperless/config/test", h.TestConfig)
 	mux.HandleFunc("GET /api/v1/paperless/search", h.Search)
 	mux.HandleFunc("GET /api/v1/paperless/documents/{documentId}/thumb", h.Thumbnail)
+	mux.HandleFunc("GET /api/v1/paperless/links/{entityType}", h.ListLinksByType)
 	mux.HandleFunc("GET /api/v1/paperless/links/{entityType}/{entityId}", h.ListLinks)
 	mux.HandleFunc("POST /api/v1/paperless/links/{entityType}/{entityId}", h.AttachLinks)
 	mux.HandleFunc("DELETE /api/v1/paperless/links/{entityType}/{entityId}/{documentId}", h.DetachLink)

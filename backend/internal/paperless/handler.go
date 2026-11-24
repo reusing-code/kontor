@@ -208,6 +208,20 @@ func (h *Handler) ListLinks(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(h.logger, w, http.StatusOK, links)
 }
 
+func (h *Handler) ListLinksByType(w http.ResponseWriter, r *http.Request) {
+	entityType := r.PathValue("entityType")
+	if !ValidEntityType(entityType) {
+		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid entityType")
+		return
+	}
+	links, err := h.store.ListLinksByType(r.Context(), middleware.GetUserID(r.Context()), entityType)
+	if err != nil {
+		httputil.StoreError(h.logger, w, err)
+		return
+	}
+	httputil.WriteJSON(h.logger, w, http.StatusOK, links)
+}
+
 type attachResponse struct {
 	Links    []Link   `json:"links"`
 	Warnings []string `json:"warnings"`

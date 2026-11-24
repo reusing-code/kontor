@@ -43,6 +43,10 @@ func linkEntityPrefix(userID, entityType, entityID string) []byte {
 	return []byte(fmt.Sprintf("u/%s/paperless/link/%s/%s/", userID, entityType, entityID))
 }
 
+func linkTypePrefix(userID, entityType string) []byte {
+	return []byte(fmt.Sprintf("u/%s/paperless/link/%s/", userID, entityType))
+}
+
 func linkPrefix(userID string) []byte {
 	return []byte(fmt.Sprintf("u/%s/paperless/link/", userID))
 }
@@ -104,21 +108,13 @@ func (s *Store) HasDocumentLinks(ctx context.Context, userID string, documentID 
 }
 
 func (s *Store) ListLinks(_ context.Context, userID, entityType, entityID string) ([]Link, error) {
-	links := []Link{}
-	err := s.e.View(func(txn *badger.Txn) error {
-		return storage.IteratePrefix(txn, linkEntityPrefix(userID, entityType, entityID), func(_, val []byte) error {
-			var l Link
-			if err := json.Unmarshal(val, &l); err != nil {
-				return err
-			}
-			links = append(links, l)
-			return nil
-		})
-	})
-	if err != nil {
-		return nil, err
-	}
-	return links, nil
+	return s.listLinks(linkEntityPrefix(userID, entityType, entityID))
+}
+
+// ListLinksByType returns every link of one entity type in one prefix scan,
+// including links of entities that were deleted since.
+func (s *Store) ListLinksByType(_ context.Context, userID, entityType string) ([]Link, error) {
+	return s.listLinks(linkTypePrefix(userID, entityType))
 }
 
 func (s *Store) PutLink(_ context.Context, userID string, l Link) error {
@@ -142,9 +138,13 @@ func (s *Store) DeleteLink(_ context.Context, userID, entityType, entityID strin
 }
 
 func (s *Store) ListAllLinks(_ context.Context, userID string) ([]Link, error) {
+	return s.listLinks(linkPrefix(userID))
+}
+
+func (s *Store) listLinks(prefix []byte) ([]Link, error) {
 	links := []Link{}
 	err := s.e.View(func(txn *badger.Txn) error {
-		return storage.IteratePrefix(txn, linkPrefix(userID), func(_, val []byte) error {
+		return storage.IteratePrefix(txn, prefix, func(_, val []byte) error {
 			var l Link
 			if err := json.Unmarshal(val, &l); err != nil {
 				return err

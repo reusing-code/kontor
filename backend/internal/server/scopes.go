@@ -74,6 +74,7 @@ var routeRules = map[string]middleware.Rule{
 	"GET /api/v1/modules/{module}/export":                                 middleware.RuleRead,
 	"GET /api/v1/paperless/config":                                        middleware.RuleRead,
 	"GET /api/v1/paperless/documents/{documentId}/thumb":                  middleware.RuleRead,
+	"GET /api/v1/paperless/links/{entityType}":                            middleware.RuleRead,
 	"GET /api/v1/paperless/links/{entityType}/{entityId}":                 middleware.RuleRead,
 	"GET /api/v1/paperless/pipeline":                                      middleware.RuleRead,
 	"GET /api/v1/paperless/search":                                        middleware.RuleRead,

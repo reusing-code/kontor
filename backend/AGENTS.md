@@ -268,6 +268,7 @@ All endpoints under `/api/v1/`. JSON request/response with camelCase field names
 - `POST /api/v1/paperless/config/test` — Test the stored paperless connection (502 with a fixed text on upstream failure, like every paperless proxy route)
 - `GET /api/v1/paperless/search?query=&page=` — Proxy full-text document search (empty query lists recent documents)
 - `GET /api/v1/paperless/documents/{documentId}/thumb` — Proxy document thumbnail (authenticated stream)
+- `GET /api/v1/paperless/links/{entityType}` — All of the user's paperless document links of one entity type (`[]Link`, one prefix scan of `u/{userId}/paperless/link/{entityType}/`; may include links of deleted entities; no config needed, like the per-entity list); the frontend list indicators use it instead of one request per row
 - `GET /api/v1/paperless/links/{entityType}/{entityId}` — List paperless document links for an entity
 - `POST /api/v1/paperless/links/{entityType}/{entityId}` — Attach documents (`{entityUrl, documents}`); best-effort sets a "Kontor" URL custom field and the done tag on each paperless document, failures come back as warnings
 - `DELETE /api/v1/paperless/links/{entityType}/{entityId}/{documentId}` — Detach a document; clears the back-link custom field only if it still points at this entity, and removes the done tag when no other entity links the document

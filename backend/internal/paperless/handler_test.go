@@ -30,6 +30,7 @@ func newHandlerMux(t *testing.T, encryptionKey string) (http.Handler, *Store) {
 	mux.HandleFunc("POST /api/v1/paperless/config/test", h.TestConfig)
 	mux.HandleFunc("GET /api/v1/paperless/search", h.Search)
 	mux.HandleFunc("GET /api/v1/paperless/documents/{documentId}/thumb", h.Thumbnail)
+	mux.HandleFunc("GET /api/v1/paperless/links/{entityType}", h.ListLinksByType)
 	mux.HandleFunc("GET /api/v1/paperless/links/{entityType}/{entityId}", h.ListLinks)
 	mux.HandleFunc("POST /api/v1/paperless/links/{entityType}/{entityId}", h.AttachLinks)
 	mux.HandleFunc("DELETE /api/v1/paperless/links/{entityType}/{entityId}/{documentId}", h.DetachLink)
@@ -230,6 +231,56 @@ func TestListLinks_EmptyWithoutConfig(t *testing.T) {
 	links := decodeJSON[[]Link](t, rec)
 	if len(links) != 0 {
 		t.Errorf("links = %+v", links)
+	}
+}
+
+func TestListLinksByType(t *testing.T) {
+	mux, store := newHandlerMux(t, testEncryptionKey)
+	ctx := context.Background()
+	costA, costB := uuid.NewString(), uuid.NewString()
+	for _, l := range []Link{
+		makeLink(EntityCost, costA, 1),
+		makeLink(EntityCost, costA, 2),
+		makeLink(EntityCost, costB, 3),
+		makeLink(EntityContract, uuid.NewString(), 4),
+	} {
+		if err := store.PutLink(ctx, testUserID, l); err != nil {
+			t.Fatalf("PutLink: %v", err)
+		}
+	}
+	if err := store.PutLink(ctx, "other-user", makeLink(EntityCost, uuid.NewString(), 5)); err != nil {
+		t.Fatalf("PutLink: %v", err)
+	}
+
+	rec := do(mux, "GET", "/api/v1/paperless/links/cost", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	links := decodeJSON[[]Link](t, rec)
+	byEntity := map[string][]int{}
+	for _, l := range links {
+		if l.EntityType != EntityCost {
+			t.Errorf("unexpected entity type in %+v", l)
+		}
+		byEntity[l.EntityID] = append(byEntity[l.EntityID], l.DocumentID)
+	}
+	if len(links) != 3 || len(byEntity[costA]) != 2 || len(byEntity[costB]) != 1 {
+		t.Errorf("links = %+v", links)
+	}
+}
+
+func TestListLinksByType_EmptyAndInvalid(t *testing.T) {
+	mux, _ := newHandlerMux(t, testEncryptionKey)
+	rec := do(mux, "GET", "/api/v1/paperless/links/purchase", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if body := bytes.TrimSpace(rec.Body.Bytes()); string(body) != "[]" {
+		t.Errorf("body = %s, want []", body)
+	}
+	rec = do(mux, "GET", "/api/v1/paperless/links/bogus", nil)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for invalid entityType", rec.Code)
 	}
 }
 

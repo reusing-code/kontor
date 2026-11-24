@@ -166,6 +166,39 @@ func TestLinksEntityIsolation(t *testing.T) {
 	}
 }
 
+func TestListLinksByType_TypeAndUserIsolation(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	costID := uuid.NewString()
+	for _, l := range []Link{
+		makeLink(EntityCost, costID, 1),
+		makeLink(EntityContract, uuid.NewString(), 2),
+	} {
+		if err := s.PutLink(ctx, storeTestUser, l); err != nil {
+			t.Fatalf("PutLink: %v", err)
+		}
+	}
+	if err := s.PutLink(ctx, "other-user", makeLink(EntityCost, uuid.NewString(), 3)); err != nil {
+		t.Fatalf("PutLink: %v", err)
+	}
+
+	links, err := s.ListLinksByType(ctx, storeTestUser, EntityCost)
+	if err != nil {
+		t.Fatalf("ListLinksByType: %v", err)
+	}
+	if len(links) != 1 || links[0].EntityID != costID || links[0].DocumentID != 1 {
+		t.Errorf("cost links = %+v", links)
+	}
+
+	links, err = s.ListLinksByType(ctx, storeTestUser, EntityPurchase)
+	if err != nil {
+		t.Fatalf("ListLinksByType: %v", err)
+	}
+	if links == nil || len(links) != 0 {
+		t.Errorf("purchase links = %#v, want empty non-nil", links)
+	}
+}
+
 func TestListAllAndImportLinks(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()

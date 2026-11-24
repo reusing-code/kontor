@@ -251,6 +251,7 @@ Contracts, purchases, vehicles, vehicle costs and their categories are validated
 | POST | `/paperless/config/test` | Test the paperless connection |
 | GET | `/paperless/search` | Proxied paperless document search |
 | GET | `/paperless/documents/{id}/thumb` | Proxied document thumbnail |
+| GET | `/paperless/links/{entityType}` | All paperless document links of one entity type (for the list indicators) |
 | GET/POST | `/paperless/links/{entityType}/{entityId}` | List / attach paperless document links |
 | DELETE | `/paperless/links/{entityType}/{entityId}/{documentId}` | Detach a document link |
 | GET/PUT | `/paperless/pipeline` | Draft pipeline settings (on/off, inbox and done tag) |
