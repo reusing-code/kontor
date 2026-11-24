@@ -48,8 +48,8 @@ type ConfigInput struct {
 
 func (in *ConfigInput) Validate() error {
 	in.BaseURL = strings.TrimRight(strings.TrimSpace(in.BaseURL), "/")
-	if err := validateHTTPURL(in.BaseURL); err != nil {
-		return errors.New("baseUrl must be a valid http(s) URL")
+	if err := validateBaseURL(in.BaseURL); err != nil {
+		return err
 	}
 	in.Token = strings.TrimSpace(in.Token)
 	return nil
@@ -78,6 +78,20 @@ func (in *AttachInput) Validate() error {
 			return errors.New("document ids must be positive")
 		}
 		in.Documents[i].Title = strings.TrimSpace(in.Documents[i].Title)
+	}
+	return nil
+}
+
+// validateBaseURL also refuses what has no place in a base URL: a query or
+// fragment would end up in every request path, user info would send
+// credentials of its own.
+func validateBaseURL(raw string) error {
+	if validateHTTPURL(raw) != nil {
+		return errors.New("baseUrl must be a valid http(s) URL")
+	}
+	parsed, _ := url.Parse(raw)
+	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || strings.ContainsAny(raw, "?#@") {
+		return errors.New("baseUrl must not contain a query, fragment or user info")
 	}
 	return nil
 }

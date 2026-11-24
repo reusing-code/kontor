@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -23,7 +24,89 @@ const (
 	listPageSize    = 100
 )
 
+// Response size caps: documents carry their OCR text, thumbnails are small
+// images.
+const (
+	maxJSONResponseBytes = 16 << 20
+	maxThumbnailBytes    = 5 << 20
+)
+
 var htmlTagPattern = regexp.MustCompile(`<[^>]+>`)
+
+// Errors of the client have fixed texts: nothing paperless sends (bodies,
+// redirect targets) and no dial error reaches a caller, a warning or a
+// response. Cause returns the underlying error for the log.
+var (
+	ErrUnreachable      = errors.New("could not reach paperless")
+	ErrInvalidResponse  = errors.New("paperless sent an invalid response")
+	ErrResponseTooLarge = errors.New("the paperless response is too large")
+)
+
+// StatusError is a response outside 2xx, including a redirect, which the
+// client does not follow.
+type StatusError struct{ Status int }
+
+func (e *StatusError) Error() string { return fmt.Sprintf("paperless answered HTTP %d", e.Status) }
+
+// upstreamError keeps the cause of a fixed error for the log only.
+type upstreamError struct {
+	public error
+	cause  error
+}
+
+func (e *upstreamError) Error() string   { return e.public.Error() }
+func (e *upstreamError) Unwrap() []error { return []error{e.public, e.cause} }
+
+func upstream(public, cause error) error { return &upstreamError{public: public, cause: cause} }
+
+// Cause is the underlying error of a client error, for the log; nil when
+// there is none.
+func Cause(err error) error {
+	if ue, ok := errors.AsType[*upstreamError](err); ok {
+		return ue.cause
+	}
+	return nil
+}
+
+// PublicError is the text of a failed paperless call for the client.
+func PublicError(err error) string {
+	if se, ok := errors.AsType[*StatusError](err); ok {
+		if se.Status == http.StatusUnauthorized || se.Status == http.StatusForbidden {
+			return "paperless rejected the API token"
+		}
+		return se.Error()
+	}
+	for _, known := range []error{ErrUnreachable, ErrResponseTooLarge, ErrInvalidResponse} {
+		if errors.Is(err, known) {
+			return known.Error()
+		}
+	}
+	return "paperless request failed"
+}
+
+// cappedReader fails with ErrResponseTooLarge once more than left bytes
+// would be read.
+type cappedReader struct {
+	r    io.Reader
+	left int64
+}
+
+func (c *cappedReader) Read(p []byte) (int, error) {
+	if c.left <= 0 {
+		var probe [1]byte
+		n, err := c.r.Read(probe[:])
+		if n > 0 {
+			return 0, ErrResponseTooLarge
+		}
+		return 0, err
+	}
+	if int64(len(p)) > c.left {
+		p = p[:c.left]
+	}
+	n, err := c.r.Read(p)
+	c.left -= int64(n)
+	return n, err
+}
 
 // Client talks to a single paperless-ngx instance with a user's token.
 type Client struct {
@@ -41,6 +124,8 @@ func NewClient(baseURL, token string) *Client {
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
 			},
+			// a redirect would carry the token's requests elsewhere
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
 	}
 }
@@ -73,18 +158,20 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body any, out 
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("calling paperless: %w", err)
+		return upstream(ErrUnreachable, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("paperless returned %s: %s", resp.Status, strings.TrimSpace(string(snippet)))
+		return &StatusError{Status: resp.StatusCode}
 	}
 	if out == nil {
 		return nil
 	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-		return fmt.Errorf("decoding paperless response: %w", err)
+	if err := json.NewDecoder(&cappedReader{r: resp.Body, left: maxJSONResponseBytes}).Decode(out); err != nil {
+		if errors.Is(err, ErrResponseTooLarge) {
+			return ErrResponseTooLarge
+		}
+		return upstream(ErrInvalidResponse, err)
 	}
 	return nil
 }
@@ -139,7 +226,14 @@ func (c *Client) SearchDocuments(ctx context.Context, query string, page int) (S
 	return SearchPage{Count: dp.Count, Page: page, PageSize: pageSize, Results: results}, nil
 }
 
-// Thumbnail streams a document thumbnail. The caller must close the reader.
+type cappedBody struct {
+	io.Reader
+	io.Closer
+}
+
+// Thumbnail streams a document thumbnail of at most maxThumbnailBytes; a
+// longer one fails while reading with ErrResponseTooLarge. The caller must
+// close the reader.
 func (c *Client) Thumbnail(ctx context.Context, documentID int) (io.ReadCloser, string, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, fmt.Sprintf("/api/documents/%d/thumb/", documentID), nil)
 	if err != nil {
@@ -148,13 +242,18 @@ func (c *Client) Thumbnail(ctx context.Context, documentID int) (io.ReadCloser, 
 	req.Header.Del("Accept")
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, "", fmt.Errorf("fetching thumbnail: %w", err)
+		return nil, "", upstream(ErrUnreachable, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		resp.Body.Close()
-		return nil, "", fmt.Errorf("paperless returned %s", resp.Status)
+		return nil, "", &StatusError{Status: resp.StatusCode}
 	}
-	return resp.Body, resp.Header.Get("Content-Type"), nil
+	if resp.ContentLength > maxThumbnailBytes {
+		resp.Body.Close()
+		return nil, "", ErrResponseTooLarge
+	}
+	body := cappedBody{Reader: &cappedReader{r: resp.Body, left: maxThumbnailBytes}, Closer: resp.Body}
+	return body, resp.Header.Get("Content-Type"), nil
 }
 
 type customField struct {

@@ -115,13 +115,20 @@ func (h *Handler) clientForUser(w http.ResponseWriter, r *http.Request) (*Client
 	return nil, false
 }
 
+// upstreamError answers a failed paperless call with 502 and a fixed text;
+// the cause goes to the log only.
+func (h *Handler) upstreamError(w http.ResponseWriter, err error) {
+	h.logger.Warn("paperless request failed", "error", err, "cause", Cause(err))
+	httputil.Error(h.logger, w, http.StatusBadGateway, PublicError(err))
+}
+
 func (h *Handler) TestConfig(w http.ResponseWriter, r *http.Request) {
 	client, ok := h.clientForUser(w, r)
 	if !ok {
 		return
 	}
 	if err := client.Ping(r.Context()); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadGateway, err.Error())
+		h.upstreamError(w, err)
 		return
 	}
 	httputil.WriteJSON(h.logger, w, http.StatusOK, map[string]any{"ok": true})
@@ -143,7 +150,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := client.SearchDocuments(r.Context(), r.URL.Query().Get("query"), page)
 	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadGateway, err.Error())
+		h.upstreamError(w, err)
 		return
 	}
 	httputil.WriteJSON(h.logger, w, http.StatusOK, result)
@@ -161,7 +168,7 @@ func (h *Handler) Thumbnail(w http.ResponseWriter, r *http.Request) {
 	}
 	body, contentType, err := client.Thumbnail(r.Context(), documentID)
 	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadGateway, err.Error())
+		h.upstreamError(w, err)
 		return
 	}
 	defer body.Close()
