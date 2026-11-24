@@ -79,6 +79,7 @@ func newMux(h *Handler) http.Handler {
 	mux.HandleFunc("POST /api/v1/ledger/email-accounts/folders", h.ListLedgerEmailFolders)
 	mux.HandleFunc("POST /api/v1/ledger/email-accounts", h.CreateLedgerEmailAccount)
 	mux.HandleFunc("PUT /api/v1/ledger/email-accounts/{emailAccountId}", h.UpdateLedgerEmailAccount)
+	mux.HandleFunc("POST /api/v1/ledger/email-accounts/{emailAccountId}/test", h.TestLedgerEmailAccount)
 	mux.HandleFunc("POST /api/v1/ledger/email-accounts/{emailAccountId}/scan", h.ScanLedgerEmailAccount)
 	mux.HandleFunc("GET /api/v1/ledger/email-accounts/{emailAccountId}/scan", h.GetLedgerEmailScanStatus)
 	mux.HandleFunc("GET /api/v1/ledger/email-orders/{emailOrderId}/candidates", h.ListLedgerEmailOrderCandidates)

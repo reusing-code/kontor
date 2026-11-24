@@ -175,7 +175,7 @@ func scanOutcome(folder string, result LedgerEmailScanResult, err error, timedOu
 	case err != nil && timedOut && errors.Is(err, context.DeadlineExceeded):
 		return fmt.Sprintf("Background scan of folder %q timed out; it continues shortly", folder), false
 	case err != nil:
-		return fmt.Sprintf("Background scan failed: %v", err), false
+		return "Background scan failed: " + scanErrorText(err), false
 	case result.Partial:
 		return fmt.Sprintf("Background scan of folder %q stopped after repeated LLM failures; it is retried shortly", folder), false
 	case result.Skipped > 0:

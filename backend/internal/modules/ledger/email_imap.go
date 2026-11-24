@@ -294,7 +294,14 @@ func (c *imapClient) fetchLiteral(uid uint32, section string) ([]byte, error) {
 	return body, nil
 }
 
+// errIMAPUnsafeCommand refuses a command with a line break or NUL in it,
+// which would let a value start a command of its own.
+var errIMAPUnsafeCommand = errors.New("imap command contains a control character")
+
 func (c *imapClient) command(command string) ([]string, error) {
+	if strings.ContainsAny(command, "\r\n\x00") {
+		return nil, errIMAPUnsafeCommand
+	}
 	tag := c.nextTag()
 	if err := c.writeLine(fmt.Sprintf("%s %s", tag, command)); err != nil {
 		return nil, err
@@ -541,6 +548,8 @@ func (c *imapClient) readLine() (string, error) {
 	return c.r.ReadString('\n')
 }
 
+// imapQuote makes a quoted string. It cannot express CR, LF or NUL;
+// command refuses a line with them, so they never reach the server.
 func imapQuote(value string) string {
 	escaped := strings.ReplaceAll(value, `\`, `\\`)
 	escaped = strings.ReplaceAll(escaped, `"`, `\"`)

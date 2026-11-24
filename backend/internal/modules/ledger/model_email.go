@@ -153,22 +153,46 @@ func (a *LedgerEmailFoldersInput) Validate() error {
 	if a.IMAPHost == "" {
 		return errors.New("imapHost is required")
 	}
-	if a.IMAPPort <= 0 {
-		a.IMAPPort = 993
-	}
-	if a.IMAPPort > 65535 {
-		return errors.New("imapPort is invalid")
-	}
 	if a.Username == "" {
 		return errors.New("username is required")
 	}
-	// these go into IMAP commands; a line break would start another command
-	for _, value := range []string{a.IMAPHost, a.Username, a.Password} {
+	return validateIMAPConnection(a.IMAPHost, &a.IMAPPort, a.Username, a.Password)
+}
+
+const defaultIMAPPort = 993
+
+// validateIMAPConnection is the one check of IMAP connection settings: the
+// port (0 means the default) must be a TCP port, and host, username and
+// password go into IMAP commands, where a line break would start another
+// command, so they must not contain control characters.
+func validateIMAPConnection(host string, port *int, username, password string) error {
+	if *port == 0 {
+		*port = defaultIMAPPort
+	}
+	if *port < 1 || *port > 65535 {
+		return errors.New("imapPort is invalid")
+	}
+	for _, value := range []string{host, username, password} {
 		if strings.IndexFunc(value, unicode.IsControl) >= 0 {
 			return errors.New("connection settings must not contain control characters")
 		}
 	}
 	return nil
+}
+
+// validImportedEmailAccount checks what an export carries into IMAP
+// commands; exports have no password.
+func validImportedEmailAccount(a LedgerEmailAccount) bool {
+	port := a.IMAPPort
+	if validateIMAPConnection(a.IMAPHost, &port, a.Username, "") != nil {
+		return false
+	}
+	for _, folder := range []string{a.Folder, a.DraftsFolder, a.ProcessedFolder, a.DraftsProcessedFolder} {
+		if strings.IndexFunc(folder, unicode.IsControl) >= 0 {
+			return false
+		}
+	}
+	return true
 }
 
 type LedgerEmailAccountUpdateInput struct {
@@ -404,14 +428,14 @@ func (a *LedgerEmailAccountInput) Validate() error {
 	if a.IMAPHost == "" {
 		return errors.New("imapHost is required")
 	}
-	if a.IMAPPort <= 0 {
-		a.IMAPPort = 993
-	}
 	if a.Username == "" {
 		return errors.New("username is required")
 	}
 	if a.Password == "" {
 		return errors.New("password is required")
+	}
+	if err := validateIMAPConnection(a.IMAPHost, &a.IMAPPort, a.Username, a.Password); err != nil {
+		return err
 	}
 	if a.ScanSince == "" {
 		return errors.New("scanSince is required")
@@ -448,11 +472,15 @@ func (a *LedgerEmailAccountUpdateInput) Validate() error {
 	if a.IMAPHost == "" {
 		return errors.New("imapHost is required")
 	}
-	if a.IMAPPort <= 0 {
-		a.IMAPPort = 993
-	}
 	if a.Username == "" {
 		return errors.New("username is required")
+	}
+	password := ""
+	if a.Password != nil {
+		password = *a.Password
+	}
+	if err := validateIMAPConnection(a.IMAPHost, &a.IMAPPort, a.Username, password); err != nil {
+		return err
 	}
 	if a.ScanSince == "" {
 		return errors.New("scanSince is required")

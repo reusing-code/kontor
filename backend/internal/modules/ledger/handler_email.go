@@ -178,8 +178,17 @@ func (h *Handler) TestLedgerEmailAccount(w http.ResponseWriter, r *http.Request)
 		httputil.Error(h.logger, w, http.StatusInternalServerError, "could not decrypt stored email password")
 		return
 	}
-	if err := h.ledgerEmail.TestConnection(account, password); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadGateway, err.Error())
+	// The server's text and dial errors are neither returned nor logged.
+	switch err := h.ledgerEmail.TestConnection(account, password); {
+	case errors.Is(err, ErrIMAPLogin):
+		h.emailFolderError(w, http.StatusBadGateway, "imap_login_failed", "the mail server refused the login")
+		return
+	case errors.Is(err, ErrIMAPFolder):
+		h.emailFolderError(w, http.StatusBadGateway, "imap_folder_failed", "the mail server could not open the folder")
+		return
+	case err != nil:
+		h.logger.Warn("testing imap connection failed", "accountID", account.ID)
+		h.emailFolderError(w, http.StatusBadGateway, "imap_unavailable", "could not connect to the mail server")
 		return
 	}
 	httputil.WriteJSON(h.logger, w, http.StatusOK, map[string]any{"ok": true})
@@ -364,7 +373,7 @@ func (h *Handler) scanError(w http.ResponseWriter, err error) {
 	case errors.Is(err, ErrEmailPasswordMissing):
 		httputil.Error(h.logger, w, http.StatusConflict, ErrEmailPasswordMissing.Error())
 	case errors.Is(err, ErrIMAP):
-		httputil.Error(h.logger, w, http.StatusBadGateway, err.Error())
+		httputil.Error(h.logger, w, http.StatusBadGateway, imapFailureText)
 	default:
 		h.storeError(w, err)
 	}

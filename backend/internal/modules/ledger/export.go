@@ -80,6 +80,11 @@ func (m *Module) ImportSection(ctx context.Context, userID string, data json.Raw
 	if section.SchemaVersion != sectionSchemaVersion {
 		return fmt.Errorf("%w: ledger section has schema version %d, this version supports %d", module.ErrInvalidSection, section.SchemaVersion, sectionSchemaVersion)
 	}
+	for _, account := range section.EmailAccounts {
+		if !validImportedEmailAccount(account) {
+			return fmt.Errorf("%w: ledger section has an email account with invalid connection settings", module.ErrInvalidSection)
+		}
+	}
 
 	if err := m.replaceCategories(ctx, userID, section.Categories, res); err != nil {
 		return err

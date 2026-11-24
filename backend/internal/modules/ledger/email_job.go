@@ -137,14 +137,22 @@ func scanResumesSoon(result LedgerEmailScanResult, err error, timedOut bool) boo
 	return timedOut || (err == nil && result.Partial)
 }
 
+// imapFailureText replaces an IMAP error for the user: the error carries
+// dial errors and the server's own text, which the client must not see.
+const imapFailureText = "the connection to the mail server failed"
+
 // scanErrorText is the failure as shown to the user; unexpected errors stay in
 // the log.
 func scanErrorText(err error) string {
 	switch {
-	case errors.Is(err, ErrIMAP), errors.Is(err, ErrEmailLLMDisabled), errors.Is(err, ErrEmailFolderMissing):
+	case errors.Is(err, ErrIMAP):
+		return imapFailureText
+	case errors.Is(err, ErrEmailLLMDisabled), errors.Is(err, ErrEmailFolderMissing):
 		return err.Error()
 	case errors.Is(err, context.Canceled):
 		return "scan interrupted"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "scan timed out"
 	default:
 		return "internal error"
 	}

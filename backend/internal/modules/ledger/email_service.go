@@ -31,6 +31,7 @@ var (
 	ErrEmailPasswordMissing = errors.New("no stored email password; edit the account and re-enter the password")
 	ErrIMAP                 = errors.New("imap")
 	ErrIMAPLogin            = errors.New("imap login failed")
+	ErrIMAPFolder           = errors.New("imap folder could not be selected")
 )
 
 func imapError(err error) error {
@@ -306,14 +307,19 @@ func listMessages(ctx context.Context, client *imapClient, uids []uint32, h head
 	return msgs, nil
 }
 
+// TestConnection logs in and selects the account's folders. A refused login
+// is ErrIMAPLogin, a refused SELECT ErrIMAPFolder, everything else ErrIMAP.
 func (s *EmailService) TestConnection(account LedgerEmailAccount, password string) error {
 	client, err := newIMAPClient(account.IMAPHost, account.IMAPPort, account.UseTLS)
 	if err != nil {
-		return err
+		return imapError(err)
 	}
 	defer client.Close()
 	if err := client.Login(account.Username, password); err != nil {
-		return err
+		if errors.Is(err, errIMAPCommandFailed) {
+			return ErrIMAPLogin
+		}
+		return imapError(err)
 	}
 	defer client.Logout()
 	for _, folder := range []string{account.Folder, account.DraftsFolder} {
@@ -321,7 +327,10 @@ func (s *EmailService) TestConnection(account LedgerEmailAccount, password strin
 			continue
 		}
 		if err := client.SelectFolder(folder); err != nil {
-			return err
+			if errors.Is(err, errIMAPCommandFailed) {
+				return ErrIMAPFolder
+			}
+			return imapError(err)
 		}
 	}
 	return nil

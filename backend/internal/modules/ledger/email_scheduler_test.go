@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"errors"
 	"context"
 	"encoding/json"
 	"log/slog"
@@ -236,8 +237,9 @@ func TestScanOutcome(t *testing.T) {
 		{"complete", ok, nil, false, `Background scan of folder "F": 2 emails scanned, 1 new orders, 0 linked`, true},
 		{"repeated llm failures", partial, nil, false, `Background scan of folder "F" stopped after repeated LLM failures; it is retried shortly`, false},
 		{"timeout", partial, context.DeadlineExceeded, true, `Background scan of folder "F" timed out; it continues shortly`, false},
-		{"deadline without scan timeout", ok, context.DeadlineExceeded, false, "Background scan failed: context deadline exceeded", false},
-		{"imap failure", ok, ErrIMAP, false, "Background scan failed: imap", false},
+		{"deadline without scan timeout", ok, context.DeadlineExceeded, false, "Background scan failed: scan timed out", false},
+		{"imap failure", ok, imapError(errors.New("unexpected imap greeting: SSH-2.0-OpenSSH")), false, "Background scan failed: " + imapFailureText, false},
+		{"other failure", ok, errors.New("badger: disk full"), false, "Background scan failed: internal error", false},
 		{"skipped messages", LedgerEmailScanResult{EmailsScanned: 3, OrdersNew: 1, Skipped: 2}, nil, false, `Background scan of folder "F": 3 emails scanned, 1 new orders, 0 linked; 2 skipped and retried on the next run`, false},
 	}
 	for _, tt := range tests {
