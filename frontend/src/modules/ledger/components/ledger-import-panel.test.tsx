@@ -274,9 +274,7 @@ describe("LedgerImportPanel", () => {
     expect(api.calls.filter((c) => c.method === "POST" && c.path.endsWith("/commit"))).toHaveLength(0)
   })
 
-  // Gap: the reset clears the file state but not the uncontrolled file input, which still shows the
-  // old file, and picking the same file again fires no change event, so Preview stays disabled.
-  it.fails("clears the file input on Cancel so the same file can be picked again", async () => {
+  it("clears the file input on Cancel so the same file can be picked again", async () => {
     mockLedger({ "POST /ledger/imports/preview": preview({ accountId: "acc-giro" }) })
     const { user, container, previewFile } = renderPanel([giro])
 

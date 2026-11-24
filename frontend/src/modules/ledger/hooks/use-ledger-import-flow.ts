@@ -21,6 +21,8 @@ export function useLedgerImportFlow(accounts: LedgerAccount[]) {
   const [selectedAccountId, setSelectedAccountId] = useState<string>("")
   const [preview, setPreview] = useState<LedgerPreviewResult | null>(null)
   const [mode, setMode] = useState<LedgerImportMode>("existing")
+  // remounts the uncontrolled file input on reset, so the same file can be picked again
+  const [fileInputKey, setFileInputKey] = useState(0)
 
   const newAccountForm = useForm<LedgerAccountInput>({
     resolver: standardSchemaResolver(ledgerAccountInputSchema) as Resolver<LedgerAccountInput>,
@@ -33,6 +35,7 @@ export function useLedgerImportFlow(accounts: LedgerAccount[]) {
 
   function resetFlow() {
     setFile(null)
+    setFileInputKey((key) => key + 1)
     setSelectedAccountId("")
     setPreview(null)
     setMode("existing")
@@ -100,6 +103,7 @@ export function useLedgerImportFlow(accounts: LedgerAccount[]) {
 
   return {
     setFile,
+    fileInputKey,
     sourceType,
     setSourceType,
     selectedAccountId,

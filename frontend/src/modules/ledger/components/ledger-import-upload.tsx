@@ -35,7 +35,7 @@ export function LedgerImportUpload({ flow, accounts }: { flow: LedgerImportFlow;
         <div className="space-y-2 md:col-span-2">
           <label className="text-sm font-medium">{t("ledger.file")}</label>
           <div className="flex gap-2">
-            <Input type="file" accept=".csv,text/csv" onChange={(e) => flow.setFile(e.target.files?.[0] ?? null)} />
+            <Input key={flow.fileInputKey} type="file" accept=".csv,text/csv" onChange={(e) => flow.setFile(e.target.files?.[0] ?? null)} />
             <Button type="button" onClick={flow.handlePreview} disabled={!flow.canPreview || flow.isPreviewing}>
               <Upload className="mr-2 h-4 w-4" />
               {flow.isPreviewing ? t("ledger.previewing") : t("ledger.preview")}
