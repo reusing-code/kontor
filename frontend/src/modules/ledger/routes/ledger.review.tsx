@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { ChevronLeftIcon, ChevronRightIcon, ChevronsLeftIcon, ChevronsRightIcon, SparklesIcon } from "lucide-react"
+import { SparklesIcon } from "lucide-react"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { useCapabilities } from "@/hooks/use-capabilities"
 import { useLedgerCategories } from "@/modules/ledger/hooks/use-ledger-categories"
@@ -23,6 +23,8 @@ import {
 } from "@/modules/ledger/lib/review-queue"
 import type { LedgerReviewQueueItem, LedgerSuggestionRunResult } from "@/modules/ledger/types"
 import { Button } from "@/components/ui/button"
+import { Pager } from "@/components/pager"
+import { pageCountOf } from "@/lib/pagination"
 
 // Entries (single transactions or groups) per page.
 export const reviewPageSize = 50
@@ -40,35 +42,6 @@ function visibleRows(entries: ReviewEntry[], expanded: ReadonlySet<string>): Led
   })
 }
 
-interface PagerProps {
-  page: number
-  pageCount: number
-  onChange: (page: number) => void
-}
-
-function Pager({ page, pageCount, onChange }: PagerProps) {
-  const { t } = useTranslation()
-  if (pageCount <= 1) return null
-  const buttons = [
-    { label: t("ledger.queue.firstPage"), icon: <ChevronsLeftIcon />, target: 0, disabled: page === 0 },
-    { label: t("ledger.queue.previousPage"), icon: <ChevronLeftIcon />, target: page - 1, disabled: page === 0 },
-    { label: t("ledger.queue.nextPage"), icon: <ChevronRightIcon />, target: page + 1, disabled: page >= pageCount - 1 },
-    { label: t("ledger.queue.lastPage"), icon: <ChevronsRightIcon />, target: pageCount - 1, disabled: page >= pageCount - 1 },
-  ]
-  const button = (b: (typeof buttons)[number]) => (
-    <Button key={b.label} type="button" variant="outline" size="icon" className="size-8" aria-label={b.label} disabled={b.disabled} onClick={() => onChange(b.target)}>
-      {b.icon}
-    </Button>
-  )
-  return (
-    <nav className="flex items-center gap-1 text-sm" aria-label={t("ledger.queue.pagination")}>
-      {buttons.slice(0, 2).map(button)}
-      <span className="px-2 tabular-nums">{t("ledger.queue.pageInfo", { page: page + 1, pages: pageCount })}</span>
-      {buttons.slice(2).map(button)}
-    </nav>
-  )
-}
-
 export function LedgerReviewPage() {
   const { t } = useTranslation()
   usePageTitle(t("ledger.reviewQueue"), t("app.title"))
@@ -81,7 +54,7 @@ export function LedgerReviewPage() {
   const listRef = useRef<HTMLDivElement>(null)
 
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | undefined>()
-  const [page, setPage] = useState(0)
+  const [page, setPage] = useState(1)
   const [expandedGroups, setExpandedGroups] = useState<ReadonlySet<string>>(() => new Set())
   // Every proposal starts selected, so only opt-outs are tracked; match words
   // start off, so only opt-ins are tracked.
@@ -91,10 +64,10 @@ export function LedgerReviewPage() {
 
   const transactions = useMemo(() => queue?.items ?? [], [queue?.items])
   const entries = useMemo(() => groupReviewQueue(transactions, llm), [transactions, llm])
-  const pageCount = Math.max(1, Math.ceil(entries.length / reviewPageSize))
+  const pageCount = pageCountOf(entries.length, reviewPageSize)
   // Reviewing shrinks the queue; stay on the last page that still exists.
-  const currentPage = Math.min(page, pageCount - 1)
-  const pageEntries = entries.slice(currentPage * reviewPageSize, (currentPage + 1) * reviewPageSize)
+  const currentPage = Math.min(page, pageCount)
+  const pageEntries = entries.slice((currentPage - 1) * reviewPageSize, currentPage * reviewPageSize)
   const selectedTransaction = transactions.find((item) => item.id === selectedTransactionId)
 
   const withProposal = useMemo(() => transactions.filter((item) => reviewProposal(item, llm)), [transactions, llm])
@@ -223,7 +196,7 @@ export function LedgerReviewPage() {
             <p className="text-sm text-muted-foreground">
               {isLoading ? t("common.loading") : t("ledger.queue.count", { count: transactions.length })}
             </p>
-            <Pager page={currentPage} pageCount={pageCount} onChange={(next) => goToPage(next, false)} />
+            <Pager page={currentPage} pageCount={pageCount} label={t("ledger.queue.pagination")} onChange={(next) => goToPage(next, false)} />
           </div>
           {!isLoading && (
             <LedgerReviewList
@@ -241,7 +214,7 @@ export function LedgerReviewPage() {
             />
           )}
           <div className="flex justify-end">
-            <Pager page={currentPage} pageCount={pageCount} onChange={(next) => goToPage(next, true)} />
+            <Pager page={currentPage} pageCount={pageCount} label={t("ledger.queue.pagination")} onChange={(next) => goToPage(next, true)} />
           </div>
         </div>
         <div className="xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">

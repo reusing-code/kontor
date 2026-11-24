@@ -668,11 +668,6 @@
       "count_one": "{{count}} transaction to review",
       "count_other": "{{count}} transactions to review",
       "pagination": "Review queue pages",
-      "pageInfo": "Page {{page}} of {{pages}}",
-      "firstPage": "First page",
-      "previousPage": "Previous page",
-      "nextPage": "Next page",
-      "lastPage": "Last page",
       "groupCount_one": "{{count}} transaction",
       "groupCount_other": "{{count}} transactions",
       "expandGroup": "Show the transactions of {{name}}",
@@ -927,7 +922,7 @@
     "detached": "Document link removed",
     "detachConfirm": "Remove the link to the document \"{{title}}\"? The document stays in paperless.",
     "openInPaperless": "Open in paperless",
-    "pageOf": "Page {{page}} of {{total}}",
+    "pagination": "Search result pages",
     "pipeline": {
       "title": "Draft pipeline",
       "description": "Tag a document with \"{{inboxTag}}\" in paperless and Kontor proposes a purchase, contract or vehicle cost from its text in your inbox. Accepting a draft replaces the tag with \"{{doneTag}}\".",
@@ -1164,8 +1159,11 @@
     "perQuarter": "/ qtr",
     "perYear": "/ yr",
     "viewAll": "View all",
-    "previousPage": "Previous page",
-    "nextPage": "Next page",
-    "error": "Something went wrong."
+    "error": "Something went wrong.",
+    "pagination": {
+      "page": "Page {{page}}",
+      "previousPage": "Previous page",
+      "nextPage": "Next page"
+    }
   }
 }

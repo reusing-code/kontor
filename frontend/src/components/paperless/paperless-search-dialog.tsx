@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { formatDate } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { Check, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
+import { Check, Loader2 } from "lucide-react"
 import { usePaperlessSearch, useAttachPaperlessDocuments } from "@/hooks/use-paperless"
 import type { PaperlessEntityType, PaperlessSearchResult } from "@/types/paperless"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Pager } from "@/components/pager"
+import { pageCountOf } from "@/lib/pagination"
 import { PaperlessThumbnail } from "@/components/paperless/paperless-thumbnail"
 import { cn } from "@/lib/utils"
 
@@ -35,13 +37,15 @@ export function PaperlessSearchDialog({
   const [selected, setSelected] = useState<Map<number, PaperlessSearchResult>>(new Map())
   const attach = useAttachPaperlessDocuments(entityType, entityId)
 
+  // Only a changed search starts again at page 1.
   useEffect(() => {
+    if (searchInput === query) return
     const handle = setTimeout(() => {
       setQuery(searchInput)
       setPage(1)
     }, 300)
     return () => clearTimeout(handle)
-  }, [searchInput])
+  }, [searchInput, query])
 
   const [prevOpen, setPrevOpen] = useState(open)
   if (open !== prevOpen) {
@@ -55,7 +59,7 @@ export function PaperlessSearchDialog({
   }
 
   const { data, isFetching, error } = usePaperlessSearch(query, page, open)
-  const totalPages = useMemo(() => (data ? Math.max(1, Math.ceil(data.count / data.pageSize)) : 1), [data])
+  const totalPages = data ? pageCountOf(data.count, data.pageSize) : 1
 
   function toggle(doc: PaperlessSearchResult) {
     if (existingDocIds.includes(doc.id)) return
@@ -149,31 +153,9 @@ export function PaperlessSearchDialog({
             })}
           </div>
 
-          {data && totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1 || isFetching}
-                onClick={() => setPage((p) => p - 1)}
-                aria-label={t("common.previousPage")}
-                title={t("common.previousPage")}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                {t("paperless.pageOf", { page, total: totalPages })}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages || isFetching}
-                onClick={() => setPage((p) => p + 1)}
-                aria-label={t("common.nextPage")}
-                title={t("common.nextPage")}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+          {data && (
+            <div className="flex justify-center">
+              <Pager page={page} pageCount={totalPages} label={t("paperless.pagination")} disabled={isFetching} onChange={setPage} />
             </div>
           )}
         </div>

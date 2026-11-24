@@ -668,11 +668,6 @@
       "count_one": "{{count}} Transaktion zu prüfen",
       "count_other": "{{count}} Transaktionen zu prüfen",
       "pagination": "Seiten der Prüfqueue",
-      "pageInfo": "Seite {{page}} von {{pages}}",
-      "firstPage": "Erste Seite",
-      "previousPage": "Vorherige Seite",
-      "nextPage": "Nächste Seite",
-      "lastPage": "Letzte Seite",
       "groupCount_one": "{{count}} Transaktion",
       "groupCount_other": "{{count}} Transaktionen",
       "expandGroup": "Transaktionen von {{name}} anzeigen",
@@ -927,7 +922,7 @@
     "detached": "Dokumentverknüpfung entfernt",
     "detachConfirm": "Verknüpfung mit dem Dokument \"{{title}}\" entfernen? Das Dokument bleibt in paperless erhalten.",
     "openInPaperless": "In paperless öffnen",
-    "pageOf": "Seite {{page}} von {{total}}",
+    "pagination": "Seiten der Suchergebnisse",
     "pipeline": {
       "title": "Entwurfs-Pipeline",
       "description": "Versieh ein Dokument in paperless mit dem Tag \"{{inboxTag}}\" und Kontor schlägt aus dem Text einen Kauf, Vertrag oder Fahrzeugkosten in deinem Eingang vor. Beim Übernehmen wird der Tag durch \"{{doneTag}}\" ersetzt.",
@@ -1164,8 +1159,11 @@
     "perQuarter": "/ Quartal",
     "perYear": "/ Jahr",
     "viewAll": "Alle anzeigen",
-    "previousPage": "Vorherige Seite",
-    "nextPage": "Nächste Seite",
-    "error": "Etwas ist schiefgelaufen."
+    "error": "Etwas ist schiefgelaufen.",
+    "pagination": {
+      "page": "Seite {{page}}",
+      "previousPage": "Vorherige Seite",
+      "nextPage": "Nächste Seite"
+    }
   }
 }

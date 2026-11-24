@@ -190,17 +190,24 @@ describe("LedgerReviewPage", () => {
     const { user } = setup(items)
 
     expect(await screen.findByText("120 transactions to review")).toBeInTheDocument()
-    expect(screen.getAllByText("Page 1 of 3")).toHaveLength(2)
+    const navs = screen.getAllByRole("navigation", { name: "Review queue pages" })
+    expect(navs).toHaveLength(2)
+    const current = () => navs.map((nav) => within(nav).getByRole("button", { current: "page" }).textContent)
+    expect(current()).toEqual(["1", "1"])
     expect(screen.getByText("Payee 50")).toBeInTheDocument()
     expect(screen.queryByText("Payee 51")).toBeNull()
 
-    await user.click(screen.getAllByRole("button", { name: "Next page" })[0])
-    expect(screen.getAllByText("Page 2 of 3")).toHaveLength(2)
+    await user.click(within(navs[0]).getByRole("button", { name: "Next page" }))
+    expect(current()).toEqual(["2", "2"])
     expect(screen.getByText("Payee 51")).toBeInTheDocument()
 
-    await user.click(screen.getAllByRole("button", { name: "Last page" })[0])
+    await user.click(within(navs[1]).getByRole("button", { name: "Page 3" }))
     expect(screen.getByText("Payee 120")).toBeInTheDocument()
-    expect(screen.getAllByRole("button", { name: "Next page" })[0]).toBeDisabled()
+    expect(screen.queryByText("Payee 100")).toBeNull()
+    expect(within(navs[0]).getByRole("button", { name: "Next page" })).toBeDisabled()
+
+    await user.click(within(navs[0]).getByRole("button", { name: "Page 1" }))
+    expect(screen.getByText("Payee 1")).toBeInTheDocument()
   })
 
   it("clears the prefilled match word with one click", async () => {
@@ -237,13 +244,16 @@ describe("LedgerReviewPage", () => {
     const { user } = setup([...proposed, ...open])
 
     expect(await screen.findByText("120 transactions to review")).toBeInTheDocument()
-    await user.click(screen.getAllByRole("button", { name: "Last page" })[0])
-    expect(screen.getAllByText("Page 3 of 3")).toHaveLength(2)
+    const currentPages = () =>
+      screen.getAllByRole("navigation", { name: "Review queue pages" }).map((nav) => within(nav).getByRole("button", { current: "page" }).textContent)
+    await user.click(screen.getAllByRole("button", { name: "Page 3" })[0])
+    expect(currentPages()).toEqual(["3", "3"])
 
     await user.click(screen.getByRole("button", { name: "Accept 60 categories" }))
 
     expect(await screen.findByText("60 transactions to review")).toBeInTheDocument()
-    expect(screen.getAllByText("Page 2 of 2")).toHaveLength(2)
+    expect(currentPages()).toEqual(["2", "2"])
+    expect(screen.queryByRole("button", { name: "Page 3" })).toBeNull()
     expect(screen.getByText("Payeeby")).toBeInTheDocument()
     expect(screen.getByText("Payeech")).toBeInTheDocument()
     expect(screen.queryByText("Payeebx")).toBeNull()
