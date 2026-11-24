@@ -153,8 +153,8 @@ func (s *Store) ListAllLedgerTransactions(_ context.Context, userID string) ([]L
 	return txns, err
 }
 
-func (s *Store) ListLedgerTransactionsPage(_ context.Context, userID string, accountID uuid.UUID, limit int, cursor string) (LedgerTransactionPage, error) {
-	return s.ListLedgerTransactionsFiltered(context.Background(), userID, LedgerTransactionListOptions{
+func (s *Store) ListLedgerTransactionsPage(ctx context.Context, userID string, accountID uuid.UUID, limit int, cursor string) (LedgerTransactionPage, error) {
+	return s.ListLedgerTransactionsFiltered(ctx, userID, LedgerTransactionListOptions{
 		AccountID: &accountID,
 		Limit:     limit,
 		Cursor:    cursor,

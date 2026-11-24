@@ -91,8 +91,8 @@ func (s *Store) ListLedgerEmailOrdersByAccount(_ context.Context, userID string,
 	return items, err
 }
 
-func (s *Store) ListLedgerEmailOrdersByTransaction(_ context.Context, userID string, transactionID uuid.UUID) ([]LedgerEmailOrder, error) {
-	items, err := s.ListLedgerEmailOrders(context.Background(), userID)
+func (s *Store) ListLedgerEmailOrdersByTransaction(ctx context.Context, userID string, transactionID uuid.UUID) ([]LedgerEmailOrder, error) {
+	items, err := s.ListLedgerEmailOrders(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
