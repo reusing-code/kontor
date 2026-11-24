@@ -328,3 +328,64 @@ func TestServiceCommit_NoAccountProvided(t *testing.T) {
 		t.Fatal("expected error when no account is provided")
 	}
 }
+
+func dkbCSVWithRows(rows ...string) string {
+	return "\xEF\xBB\xBF" + `"Girokonto";"DE12345678901234567890"
+""
+"Kontostand vom DD.MM.YYYY:";"111.111,11 €"
+""
+"Buchungsdatum";"Wertstellung";"Status";"Zahlungspflichtige*r";"Zahlungsempfänger*in";"Verwendungszweck";"Umsatztyp";"IBAN";"Betrag (€)";"Gläubiger-ID";"Mandatsreferenz";"Kundenreferenz"
+` + strings.Join(rows, "\n") + "\n"
+}
+
+func TestServiceCommit_ImportsIdenticalRowsOfOneFile(t *testing.T) {
+	s := newTestStore(t)
+	accID := createDKBAccount(t, s)
+	svc := NewImportService(s.Store, testLogger())
+	ctx := context.Background()
+	coffee := `"08.04.26";"08.04.26";"Gebucht";"Fred";"Cafe";"Kaffee";"Ausgang";"DE11222233334444555566";"-3,50";"";"";""`
+	other := `"07.04.26";"07.04.26";"Gebucht";"Fred";"Bakery";"Bread";"Ausgang";"DE11222233334444555566";"-2,00";"";"";""`
+
+	importFile := func(name, csv string) (*PreviewResult, *CommitResult) {
+		t.Helper()
+		preview, err := svc.Preview(ctx, PreviewRequest{File: strings.NewReader(csv), Filename: name, SourceType: SourceDKBCSV, UserID: "user1"})
+		if err != nil {
+			t.Fatalf("preview %s: %v", name, err)
+		}
+		result, err := svc.Commit(ctx, CommitRequest{PreviewID: preview.PreviewID, UserID: "user1"})
+		if err != nil {
+			t.Fatalf("commit %s: %v", name, err)
+		}
+		return preview, result
+	}
+
+	preview, result := importFile("first.csv", dkbCSVWithRows(coffee, coffee, other))
+	if preview.NewRows != 3 || preview.DuplicateRows != 0 {
+		t.Errorf("first preview new/dup = %d/%d, want 3/0", preview.NewRows, preview.DuplicateRows)
+	}
+	if result.ImportedRows != 3 || result.DuplicateRows != 0 {
+		t.Errorf("first commit imported/dup = %d/%d, want 3/0", result.ImportedRows, result.DuplicateRows)
+	}
+
+	// The first occurrence keeps the fingerprint of earlier versions.
+	if got, want := preview.Transactions[0].Fingerprint, Fingerprint(accID.String(), preview.Transactions[0].Row); got != want {
+		t.Errorf("first occurrence fingerprint = %s, want the plain fingerprint %s", got, want)
+	}
+
+	// An overlapping file with the same rows plus a third coffee imports only the new one.
+	preview, result = importFile("second.csv", dkbCSVWithRows(coffee, other, coffee, coffee))
+	if preview.NewRows != 1 || preview.DuplicateRows != 3 {
+		t.Errorf("second preview new/dup = %d/%d, want 1/3", preview.NewRows, preview.DuplicateRows)
+	}
+	if result.ImportedRows != 1 || result.DuplicateRows != 3 {
+		t.Errorf("second commit imported/dup = %d/%d, want 1/3", result.ImportedRows, result.DuplicateRows)
+	}
+
+	txns, err := s.ListLedgerTransactions(ctx, "user1", accID)
+	if err != nil {
+		t.Fatalf("ListLedgerTransactions: %v", err)
+	}
+	if len(txns) != 4 {
+		t.Errorf("total transactions = %d, want 4", len(txns))
+	}
+}
