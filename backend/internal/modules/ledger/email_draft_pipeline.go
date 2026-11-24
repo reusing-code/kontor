@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/core"
-	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 	"github.com/reusing-code/kontor/backend/internal/drafts"
 	"github.com/reusing-code/kontor/backend/internal/extraction"
 )
@@ -90,19 +89,7 @@ func (p *EmailDraftPipeline) Start(ctx context.Context, wg *sync.WaitGroup) {
 		return
 	}
 	wg.Go(func() {
-		p.logger.Info("email draft pipeline started", "interval", p.interval)
-		p.runAll(ctx)
-		ticker := time.NewTicker(p.interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				p.logger.Info("email draft pipeline stopped")
-				return
-			case <-ticker.C:
-				p.runAll(ctx)
-			}
-		}
+		runTicker(ctx, p.logger, "email draft pipeline", p.interval, p.interval, p.runAll)
 	})
 }
 
@@ -216,7 +203,7 @@ func (p *EmailDraftPipeline) runAccount(ctx context.Context, run *emailDraftRun,
 		run.warn(account, "no stored password")
 		return nil
 	}
-	password, err := cryptoutil.DecryptString(account.EncryptedPassword, p.encryptionKey)
+	password, err := accountPassword(account, p.encryptionKey)
 	if err != nil {
 		p.logger.Error("decrypting email account password", "userID", run.userID, "accountID", account.ID, "error", err)
 		run.warn(account, "could not decrypt the stored password")

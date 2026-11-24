@@ -74,24 +74,11 @@ func (s *BankSyncScheduler) Start(ctx context.Context, wg *sync.WaitGroup) {
 // Run does an immediate pass, then one per tick, until ctx ends. The tick is
 // hourly when the interval is 0 so reminders and pruning keep working.
 func (s *BankSyncScheduler) Run(ctx context.Context) {
-	s.logger.Info("bank sync scheduler started", "interval", s.interval)
-	s.runPass(ctx)
-
 	tick := time.Hour
 	if s.interval > 0 {
 		tick = schedulerTickInterval(s.interval)
 	}
-	ticker := time.NewTicker(tick)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			s.logger.Info("bank sync scheduler stopped")
-			return
-		case <-ticker.C:
-			s.runPass(ctx)
-		}
-	}
+	runTicker(ctx, s.logger, "bank sync scheduler", s.interval, tick, s.runPass)
 }
 
 func (s *BankSyncScheduler) runPass(ctx context.Context) {

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 	"github.com/reusing-code/kontor/backend/internal/fx"
 	"github.com/reusing-code/kontor/backend/internal/llm"
 )
@@ -220,6 +221,15 @@ func (s *EmailService) scanSelected(ctx context.Context, client *imapClient, use
 
 // openMailbox connects, logs in and selects the folder. The caller logs out
 // and closes the client.
+// accountPassword decrypts the stored IMAP password of the account;
+// ErrEmailPasswordMissing when none is stored.
+func accountPassword(account LedgerEmailAccount, key []byte) (string, error) {
+	if account.EncryptedPassword == "" {
+		return "", ErrEmailPasswordMissing
+	}
+	return cryptoutil.DecryptString(account.EncryptedPassword, key)
+}
+
 func openMailbox(account LedgerEmailAccount, password, folder string) (*imapClient, error) {
 	client, err := newIMAPClient(account.IMAPHost, account.IMAPPort, account.UseTLS)
 	if err != nil {

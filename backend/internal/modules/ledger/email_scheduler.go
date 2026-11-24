@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/reusing-code/kontor/backend/internal/core"
-	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 )
 
 // emailScanTimeout bounds one account scan, scheduled or manual. A variable so
@@ -38,21 +37,7 @@ func NewEmailScanScheduler(s *Store, coreStore *core.Store, service *EmailServic
 
 func (s *EmailScanScheduler) Start(ctx context.Context, wg *sync.WaitGroup) {
 	wg.Go(func() {
-		s.logger.Info("ledger email scan scheduler started", "interval", s.interval)
-		s.scanAll(ctx)
-
-		ticker := time.NewTicker(emailSchedulerTick(s.interval))
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				s.logger.Info("ledger email scan scheduler stopped")
-				return
-			case <-ticker.C:
-				s.scanAll(ctx)
-			}
-		}
+		runTicker(ctx, s.logger, "ledger email scan scheduler", s.interval, emailSchedulerTick(s.interval), s.scanAll)
 	})
 }
 
@@ -141,7 +126,7 @@ func (s *EmailScanScheduler) scanAccount(ctx context.Context, userID string, acc
 		s.finishScan(ctx, userID, account, "Background scan skipped: no stored password, re-enter the account password", true, false, false)
 		return
 	}
-	password, err := cryptoutil.DecryptString(account.EncryptedPassword, s.encryptionKey)
+	password, err := accountPassword(account, s.encryptionKey)
 	if err != nil {
 		s.logger.Error("decrypting email account password", "userID", userID, "accountID", account.ID, "error", err)
 		s.finishScan(ctx, userID, account, fmt.Sprintf("Background scan failed: %v", err), true, false, false)

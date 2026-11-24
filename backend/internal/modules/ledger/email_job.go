@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 )
 
 const (
@@ -167,10 +166,10 @@ func (s *EmailService) StartScan(userID string, account LedgerEmailAccount, encr
 	if err := s.CanScan(account, true); err != nil {
 		return LedgerEmailScanStatus{}, err
 	}
-	if account.EncryptedPassword == "" {
-		return LedgerEmailScanStatus{}, ErrEmailPasswordMissing
+	password, err := accountPassword(account, encryptionKey)
+	if errors.Is(err, ErrEmailPasswordMissing) {
+		return LedgerEmailScanStatus{}, err
 	}
-	password, err := cryptoutil.DecryptString(account.EncryptedPassword, encryptionKey)
 	if err != nil {
 		return LedgerEmailScanStatus{}, fmt.Errorf("decrypting email password: %w", err)
 	}

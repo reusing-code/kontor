@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 	"github.com/reusing-code/kontor/backend/internal/storage"
 )
 
@@ -326,7 +325,7 @@ func (a *emailActions) kick(ctx context.Context, userID string, accountID uuid.U
 	if err != nil || len(entries) == 0 || account.DraftsFolder == "" || account.EncryptedPassword == "" || len(encryptionKey) == 0 {
 		return
 	}
-	password, err := cryptoutil.DecryptString(account.EncryptedPassword, encryptionKey)
+	password, err := accountPassword(account, encryptionKey)
 	if err != nil {
 		a.logger.Error("decrypting email account password", "userID", userID, "accountID", accountID, "error", err)
 		return

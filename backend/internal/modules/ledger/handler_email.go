@@ -173,7 +173,7 @@ func (h *Handler) TestLedgerEmailAccount(w http.ResponseWriter, r *http.Request)
 		httputil.Error(h.logger, w, http.StatusConflict, ErrEmailPasswordMissing.Error())
 		return
 	}
-	password, err := cryptoutil.DecryptString(account.EncryptedPassword, h.encryptionKey)
+	password, err := accountPassword(account, h.encryptionKey)
 	if err != nil {
 		httputil.Error(h.logger, w, http.StatusInternalServerError, "could not decrypt stored email password")
 		return
@@ -229,7 +229,7 @@ func (h *Handler) ListLedgerEmailFolders(w http.ResponseWriter, r *http.Request)
 			httputil.Error(h.logger, w, http.StatusInternalServerError, "ENCRYPTION_KEY is not configured")
 			return
 		}
-		password, err = cryptoutil.DecryptString(account.EncryptedPassword, h.encryptionKey)
+		password, err = accountPassword(account, h.encryptionKey)
 		if err != nil {
 			httputil.Error(h.logger, w, http.StatusInternalServerError, "could not decrypt stored email password")
 			return
