@@ -1,7 +1,7 @@
 package categories
 
 import (
-	"errors"
+	"github.com/reusing-code/kontor/backend/internal/validate"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,11 +19,9 @@ type CategoryInput struct {
 	Name string `json:"name"`
 }
 
+// Validate trims the name and checks it.
 func (c *CategoryInput) Validate() error {
-	if c.Name == "" {
-		return errors.New("name is required")
-	}
-	return nil
+	return validate.Name("name", &c.Name)
 }
 
 // Default describes a seeded category with its i18n name key.

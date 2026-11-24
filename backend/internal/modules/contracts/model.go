@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"errors"
+	"github.com/reusing-code/kontor/backend/internal/validate"
 	"time"
 
 	"github.com/google/uuid"
@@ -110,25 +111,31 @@ type ContractInput struct {
 	Comments                string          `json:"comments,omitempty"`
 }
 
+// Validate trims the name and checks the input.
 func (c *ContractInput) Validate() error {
-	if c.Name == "" {
-		return errors.New("name is required")
-	}
-	if c.StartDate == "" {
-		return errors.New("startDate is required")
-	}
+	return validate.First(
+		validate.Name("name", &c.Name),
+		validate.Date("startDate", c.StartDate),
+		c.validateBillingInterval(),
+		validate.OptionalDate("endDate", c.EndDate),
+		validate.NonNegative("price", c.Price),
+		validate.Months("minimumDurationMonths", c.MinimumDurationMonths),
+		validate.Months("extensionDurationMonths", c.ExtensionDurationMonths),
+		validate.Months("noticePeriodMonths", c.NoticePeriodMonths),
+		validate.Text("productName", c.ProductName, validate.MaxName),
+		validate.Text("company", c.Company, validate.MaxName),
+		validate.Text("contractNumber", c.ContractNumber, validate.MaxName),
+		validate.Text("customerNumber", c.CustomerNumber, validate.MaxName),
+		validate.Text("customerPortalUrl", c.CustomerPortalURL, validate.MaxURL),
+		validate.Text("paperlessUrl", c.PaperlessURL, validate.MaxURL),
+		validate.Text("comments", c.Comments, validate.MaxText),
+	)
+}
+
+func (c *ContractInput) validateBillingInterval() error {
 	switch c.BillingInterval {
 	case "", BillingMonthly, BillingQuarterly, BillingYearly:
-	default:
-		return errors.New("billingInterval must be 'monthly', 'quarterly' or 'yearly'")
+		return nil
 	}
-	switch {
-	case c.MinimumDurationMonths < 0:
-		return errors.New("minimumDurationMonths must not be negative")
-	case c.ExtensionDurationMonths < 0:
-		return errors.New("extensionDurationMonths must not be negative")
-	case c.NoticePeriodMonths < 0:
-		return errors.New("noticePeriodMonths must not be negative")
-	}
-	return nil
+	return errors.New("billingInterval must be 'monthly', 'quarterly' or 'yearly'")
 }

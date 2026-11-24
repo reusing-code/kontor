@@ -1,7 +1,7 @@
 package purchases
 
 import (
-	"errors"
+	"github.com/reusing-code/kontor/backend/internal/validate"
 	"time"
 
 	"github.com/google/uuid"
@@ -60,9 +60,20 @@ type PurchaseInput struct {
 	Comments       string   `json:"comments,omitempty"`
 }
 
+// Validate trims the item name and checks the input.
 func (p *PurchaseInput) Validate() error {
-	if p.ItemName == "" {
-		return errors.New("itemName is required")
-	}
-	return nil
+	return validate.First(
+		validate.Name("itemName", &p.ItemName),
+		validate.OptionalDate("purchaseDate", p.PurchaseDate),
+		validate.NonNegative("price", p.Price),
+		validate.Text("type", p.Type, validate.MaxName),
+		validate.Text("brand", p.Brand, validate.MaxName),
+		validate.Text("articleNumber", p.ArticleNumber, validate.MaxName),
+		validate.Text("dealer", p.Dealer, validate.MaxName),
+		validate.Text("descriptionUrl", p.DescriptionURL, validate.MaxURL),
+		validate.Text("invoiceUrl", p.InvoiceURL, validate.MaxURL),
+		validate.Text("handbookUrl", p.HandbookURL, validate.MaxURL),
+		validate.Text("consumables", p.Consumables, validate.MaxText),
+		validate.Text("comments", p.Comments, validate.MaxText),
+	)
 }

@@ -181,7 +181,7 @@ func TestHandler_VehicleErrors(t *testing.T) {
 		{"create bad json", "POST", "/api/v1/vehicles", "{", http.StatusBadRequest, "invalid request body"},
 		{"create unknown field", "POST", "/api/v1/vehicles", map[string]any{"name": "V", "color": "red"}, http.StatusBadRequest, "invalid request body"},
 		{"create without name", "POST", "/api/v1/vehicles", map[string]any{"make": "VW"}, http.StatusBadRequest, "name is required"},
-		{"create bad date", "POST", "/api/v1/vehicles", map[string]any{"name": "V", "purchaseDate": "01.02.2024"}, http.StatusBadRequest, "purchaseDate must be in format YYYY-MM-DD"},
+		{"create bad date", "POST", "/api/v1/vehicles", map[string]any{"name": "V", "purchaseDate": "01.02.2024"}, http.StatusBadRequest, "purchaseDate must be a date in YYYY-MM-DD format"},
 		{"update invalid id", "PUT", "/api/v1/vehicles/nope", map[string]any{"name": "V"}, http.StatusBadRequest, "invalid id"},
 		{"update unknown", "PUT", unknown, map[string]any{"name": "V"}, http.StatusNotFound, "not found"},
 		{"update bad json", "PUT", existingPath, "{", http.StatusBadRequest, "invalid request body"},
