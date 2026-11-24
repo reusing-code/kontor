@@ -129,3 +129,7 @@ func (h *Handler) GetLedgerRankingAnalysis(w http.ResponseWriter, r *http.Reques
 func (h *Handler) GetLedgerNetWorthAnalysis(w http.ResponseWriter, r *http.Request) {
 	serveLedgerRangeAnalysis(h, w, r, h.store.LoadLedgerNetWorthData, AnalyzeLedgerNetWorth)
 }
+
+func (h *Handler) GetLedgerCategoryBreakdownAnalysis(w http.ResponseWriter, r *http.Request) {
+	serveLedgerRangeAnalysis(h, w, r, h.store.LoadLedgerAnalysisData, AnalyzeLedgerCategoryBreakdown)
+}

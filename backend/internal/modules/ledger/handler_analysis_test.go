@@ -190,6 +190,8 @@ func analysisLogRequests(accountID uuid.UUID) map[string]int {
 		"ranking?from=2026-10-02&to=2026-10-01": http.StatusBadRequest,
 		"net-worth":                             http.StatusOK,
 		"net-worth?from=bad":                    http.StatusBadRequest,
+		"category-breakdown":                    http.StatusOK,
+		"category-breakdown?from=2026-10-02&to=2026-10-01": http.StatusBadRequest,
 	}
 }
 
@@ -300,7 +302,7 @@ func TestLedgerAnalysis_FiveThousandTransactions(t *testing.T) {
 
 	putSnapshot(t, s, accountID, "2023-06-30", 1_000_000, "dkb.csv")
 
-	for _, path := range []string{"spending", "spending?parentCategoryId=" + categories[0].String(), "cash-flow", "ranking", "net-worth"} {
+	for _, path := range []string{"spending", "spending?parentCategoryId=" + categories[0].String(), "cash-flow", "ranking", "net-worth", "category-breakdown"} {
 		start := time.Now()
 		rec := getAnalysis(mux, path)
 		elapsed := time.Since(start)
@@ -414,5 +416,46 @@ func TestLedgerNetWorthEndpoint_LastPointIsCurrentBalance(t *testing.T) {
 		"?from=1900-01-01&to=2026-10-01": "more than 1200 months",
 	} {
 		wantAnalysisStatus(t, mux, "net-worth"+query, http.StatusBadRequest, message)
+	}
+}
+
+func TestLedgerCategoryBreakdownEndpoint(t *testing.T) {
+	h, s := newTestHandler(t)
+	pinAnalysisToday(h)
+	mux := newMux(h)
+
+	t.Run("empty user", func(t *testing.T) {
+		rec := getAnalysis(mux, "category-breakdown")
+		want := `{"from":"2026-11-22","to":"2026-11-22","totalMinor":0,"categories":[],"droppedInflows":0,"excludedCurrencies":[]}`
+		if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != want {
+			t.Fatalf("GET = %d %s, want %s", rec.Code, rec.Body, want)
+		}
+	})
+
+	accountID := addAccount(t, s, "Main")
+	food := addCategory(t, s, "Food")
+	groceries := addChildCategory(t, s, "Groceries", food)
+	addCategorized(t, s, accountID, "2026-09-10", -1500, &groceries)
+	addCategorized(t, s, accountID, "2026-10-10", -200, &food)
+	addCategorized(t, s, accountID, "2026-10-11", -300, nil)
+	addCategorized(t, s, accountID, "2026-08-01", -999, &food)
+
+	rec := getAnalysis(mux, "category-breakdown?from=2026-09-01&to=2026-10-31")
+	want := `{"from":"2026-09-01","to":"2026-10-31","totalMinor":2000,"categories":[` +
+		`{"kind":"category","categoryId":"` + food.String() + `","name":"Food","amountMinor":1700,"children":[` +
+		`{"kind":"category","categoryId":"` + groceries.String() + `","name":"Groceries","amountMinor":1500},` +
+		`{"kind":"direct","categoryId":"` + food.String() + `","name":"","amountMinor":200}]},` +
+		`{"kind":"uncategorized","name":"","amountMinor":300,"children":[]}],"droppedInflows":0,"excludedCurrencies":[]}`
+	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != want {
+		t.Fatalf("GET = %d %s\nwant %s", rec.Code, rec.Body, want)
+	}
+
+	for query, message := range map[string]string{
+		"?from=1.9.2026":                 "from must be a date (YYYY-MM-DD)",
+		"?to=2026-13-01":                 "to must be a date (YYYY-MM-DD)",
+		"?from=2026-10-02&to=2026-10-01": "from must not be after to",
+		"?from=1900-01-01&to=2026-10-01": "more than 1200 months",
+	} {
+		wantAnalysisStatus(t, mux, "category-breakdown"+query, http.StatusBadRequest, message)
 	}
 }
