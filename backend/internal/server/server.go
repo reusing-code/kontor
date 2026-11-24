@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -52,11 +53,16 @@ func New(cfg config.Config, logger *slog.Logger, engine *storage.Engine) *Server
 type app struct {
 	handler  http.Handler
 	patterns []string
-	// start launches the background services (backups, pipeline, module jobs).
+	// start launches the background services (backups, pipeline, module jobs)
+	// on background; they end with ctx.
 	start func(ctx context.Context)
+	// background counts every goroutine that may still write to the
+	// database: schedulers, jobs they or requests start, the welcome mail.
+	background *sync.WaitGroup
 }
 
 func (s *Server) buildApp() (*app, error) {
+	background := &sync.WaitGroup{}
 	jwtSecret := []byte(s.cfg.JWTSecret)
 	emailClient := email.NewClient(s.cfg)
 
@@ -114,6 +120,7 @@ func (s *Server) buildApp() (*app, error) {
 	coreHandler := core.NewHandler(coreStore, s.logger, jwtSecret, emailClient, seeds, registry)
 
 	coreHandler.SetRegistration(s.cfg.Registration)
+	coreHandler.SetBackground(background)
 	coreHandler.SetCapabilities(core.Capabilities{LLM: extractor.Enabled(), LLMVision: s.cfg.LLMVisionEnabled(), BankImport: ledgerMod.BankImportEnabled()})
 
 	paperlessStore := paperless.NewStore(engine)
@@ -228,32 +235,47 @@ func (s *Server) buildApp() (*app, error) {
 
 	start := func(ctx context.Context) {
 		if s.cfg.BackupDir != "" {
-			engine.StartBackups(ctx, storage.BackupConfig{
+			engine.StartBackups(ctx, background, storage.BackupConfig{
 				Dir:      s.cfg.BackupDir,
 				Interval: s.cfg.BackupInterval,
 				Keep:     s.cfg.BackupKeep,
 			})
 		}
-		pipeline.Start(ctx)
+		pipeline.Start(ctx, background)
 		for _, m := range registry.All() {
-			m.StartBackground(ctx)
+			m.StartBackground(ctx, background)
 		}
 	}
 
-	return &app{handler: chain, patterns: apiMux.patterns, start: start}, nil
+	return &app{handler: chain, patterns: apiMux.patterns, start: start, background: background}, nil
 }
 
-func (s *Server) Run() error {
-	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
-	defer shutdownCancel()
+// Shutdown budget: requests first, then the background work. Together they
+// stay below Kubernetes' default grace period of 30s.
+const (
+	httpShutdownTimeout       = 10 * time.Second
+	backgroundShutdownTimeout = 15 * time.Second
+)
 
+// Run serves until SIGINT/SIGTERM or a serve error. Either way it stops
+// the background work and waits for it, so the caller can close the
+// database afterwards.
+func (s *Server) Run() error {
 	a, err := s.buildApp()
 	if err != nil {
 		return err
 	}
-	a.start(shutdownCtx)
-
 	srv := newHTTPServer(s.cfg.Port, a.handler)
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
+	return s.serve(a, srv, quit)
+}
+
+func (s *Server) serve(a *app, srv *http.Server, quit <-chan os.Signal) error {
+	bgCtx, stopBackground := context.WithCancel(context.Background())
+	defer stopBackground()
+	a.start(bgCtx)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -262,19 +284,37 @@ func (s *Server) Run() error {
 		errCh <- srv.ListenAndServe()
 	}()
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
+	var runErr error
 	select {
 	case err := <-errCh:
-		return err
+		runErr = err
 	case sig := <-quit:
 		s.logger.Info("shutting down", "signal", sig)
+		ctx, cancel := context.WithTimeout(context.Background(), httpShutdownTimeout)
+		runErr = srv.Shutdown(ctx)
+		cancel()
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	return srv.Shutdown(ctx)
+	stopBackground()
+	if !waitTimeout(a.background, backgroundShutdownTimeout) {
+		s.logger.Warn("background work still running at shutdown", "timeout", backgroundShutdownTimeout)
+	}
+	return runErr
+}
+
+// waitTimeout waits for wg and reports whether it finished in time.
+func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
 }
 
 // No WriteTimeout: the manual bank sync answers after up to 15 minutes and

@@ -68,7 +68,7 @@ type RunResult struct {
 	Failed  int `json:"failed"`
 }
 
-func (p *Pipeline) Start(ctx context.Context) {
+func (p *Pipeline) Start(ctx context.Context, wg *sync.WaitGroup) {
 	switch {
 	case p.interval <= 0:
 		p.logger.Info("paperless pipeline disabled", "reason", "PAPERLESS_PIPELINE_INTERVAL is 0")
@@ -77,7 +77,7 @@ func (p *Pipeline) Start(ctx context.Context) {
 		p.logger.Info("paperless pipeline disabled", "reason", "LLM is not configured")
 		return
 	}
-	go func() {
+	wg.Go(func() {
 		p.logger.Info("paperless pipeline started", "interval", p.interval)
 		p.runAll(ctx)
 		ticker := time.NewTicker(p.interval)
@@ -91,7 +91,7 @@ func (p *Pipeline) Start(ctx context.Context) {
 				p.runAll(ctx)
 			}
 		}
-	}()
+	})
 }
 
 func (p *Pipeline) runAll(ctx context.Context) {

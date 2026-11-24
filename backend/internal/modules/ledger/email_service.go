@@ -53,6 +53,7 @@ type EmailService struct {
 	scanMu  sync.Mutex
 	scans   map[uuid.UUID]LedgerEmailScanStatus
 	baseCtx context.Context
+	wg      *sync.WaitGroup
 	// autoResume is set when the scheduler runs and continues partial scans.
 	autoResume bool
 	// maxExtractionFailures is the number of unusable answers after which a
@@ -72,7 +73,7 @@ func NewEmailService(s *Store, extractor llm.Extractor, rates fx.Rates, logger *
 	}
 	return &EmailService{
 		store: s, extractor: extractor, rates: rates, logger: logger, maxExtractionFailures: defaultMaxExtractionFailures,
-		scans: map[uuid.UUID]LedgerEmailScanStatus{}, baseCtx: context.Background(),
+		scans: map[uuid.UUID]LedgerEmailScanStatus{}, baseCtx: context.Background(), wg: &sync.WaitGroup{},
 		actions: newEmailActions(s, logger),
 	}
 }

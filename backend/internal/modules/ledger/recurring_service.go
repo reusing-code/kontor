@@ -59,7 +59,7 @@ type RecurringService struct {
 	mu      sync.Mutex
 	running map[string]bool
 	baseCtx context.Context
-	wg      sync.WaitGroup
+	wg      *sync.WaitGroup
 }
 
 // NewRecurringService builds the service; enabled may be nil (no module
@@ -72,17 +72,19 @@ func NewRecurringService(store *Store, draftStore *drafts.Store, enabled module.
 		logger:  logger,
 		running: map[string]bool{},
 		baseCtx: context.Background(),
+		wg:      &sync.WaitGroup{},
 	}
 }
 
-// SetBackgroundContext bounds background runs by the server's lifetime.
-func (s *RecurringService) SetBackgroundContext(ctx context.Context) {
+// SetBackground bounds background runs by the server's lifetime and starts
+// them on wg, which shutdown waits for.
+func (s *RecurringService) SetBackground(ctx context.Context, wg *sync.WaitGroup) {
 	if s == nil {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.baseCtx = ctx
+	s.baseCtx, s.wg = ctx, wg
 }
 
 func (s *RecurringService) tryLock(userID string) bool {
@@ -121,9 +123,13 @@ func (s *RecurringService) RunInBackground(userID string) {
 		return
 	}
 	s.mu.Lock()
-	base := s.baseCtx
+	base, wg := s.baseCtx, s.wg
 	s.mu.Unlock()
-	s.wg.Go(func() {
+	if base.Err() != nil {
+		s.unlock(userID)
+		return
+	}
+	wg.Go(func() {
 		defer s.unlock(userID)
 		ctx, cancel := context.WithTimeout(base, recurringRunTimeout)
 		defer cancel()

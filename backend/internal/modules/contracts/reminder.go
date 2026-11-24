@@ -6,10 +6,11 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/reusing-code/kontor/backend/internal/email"
 	"github.com/reusing-code/kontor/backend/internal/core"
+	"github.com/reusing-code/kontor/backend/internal/email"
 )
 
 var frequencyDurations = map[string]time.Duration{
@@ -34,8 +35,8 @@ func NewScheduler(coreStore *core.Store, contracts *Store, e *email.Client, logg
 	return &Scheduler{core: coreStore, contracts: contracts, email: e, logger: logger.With("component", "reminder")}
 }
 
-func (s *Scheduler) Start(ctx context.Context) {
-	go func() {
+func (s *Scheduler) Start(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Go(func() {
 		s.logger.Info("reminder scheduler started")
 		s.checkAll(ctx)
 
@@ -51,7 +52,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 				s.checkAll(ctx)
 			}
 		}
-	}()
+	})
 }
 
 func (s *Scheduler) checkAll(ctx context.Context) {

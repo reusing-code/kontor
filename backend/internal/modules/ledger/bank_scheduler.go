@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -66,8 +67,8 @@ func NewBankSyncScheduler(cfg BankSyncSchedulerConfig) *BankSyncScheduler {
 }
 
 // Start runs the scheduler in the background until ctx ends.
-func (s *BankSyncScheduler) Start(ctx context.Context) {
-	go s.Run(ctx)
+func (s *BankSyncScheduler) Start(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Go(func() { s.Run(ctx) })
 }
 
 // Run does an immediate pass, then one per tick, until ctx ends. The tick is

@@ -3,6 +3,7 @@ package contracts
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	"github.com/reusing-code/kontor/backend/internal/categories"
 	"github.com/reusing-code/kontor/backend/internal/core"
@@ -70,12 +71,12 @@ func (m *Module) Seed(ctx context.Context, userID string) error {
 	return m.categories.SeedDefaults(ctx, userID, ModuleID, defaultCategories)
 }
 
-func (m *Module) StartBackground(ctx context.Context) {
+func (m *Module) StartBackground(ctx context.Context, wg *sync.WaitGroup) {
 	if !m.emailClient.IsConfigured() {
 		m.logger.Info("SMTP not configured, reminder scheduler disabled")
 		return
 	}
-	NewScheduler(m.coreStore, m.store, m.emailClient, m.logger).Start(ctx)
+	NewScheduler(m.coreStore, m.store, m.emailClient, m.logger).Start(ctx, wg)
 }
 
 func (m *Module) Prefix(userID string) []byte {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/reusing-code/kontor/backend/internal/core"
@@ -35,8 +36,8 @@ func NewEmailScanScheduler(s *Store, coreStore *core.Store, service *EmailServic
 	}
 }
 
-func (s *EmailScanScheduler) Start(ctx context.Context) {
-	go func() {
+func (s *EmailScanScheduler) Start(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Go(func() {
 		s.logger.Info("ledger email scan scheduler started", "interval", s.interval)
 		s.scanAll(ctx)
 
@@ -52,7 +53,7 @@ func (s *EmailScanScheduler) Start(ctx context.Context) {
 				s.scanAll(ctx)
 			}
 		}
-	}()
+	})
 }
 
 // schedulerTickInterval checks more often than the scan interval so accounts

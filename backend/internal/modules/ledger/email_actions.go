@@ -39,21 +39,21 @@ type emailActions struct {
 	locks         map[string]*sync.Mutex
 	// kicks holds the accounts with a running kick; true asks it to run again.
 	kicks map[uuid.UUID]bool
-	wg    sync.WaitGroup
+	wg    *sync.WaitGroup
 }
 
 func newEmailActions(store *Store, logger *slog.Logger) *emailActions {
 	return &emailActions{
 		store: store, logger: logger.With("component", "ledger-email-actions"), baseCtx: context.Background(),
-		locks: map[string]*sync.Mutex{}, kicks: map[uuid.UUID]bool{},
+		locks: map[string]*sync.Mutex{}, kicks: map[uuid.UUID]bool{}, wg: &sync.WaitGroup{},
 	}
 }
 
-// setBackgroundContext bounds the work started by Kick.
-func (a *emailActions) setBackgroundContext(ctx context.Context) {
+// setBackground bounds the work started by Kick and starts it on wg.
+func (a *emailActions) setBackground(ctx context.Context, wg *sync.WaitGroup) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.baseCtx = ctx
+	a.baseCtx, a.wg = ctx, wg
 }
 
 // setEncryptionKey lets Kick open a mailbox on its own; without a key only
@@ -285,11 +285,15 @@ func (a *emailActions) Kick(userID string, accountID uuid.UUID) {
 		a.mu.Unlock()
 		return
 	}
+	base, key, wg := a.baseCtx, a.encryptionKey, a.wg
+	if base.Err() != nil {
+		a.mu.Unlock()
+		return
+	}
 	a.kicks[accountID] = false
-	base, key := a.baseCtx, a.encryptionKey
 	a.mu.Unlock()
 
-	a.wg.Go(func() {
+	wg.Go(func() {
 		for {
 			ctx, cancel := context.WithTimeout(base, emailActionKickTimeout)
 			a.kick(ctx, userID, accountID, key)

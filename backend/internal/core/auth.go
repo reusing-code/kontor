@@ -64,6 +64,7 @@ type Handler struct {
 	paperlessLinks PaperlessLinkStore
 	capabilities   Capabilities
 	registration   config.Registration
+	background     *sync.WaitGroup
 	// registerMu makes the first-user check and the create one step.
 	registerMu sync.Mutex
 }
@@ -76,8 +77,13 @@ func NewHandler(store *Store, logger *slog.Logger, jwtSecret []byte, emailClient
 		emailClient: emailClient,
 		seeds:       seeds,
 		registry:    registry,
+		background:  &sync.WaitGroup{},
 	}
 }
+
+// SetBackground makes the welcome mail count as background work that
+// shutdown waits for.
+func (h *Handler) SetBackground(wg *sync.WaitGroup) { h.background = wg }
 
 // SetRegistration sets who may register; the zero value is
 // config.RegistrationFirstUser.
@@ -175,7 +181,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	h.runSeeds(r.Context(), user.ID.String())
 
 	if h.emailClient != nil {
-		go h.sendWelcomeEmail(user.Email)
+		h.background.Go(func() { h.sendWelcomeEmail(user.Email) })
 	}
 
 	token, err := h.issueToken(user)
