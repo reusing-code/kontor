@@ -98,13 +98,15 @@ func (s *Store) CreateVehicle(_ context.Context, userID string, v Vehicle) error
 	})
 }
 
+// UpdateVehicle keeps the stored linked transaction IDs; they are only
+// changed through the link registry.
 func (s *Store) UpdateVehicle(_ context.Context, userID string, v Vehicle) error {
-	v = normalizeVehicle(v)
 	return s.e.Update(func(txn *badger.Txn) error {
 		var existing Vehicle
 		if err := storage.GetJSON(txn, vehKey(userID, v.ID), &existing); err != nil {
 			return err
 		}
+		v.LinkedTransactionIDs = existing.LinkedTransactionIDs
 		return storeVehicle(txn, userID, v)
 	})
 }

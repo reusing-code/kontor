@@ -3,6 +3,7 @@ package contracts
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/dgraph-io/badger/v4"
@@ -117,6 +118,8 @@ func (s *Store) Create(_ context.Context, userID string, c Contract) error {
 	})
 }
 
+// Update keeps the stored linked transaction IDs; they are only changed
+// through the link registry.
 func (s *Store) Update(_ context.Context, userID string, c Contract) error {
 	c = normalize(c)
 	return s.e.Update(func(txn *badger.Txn) error {
@@ -124,6 +127,8 @@ func (s *Store) Update(_ context.Context, userID string, c Contract) error {
 		if err := storage.GetJSON(txn, conKey(userID, c.ID), &old); err != nil {
 			return err
 		}
+
+		c.LinkedTransactionIDs = normalize(old).LinkedTransactionIDs
 
 		if err := storeContract(txn, userID, c); err != nil {
 			return err
@@ -208,6 +213,14 @@ func (s *Store) CategoryCascade(txn *badger.Txn, userID string, categoryID uuid.
 	it.Close()
 
 	for _, cID := range contractIDs {
+		var con Contract
+		if err := storage.GetJSON(txn, conKey(userID, cID), &con); err == nil {
+			if err := s.links.RemoveReferencesTo(txn, userID, normalize(con).LinkedTransactionIDs, link.RefContract, cID); err != nil {
+				return err
+			}
+		} else if !errors.Is(err, storage.ErrNotFound) {
+			return err
+		}
 		if err := txn.Delete(conKey(userID, cID)); err != nil {
 			return err
 		}

@@ -3,6 +3,7 @@ package purchases
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/dgraph-io/badger/v4"
@@ -117,6 +118,8 @@ func (s *Store) Create(_ context.Context, userID string, p Purchase) error {
 	})
 }
 
+// Update keeps the stored linked transaction IDs; they are only changed
+// through the link registry.
 func (s *Store) Update(_ context.Context, userID string, p Purchase) error {
 	p = normalize(p)
 	return s.e.Update(func(txn *badger.Txn) error {
@@ -124,6 +127,8 @@ func (s *Store) Update(_ context.Context, userID string, p Purchase) error {
 		if err := storage.GetJSON(txn, purKey(userID, p.ID), &old); err != nil {
 			return err
 		}
+
+		p.LinkedTransactionIDs = normalize(old).LinkedTransactionIDs
 
 		if err := storePurchase(txn, userID, p); err != nil {
 			return err
@@ -208,6 +213,14 @@ func (s *Store) CategoryCascade(txn *badger.Txn, userID string, categoryID uuid.
 	it.Close()
 
 	for _, pID := range purchaseIDs {
+		var p Purchase
+		if err := storage.GetJSON(txn, purKey(userID, pID), &p); err == nil {
+			if err := s.links.RemoveReferencesTo(txn, userID, normalize(p).LinkedTransactionIDs, link.RefPurchase, pID); err != nil {
+				return err
+			}
+		} else if !errors.Is(err, storage.ErrNotFound) {
+			return err
+		}
 		if err := txn.Delete(purKey(userID, pID)); err != nil {
 			return err
 		}
