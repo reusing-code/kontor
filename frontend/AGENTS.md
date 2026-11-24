@@ -12,6 +12,7 @@ After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) an
 - `bun run build` — Type-check with `tsc -b` then Vite production build
 - `bun run lint` — Oxlint with type-aware rules (`oxlint --type-aware`, config in `.oxlintrc.json`: plugins eslint, typescript, react, oxc, unicorn and jsx-a11y, the `correctness` category and `react/exhaustive-deps` are errors, which includes every jsx-a11y rule but `anchor-ambiguous-text`, enabled on its own; `control-has-associated-label` also checks `Button` and looks 4 levels deep); TypeScript 7 (native `tsc`) means typescript-eslint is not used. CI fails on any finding; a disable comment needs a one-line reason
 - `bun run test` — Run the tests once (`vitest run`); `bunx vitest` watches, `bunx vitest run <file> -t <name>` narrows
+- `bun run test:coverage` — Run the tests with v8 coverage (`vitest run --coverage`; the `coverage` block in `vitest.config.ts`: all of `src/` except tests, `src/test/`, `src/components/ui/`, `*.d.ts` and `main.tsx`; summary in the terminal, HTML report in `coverage/`, gitignored; no thresholds). `bun run test` stays without coverage
 - `bun run preview` — Preview production build locally
 - `npx shadcn@latest add <component>` — Add a shadcn/ui component (e.g. button, table, dialog)
 

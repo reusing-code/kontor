@@ -29,6 +29,7 @@ Dev server runs at `http://localhost:5173`.
 | `bun run build` | Type-check and build for production |
 | `bun run lint` | Run Oxlint (type-aware, with the jsx-a11y rules) |
 | `bun run test` | Run the tests once (Vitest, jsdom) |
+| `bun run test:coverage` | Run the tests with a coverage report (v8; summary in the terminal, HTML in `coverage/`) |
 | `bunx vitest` | Run the tests in watch mode |
 | `bun run preview` | Preview production build |
 
