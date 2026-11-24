@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -60,6 +61,7 @@ func (c *PreviewCache) Delete(id string) {
 	delete(c.entries, id)
 }
 
+// Cleanup drops the expired previews.
 func (c *PreviewCache) Cleanup() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -68,6 +70,21 @@ func (c *PreviewCache) Cleanup() {
 	for id, entry := range c.entries {
 		if now.After(entry.expiresAt) {
 			delete(c.entries, id)
+		}
+	}
+}
+
+// RunCleanup calls Cleanup once per TTL until ctx ends, so abandoned
+// previews do not stay in memory until the next restart.
+func (c *PreviewCache) RunCleanup(ctx context.Context) {
+	ticker := time.NewTicker(c.ttl)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.Cleanup()
 		}
 	}
 }

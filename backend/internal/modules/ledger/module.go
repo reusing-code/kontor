@@ -273,6 +273,7 @@ func (m *Module) Seed(ctx context.Context, userID string) error {
 }
 
 func (m *Module) StartBackground(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Go(func() { m.handler.ledgerImport.cache.RunCleanup(ctx) })
 	m.handler.suggester.SetBackground(ctx, wg)
 	m.handler.recurring.SetBackground(ctx, wg)
 	m.handler.ledgerEmail.SetBackground(ctx, wg)
