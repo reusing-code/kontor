@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/categories"
 	"github.com/reusing-code/kontor/backend/internal/module"
 	"github.com/reusing-code/kontor/backend/internal/storage"
@@ -64,4 +65,15 @@ func (m *Module) Seed(ctx context.Context, userID string) error {
 
 func (m *Module) Prefix(userID string) []byte {
 	return module.Prefix(userID, ModuleID)
+}
+
+// LocateEntity implements module.EntityLocator for purchases.
+func (m *Module) LocateEntity(ctx context.Context, userID, entityType string, id uuid.UUID) (string, bool, error) {
+	if entityType != "purchase" {
+		return "", false, nil
+	}
+	if _, err := m.store.Get(ctx, userID, id); err != nil {
+		return "", true, err
+	}
+	return "/purchases/" + id.String(), true, nil
 }

@@ -9,31 +9,38 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/core"
 	"github.com/reusing-code/kontor/backend/internal/drafts"
 	"github.com/reusing-code/kontor/backend/internal/extraction"
+	"github.com/reusing-code/kontor/backend/internal/module"
 	"github.com/reusing-code/kontor/backend/internal/modules/auto"
-	"github.com/reusing-code/kontor/backend/internal/modules/contracts"
-	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
 )
 
-var draftTargetModules = map[string]string{
-	drafts.TargetPurchase: purchases.ModuleID,
-	drafts.TargetContract: contracts.ModuleID,
-	drafts.TargetCost:     auto.ModuleID,
+// draftTargetModules maps the draft targets of the modules to the module
+// that creates them.
+func draftTargetModules(mods ...module.Module) map[string]string {
+	targets := map[string]string{}
+	for _, m := range mods {
+		if p, ok := m.(draftCreatorProvider); ok {
+			for target := range p.DraftCreators() {
+				targets[target] = m.ID()
+			}
+		}
+	}
+	return targets
 }
 
 // extractionDeps adapts the module stores for the classifier, which must not
-// import modules itself.
-func extractionDeps(coreStore *core.Store, catStore *categories.Store, autoStore *auto.Store) extraction.Deps {
+// import modules itself. targetModules maps a draft target to its module.
+func extractionDeps(coreStore *core.Store, catStore *categories.Store, autoStore *auto.Store, targetModules map[string]string) extraction.Deps {
 	return extraction.Deps{
 		TargetEnabled: func(ctx context.Context, userID, target string) (bool, error) {
-			moduleID, ok := draftTargetModules[target]
+			moduleID, ok := targetModules[target]
 			if !ok {
 				return false, nil
 			}
 			return coreStore.ModuleEnabled(ctx, userID, moduleID)
 		},
 		Categories: func(ctx context.Context, userID, target string) ([]extraction.Option, error) {
-			moduleID, ok := draftTargetModules[target]
-			if !ok || target == drafts.TargetCost {
+			moduleID, ok := targetModules[target]
+			if !ok || target != drafts.TargetPurchase && target != drafts.TargetContract {
 				return nil, fmt.Errorf("no categories for target %q", target)
 			}
 			cats, err := catStore.List(ctx, userID, moduleID)

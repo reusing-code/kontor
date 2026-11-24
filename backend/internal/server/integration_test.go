@@ -85,7 +85,7 @@ func setupServerWith(t *testing.T, extractor llm.Extractor, rates fx.Rates) (*ht
 	draftStore := drafts.NewStore(engine)
 	draftHandler := drafts.NewHandler(draftStore, logger)
 	draftHandler.RegisterSource(drafts.SourcePaperless, paperless.NewDraftHooks(paperlessService))
-	classifier := extraction.New(extractor, extractionDeps(coreStore, catStore, autoMod.Store()), rates, logger)
+	classifier := extraction.New(extractor, extractionDeps(coreStore, catStore, autoMod.Store(), draftTargetModules(registry.All()...)), rates, logger)
 	pipeline := paperless.NewPipeline(paperlessService, draftStore, classifier, userIDs(coreStore), 0, logger)
 	registerPaperlessRoutes(mux, paperless.NewHandler(paperlessService, logger), pipeline)
 	registerDraftRoutes(mux, draftHandler)

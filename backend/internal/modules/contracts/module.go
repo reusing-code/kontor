@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/categories"
 	"github.com/reusing-code/kontor/backend/internal/core"
 	"github.com/reusing-code/kontor/backend/internal/email"
@@ -84,3 +85,14 @@ func (m *Module) Prefix(userID string) []byte {
 }
 
 func (m *Module) Migrations() []migration.Migration { return nil }
+
+// LocateEntity implements module.EntityLocator for contracts.
+func (m *Module) LocateEntity(ctx context.Context, userID, entityType string, id uuid.UUID) (string, bool, error) {
+	if entityType != "contract" {
+		return "", false, nil
+	}
+	if _, err := m.store.Get(ctx, userID, id); err != nil {
+		return "", true, err
+	}
+	return "/contracts/" + id.String(), true, nil
+}

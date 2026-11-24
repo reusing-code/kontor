@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/mcptool"
 	"github.com/reusing-code/kontor/backend/internal/storage/migration"
 )
@@ -51,6 +52,14 @@ type Module interface {
 // tools; Base needs no change because the interface is separate.
 type ToolProvider interface {
 	RegisterTools(r *mcptool.Registrar)
+}
+
+// EntityLocator is optionally implemented by modules whose entities can be
+// linked from outside the module (paperless documents). LocateEntity reports
+// whether entityType belongs to the module; when it does, it checks that the
+// entity exists (storage.ErrNotFound otherwise) and returns its UI path.
+type EntityLocator interface {
+	LocateEntity(ctx context.Context, userID, entityType string, id uuid.UUID) (path string, owned bool, err error)
 }
 
 // ImportResult aggregates per-entity restore counts and warnings.

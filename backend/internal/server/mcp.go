@@ -13,10 +13,6 @@ import (
 	"github.com/reusing-code/kontor/backend/internal/mcptool"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
 	"github.com/reusing-code/kontor/backend/internal/module"
-	"github.com/reusing-code/kontor/backend/internal/modules/auto"
-	"github.com/reusing-code/kontor/backend/internal/modules/contracts"
-	"github.com/reusing-code/kontor/backend/internal/modules/ledger"
-	"github.com/reusing-code/kontor/backend/internal/modules/purchases"
 	"github.com/reusing-code/kontor/backend/internal/paperless"
 )
 
@@ -28,10 +24,6 @@ type mcpDeps struct {
 	coreStore *core.Store
 	drafts    *drafts.Store
 	paperless *paperless.Service
-	contracts *contracts.Module
-	purchases *purchases.Module
-	auto      *auto.Module
-	ledger    *ledger.Module
 	patStore  middleware.PATVerifier
 	jwtSecret []byte
 }
@@ -48,7 +40,7 @@ func (s *Server) newMCPHandler(d mcpDeps) http.Handler {
 		Registrar: reg,
 		Paperless: d.paperless,
 		Modules:   moduleStatuses(d.registry, d.coreStore),
-		Entities:  entityLookup(d),
+		Entities:  entityLookup(d.registry),
 		PublicURL: s.cfg.PublicURL,
 	}
 	mcpserver.RegisterCoreTools(deps)
@@ -77,36 +69,23 @@ func moduleStatuses(registry *module.Registry, coreStore *core.Store) func(conte
 	}
 }
 
-// entityLookup resolves the entities a paperless document can be linked to.
-func entityLookup(d mcpDeps) mcpserver.EntityLookup {
+// entityLookup resolves the entities a paperless document can be linked to
+// through the modules that own them.
+func entityLookup(registry *module.Registry) mcpserver.EntityLookup {
 	return func(ctx context.Context, userID, entityType string, id uuid.UUID) (mcpserver.EntityRef, error) {
-		switch entityType {
-		case "contract":
-			if _, err := d.contracts.Store().Get(ctx, userID, id); err != nil {
-				return mcpserver.EntityRef{}, err
+		for _, m := range registry.All() {
+			locator, ok := m.(module.EntityLocator)
+			if !ok {
+				continue
 			}
-			return mcpserver.EntityRef{ModuleID: contracts.ModuleID, Path: "/contracts/" + id.String()}, nil
-		case "purchase":
-			if _, err := d.purchases.Store().Get(ctx, userID, id); err != nil {
-				return mcpserver.EntityRef{}, err
+			path, owned, err := locator.LocateEntity(ctx, userID, entityType, id)
+			if !owned {
+				continue
 			}
-			return mcpserver.EntityRef{ModuleID: purchases.ModuleID, Path: "/purchases/" + id.String()}, nil
-		case "vehicle":
-			if _, err := d.auto.Store().GetVehicle(ctx, userID, id); err != nil {
-				return mcpserver.EntityRef{}, err
-			}
-			return mcpserver.EntityRef{ModuleID: auto.ModuleID, Path: "/auto/vehicles/" + id.String()}, nil
-		case "cost":
-			cost, err := d.auto.Store().GetCostEntry(ctx, userID, id)
 			if err != nil {
 				return mcpserver.EntityRef{}, err
 			}
-			return mcpserver.EntityRef{ModuleID: auto.ModuleID, Path: "/auto/vehicles/" + cost.VehicleID.String()}, nil
-		case "transaction":
-			if _, err := d.ledger.Store().GetLedgerTransaction(ctx, userID, id); err != nil {
-				return mcpserver.EntityRef{}, err
-			}
-			return mcpserver.EntityRef{ModuleID: ledger.ModuleID, Path: "/ledger/transactions/" + id.String()}, nil
+			return mcpserver.EntityRef{ModuleID: m.ID(), Path: path}, nil
 		}
 		// attach_paperless_documents validates the type before it looks anything up
 		return mcpserver.EntityRef{}, fmt.Errorf("unsupported entity type %q", entityType)

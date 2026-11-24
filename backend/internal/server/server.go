@@ -83,7 +83,8 @@ func (s *Server) buildApp() (*app, error) {
 		return nil, err
 	}
 	draftStore := drafts.NewStore(engine)
-	classifier := extraction.New(extractor, extractionDeps(coreStore, catStore, autoMod.Store()), rates, s.logger)
+	targetModules := draftTargetModules(contractsMod, purchasesMod, autoMod)
+	classifier := extraction.New(extractor, extractionDeps(coreStore, catStore, autoMod.Store(), targetModules), rates, s.logger)
 	ledgerMod := ledger.New(engine, links, coreStore, ledger.Config{
 		EmailScanInterval:          s.cfg.LedgerEmailScanInterval,
 		EmailMaxExtractionFailures: s.cfg.LedgerEmailMaxExtractionFailures,
@@ -189,7 +190,6 @@ func (s *Server) buildApp() (*app, error) {
 
 	mcpHandler := s.newMCPHandler(mcpDeps{
 		registry: registry, coreStore: coreStore, drafts: draftStore, paperless: paperlessService,
-		contracts: contractsMod, purchases: purchasesMod, auto: autoMod, ledger: ledgerMod,
 		patStore: patStore, jwtSecret: jwtSecret,
 	})
 

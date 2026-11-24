@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/core"
 	"github.com/reusing-code/kontor/backend/internal/cryptoutil"
 	"github.com/reusing-code/kontor/backend/internal/drafts"
@@ -337,4 +338,15 @@ func (m *Module) bankSchedulerConfig() BankSyncSchedulerConfig {
 		Interval:  m.bank.SyncInterval,
 		Logger:    m.logger,
 	}
+}
+
+// LocateEntity implements module.EntityLocator for ledger transactions.
+func (m *Module) LocateEntity(ctx context.Context, userID, entityType string, id uuid.UUID) (string, bool, error) {
+	if entityType != "transaction" {
+		return "", false, nil
+	}
+	if _, err := m.store.GetLedgerTransaction(ctx, userID, id); err != nil {
+		return "", true, err
+	}
+	return "/ledger/transactions/" + id.String(), true, nil
 }
