@@ -90,8 +90,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existing.Name = input.Name
-	existing.UpdatedAt = time.Now().UTC()
+	existing.Apply(input, time.Now().UTC())
 
 	if err := h.store.Update(r.Context(), middleware.GetUserID(r.Context()), module, existing); err != nil {
 		httputil.StoreError(h.logger, w, err)

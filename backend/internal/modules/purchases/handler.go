@@ -102,19 +102,7 @@ func (h *Handler) UpdatePurchase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existing.Type = input.Type
-	existing.ItemName = input.ItemName
-	existing.Brand = input.Brand
-	existing.ArticleNumber = input.ArticleNumber
-	existing.Dealer = input.Dealer
-	existing.Price = input.Price
-	existing.PurchaseDate = input.PurchaseDate
-	existing.DescriptionURL = input.DescriptionURL
-	existing.InvoiceURL = input.InvoiceURL
-	existing.HandbookURL = input.HandbookURL
-	existing.Consumables = input.Consumables
-	existing.Comments = input.Comments
-	existing.UpdatedAt = time.Now().UTC()
+	existing.Apply(input, time.Now().UTC())
 
 	if err := h.store.Update(r.Context(), middleware.GetUserID(r.Context()), existing); err != nil {
 		httputil.StoreError(h.logger, w, err)
@@ -140,22 +128,7 @@ func (h *Handler) DeletePurchase(w http.ResponseWriter, r *http.Request) {
 // newPurchase builds the purchase a create request stores; input must be
 // validated.
 func newPurchase(id, catID uuid.UUID, input PurchaseInput, now time.Time) Purchase {
-	return Purchase{
-		ID:             id,
-		CategoryID:     catID,
-		Type:           input.Type,
-		ItemName:       input.ItemName,
-		Brand:          input.Brand,
-		ArticleNumber:  input.ArticleNumber,
-		Dealer:         input.Dealer,
-		Price:          input.Price,
-		PurchaseDate:   input.PurchaseDate,
-		DescriptionURL: input.DescriptionURL,
-		InvoiceURL:     input.InvoiceURL,
-		HandbookURL:    input.HandbookURL,
-		Consumables:    input.Consumables,
-		Comments:       input.Comments,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-	}
+	p := Purchase{ID: id, CategoryID: catID, CreatedAt: now}
+	p.Apply(input, now)
+	return p
 }

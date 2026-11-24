@@ -103,26 +103,7 @@ func (h *Handler) UpdateContract(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existing.Name = input.Name
-	existing.ProductName = input.ProductName
-	existing.Company = input.Company
-	existing.ContractNumber = input.ContractNumber
-	existing.CustomerNumber = input.CustomerNumber
-	existing.Price = input.Price
-	bi := input.BillingInterval
-	if bi == "" {
-		bi = BillingMonthly
-	}
-	existing.BillingInterval = bi
-	existing.StartDate = input.StartDate
-	existing.EndDate = input.EndDate
-	existing.MinimumDurationMonths = input.MinimumDurationMonths
-	existing.ExtensionDurationMonths = input.ExtensionDurationMonths
-	existing.NoticePeriodMonths = input.NoticePeriodMonths
-	existing.CustomerPortalURL = input.CustomerPortalURL
-	existing.PaperlessURL = input.PaperlessURL
-	existing.Comments = input.Comments
-	existing.UpdatedAt = time.Now().UTC()
+	existing.Apply(input, time.Now().UTC())
 
 	if err := h.store.Update(r.Context(), middleware.GetUserID(r.Context()), existing); err != nil {
 		httputil.StoreError(h.logger, w, err)
@@ -148,29 +129,7 @@ func (h *Handler) DeleteContract(w http.ResponseWriter, r *http.Request) {
 // newContract builds the contract a create request stores; input must be
 // validated.
 func newContract(id, catID uuid.UUID, input ContractInput, now time.Time) Contract {
-	bi := input.BillingInterval
-	if bi == "" {
-		bi = BillingMonthly
-	}
-	return Contract{
-		ID:                      id,
-		CategoryID:              catID,
-		Name:                    input.Name,
-		ProductName:             input.ProductName,
-		Company:                 input.Company,
-		ContractNumber:          input.ContractNumber,
-		CustomerNumber:          input.CustomerNumber,
-		Price:                   input.Price,
-		BillingInterval:         bi,
-		StartDate:               input.StartDate,
-		EndDate:                 input.EndDate,
-		MinimumDurationMonths:   input.MinimumDurationMonths,
-		ExtensionDurationMonths: input.ExtensionDurationMonths,
-		NoticePeriodMonths:      input.NoticePeriodMonths,
-		CustomerPortalURL:       input.CustomerPortalURL,
-		PaperlessURL:            input.PaperlessURL,
-		Comments:                input.Comments,
-		CreatedAt:               now,
-		UpdatedAt:               now,
-	}
+	c := Contract{ID: id, CategoryID: catID, CreatedAt: now}
+	c.Apply(input, now)
+	return c
 }

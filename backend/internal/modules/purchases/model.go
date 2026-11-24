@@ -27,6 +27,24 @@ type Purchase struct {
 	UpdatedAt            time.Time   `json:"updatedAt"`
 }
 
+// Apply sets the fields a create or update request controls; input must be
+// validated.
+func (p *Purchase) Apply(input PurchaseInput, now time.Time) {
+	p.Type = input.Type
+	p.ItemName = input.ItemName
+	p.Brand = input.Brand
+	p.ArticleNumber = input.ArticleNumber
+	p.Dealer = input.Dealer
+	p.Price = input.Price
+	p.PurchaseDate = input.PurchaseDate
+	p.DescriptionURL = input.DescriptionURL
+	p.InvoiceURL = input.InvoiceURL
+	p.HandbookURL = input.HandbookURL
+	p.Consumables = input.Consumables
+	p.Comments = input.Comments
+	p.UpdatedAt = now
+}
+
 type PurchaseInput struct {
 	Type           string   `json:"type,omitempty"`
 	ItemName       string   `json:"itemName"`

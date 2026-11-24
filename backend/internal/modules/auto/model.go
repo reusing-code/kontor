@@ -28,6 +28,26 @@ type Vehicle struct {
 	UpdatedAt            time.Time   `json:"updatedAt"`
 }
 
+// Apply sets the fields a create or update request controls; input must be
+// validated.
+func (v *Vehicle) Apply(input VehicleInput, now time.Time) {
+	v.Name = input.Name
+	v.Make = input.Make
+	v.Model = input.Model
+	v.Year = input.Year
+	v.LicensePlate = input.LicensePlate
+	v.PurchaseDate = input.PurchaseDate
+	v.PurchasePrice = input.PurchasePrice
+	v.PurchaseMileage = input.PurchaseMileage
+	v.TargetMileage = input.TargetMileage
+	v.TargetMonths = input.TargetMonths
+	v.AnnualInsurance = input.AnnualInsurance
+	v.AnnualTax = input.AnnualTax
+	v.MaintenanceFactor = input.MaintenanceFactor
+	v.Comments = input.Comments
+	v.UpdatedAt = now
+}
+
 type VehicleInput struct {
 	Name              string   `json:"name"`
 	Make              string   `json:"make,omitempty"`
@@ -92,6 +112,19 @@ type CostEntry struct {
 	Comments             string      `json:"comments,omitempty"`
 	CreatedAt            time.Time   `json:"createdAt"`
 	UpdatedAt            time.Time   `json:"updatedAt"`
+}
+
+// Apply sets the fields a create or update request controls; input must be
+// validated.
+func (c *CostEntry) Apply(input CostEntryInput, now time.Time) {
+	c.Type = input.Type
+	c.Description = input.Description
+	c.Vendor = input.Vendor
+	c.Amount = input.Amount
+	c.Date = input.Date
+	c.Mileage = input.Mileage
+	c.Comments = input.Comments
+	c.UpdatedAt = now
 }
 
 type CostEntryInput struct {

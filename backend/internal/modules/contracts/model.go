@@ -68,6 +68,30 @@ func (c *Contract) YearlyPrice() float64 {
 	}
 }
 
+// Apply sets the fields a create or update request controls; input must be
+// validated.
+func (c *Contract) Apply(input ContractInput, now time.Time) {
+	c.Name = input.Name
+	c.ProductName = input.ProductName
+	c.Company = input.Company
+	c.ContractNumber = input.ContractNumber
+	c.CustomerNumber = input.CustomerNumber
+	c.Price = input.Price
+	c.BillingInterval = input.BillingInterval
+	if c.BillingInterval == "" {
+		c.BillingInterval = BillingMonthly
+	}
+	c.StartDate = input.StartDate
+	c.EndDate = input.EndDate
+	c.MinimumDurationMonths = input.MinimumDurationMonths
+	c.ExtensionDurationMonths = input.ExtensionDurationMonths
+	c.NoticePeriodMonths = input.NoticePeriodMonths
+	c.CustomerPortalURL = input.CustomerPortalURL
+	c.PaperlessURL = input.PaperlessURL
+	c.Comments = input.Comments
+	c.UpdatedAt = now
+}
+
 type ContractInput struct {
 	Name                    string          `json:"name"`
 	ProductName             string          `json:"productName,omitempty"`

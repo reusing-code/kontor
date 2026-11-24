@@ -122,33 +122,7 @@ func (h *Handler) ImportContracts(w http.ResponseWriter, r *http.Request) {
 			catByName[strings.ToLower(entry.Category)] = catID
 		}
 
-		now := time.Now().UTC()
-		bi := entry.BillingInterval
-		if bi == "" {
-			bi = BillingMonthly
-		}
-		con := Contract{
-			ID:                      uuid.New(),
-			CategoryID:              catID,
-			Name:                    entry.Name,
-			ProductName:             entry.ProductName,
-			Company:                 entry.Company,
-			ContractNumber:          entry.ContractNumber,
-			CustomerNumber:          entry.CustomerNumber,
-			Price:                   entry.Price,
-			BillingInterval:         bi,
-			StartDate:               entry.StartDate,
-			EndDate:                 entry.EndDate,
-			MinimumDurationMonths:   entry.MinimumDurationMonths,
-			ExtensionDurationMonths: entry.ExtensionDurationMonths,
-			NoticePeriodMonths:      entry.NoticePeriodMonths,
-			CustomerPortalURL:       entry.CustomerPortalURL,
-			PaperlessURL:            entry.PaperlessURL,
-			Comments:                entry.Comments,
-			CreatedAt:               now,
-			UpdatedAt:               now,
-		}
-
+		con := newContract(uuid.New(), catID, entry.ContractInput, time.Now().UTC())
 		if err := h.store.Create(r.Context(), userID, con); err != nil {
 			result.Errors = append(result.Errors, importError{Row: row, Error: fmt.Sprintf("failed to create contract: %v", err)})
 			continue
