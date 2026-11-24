@@ -28,6 +28,7 @@ export function useLedgerCommitImport() {
         qc.invalidateQueries({ queryKey: ledgerKeys.categories() }),
         qc.invalidateQueries({ queryKey: ledgerKeys.account(result.accountId) }),
         qc.invalidateQueries({ queryKey: ledgerKeys.accountTransactions(result.accountId) }),
+        qc.invalidateQueries({ queryKey: ledgerKeys.transactionList() }),
         qc.invalidateQueries({ queryKey: ledgerKeys.review() }),
         qc.invalidateQueries({ queryKey: ledgerKeys.suggestionStatus() }),
         // the backend runs the recurring-payment detection after a commit

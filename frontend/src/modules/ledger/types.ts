@@ -367,6 +367,13 @@ export interface LedgerTransactionsPage {
   accountBalance?: LedgerAccountBalance
 }
 
+// A page of the cross-account list; total counts the matches on all pages.
+export interface LedgerTransactionList {
+  items: LedgerTransaction[]
+  nextCursor?: string
+  total: number
+}
+
 export const ledgerSuggestionConfidences = ["high", "medium", "low"] as const
 export type LedgerSuggestionConfidence = (typeof ledgerSuggestionConfidences)[number]
 

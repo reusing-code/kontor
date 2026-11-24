@@ -41,6 +41,7 @@ import type {
   LedgerTransactionDetailsInput,
   LedgerTransactionReference,
   LedgerTransactionSplit,
+  LedgerTransactionList,
   LedgerTransactionsPage,
 } from "@/modules/ledger/types"
 import { del, delJson, get, post, postForm, put } from "@/lib/api"
@@ -157,6 +158,19 @@ export async function getLedgerTransactions(accountId: string, limit: number = 1
 export async function getLedgerReviewCount(): Promise<number> {
   const page = await get<LedgerReviewQueuePage>("/ledger/review-queue?limit=1")
   return page.total
+}
+
+// getAllLedgerTransactions pages the transactions of all accounts, or of the
+// given ones.
+export async function getAllLedgerTransactions(accountIds: readonly string[], limit: number = 100, cursor?: string): Promise<LedgerTransactionList> {
+  const search = new URLSearchParams({ limit: String(limit) })
+  for (const id of accountIds) {
+    search.append("accountId", id)
+  }
+  if (cursor) {
+    search.set("cursor", cursor)
+  }
+  return get<LedgerTransactionList>(`/ledger/transactions?${search.toString()}`)
 }
 
 export async function getLedgerReviewQueueAll(): Promise<LedgerReviewQueuePage> {

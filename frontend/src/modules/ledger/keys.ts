@@ -11,6 +11,10 @@ export const ledgerKeys = {
   accountTransactions: (id: string) => [...all, "accounts", id, "transactions"] as const,
   accountTransactionsPage: (id: string, limit: number, cursor?: string) =>
     [...all, "accounts", id, "transactions", { limit, cursor: cursor ?? "" }] as const,
+  // the cross-account list; refreshed together with every account's list
+  transactionList: () => [...all, "transaction-list"] as const,
+  transactionListPages: (accountIds: readonly string[], limit: number) =>
+    [...all, "transaction-list", { accountIds: [...accountIds], limit }] as const,
   transactions: () => [...all, "transactions"] as const,
   transaction: (id: string) => [...all, "transactions", id] as const,
   transferCandidates: (id: string) => [...all, "transactions", id, "transfer-candidates"] as const,

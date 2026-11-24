@@ -881,7 +881,19 @@
         "excluded_other": "{{count}} Konten sind nicht enthalten.",
         "none": "Noch kein Konto hat einen Kontostand."
       }
-    }
+    },
+    "allTransactions": {
+      "title": "Transaktionen",
+      "description": "Die Transaktionen aller Konten, neueste zuerst.",
+      "allAccounts": "Alle Konten",
+      "accountCount_one": "{{count}} Konto",
+      "accountCount_other": "{{count}} Konten",
+      "filterLabel": "Konten filtern: {{selection}}",
+      "showAll": "Alle Konten anzeigen",
+      "shown_one": "{{shown}} von {{count}} Transaktion angezeigt",
+      "shown_other": "{{shown}} von {{count}} Transaktionen angezeigt"
+    },
+    "allTransactionsLink": "Alle Transaktionen"
   },
   "paperless": {
     "title": "Paperless-ngx",

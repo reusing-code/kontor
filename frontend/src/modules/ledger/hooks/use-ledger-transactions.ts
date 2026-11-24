@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import i18n from "@/i18n"
 import { vehicleKeys } from "@/modules/auto/keys"
 import { contractKeys } from "@/modules/contracts/keys"
@@ -6,6 +6,7 @@ import { ledgerKeys } from "@/modules/ledger/keys"
 import { purchaseKeys } from "@/modules/purchases/keys"
 import {
   addLedgerTransactionReference,
+  getAllLedgerTransactions,
   getLedgerTransactionById,
   getLedgerTransactions,
   getLedgerTransferCandidates,
@@ -31,6 +32,17 @@ export function useLedgerTransactions(accountId: string, limit: number = 100, cu
   })
 }
 
+export function useAllLedgerTransactions(accountIds: readonly string[], enabled: boolean = true, limit: number = 100) {
+  const sorted = [...accountIds].sort()
+  return useInfiniteQuery({
+    queryKey: ledgerKeys.transactionListPages(sorted, limit),
+    queryFn: ({ pageParam }) => getAllLedgerTransactions(sorted, limit, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor,
+    enabled,
+  })
+}
+
 export function useLedgerTransaction(transactionId: string) {
   return useQuery({
     queryKey: ledgerKeys.transaction(transactionId),
@@ -51,6 +63,7 @@ function invalidateTransactionDetails(qc: QueryClient, transaction: LedgerTransa
     qc.invalidateQueries({ queryKey: ledgerKeys.transaction(transaction.id) }),
     qc.invalidateQueries({ queryKey: ledgerKeys.transferCandidates(transaction.id) }),
     qc.invalidateQueries({ queryKey: ledgerKeys.accountTransactions(transaction.accountId) }),
+    qc.invalidateQueries({ queryKey: ledgerKeys.transactionList() }),
     qc.invalidateQueries({ queryKey: contractKeys.all }),
     qc.invalidateQueries({ queryKey: purchaseKeys.all }),
     qc.invalidateQueries({ queryKey: vehicleKeys.all }),
@@ -92,6 +105,7 @@ function invalidateTransferPair(qc: QueryClient, result: LedgerTransferLinkResul
       qc.invalidateQueries({ queryKey: ledgerKeys.transaction(txn.id) }),
       qc.invalidateQueries({ queryKey: ledgerKeys.transferCandidates(txn.id) }),
       qc.invalidateQueries({ queryKey: ledgerKeys.accountTransactions(txn.accountId) }),
+      qc.invalidateQueries({ queryKey: ledgerKeys.transactionList() }),
     ]),
   )
 }

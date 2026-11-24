@@ -39,6 +39,7 @@ export function useDeleteLedgerCategory() {
         qc.invalidateQueries({ queryKey: ledgerKeys.categories() }),
         qc.invalidateQueries({ queryKey: ledgerKeys.review() }),
         qc.invalidateQueries({ queryKey: ledgerKeys.accounts() }),
+        qc.invalidateQueries({ queryKey: ledgerKeys.transactionList() }),
       ])
     },
   })

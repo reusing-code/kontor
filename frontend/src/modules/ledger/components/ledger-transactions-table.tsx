@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router"
 import { formatDate, formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
-import type { LedgerCategory, LedgerPageBalance, LedgerTransaction } from "@/modules/ledger/types"
+import type { LedgerAccount, LedgerCategory, LedgerPageBalance, LedgerTransaction } from "@/modules/ledger/types"
 import { transactionPath } from "@/modules/ledger/lib/module-links"
 import { formatLedgerCategorizationSource, formatLedgerReviewStatus, formatLedgerSpecialCategory, formatSourceType } from "@/modules/ledger/lib/ledger-utils"
 import { LedgerSplitBadge } from "@/modules/ledger/components/ledger-split-badge"
@@ -19,27 +19,31 @@ import {
 interface LedgerTransactionsTableProps {
   transactions: LedgerTransaction[]
   categories?: LedgerCategory[]
-  nextCursor?: string
+  // shows "Load more" (with onLoadMore)
+  hasMore?: boolean
   onLoadMore?: () => void
   loadingMore?: boolean
   // the balances around the shown page; no balance rows without it
   pageBalance?: LedgerPageBalance
   currency?: string
+  // shows an account column (for lists across accounts)
+  accounts?: LedgerAccount[]
 }
 
-const columnCount = 8
-
-export function LedgerTransactionsTable({ transactions, categories = [], nextCursor, onLoadMore, loadingMore = false, pageBalance, currency = "EUR" }: LedgerTransactionsTableProps) {
+export function LedgerTransactionsTable({ transactions, categories = [], hasMore = false, onLoadMore, loadingMore = false, pageBalance, currency = "EUR", accounts }: LedgerTransactionsTableProps) {
   const { t } = useTranslation()
   const categoryNameById = new Map(categories.map((category) => [category.id, category.name]))
+  const accountNameById = accounts ? new Map(accounts.map((account) => [account.id, account.name])) : undefined
+  const columnCount = accountNameById ? 9 : 8
+  const columnsBeforeAmount = accountNameById ? 3 : 2
   const showBalance = pageBalance !== undefined && transactions.length > 0
 
   function balanceRow(label: string, minor: number) {
     return (
       <TableRow className="bg-muted/50 font-medium hover:bg-muted/50">
-        <TableCell colSpan={2}>{label}</TableCell>
+        <TableCell colSpan={columnsBeforeAmount}>{label}</TableCell>
         <TableCell className={minor < 0 ? "text-destructive" : undefined}>{formatMinor(minor, currency)}</TableCell>
-        <TableCell colSpan={columnCount - 3} />
+        <TableCell colSpan={columnCount - columnsBeforeAmount - 1} />
       </TableRow>
     )
   }
@@ -52,6 +56,7 @@ export function LedgerTransactionsTable({ transactions, categories = [], nextCur
             <TableRow>
               <TableHead>{t("ledger.date")}</TableHead>
               <TableHead>{t("ledger.valueDate")}</TableHead>
+              {accountNameById && <TableHead>{t("ledger.account")}</TableHead>}
               <TableHead>{t("ledger.amount")}</TableHead>
               <TableHead>{t("ledger.counterparty")}</TableHead>
               <TableHead>{t("ledger.purpose")}</TableHead>
@@ -78,6 +83,13 @@ export function LedgerTransactionsTable({ transactions, categories = [], nextCur
                       </Link>
                     </TableCell>
                     <TableCell>{txn.valueDate ? formatDate(txn.valueDate) : "-"}</TableCell>
+                    {accountNameById && (
+                      <TableCell>
+                        <Link to="/ledger/accounts/$accountId" params={{ accountId: txn.accountId }} className="hover:underline">
+                          {accountNameById.get(txn.accountId) ?? "-"}
+                        </Link>
+                      </TableCell>
+                    )}
                     <TableCell className={txn.amountMinor < 0 ? "text-destructive" : "text-emerald-600"}>
                       {formatMinor(txn.amountMinor, txn.currency)}
                     </TableCell>
@@ -110,7 +122,7 @@ export function LedgerTransactionsTable({ transactions, categories = [], nextCur
         </Table>
       </div>
 
-      {nextCursor && onLoadMore && (
+      {hasMore && onLoadMore && (
         <div className="flex justify-center">
           <Button type="button" variant="outline" onClick={onLoadMore} disabled={loadingMore}>
             {loadingMore ? t("ledger.loadingMore") : t("ledger.loadMore")}

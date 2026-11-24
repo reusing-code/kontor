@@ -36,6 +36,7 @@ export function useReviewLedgerTransaction() {
         qc.invalidateQueries({ queryKey: ledgerKeys.review() }),
         qc.invalidateQueries({ queryKey: ledgerKeys.transaction(result.transaction.id) }),
         qc.invalidateQueries({ queryKey: ledgerKeys.accountTransactions(result.transaction.accountId) }),
+        qc.invalidateQueries({ queryKey: ledgerKeys.transactionList() }),
       ])
     },
   })
@@ -52,6 +53,7 @@ export function useReviewLedgerTransactionsBatch() {
         qc.invalidateQueries({ queryKey: ledgerKeys.review() }),
         qc.invalidateQueries({ queryKey: ledgerKeys.transactions() }),
         qc.invalidateQueries({ queryKey: ledgerKeys.accounts() }),
+        qc.invalidateQueries({ queryKey: ledgerKeys.transactionList() }),
       ])
     },
   })

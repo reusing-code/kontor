@@ -88,6 +88,7 @@ function invalidateAfterEmailScan(qc: QueryClient) {
     qc.invalidateQueries({ queryKey: ledgerKeys.emailOrders() }),
     qc.invalidateQueries({ queryKey: ledgerKeys.transactions() }),
     qc.invalidateQueries({ queryKey: ledgerKeys.accounts() }),
+    qc.invalidateQueries({ queryKey: ledgerKeys.transactionList() }),
   ])
 }
 
@@ -186,6 +187,7 @@ export function useLinkLedgerEmailOrder() {
         qc.invalidateQueries({ queryKey: ledgerKeys.emailOrders() }),
         qc.invalidateQueries({ queryKey: ledgerKeys.transactions() }),
         qc.invalidateQueries({ queryKey: ledgerKeys.accounts() }),
+        qc.invalidateQueries({ queryKey: ledgerKeys.transactionList() }),
       ])
     },
   })
@@ -201,6 +203,7 @@ export function useRejectLedgerEmailOrder() {
         qc.invalidateQueries({ queryKey: ledgerKeys.emailOrders() }),
         qc.invalidateQueries({ queryKey: ledgerKeys.transactions() }),
         qc.invalidateQueries({ queryKey: ledgerKeys.accounts() }),
+        qc.invalidateQueries({ queryKey: ledgerKeys.transactionList() }),
       ])
     },
   })

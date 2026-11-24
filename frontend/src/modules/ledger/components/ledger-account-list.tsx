@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { AlertTriangle } from "lucide-react"
 import type { LedgerAccount } from "@/modules/ledger/types"
 import { hasDrift } from "@/modules/ledger/lib/balance"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface LedgerAccountListProps {
@@ -15,8 +16,13 @@ export function LedgerAccountList({ accounts }: LedgerAccountListProps) {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
         <CardTitle>{t("ledger.accounts")}</CardTitle>
+        {accounts.length > 0 && (
+          <Button asChild variant="outline">
+            <Link to="/ledger/transactions">{t("ledger.allTransactionsLink")}</Link>
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         {accounts.length === 0 ? (

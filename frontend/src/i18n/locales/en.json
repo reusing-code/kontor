@@ -881,7 +881,19 @@
         "excluded_other": "{{count}} accounts are not included.",
         "none": "No account has a balance yet."
       }
-    }
+    },
+    "allTransactions": {
+      "title": "Transactions",
+      "description": "The transactions of all accounts, newest first.",
+      "allAccounts": "All accounts",
+      "accountCount_one": "{{count}} account",
+      "accountCount_other": "{{count}} accounts",
+      "filterLabel": "Filter accounts: {{selection}}",
+      "showAll": "Show all accounts",
+      "shown_one": "{{shown}} of {{count}} transaction shown",
+      "shown_other": "{{shown}} of {{count}} transactions shown"
+    },
+    "allTransactionsLink": "All transactions"
   },
   "paperless": {
     "title": "Paperless-ngx",

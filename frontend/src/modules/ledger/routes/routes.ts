@@ -5,6 +5,7 @@ import { moduleGuard } from "@/modules/guard"
 import { queryClient } from "@/lib/query-client"
 import { capabilitiesQueryOptions } from "@/hooks/use-capabilities"
 import { parseBankResult } from "@/modules/ledger/lib/bank-result"
+import { parseAllTransactionsSearch } from "@/modules/ledger/lib/transaction-filter"
 
 const LedgerIndexPage = lazy(() => import("./ledger.index").then((module) => ({ default: module.LedgerIndexPage })))
 const LedgerAccountPage = lazy(() => import("./ledger.accounts.$accountId").then((module) => ({ default: module.LedgerAccountPage })))
@@ -15,6 +16,7 @@ const LedgerBankConnectionsPage = lazy(() => import("./ledger.bank-connections")
 const LedgerBankResultPage = lazy(() => import("./ledger.bank-connections.result").then((module) => ({ default: module.LedgerBankResultPage })))
 const LedgerReviewPage = lazy(() => import("./ledger.review").then((module) => ({ default: module.LedgerReviewPage })))
 const LedgerAnalysisPage = lazy(() => import("./ledger.analysis").then((module) => ({ default: module.LedgerAnalysisPage })))
+const LedgerAllTransactionsPage = lazy(() => import("./ledger.transactions").then((module) => ({ default: module.LedgerAllTransactionsPage })))
 const LedgerTransactionPage = lazy(() => import("./ledger.transactions.$transactionId").then((module) => ({ default: module.LedgerTransactionPage })))
 
 // Bank import routes need the ledger module and the server-side capability.
@@ -96,6 +98,14 @@ export const ledgerAnalysisRoute = createRoute({
   component: LedgerAnalysisPage,
 })
 
+export const ledgerAllTransactionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/ledger/transactions",
+  beforeLoad: moduleGuard("ledger"),
+  validateSearch: parseAllTransactionsSearch,
+  component: LedgerAllTransactionsPage,
+})
+
 export const ledgerTransactionRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/ledger/transactions/$transactionId",
@@ -113,5 +123,6 @@ export const ledgerRoutes: AnyRoute[] = [
   ledgerBankResultRoute,
   ledgerReviewRoute,
   ledgerAnalysisRoute,
+  ledgerAllTransactionsRoute,
   ledgerTransactionRoute,
 ]

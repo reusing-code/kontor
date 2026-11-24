@@ -96,7 +96,7 @@ export function LedgerAccountPage() {
         <LedgerTransactionsTable
           transactions={page?.items ?? []}
           categories={categories}
-          nextCursor={page?.nextCursor}
+          hasMore={!!page?.nextCursor}
           loadingMore={isFetching}
           pageBalance={page?.pageBalance}
           currency={account?.currency}
