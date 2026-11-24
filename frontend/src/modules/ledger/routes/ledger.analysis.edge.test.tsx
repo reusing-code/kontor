@@ -13,6 +13,7 @@ const spending = { ...range, months, series: [], totalsMinor: [0, 0], excludedCu
 const cashFlow = { ...range, months, incomeMinor: [0, 0], expensesMinor: [0, 0], netMinor: [0, 0], excludedCurrencies: [] }
 const ranking = { ...range, categories: [], counterparties: [], excludedCurrencies: [] }
 const netWorth = { ...range, dates: [], totalMinor: [], accounts: [], excludedAccounts: [] }
+const breakdown = { ...range, totalMinor: 0, categories: [], droppedInflows: 0, excludedCurrencies: [] }
 
 function setup(handlers: { spending?: unknown; cashFlow?: unknown; ranking?: unknown } = {}) {
   const api = mockApi({
@@ -21,6 +22,7 @@ function setup(handlers: { spending?: unknown; cashFlow?: unknown; ranking?: unk
     [`GET ${base}cash-flow`]: handlers.cashFlow ?? cashFlow,
     [`GET ${base}ranking`]: handlers.ranking ?? ranking,
     [`GET ${base}net-worth`]: netWorth,
+    [`GET ${base}category-breakdown`]: breakdown,
   })
   const queries = (endpoint: string) =>
     api.calls.filter((c) => c.path.startsWith(base + endpoint)).map((c) => c.path.slice(base.length + endpoint.length))

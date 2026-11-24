@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { ChartLegend, ChartTooltipBox } from "@/components/charts/chart-parts"
 
 describe("chart parts", () => {
@@ -30,5 +31,15 @@ describe("chart parts", () => {
     expect(screen.getByText("€1.00")).toBeInTheDocument()
     expect(screen.getByText("€2.00")).toBeInTheDocument()
     expect(errors).not.toHaveBeenCalled()
+  })
+
+  it("makes an entry with onSelect a button", async () => {
+    const onSelect = vi.fn()
+    render(<ChartLegend items={[{ label: "Food", color: "red", onSelect }, { label: "Car", color: "blue" }]} />)
+
+    await userEvent.click(screen.getByRole("button", { name: "Food" }))
+    expect(onSelect).toHaveBeenCalledOnce()
+    expect(screen.queryByRole("button", { name: "Car" })).toBeNull()
+    expect(screen.getByText("Car")).toBeInTheDocument()
   })
 })

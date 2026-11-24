@@ -3,9 +3,12 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -17,11 +20,14 @@ import { ChartTooltipBox } from "@/components/charts/chart-parts"
 import { formatDate } from "@/lib/format"
 import { formatMonth } from "@/modules/ledger/lib/analysis-range"
 import {
+  breakdownTooltipRows,
   chartRows,
   formatAmountCompact,
   seriesTooltipRows,
   spendingTooltipRows,
+  type BreakdownRings,
   type ChartSeries,
+  type RingSlice,
 } from "@/modules/ledger/lib/analysis-series"
 
 // The only file of the ledger module that imports recharts: everything else
@@ -143,6 +149,55 @@ export function NetWorthChart({ dates, series }: { dates: string[]; series: Char
           />
         ))}
       </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+// CategoryBreakdownChart draws the top-level categories as the inner ring and
+// their children as the outer one. Both rings start at the top and run
+// clockwise without padding, and the outer data follows the inner order, so
+// every child lies within its parent's arc. Clicking an inner slice for which
+// canSelect holds calls onSelect.
+export function CategoryBreakdownChart({ rings, canSelect, onSelect }: {
+  rings: BreakdownRings
+  canSelect: (slice: RingSlice) => boolean
+  onSelect: (slice: RingSlice) => void
+}) {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language
+  const tooltipLabels = {
+    amount: t("ledger.analysis.breakdown.amount"),
+    shareOfTotal: t("ledger.analysis.breakdown.shareOfTotal"),
+    shareOfParent: (name: string) => t("ledger.analysis.breakdown.shareOfParent", { name }),
+  }
+  const ring = { dataKey: "amountMinor", nameKey: "label", startAngle: 90, endAngle: -270, isAnimationActive: false, stroke: "var(--card)" }
+
+  return (
+    <ResponsiveContainer width="100%" height={320}>
+      <PieChart margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
+        <Tooltip
+          content={({ active, payload }) => {
+            const slice = payload?.[0]?.payload as RingSlice | undefined
+            if (!active || !slice || slice.placeholder) return null
+            const title = slice.parentKey === slice.key ? slice.label : `${slice.parentLabel} › ${slice.label}`
+            return <ChartTooltipBox title={title} rows={breakdownTooltipRows(slice, rings, tooltipLabels, locale)} />
+          }}
+        />
+        <Pie {...ring} data={rings.inner} innerRadius="30%" outerRadius="62%"
+          onClick={(_, index) => {
+            const slice = rings.inner[index]
+            if (slice && canSelect(slice)) onSelect(slice)
+          }}>
+          {rings.inner.map((slice) => (
+            <Cell key={slice.key} fill={slice.color} cursor={canSelect(slice) ? "pointer" : undefined} />
+          ))}
+        </Pie>
+        <Pie {...ring} data={rings.outer} innerRadius="64%" outerRadius="92%">
+          {rings.outer.map((slice) => (
+            <Cell key={slice.key} fill={slice.color} stroke={slice.placeholder ? "none" : undefined} />
+          ))}
+        </Pie>
+      </PieChart>
     </ResponsiveContainer>
   )
 }

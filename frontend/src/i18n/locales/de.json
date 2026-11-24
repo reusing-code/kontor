@@ -846,6 +846,19 @@
         "total": "Summe",
         "empty": "Keine Ausgaben in diesem Zeitraum."
       },
+      "breakdown": {
+        "title": "Ausgaben nach Kategorie und Unterkategorie",
+        "uncategorized": "Ohne Kategorie",
+        "other": "Sonstige",
+        "direct": "{{name}} (direkt)",
+        "amount": "Betrag",
+        "shareOfTotal": "Anteil an allen Ausgaben",
+        "shareOfParent": "Anteil an {{name}}",
+        "empty": "Keine Ausgaben in diesem Zeitraum.",
+        "droppedInflows_one": "{{count}} Kategorie mit mehr Einnahmen als Ausgaben in diesem Zeitraum wird nicht angezeigt.",
+        "droppedInflows_other": "{{count}} Kategorien mit mehr Einnahmen als Ausgaben in diesem Zeitraum werden nicht angezeigt.",
+        "selectHint": "Klicke auf eine Kategorie, um oben ihre Unterkategorien pro Monat zu sehen."
+      },
       "cashFlow": {
         "title": "Einnahmen und Ausgaben",
         "income": "Einnahmen",

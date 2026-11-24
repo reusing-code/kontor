@@ -6,6 +6,7 @@ import { renderWithProviders } from "@/test/render"
 import type {
   LedgerCashFlowAnalysis,
   LedgerCategory,
+  LedgerCategoryBreakdown,
   LedgerNetWorthAnalysis,
   LedgerRankingAnalysis,
   LedgerSpendingAnalysis,
@@ -83,17 +84,40 @@ const netWorth: LedgerNetWorthAnalysis = {
   excludedAccounts: [],
 }
 
+const noBreakdown: LedgerCategoryBreakdown = { from: "2025-12-01", to: "2026-11-22", totalMinor: 0, categories: [], droppedInflows: 0, excludedCurrencies: [] }
+
+const breakdown: LedgerCategoryBreakdown = {
+  ...noBreakdown,
+  totalMinor: 87500,
+  categories: [
+    {
+      kind: "category",
+      categoryId: "cat-food",
+      name: "Food",
+      amountMinor: 75000,
+      children: [
+        { kind: "category", categoryId: "cat-groceries", name: "Groceries", amountMinor: 66000 },
+        { kind: "direct", categoryId: "cat-food", name: "", amountMinor: 9000 },
+      ],
+    },
+    { kind: "category", categoryId: "cat-car", name: "Car", amountMinor: 12000, children: [{ kind: "direct", categoryId: "cat-car", name: "", amountMinor: 12000 }] },
+    { kind: "uncategorized", name: "", amountMinor: 500, children: [] },
+  ],
+  droppedInflows: 1,
+}
+
 const base = "/ledger/analysis/"
 
-// A handler is a response body or a function of the call. The ranking is
-// empty by default so its names do not mix with the chart legends.
-function setup(handlers: { spending?: unknown; cashFlow?: unknown; ranking?: unknown; netWorth?: unknown } = {}) {
+// A handler is a response body or a function of the call. The ranking and the
+// breakdown are empty by default so their names do not mix with the legends.
+function setup(handlers: { spending?: unknown; cashFlow?: unknown; ranking?: unknown; netWorth?: unknown; breakdown?: unknown } = {}) {
   const api = mockApi({
     "GET /ledger/categories": categories,
     [`GET ${base}spending`]: handlers.spending ?? ((call: ApiCall) => (call.path.includes("parentCategoryId") ? subcategories : topLevel)),
     [`GET ${base}cash-flow`]: handlers.cashFlow ?? cashFlow,
     [`GET ${base}ranking`]: handlers.ranking ?? noRanking,
     [`GET ${base}net-worth`]: handlers.netWorth ?? netWorth,
+    [`GET ${base}category-breakdown`]: handlers.breakdown ?? noBreakdown,
   })
   const queries = (endpoint: string) =>
     api.calls.filter((c) => c.path.startsWith(base + endpoint)).map((c) => c.path.slice(base.length + endpoint.length))
@@ -237,7 +261,8 @@ describe("LedgerAnalysisPage", () => {
 
   it("shows the empty state", async () => {
     setup({ spending: empty })
-    expect(await screen.findByText("No expenses in this period.")).toBeInTheDocument()
+    await screen.findByText("Expenses by category")
+    expect(await within(card("Expenses by category")).findByText("No expenses in this period.")).toBeInTheDocument()
     expect(legend()).toEqual([])
   })
 
@@ -401,20 +426,87 @@ describe("LedgerAnalysisPage", () => {
       await hold
       return body
     }
-    const { user } = setup({ spending: delayed(topLevel), cashFlow: delayed(cashFlow), ranking: delayed(ranking), netWorth: delayed(netWorth) })
-    const titles = ["Expenses by category", "Cash flow", "Net worth", "Top categories", "Top counterparties"]
+    const { user } = setup({
+      spending: delayed(topLevel),
+      cashFlow: delayed(cashFlow),
+      ranking: delayed(ranking),
+      netWorth: delayed(netWorth),
+      breakdown: delayed(noBreakdown),
+    })
+    const titles = ["Expenses by category", "Expenses by category and subcategory", "Cash flow", "Net worth", "Top categories", "Top counterparties"]
     const busy = () => titles.map((title) => card(title).querySelector("[aria-busy]")?.getAttribute("aria-busy"))
-    await waitFor(() => expect(busy()).toEqual(["false", "false", "false", "false", "false"]))
+    await waitFor(() => expect(busy()).toEqual(titles.map(() => "false")))
 
     hold = new Promise<void>((resolve) => {
       release = resolve
     })
     await user.click(screen.getByRole("button", { name: "6 months" }))
-    await waitFor(() => expect(busy()).toEqual(["true", "true", "true", "true", "true"]))
+    await waitFor(() => expect(busy()).toEqual(titles.map(() => "true")))
     // the previous data stays on screen
     expect(legend()).toEqual(["Food", "Car", "Uncategorized"])
 
     release()
-    await waitFor(() => expect(busy()).toEqual(["false", "false", "false", "false", "false"]))
+    await waitFor(() => expect(busy()).toEqual(titles.map(() => "false")))
+  })
+
+  describe("expenses by category and subcategory", () => {
+    const title = "Expenses by category and subcategory"
+    const breakdownLegend = () => [...card(title).querySelectorAll(".recharts-responsive-container + div > *")].map((item) => item.textContent)
+    // drawn sectors of a ring; empty outer arcs are transparent
+    const sectors = (ring: number) =>
+      [...card(title).querySelectorAll(".recharts-pie")][ring]?.querySelectorAll('.recharts-pie-sector path:not([fill="transparent"])').length ?? 0
+
+    it("draws both rings with the inner legend and the note on left-out inflows", async () => {
+      const { queries } = setup({ breakdown, spending: empty })
+
+      await waitFor(() => expect(breakdownLegend()).toEqual(["Food", "Car", "Uncategorized"]))
+      expect(queries("category-breakdown")).toEqual(["?from=2025-12-01&to=2026-11-22"])
+      // Food, Car and Uncategorized inside; Groceries and "Food (directly)" outside
+      await waitFor(() => expect(sectors(0)).toBe(3))
+      expect(sectors(1)).toBe(2)
+      expect(within(card(title)).getByText("1 category with more income than expenses in this period is not shown.")).toBeInTheDocument()
+      // only Food has subcategories, so only Food can be picked
+      expect(within(card(title)).getByRole("button", { name: "Food" })).toBeInTheDocument()
+      expect(within(card(title)).queryByRole("button", { name: "Car" })).toBeNull()
+    })
+
+    it("shows the subcategories in the spending card when a category is picked", async () => {
+      const { user, spendingCalls } = setup({ breakdown })
+      await waitFor(() => expect(breakdownLegend()).toEqual(["Food", "Car", "Uncategorized"]))
+
+      await user.click(within(card(title)).getByRole("button", { name: "Food" }))
+      await waitFor(() => expect(legend()).toEqual(["Groceries", "Food (directly)"]))
+      expect(spendingCalls()).toContain("?from=2025-12-01&to=2026-11-22&parentCategoryId=cat-food")
+      expect(screen.getByRole("combobox", { name: "Category level" })).toHaveTextContent("Food")
+    })
+
+    it("shows the empty state without a note", async () => {
+      setup()
+      await screen.findByText(title)
+      expect(await within(card(title)).findByText("No expenses in this period.")).toBeInTheDocument()
+      expect(within(card(title)).queryByText(/not shown/)).toBeNull()
+    })
+
+    it("shows a placeholder while loading and an error with a retry", async () => {
+      let failing = true
+      let respond: (value: LedgerCategoryBreakdown) => void = () => {}
+      const { user, queries } = setup({
+        breakdown: () =>
+          failing
+            ? apiError(500, "internal error")
+            : new Promise<LedgerCategoryBreakdown>((resolve) => {
+                respond = resolve
+              }),
+      })
+
+      await screen.findByText(title)
+      expect(await within(card(title)).findByText("This analysis could not be loaded.")).toBeInTheDocument()
+      failing = false
+      await user.click(within(card(title)).getByRole("button", { name: "Retry" }))
+      expect(await within(card(title)).findByRole("status", { name: "Loading..." })).toBeInTheDocument()
+      respond(breakdown)
+      await waitFor(() => expect(breakdownLegend()).toEqual(["Food", "Car", "Uncategorized"]))
+      expect(queries("category-breakdown")).toHaveLength(2)
+    })
   })
 })

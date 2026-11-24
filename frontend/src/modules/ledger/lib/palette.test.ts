@@ -27,6 +27,13 @@ function lightValues(): Record<string, string> {
   return values
 }
 
+// The values of the .dark block that follows the light category colors.
+function darkValues(): Record<string, string> {
+  const at = css.indexOf(".dark {", css.indexOf("--viz-cat-1:"))
+  const block = css.slice(at, css.indexOf("}", at))
+  return Object.fromEntries([...block.matchAll(/(--viz-[a-z0-9-]+):\s*(#[0-9a-f]{6});/g)].map(([, name, value]) => [name, value]))
+}
+
 const channels = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16))
 
 // WCAG relative luminance and contrast ratio against white.
@@ -62,4 +69,21 @@ describe("ledger chart palette (light)", () => {
       }
     }
   })
+})
+
+// Each palette color has three tints for the subcategories of the two-ring
+// chart; a parent's children cycle through the color and its tints, so every
+// step has to be told apart from the next.
+describe("ledger chart palette tints", () => {
+  for (const [mode, values] of [["light", lightValues()], ["dark", darkValues()]] as const) {
+    it(`defines three distinct tints per category color (${mode})`, () => {
+      for (let n = 1; n <= 10; n++) {
+        const steps = [`--viz-cat-${n}`, ...[1, 2, 3].map((step) => `--viz-cat-${n}-tint-${step}`)]
+        for (const name of steps) expect(values[name], `${mode} ${name}`).toMatch(/^#[0-9a-f]{6}$/)
+        for (let i = 0; i + 1 < steps.length; i++) {
+          expect(distance(values[steps[i]], values[steps[i + 1]]), `${mode} ${steps[i]} ${steps[i + 1]}`).toBeGreaterThanOrEqual(25)
+        }
+      }
+    })
+  }
 })

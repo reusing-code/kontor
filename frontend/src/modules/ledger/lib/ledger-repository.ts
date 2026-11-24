@@ -11,6 +11,7 @@ import type {
   LedgerAccountUpdateInput,
   LedgerAnalysisRange,
   LedgerCashFlowAnalysis,
+  LedgerCategoryBreakdown,
   LedgerCategory,
   LedgerCategoryInput,
   LedgerEmailAccount,
@@ -309,6 +310,10 @@ export async function getLedgerCashFlowAnalysis(range: LedgerAnalysisRange): Pro
 
 export async function getLedgerRankingAnalysis(range: LedgerAnalysisRange): Promise<LedgerRankingAnalysis> {
   return get<LedgerRankingAnalysis>(`/ledger/analysis/ranking${analysisQuery(range)}`)
+}
+
+export async function getLedgerCategoryBreakdown(range: LedgerAnalysisRange): Promise<LedgerCategoryBreakdown> {
+  return get<LedgerCategoryBreakdown>(`/ledger/analysis/category-breakdown${analysisQuery(range)}`)
 }
 
 export async function getLedgerNetWorthAnalysis(range: LedgerAnalysisRange): Promise<LedgerNetWorthAnalysis> {

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { formatDate } from "@/lib/format"
@@ -10,6 +10,7 @@ import {
   type AnalysisRangeState,
 } from "@/modules/ledger/lib/analysis-range"
 import { useLedgerCashFlowAnalysis } from "@/modules/ledger/hooks/use-ledger-analysis"
+import { LedgerAnalysisBreakdown } from "@/modules/ledger/components/ledger-analysis-breakdown"
 import { LedgerAnalysisCashFlow } from "@/modules/ledger/components/ledger-analysis-cash-flow"
 import { LedgerAnalysisNetWorth } from "@/modules/ledger/components/ledger-analysis-net-worth"
 import { LedgerAnalysisRanking } from "@/modules/ledger/components/ledger-analysis-ranking"
@@ -24,6 +25,14 @@ export function LedgerAnalysisPage() {
   // sections query: an invalid custom range keeps the data on screen.
   const [state, setState] = useState<AnalysisRangeState>(defaultAnalysisRange)
   const [applied, setApplied] = useState<LedgerAnalysisRange>(() => resolveRange(defaultAnalysisRange, todayISO()).range ?? {})
+
+  // the spending card's level; the breakdown card can pick a category too
+  const [parentId, setParentId] = useState("")
+  const spendingRef = useRef<HTMLDivElement>(null)
+  const selectCategory = (categoryId: string) => {
+    setParentId(categoryId)
+    spendingRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" })
+  }
 
   const change = (next: AnalysisRangeState) => {
     setState(next)
@@ -67,7 +76,10 @@ export function LedgerAnalysisPage() {
           </p>
         )}
       </div>
-      <LedgerAnalysisSpending range={applied} />
+      <div ref={spendingRef}>
+        <LedgerAnalysisSpending range={applied} parentId={parentId} onParentChange={setParentId} />
+      </div>
+      <LedgerAnalysisBreakdown range={applied} onSelectCategory={selectCategory} />
       <LedgerAnalysisCashFlow range={applied} />
       <LedgerAnalysisNetWorth range={applied} />
       <LedgerAnalysisRanking range={applied} />

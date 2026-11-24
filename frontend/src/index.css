@@ -150,6 +150,37 @@
   --viz-income: #169a6b;
   --viz-expenses: #e34948;
   --viz-net: var(--foreground);
+  /* tints for the subcategories of the two-ring chart, lighter in light mode */
+  --viz-cat-1-tint-1: #6aa0e2;
+  --viz-cat-1-tint-2: #94bcea;
+  --viz-cat-1-tint-3: #bbd4f2;
+  --viz-cat-2-tint-1: #d3a94c;
+  --viz-cat-2-tint-2: #e0c280;
+  --viz-cat-2-tint-3: #ebd8ad;
+  --viz-cat-3-tint-1: #5cb897;
+  --viz-cat-3-tint-2: #8accb5;
+  --viz-cat-3-tint-3: #b4dfd0;
+  --viz-cat-4-tint-1: #eb807f;
+  --viz-cat-4-tint-2: #f1a4a4;
+  --viz-cat-4-tint-3: #f6c5c4;
+  --viz-cat-5-tint-1: #8075c1;
+  --viz-cat-5-tint-2: #a49cd3;
+  --viz-cat-5-tint-3: #c5c0e3;
+  --viz-cat-6-tint-1: #56b8c1;
+  --viz-cat-6-tint-2: #86ccd3;
+  --viz-cat-6-tint-3: #b2dfe3;
+  --viz-cat-7-tint-1: #e289b8;
+  --viz-cat-7-tint-2: #eaaacc;
+  --viz-cat-7-tint-3: #f2c9df;
+  --viz-cat-8-tint-1: #ad9776;
+  --viz-cat-8-tint-2: #c4b49d;
+  --viz-cat-8-tint-3: #dacfc0;
+  --viz-cat-9-tint-1: #97b065;
+  --viz-cat-9-tint-2: #b5c691;
+  --viz-cat-9-tint-3: #d0dbb9;
+  --viz-cat-10-tint-1: #ef9b6a;
+  --viz-cat-10-tint-2: #f4b894;
+  --viz-cat-10-tint-3: #f8d1bb;
 }
 
 .dark {
@@ -168,6 +199,37 @@
   --viz-income: #199e70;
   --viz-expenses: #e66767;
   --viz-net: var(--foreground);
+  /* tints for the subcategories of the two-ring chart, darker in dark mode */
+  --viz-cat-1-tint-1: #306bb2;
+  --viz-cat-1-tint-2: #2a5588;
+  --viz-cat-1-tint-3: #244265;
+  --viz-cat-2-tint-1: #9c6a06;
+  --viz-cat-2-tint-2: #79540a;
+  --viz-cat-2-tint-3: #5b410e;
+  --viz-cat-3-tint-1: #187c5a;
+  --viz-cat-3-tint-2: #186148;
+  --viz-cat-3-tint-3: #184a39;
+  --viz-cat-4-tint-1: #b25353;
+  --viz-cat-4-tint-2: #894343;
+  --viz-cat-4-tint-3: #663535;
+  --viz-cat-5-tint-1: #726ab4;
+  --viz-cat-5-tint-2: #5a548a;
+  --viz-cat-5-tint-3: #454167;
+  --viz-cat-6-tint-1: #268c96;
+  --viz-cat-6-tint-2: #226d74;
+  --viz-cat-6-tint-3: #1f5257;
+  --viz-cat-7-tint-1: #ae628c;
+  --viz-cat-7-tint-2: #864e6d;
+  --viz-cat-7-tint-3: #633d52;
+  --viz-cat-8-tint-1: #8a6d47;
+  --viz-cat-8-tint-2: #6b563a;
+  --viz-cat-8-tint-3: #51432f;
+  --viz-cat-9-tint-1: #718835;
+  --viz-cat-9-tint-2: #596a2d;
+  --viz-cat-9-tint-3: #455026;
+  --viz-cat-10-tint-1: #ba6d3e;
+  --viz-cat-10-tint-2: #8e5634;
+  --viz-cat-10-tint-3: #69432b;
 }
 
 @layer base {

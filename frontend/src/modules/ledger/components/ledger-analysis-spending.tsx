@@ -1,9 +1,8 @@
-import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { LedgerAnalysisRange } from "@/modules/ledger/types"
 import { useLedgerSpendingAnalysis } from "@/modules/ledger/hooks/use-ledger-analysis"
 import { useLedgerCategories } from "@/modules/ledger/hooks/use-ledger-categories"
-import { spendingChartSeries } from "@/modules/ledger/lib/analysis-series"
+import { parentsWithChildren, spendingChartSeries } from "@/modules/ledger/lib/analysis-series"
 import { LedgerAnalysisCard } from "@/modules/ledger/components/ledger-analysis-card"
 import { SpendingChart } from "@/modules/ledger/components/ledger-analysis-charts"
 import { ChartLegend } from "@/components/charts/chart-parts"
@@ -13,17 +12,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const topLevelValue = "__top__"
 
 // LedgerAnalysisSpending shows the monthly expenses by top-level category, or
-// by the subcategories of one top-level category picked in the header.
-export function LedgerAnalysisSpending({ range }: { range: LedgerAnalysisRange }) {
+// by the subcategories of the top-level category parentId ("" for the top
+// level), which the header's level select changes.
+export function LedgerAnalysisSpending({ range, parentId, onParentChange }: {
+  range: LedgerAnalysisRange
+  parentId: string
+  onParentChange: (parentId: string) => void
+}) {
   const { t } = useTranslation()
-  const [parentId, setParentId] = useState("")
   const { data: categories = [] } = useLedgerCategories()
   const query = useLedgerSpendingAnalysis(range, parentId || undefined)
 
-  const ids = new Set(categories.map((c) => c.id))
-  const parents = categories
-    .filter((c) => (!c.parentId || !ids.has(c.parentId)) && categories.some((child) => child.parentId === c.id))
-    .sort((a, b) => a.name.localeCompare(b.name))
+  const parents = parentsWithChildren(categories)
   const parentName = categories.find((c) => c.id === parentId)?.name ?? ""
 
   const series = query.data
@@ -46,12 +46,12 @@ export function LedgerAnalysisSpending({ range }: { range: LedgerAnalysisRange }
       actions={
         <>
           {parentId && (
-            <Button type="button" size="sm" variant="ghost" onClick={() => setParentId("")}>
+            <Button type="button" size="sm" variant="ghost" onClick={() => onParentChange("")}>
               {t("ledger.analysis.spending.allCategories")}
             </Button>
           )}
           {parents.length > 0 && (
-            <Select value={parentId || topLevelValue} onValueChange={(value) => setParentId(value === topLevelValue ? "" : value)}>
+            <Select value={parentId || topLevelValue} onValueChange={(value) => onParentChange(value === topLevelValue ? "" : value)}>
               <SelectTrigger size="sm" className="w-56" aria-label={t("ledger.analysis.spending.level")}>
                 <SelectValue />
               </SelectTrigger>

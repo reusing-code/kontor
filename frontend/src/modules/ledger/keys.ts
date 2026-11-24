@@ -30,6 +30,7 @@ export const ledgerKeys = {
   cashFlow: (range: LedgerAnalysisRange) => [...all, "analysis", "cash-flow", rangeKey(range)] as const,
   ranking: (range: LedgerAnalysisRange) => [...all, "analysis", "ranking", rangeKey(range)] as const,
   netWorth: (range: LedgerAnalysisRange) => [...all, "analysis", "net-worth", rangeKey(range)] as const,
+  categoryBreakdown: (range: LedgerAnalysisRange) => [...all, "analysis", "category-breakdown", rangeKey(range)] as const,
   emailAccounts: () => [...all, "email-accounts"] as const,
   emailScanStatus: (id: string) => [...all, "email-scan", id] as const,
   emailOrders: () => [...all, "email-orders"] as const,

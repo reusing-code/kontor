@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { ledgerKeys } from "@/modules/ledger/keys"
 import {
   getLedgerCashFlowAnalysis,
+  getLedgerCategoryBreakdown,
   getLedgerNetWorthAnalysis,
   getLedgerRankingAnalysis,
   getLedgerSpendingAnalysis,
@@ -37,6 +38,14 @@ export function useLedgerNetWorthAnalysis(range: LedgerAnalysisRange) {
   return useQuery({
     queryKey: ledgerKeys.netWorth(range),
     queryFn: () => getLedgerNetWorthAnalysis(range),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useLedgerCategoryBreakdown(range: LedgerAnalysisRange) {
+  return useQuery({
+    queryKey: ledgerKeys.categoryBreakdown(range),
+    queryFn: () => getLedgerCategoryBreakdown(range),
     placeholderData: keepPreviousData,
   })
 }

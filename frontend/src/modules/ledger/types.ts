@@ -576,6 +576,36 @@ export interface LedgerCashFlowAnalysis {
   excludedCurrencies: string[]
 }
 
+export interface LedgerBreakdownChild {
+  kind: "category" | "direct"
+  // for direct the parent's ID
+  categoryId: string
+  // empty for direct
+  name: string
+  amountMinor: number
+}
+
+export interface LedgerBreakdownCategory {
+  kind: "category" | "uncategorized"
+  categoryId?: string
+  name: string
+  amountMinor: number
+  // empty for uncategorized; they sum to amountMinor
+  children: LedgerBreakdownChild[]
+}
+
+// The spending of the whole range per top-level category and its direct
+// children, netted over the range: a child with a net inflow is left out
+// (counted in droppedInflows) and does not lower its parent.
+export interface LedgerCategoryBreakdown {
+  from: string
+  to: string
+  totalMinor: number
+  categories: LedgerBreakdownCategory[]
+  droppedInflows: number
+  excludedCurrencies: string[]
+}
+
 export interface LedgerRankedCategory {
   kind: "category" | "uncategorized"
   categoryId?: string

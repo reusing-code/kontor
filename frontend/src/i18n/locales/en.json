@@ -846,6 +846,19 @@
         "total": "Total",
         "empty": "No expenses in this period."
       },
+      "breakdown": {
+        "title": "Expenses by category and subcategory",
+        "uncategorized": "Uncategorized",
+        "other": "Other",
+        "direct": "{{name}} (directly)",
+        "amount": "Amount",
+        "shareOfTotal": "Share of all expenses",
+        "shareOfParent": "Share of {{name}}",
+        "empty": "No expenses in this period.",
+        "droppedInflows_one": "{{count}} category with more income than expenses in this period is not shown.",
+        "droppedInflows_other": "{{count}} categories with more income than expenses in this period are not shown.",
+        "selectHint": "Click a category to see its subcategories per month above."
+      },
       "cashFlow": {
         "title": "Cash flow",
         "income": "Income",

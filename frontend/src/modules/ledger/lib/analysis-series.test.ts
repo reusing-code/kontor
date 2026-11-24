@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest"
-import type { LedgerCategory, LedgerSpendingAnalysis, LedgerSpendingSeries } from "@/modules/ledger/types"
+import type { LedgerBreakdownCategory, LedgerCategory, LedgerCategoryBreakdown, LedgerSpendingAnalysis, LedgerSpendingSeries } from "@/modules/ledger/types"
 import {
+  breakdownRings,
+  breakdownTooltipRows,
   cashFlowSeries,
   chartRows,
   formatAmountCompact,
   netWorthSeries,
   otherColor,
   paletteColor,
+  parentsWithChildren,
   seriesTooltipRows,
   siblingColorIndex,
   spendingChartSeries,
   spendingTooltipRows,
+  tintColor,
   uncategorizedColor,
 } from "@/modules/ledger/lib/analysis-series"
 
@@ -267,6 +271,93 @@ describe("netWorthSeries", () => {
   it("has no values without dates", () => {
     expect(netWorthSeries({ ...worth, dates: [], totalMinor: [], accounts: [] }, "Total", true)).toEqual([
       { key: "total", label: "Total", color: "var(--foreground)", amountsMinor: [], totalMinor: 0 },
+    ])
+  })
+})
+
+describe("parentsWithChildren", () => {
+  it("lists the top-level categories with subcategories by name", () => {
+    const tree = [...categories, category("car-parts", "2026-03-01T10:00:00Z", "car")]
+    expect(parentsWithChildren(tree).map((c) => c.id)).toEqual(["car", "food"])
+  })
+})
+
+describe("breakdownRings", () => {
+  const ringLabels = { uncategorized: "Uncategorized", other: "Other", direct: (name: string) => `${name} (directly)` }
+
+  function parent(categoryId: string, children: Array<[string, number]>): LedgerBreakdownCategory {
+    const list = children.map(([id, amountMinor]) =>
+      id === "direct"
+        ? { kind: "direct" as const, categoryId, name: "", amountMinor }
+        : { kind: "category" as const, categoryId: id, name: id.toUpperCase(), amountMinor },
+    )
+    return { kind: "category", categoryId, name: categoryId.toUpperCase(), amountMinor: list.reduce((sum, c) => sum + c.amountMinor, 0), children: list }
+  }
+
+  function breakdown(list: LedgerBreakdownCategory[]): LedgerCategoryBreakdown {
+    return { from: "2026-01-01", to: "2026-02-28", totalMinor: list.reduce((sum, c) => sum + c.amountMinor, 0), categories: list, droppedInflows: 0, excludedCurrencies: [] }
+  }
+
+  const uncategorized: LedgerBreakdownCategory = { kind: "uncategorized", name: "", amountMinor: 50, children: [] }
+
+  it("lines the children up with their parents and sums them to the parent", () => {
+    const rings = breakdownRings(breakdown([parent("food", [["groceries", 300], ["direct", 100]]), parent("home", [["direct", 200]]), uncategorized]), categories, ringLabels)
+    expect(rings.inner.map((s) => [s.key, s.label, s.amountMinor])).toEqual([["food", "FOOD", 400], ["home", "HOME", 200], ["uncategorized", "Uncategorized", 50]])
+    expect(rings.outer.map((s) => [s.key, s.label, s.amountMinor, s.parentKey, !!s.placeholder])).toEqual([
+      ["groceries", "GROCERIES", 300, "food", false],
+      ["food:direct", "FOOD (directly)", 100, "food", false],
+      // only booked on itself, and uncategorized: empty outer arcs
+      ["home:empty", "HOME", 200, "home", true],
+      ["uncategorized:empty", "Uncategorized", 50, "uncategorized", true],
+    ])
+    for (const inner of rings.inner) {
+      expect(rings.outer.filter((s) => s.parentKey === inner.key).reduce((sum, s) => sum + s.amountMinor, 0)).toBe(inner.amountMinor)
+    }
+    expect(rings.outer.filter((s) => s.placeholder).every((s) => s.color === "transparent" && s.categoryId === undefined)).toBe(true)
+    expect(rings.totalMinor).toBe(650)
+  })
+
+  it("uses the bar chart's colors inside and the parent's tints outside", () => {
+    const response = breakdown([parent("home", [["a", 50], ["b", 40], ["c", 30], ["d", 20], ["e", 10]]), parent("food", [["groceries", 30]])])
+    const rings = breakdownRings(response, categories, ringLabels)
+    const bars = spendingChartSeries(
+      analysis([series("home", [0, 150]), series("food", [0, 30])]),
+      categories,
+      labels,
+    )
+    expect(rings.inner.map((s) => s.color)).toEqual(bars.map((s) => s.color))
+    expect(rings.outer.map((s) => s.color)).toEqual([
+      "var(--viz-cat-3)",
+      "var(--viz-cat-3-tint-1)",
+      "var(--viz-cat-3-tint-2)",
+      "var(--viz-cat-3-tint-3)",
+      "var(--viz-cat-3)",
+      "var(--viz-cat-1)",
+    ])
+    expect(tintColor(10, 2)).toBe("var(--viz-cat-1-tint-2)")
+  })
+
+  it("sums the children beyond the cap and the top levels beyond the cap into Other", () => {
+    const many = Array.from({ length: 11 }, (_, i) => category(`t${String(i).padStart(2, "0")}`, `2026-01-${String(i + 1).padStart(2, "0")}T10:00:00Z`))
+    const tops = many.map((c, i) => parent(c.id, i === 0 ? [["a", 60], ["b", 50], ["c", 40], ["d", 30], ["e", 20], ["f", 10], ["g", 5]] : [["direct", 100 - i]]))
+    const rings = breakdownRings(breakdown([...tops, uncategorized]), many, ringLabels)
+    expect(rings.inner.map((s) => s.key)).toEqual([...many.slice(0, 9).map((c) => c.id), "other", "uncategorized"])
+    const other = rings.inner[9]
+    expect([other.label, other.amountMinor, other.color, other.categoryId]).toEqual(["Other", 91 + 90, otherColor, undefined])
+    expect(rings.inner[10].color).toBe(uncategorizedColor)
+    const first = rings.outer.filter((s) => s.parentKey === "t00")
+    expect(first.map((s) => [s.label, s.amountMinor])).toEqual([["A", 60], ["B", 50], ["C", 40], ["D", 30], ["E", 20], ["Other", 15]])
+    expect(rings.outer.find((s) => s.parentKey === "other")?.placeholder).toBe(true)
+  })
+
+  it("lists the amount, the share of the total and of the parent", () => {
+    const rings = breakdownRings(breakdown([parent("food", [["groceries", 300], ["direct", 100]]), uncategorized]), categories, ringLabels)
+    const tooltipLabels = { amount: "Amount", shareOfTotal: "Of all", shareOfParent: (name: string) => `Of ${name}` }
+    expect(breakdownTooltipRows(rings.inner[0], rings, tooltipLabels, "en-US").map((r) => [r.name, r.value])).toEqual([["Amount", "€4.00"], ["Of all", "88.9%"]])
+    expect(breakdownTooltipRows(rings.outer[0], rings, tooltipLabels, "en-US").map((r) => [r.name, r.value])).toEqual([
+      ["Amount", "€3.00"],
+      ["Of all", "66.7%"],
+      ["Of FOOD", "75%"],
     ])
   })
 })
