@@ -21,6 +21,7 @@ import (
 
 type handlerEnv struct {
 	mod    *Module
+	links  *link.Registry
 	engine *storage.Engine
 	side   *fakeTxnSide
 	mux    http.Handler
@@ -43,7 +44,7 @@ func newHandlerEnv(t *testing.T) handlerEnv {
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mux.ServeHTTP(w, r.WithContext(middleware.SetUserID(r.Context(), storeUser)))
 	})
-	return handlerEnv{mod: mod, engine: engine, side: side, mux: wrapped}
+	return handlerEnv{mod: mod, links: links, engine: engine, side: side, mux: wrapped}
 }
 
 func (e handlerEnv) do(t *testing.T, method, path string, body any) *httptest.ResponseRecorder {
@@ -82,7 +83,7 @@ func errorText(t *testing.T, rec *httptest.ResponseRecorder) string {
 
 func (e handlerEnv) addLink(t *testing.T, refType string, id, txnID uuid.UUID) {
 	t.Helper()
-	target, err := e.mod.store.links.Target(refType)
+	target, err := e.links.Target(refType)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -568,7 +568,7 @@ func TestUpdateVehicle_KeepsLinksAddedMeanwhile(t *testing.T) {
 	}
 	txnID := uuid.New()
 	if err := engine.Update(func(txn *badger.Txn) error {
-		return s.AddLink(txn, storeTestUser, v.ID, txnID)
+		return s.vehicles.AddLink(txn, storeTestUser, v.ID, txnID)
 	}); err != nil {
 		t.Fatalf("AddLink: %v", err)
 	}
