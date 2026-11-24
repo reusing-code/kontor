@@ -19,9 +19,8 @@ func (h *Handler) ListContracts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListContractsByCategory(w http.ResponseWriter, r *http.Request) {
-	catID, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid category id")
+	catID, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid category id")
+	if !ok {
 		return
 	}
 
@@ -34,9 +33,8 @@ func (h *Handler) ListContractsByCategory(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) CreateContractInCategory(w http.ResponseWriter, r *http.Request) {
-	catID, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid category id")
+	catID, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid category id")
+	if !ok {
 		return
 	}
 
@@ -46,13 +44,8 @@ func (h *Handler) CreateContractInCategory(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var input ContractInput
-	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.BodyError(h.logger, w, err, "invalid request body")
-		return
-	}
-	if err := input.Validate(); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+	input, ok := httputil.Decode[ContractInput](h.logger, w, r)
+	if !ok {
 		return
 	}
 
@@ -66,9 +59,8 @@ func (h *Handler) CreateContractInCategory(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) GetContract(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
@@ -81,9 +73,8 @@ func (h *Handler) GetContract(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdateContract(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
@@ -93,13 +84,8 @@ func (h *Handler) UpdateContract(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input ContractInput
-	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.BodyError(h.logger, w, err, "invalid request body")
-		return
-	}
-	if err := input.Validate(); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+	input, ok := httputil.Decode[ContractInput](h.logger, w, r)
+	if !ok {
 		return
 	}
 
@@ -113,9 +99,8 @@ func (h *Handler) UpdateContract(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteContract(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 

@@ -54,7 +54,9 @@ func (f *fakeSide) RemoveReferences(_ *badger.Txn, _ string, ids []uuid.UUID, re
 	return nil
 }
 
-func (f *fakeSide) TransactionExists(_ *badger.Txn, _ string, id uuid.UUID) bool { return f.existing[id] }
+func (f *fakeSide) TransactionExists(_ *badger.Txn, _ string, id uuid.UUID) bool {
+	return f.existing[id]
+}
 
 type env struct {
 	e     *storage.Engine

@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
-	)
+)
 
 func (h *Handler) ListVehicles(w http.ResponseWriter, r *http.Request) {
 	vehicles, err := h.store.ListVehicles(r.Context(), middleware.GetUserID(r.Context()))
@@ -19,9 +19,8 @@ func (h *Handler) ListVehicles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetVehicle(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
@@ -34,13 +33,8 @@ func (h *Handler) GetVehicle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreateVehicle(w http.ResponseWriter, r *http.Request) {
-	var input VehicleInput
-	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.BodyError(h.logger, w, err, "invalid request body")
-		return
-	}
-	if err := input.Validate(); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+	input, ok := httputil.Decode[VehicleInput](h.logger, w, r)
+	if !ok {
 		return
 	}
 
@@ -54,9 +48,8 @@ func (h *Handler) CreateVehicle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdateVehicle(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
@@ -66,13 +59,8 @@ func (h *Handler) UpdateVehicle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input VehicleInput
-	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.BodyError(h.logger, w, err, "invalid request body")
-		return
-	}
-	if err := input.Validate(); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+	input, ok := httputil.Decode[VehicleInput](h.logger, w, r)
+	if !ok {
 		return
 	}
 
@@ -86,9 +74,8 @@ func (h *Handler) UpdateVehicle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteVehicle(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 

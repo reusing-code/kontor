@@ -19,9 +19,8 @@ func (h *Handler) ListPurchases(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListPurchasesByCategory(w http.ResponseWriter, r *http.Request) {
-	catID, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid category id")
+	catID, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid category id")
+	if !ok {
 		return
 	}
 
@@ -34,9 +33,8 @@ func (h *Handler) ListPurchasesByCategory(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) CreatePurchaseInCategory(w http.ResponseWriter, r *http.Request) {
-	catID, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid category id")
+	catID, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid category id")
+	if !ok {
 		return
 	}
 
@@ -45,13 +43,8 @@ func (h *Handler) CreatePurchaseInCategory(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var input PurchaseInput
-	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.BodyError(h.logger, w, err, "invalid request body")
-		return
-	}
-	if err := input.Validate(); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+	input, ok := httputil.Decode[PurchaseInput](h.logger, w, r)
+	if !ok {
 		return
 	}
 
@@ -65,9 +58,8 @@ func (h *Handler) CreatePurchaseInCategory(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) GetPurchase(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
@@ -80,9 +72,8 @@ func (h *Handler) GetPurchase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdatePurchase(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
@@ -92,13 +83,8 @@ func (h *Handler) UpdatePurchase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input PurchaseInput
-	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.BodyError(h.logger, w, err, "invalid request body")
-		return
-	}
-	if err := input.Validate(); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+	input, ok := httputil.Decode[PurchaseInput](h.logger, w, r)
+	if !ok {
 		return
 	}
 
@@ -112,9 +98,8 @@ func (h *Handler) UpdatePurchase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeletePurchase(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
