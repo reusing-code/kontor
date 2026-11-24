@@ -79,6 +79,22 @@ Every push to `main` adds a `sha-*` tag on Forgejo. A package cleanup rule set i
 
 The remove pattern limits the rule to the `sha-*` tags of `kontor` (not `kontor-ci`); the preview in the rule editor shows what would be deleted.
 
+## Configuration
+
+Kontor is configured through environment variables; `backend/.env.example` lists all of them. The ones that matter for a public install:
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `JWT_SECRET` | (required) | Signing key of the login sessions, at least 32 bytes (startup fails otherwise), e.g. `openssl rand -base64 48` |
+| `REGISTRATION_ENABLED` | unset | Who may create an account. Unset: open until the first user exists, closed afterwards. `true`: always open. `false`: always closed. The login page only offers sign-up while registration is open |
+| `AUTH_RATE_LIMIT` / `AUTH_RATE_WINDOW` | `10` / `1m` | Login and registration attempts per client IP; `0` disables |
+| `TRUST_PROXY` | `false` | Take client IPs from `X-Real-IP` / `X-Forwarded-For`; only behind a reverse proxy that sets them |
+| `ENCRYPTION_KEY` | unset | 32-byte key for stored secrets (email passwords, paperless tokens, bank sessions) |
+
+Fixed limits (not configurable): JSON request bodies up to 1 MiB, an export file to import up to 64 MiB, the contracts JSON import and a bank CSV up to 10 MiB, an `.eml` upload up to 64 MiB in total, quick add files up to 10 MiB, `/mcp` requests up to 1 MiB; a larger request gets `413 {"code":"body_too_large"}`. The HTTP server reads request headers within 10 s and a whole request within 5 min and closes idle connections after 2 min. SMTP connections time out after 10 s and a mail after 60 s. Passwords are 8 characters to 72 bytes. Changing the password ends every other login session (personal access tokens stay valid). On shutdown Kontor stops taking requests (up to 10 s), then waits up to 15 s for background work (scans, syncs, backups) before it closes the database.
+
+Not blocked: IMAP and paperless hosts may be private or loopback addresses, since both usually run in the same network. A user can therefore make Kontor connect to internal hosts and ports; the answers are reduced to fixed error texts, so nothing the other side sends comes back. Close registration if you do not trust everyone who can reach the login page.
+
 ## Bank import (Enable Banking)
 
 The bank import is off until you configure it; the UI shows nothing about it while `/api/v1/capabilities` reports `bankImport: false`.
@@ -147,8 +163,9 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/auth/register` | Register user |
+| POST | `/auth/register` | Register user (403 `registration_closed` while registration is closed, see `REGISTRATION_ENABLED`) |
 | POST | `/auth/login` | Login (returns JWT) |
+| GET | `/auth/config` | Public: `{registrationOpen}` for the login page |
 | GET | `/ledger/bank/aspsps` | Banks Enable Banking offers for `?country=DE` (JWT only) |
 | GET | `/ledger/bank/connections` | Bank connections with account mapping and sync status (never the session) |
 | POST | `/ledger/bank/connections/authorize` | Start a bank consent (`{aspspName, aspspCountry}` → `{url}`) |
@@ -208,7 +225,7 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | GET/PUT/DELETE | `/costs/{id}` | Cost entry CRUD |
 | GET/POST | `/ledger/email-accounts` | List / create ledger email accounts (`folder`, optional `draftsFolder`, and per folder the action for processed emails: `processedAction` / `processedFolder`, `draftsProcessedAction` / `draftsProcessedFolder` with `keep`, `move`, `delete`) |
 | GET/PUT/DELETE | `/ledger/email-accounts/{emailAccountId}` | Ledger email account CRUD |
-| POST | `/ledger/email-accounts/{emailAccountId}/test` | Test the configured IMAP connection |
+| POST | `/ledger/email-accounts/{emailAccountId}/test` | Test the configured IMAP connection; 502 `imap_login_failed` / `imap_folder_failed` / `imap_unavailable` with fixed texts (the mail server's answer is never returned) |
 | POST | `/ledger/email-accounts/folders` | List the IMAP folders of a connection as entered in the account dialog (`{imapHost, imapPort, username, useTls, password?, accountId?}`; without a password the stored one of `accountId` is used) → `{folders}`. 409 `password_missing`, 502 `imap_login_failed` / `imap_unavailable` |
 | POST | `/ledger/email-accounts/{emailAccountId}/scan` | Start a background scan of the account's folder via IMAP with the LLM (202 with the scan status), matching resulting orders to ledger transactions; a multipart upload of `.eml` files is processed within the request instead (200 with the result). 409 when the LLM is off, no folder or password is set or a scan is already running |
 | GET | `/ledger/email-accounts/{emailAccountId}/scan` | Status of the running or last scan of the account: `state` (`idle`, `running`, `done`, `partial`, `failed`), counts, warnings |
@@ -226,7 +243,7 @@ All endpoints under `/api/v1/`. Auth endpoints are public; everything else requi
 | GET | `/modules` | List modules and their enabled state |
 | GET | `/capabilities` | Server-wide feature flags (`{"llm": bool, "llmVision": bool, "bankImport": bool}`) |
 | GET/PUT | `/settings` | Settings incl. enabled modules |
-| PUT | `/settings/password` | Change password |
+| PUT | `/settings/password` | Change password (8 characters to 72 bytes); ends every login session and returns `{token}` for the current one |
 | GET/PUT/DELETE | `/paperless/config` | Paperless-ngx connection (per user; token stored encrypted) |
 | POST | `/paperless/config/test` | Test the paperless connection |
 | GET | `/paperless/search` | Proxied paperless document search |
