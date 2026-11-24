@@ -44,6 +44,9 @@ func NewStore(e *storage.Engine, links *link.Registry) *Store {
 type LedgerTransactionPage struct {
 	Items      []LedgerTransaction
 	NextCursor string
+	// Total is the number of matching transactions on all pages; only set by
+	// ListLedgerTransactionsFiltered.
+	Total int
 }
 
 type LedgerTransactionListOptions struct {
@@ -1089,9 +1092,12 @@ func (s *Store) ListLedgerTransactionsFiltered(_ context.Context, userID string,
 		if filtered != nil {
 			page.Items = filtered
 		}
+		page.Total = len(filtered)
 		return page, nil
 	}
-	return paginateLedgerTransactions(filtered, options.Limit, options.Cursor), nil
+	page = paginateLedgerTransactions(filtered, options.Limit, options.Cursor)
+	page.Total = len(filtered)
+	return page, nil
 }
 
 // filterLedgerTransactions returns the matching transactions in list order

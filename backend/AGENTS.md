@@ -210,7 +210,7 @@ All endpoints under `/api/v1/`. JSON request/response with camelCase field names
 - `POST /api/v1/ledger/imports/{previewId}/commit` — Commit ledger import preview (stores the file's balance as a snapshot)
 - `GET|POST /api/v1/ledger/categories` — List/create ledger categories
 - `GET|PUT|DELETE /api/v1/ledger/categories/{id}` — Get/update/delete ledger category
-- `GET /api/v1/ledger/transactions` — Ledger review queue; items are transactions plus an optional `suggestion {categoryId, confidence, matchWord?}`. Paged with `limit` (default 100, at most 500) and `cursor`, or `limit=all` for the whole queue in one response (no cursor; the review page uses it to group and page on the client)
+- `GET /api/v1/ledger/transactions` — Ledger review queue; items are transactions plus an optional `suggestion {categoryId, confidence, matchWord?}`. Paged with `limit` (default 100, at most 500) and `cursor`, or `limit=all` for the whole queue in one response (no cursor; the review page uses it to group and page on the client); `total` is the size of the whole queue (the dashboard asks `limit=1` for it)
 - `GET /api/v1/ledger/transactions/{transactionId}` — Get ledger transaction
 - `PUT /api/v1/ledger/transactions/{transactionId}` — Update ledger transaction note, links, and references
 - `POST /api/v1/ledger/transactions/{transactionId}/references` — Add one reference (`{type: purchase|contract|vehicle|cost, targetId}`; `cost` is a vehicle cost entry, gated on the auto module) and the target's back-link; idempotent, removes nothing, leaves category, transfer state, note and links alone; 404 for an unknown transaction or target, 403 `module_disabled` when the target's module is disabled
