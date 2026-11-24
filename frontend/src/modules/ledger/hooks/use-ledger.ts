@@ -74,7 +74,7 @@ import type {
   LedgerEmailOrderLinkInput,
   LedgerEmailScanStatus,
   LedgerReviewInput,
-  LedgerSourceType,
+  LedgerFileSourceType,
   LedgerTransferLinkInput,
   LedgerTransferLinkResult,
   LedgerTransaction,
@@ -262,7 +262,7 @@ export function useLedgerTransferCandidates(transactionId: string) {
 
 export function useLedgerPreviewImport() {
   return useMutation({
-    mutationFn: (input: { file: File; sourceType: LedgerSourceType; accountId?: string }) => previewLedgerImport(input),
+    mutationFn: (input: { file: File; sourceType: LedgerFileSourceType; accountId?: string }) => previewLedgerImport(input),
   })
 }
 

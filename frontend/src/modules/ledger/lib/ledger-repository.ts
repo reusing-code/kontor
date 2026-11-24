@@ -32,7 +32,7 @@ import type {
   LedgerRankingAnalysis,
   LedgerReviewInput,
   LedgerReviewResult,
-  LedgerSourceType,
+  LedgerFileSourceType,
   LedgerSpendingAnalysis,
   LedgerTransferCandidatesResult,
   LedgerTransferLinkInput,
@@ -266,7 +266,7 @@ export async function reviewLedgerTransaction(id: string, data: LedgerReviewInpu
 
 export async function previewLedgerImport(input: {
   file: File
-  sourceType: LedgerSourceType
+  sourceType: LedgerFileSourceType
   accountId?: string
 }): Promise<LedgerPreviewResult> {
   const form = new FormData()

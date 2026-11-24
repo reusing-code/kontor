@@ -7,7 +7,7 @@ import { Upload } from "lucide-react"
 import { useLedgerCommitImport, useLedgerPreviewImport } from "@/modules/ledger/hooks/use-ledger"
 import { defaultLedgerAccountInput } from "@/modules/ledger/lib/ledger-repository"
 import { formatAmountMinor, formatLedgerDate, formatSourceType } from "@/modules/ledger/lib/ledger-utils"
-import { ledgerAccountInputSchema, type LedgerAccount, type LedgerAccountInput, type LedgerPreviewResult, type LedgerSourceType } from "@/modules/ledger/types"
+import { ledgerAccountInputSchema, type LedgerAccount, type LedgerAccountInput, type LedgerPreviewResult, type LedgerFileSourceType } from "@/modules/ledger/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -45,7 +45,7 @@ export function LedgerImportPanel({ accounts }: LedgerImportPanelProps) {
   const previewMutation = useLedgerPreviewImport()
   const commitMutation = useLedgerCommitImport()
   const [file, setFile] = useState<File | null>(null)
-  const [sourceType, setSourceType] = useState<LedgerSourceType>("dkb.csv")
+  const [sourceType, setSourceType] = useState<LedgerFileSourceType>("dkb.csv")
   const [selectedAccountId, setSelectedAccountId] = useState<string>("")
   const [preview, setPreview] = useState<LedgerPreviewResult | null>(null)
   const [mode, setMode] = useState<"existing" | "new">("existing")
@@ -140,7 +140,7 @@ export function LedgerImportPanel({ accounts }: LedgerImportPanelProps) {
         <div className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">
             <label className="text-sm font-medium">{t("ledger.sourceType")}</label>
-            <Select value={sourceType} onValueChange={(value) => setSourceType(value as LedgerSourceType)}>
+            <Select value={sourceType} onValueChange={(value) => setSourceType(value as LedgerFileSourceType)}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
