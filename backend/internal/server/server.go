@@ -250,10 +250,7 @@ func (s *Server) Run() error {
 	}
 	a.start(shutdownCtx)
 
-	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", s.cfg.Port),
-		Handler: a.handler,
-	}
+	srv := newHTTPServer(s.cfg.Port, a.handler)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -275,6 +272,24 @@ func (s *Server) Run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(ctx)
+}
+
+// No WriteTimeout: the manual bank sync answers after up to 15 minutes and
+// /mcp may stream. ReadTimeout leaves room for the 64 MiB uploads.
+const (
+	readHeaderTimeout = 10 * time.Second
+	readTimeout       = 5 * time.Minute
+	idleTimeout       = 2 * time.Minute
+)
+
+func newHTTPServer(port int, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              fmt.Sprintf(":%d", port),
+		Handler:           handler,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		IdleTimeout:       idleTimeout,
+	}
 }
 
 func (s *Server) newExtractor() llm.Extractor {
