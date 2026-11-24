@@ -1,47 +1,65 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   getAllCategories,
+  getCategoryById,
   createCategory,
   updateCategory,
   deleteCategory,
 } from "@/lib/category-repository"
-import type { CategoryFormData } from "@/types/category"
+import { categoryKeys, type CategoryItemKeys } from "@/lib/query-keys"
+import { contractKeys } from "@/modules/contracts/keys"
+import { purchaseKeys } from "@/modules/purchases/keys"
+import type { CategoryFormData, CategoryKind } from "@/types/category"
 
-const categoriesKey = (module: string) => ["categories", module] as const
+const itemKeys: Record<CategoryKind, CategoryItemKeys> = { contracts: contractKeys, purchases: purchaseKeys }
 
-export function useCategories(module: string) {
+export function categoriesQueryOptions(kind: CategoryKind) {
+  return { queryKey: categoryKeys(kind).list(), queryFn: () => getAllCategories(kind) }
+}
+
+export function useCategories(kind: CategoryKind) {
+  return useQuery(categoriesQueryOptions(kind))
+}
+
+export function useCategory(kind: CategoryKind, id: string) {
   return useQuery({
-    queryKey: categoriesKey(module),
-    queryFn: () => getAllCategories(module),
+    queryKey: categoryKeys(kind).detail(id),
+    queryFn: () => getCategoryById(kind, id),
   })
 }
 
-export function useCreateCategory(module: string) {
+export function useCreateCategory(kind: CategoryKind) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: CategoryFormData) => createCategory(module, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: categoriesKey(module) }),
+    mutationFn: (data: CategoryFormData) => createCategory(kind, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: categoryKeys(kind).all }),
   })
 }
 
-export function useUpdateCategory(module: string) {
+// The category page and the dashboard summary show the category's name.
+export function useUpdateCategory(kind: CategoryKind) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: CategoryFormData }) => updateCategory(module, id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: categoriesKey(module) }),
+    mutationFn: ({ id, data }: { id: string; data: CategoryFormData }) => updateCategory(kind, id, data),
+    onSuccess: (_, { id }) =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: categoryKeys(kind).all }),
+        qc.invalidateQueries({ queryKey: itemKeys[kind].byCategory(id) }),
+        qc.invalidateQueries({ queryKey: itemKeys[kind].summary() }),
+      ]),
   })
 }
 
-export function useDeleteCategory(module: string) {
+// Deleting a category takes its items with it, so all of the module's item
+// queries are refreshed.
+export function useDeleteCategory(kind: CategoryKind) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => deleteCategory(module, id),
-    onSuccess: () => {
-      const summaryKey = module === "contracts" ? ["summary"] : module === "purchases" ? ["purchases-summary"] : null
-      return Promise.all([
-        qc.invalidateQueries({ queryKey: categoriesKey(module) }),
-        summaryKey && qc.invalidateQueries({ queryKey: summaryKey }),
-      ])
-    },
+    mutationFn: (id: string) => deleteCategory(kind, id),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: categoryKeys(kind).all }),
+        qc.invalidateQueries({ queryKey: itemKeys[kind].all }),
+      ]),
   })
 }

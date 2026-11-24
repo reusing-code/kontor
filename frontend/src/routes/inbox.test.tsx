@@ -4,6 +4,7 @@ import { InboxPage } from "@/routes/inbox"
 import { apiError, mockApi } from "@/test/api-mock"
 import { acceptCases, draft, ids, inboxRoutes } from "@/test/inbox-fixtures"
 import { renderWithProviders } from "@/test/render"
+import { errorToasts } from "@/test/toasts"
 import type { Draft } from "@/types/drafts"
 
 // These tests mount the real module dialogs; prefilled-create-dialogs.test.tsx
@@ -58,6 +59,68 @@ describe("InboxPage accept", () => {
     expect(await screen.findByText("No drafts waiting for review.")).toBeInTheDocument()
   })
 
+  it.each(acceptCases)("keeps the $type dialog open with the typed input while the create fails", async (c) => {
+    const d = draft(c.type, c.input, { parentId: c.parentId })
+    let attempts = 0
+    const api = mockApi({
+      ...inboxRoutes({ drafts: [d] }),
+      [`POST ${c.createPath}`]: () => (++attempts === 1 ? apiError(400, "name taken") : { id: ids.created }),
+    })
+    const { user } = renderWithProviders(<InboxPage />)
+
+    const accept = await findAccept(d)
+    await waitFor(() => expect(accept).toBeEnabled())
+    await user.click(accept)
+    const dialog = await screen.findByRole("dialog", { name: c.dialogTitle })
+    const field = within(dialog).getByDisplayValue(c.shown[0])
+    await user.type(field, " typed")
+    const typed = `${c.shown[0]} typed`
+    await user.click(within(dialog).getByRole("button", { name: "Save" }))
+
+    await waitFor(() => expect(errorToasts()).toEqual(["name taken"]))
+    expect(screen.getByRole("dialog", { name: c.dialogTitle })).toBe(dialog)
+    expect(within(dialog).getByDisplayValue(typed)).toBeInTheDocument()
+    expect(api.callsTo("POST", `/drafts/${d.id}/accept`)).toHaveLength(0)
+
+    const save = within(dialog).getByRole("button", { name: "Save" })
+    await waitFor(() => expect(save).toBeEnabled())
+    await user.click(save)
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+    const creates = api.callsTo("POST", c.createPath)
+    expect(creates).toHaveLength(2)
+    expect(Object.values(creates[1].body as Record<string, unknown>)).toContain(typed)
+    expect(api.callsTo("POST", `/drafts/${d.id}/accept`)).toHaveLength(1)
+    expect(await screen.findByText("Draft accepted and document linked")).toBeInTheDocument()
+    expect(errorToasts()).toEqual(["name taken"])
+  })
+
+  it.each(acceptCases)("disables Save of the $type dialog while the create runs", async (c) => {
+    const d = draft(c.type, c.input, { parentId: c.parentId })
+    let finish: (body: unknown) => void = () => {}
+    const api = mockApi({
+      ...inboxRoutes({ drafts: [d] }),
+      [`POST ${c.createPath}`]: () => new Promise((resolve) => { finish = resolve }),
+    })
+    const { user } = renderWithProviders(<InboxPage />)
+
+    const accept = await findAccept(d)
+    await waitFor(() => expect(accept).toBeEnabled())
+    await user.click(accept)
+    const dialog = await screen.findByRole("dialog", { name: c.dialogTitle })
+    const save = within(dialog).getByRole("button", { name: "Save" })
+    await user.click(save)
+
+    await waitFor(() => expect(save).toBeDisabled())
+    await user.click(save)
+    expect(api.callsTo("POST", c.createPath)).toHaveLength(1)
+
+    finish({ id: ids.created })
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+    expect(api.callsTo("POST", c.createPath)).toHaveLength(1)
+    expect(api.callsTo("POST", `/drafts/${d.id}/accept`)).toHaveLength(1)
+  })
+
   it("does not accept the draft when creating the entry fails", async () => {
     const d = draft("vehicle", { name: "Family car" })
     const api = mockApi({ ...inboxRoutes({ drafts: [d] }), "POST /vehicles": apiError(400, "name taken") })
@@ -67,8 +130,25 @@ describe("InboxPage accept", () => {
     const dialog = await screen.findByRole("dialog", { name: "Add Vehicle" })
     await user.click(within(dialog).getByRole("button", { name: "Save" }))
 
-    expect(await screen.findByText("Could not create the entry: name taken")).toBeInTheDocument()
+    await waitFor(() => expect(errorToasts()).toEqual(["name taken"]))
     expect(api.callsTo("POST", `/drafts/${d.id}/accept`)).toHaveLength(0)
+    expect(screen.getByText(d.source.title!)).toBeInTheDocument()
+  })
+
+  it("says once that the entry exists when accepting the draft fails", async () => {
+    const d = draft("vehicle", { name: "Family car" })
+    mockApi({ ...inboxRoutes({ drafts: [d] }), [`POST /drafts/${d.id}/accept`]: apiError(409, "already decided") })
+    const { user } = renderWithProviders(<InboxPage />)
+
+    await user.click(await findAccept(d))
+    const dialog = await screen.findByRole("dialog", { name: "Add Vehicle" })
+    await user.click(within(dialog).getByRole("button", { name: "Save" }))
+
+    await waitFor(() =>
+      expect(errorToasts()).toEqual(["The entry was created, but the draft could not be accepted: already decided"]),
+    )
+    // the entity exists, so its create dialog does not stay open
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
     expect(screen.getByText(d.source.title!)).toBeInTheDocument()
   })
 
@@ -159,17 +239,49 @@ describe("InboxPage list", () => {
     expect(screen.queryByRole("button", { name: "Accept…" })).not.toBeInTheDocument()
   })
 
-  it("rejects a draft", async () => {
+  it("rejects a draft after asking", async () => {
     const d = draft("vehicle", { name: "Family car" })
     const api = mockApi(inboxRoutes({ drafts: [d] }))
     const { user } = renderWithProviders(<InboxPage />)
 
     await findAccept(d)
     await user.click(within(card(d)).getByRole("button", { name: "Reject" }))
+    const confirm = await screen.findByRole("alertdialog")
+    expect(confirm).toHaveTextContent(`Reject the draft "${d.source.title}"?`)
+    expect(api.callsTo("POST", `/drafts/${d.id}/reject`)).toHaveLength(0)
+    await user.click(within(confirm).getByRole("button", { name: "Reject" }))
 
     expect(await screen.findByText("Draft rejected")).toBeInTheDocument()
     expect(api.callsTo("POST", `/drafts/${d.id}/reject`)).toHaveLength(1)
     await waitFor(() => expect(screen.queryByText(d.source.title!)).not.toBeInTheDocument())
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+  })
+
+  it("sends nothing when rejecting is cancelled", async () => {
+    const d = draft("vehicle", { name: "Family car" })
+    const api = mockApi(inboxRoutes({ drafts: [d] }))
+    const { user } = renderWithProviders(<InboxPage />)
+
+    await findAccept(d)
+    await user.click(within(card(d)).getByRole("button", { name: "Reject" }))
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Cancel" }))
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument())
+    expect(api.callsTo("POST", `/drafts/${d.id}/reject`)).toHaveLength(0)
+    expect(screen.getByText(d.source.title!)).toBeInTheDocument()
+  })
+
+  it("keeps the reject confirmation open while it fails", async () => {
+    const d = draft("vehicle", { name: "Family car" })
+    mockApi({ ...inboxRoutes({ drafts: [d] }), [`POST /drafts/${d.id}/reject`]: apiError(409, "already decided") })
+    const { user } = renderWithProviders(<InboxPage />)
+
+    await findAccept(d)
+    await user.click(within(card(d)).getByRole("button", { name: "Reject" }))
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Reject" }))
+
+    await waitFor(() => expect(errorToasts()).toEqual(["already decided"]))
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument()
   })
 })
 

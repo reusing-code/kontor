@@ -1,10 +1,10 @@
 import { useState } from "react"
+import { formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { PlusIcon, Trash2Icon } from "lucide-react"
 import type { LedgerCategory, LedgerTransaction } from "@/modules/ledger/types"
-import { useSetLedgerTransactionSplits } from "@/modules/ledger/hooks/use-ledger"
-import { formatAmountMinor } from "@/modules/ledger/lib/ledger-utils"
+import { useSetLedgerTransactionSplits } from "@/modules/ledger/hooks/use-ledger-transactions"
 import {
   maxSplitParts,
   rowsFromSplits,
@@ -44,7 +44,7 @@ export function LedgerSplitEditor({ transaction, categories }: LedgerSplitEditor
   const changed = JSON.stringify(rows) !== JSON.stringify(saved)
   const remainder = splitRemainder(rows, transaction.amountMinor)
   const mainCategory = categories.find((category) => category.id === transaction.categoryId)?.name ?? t("ledger.noCategory")
-  const money = (minor: number) => formatAmountMinor(minor, transaction.currency, i18n.language)
+  const money = (minor: number) => formatMinor(minor, transaction.currency)
 
   function update(index: number, patch: Partial<SplitRow>) {
     setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)))
@@ -59,7 +59,6 @@ export function LedgerSplitEditor({ transaction, categories }: LedgerSplitEditor
         setRows(stored)
         toast.success(t(splits.length > 0 ? "ledger.split.saved" : "ledger.split.removed"))
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 

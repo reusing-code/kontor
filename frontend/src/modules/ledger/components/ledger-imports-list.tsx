@@ -1,7 +1,8 @@
 import { useMemo } from "react"
+import { formatDate } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import type { LedgerAccount, LedgerImportBatch } from "@/modules/ledger/types"
-import { formatLedgerDate, formatSourceType } from "@/modules/ledger/lib/ledger-utils"
+import { formatSourceType } from "@/modules/ledger/lib/ledger-utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -48,7 +49,7 @@ export function LedgerImportsList({ imports, accounts }: LedgerImportsListProps)
               <TableBody>
                 {imports.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell>{formatLedgerDate(item.createdAt)}</TableCell>
+                    <TableCell>{formatDate(item.createdAt)}</TableCell>
                     <TableCell>{formatSourceType(item.sourceType)}</TableCell>
                     <TableCell>{item.filename || t("ledger.bankImport.apiSync")}</TableCell>
                     <TableCell>{accountNameById.get(item.accountId) ?? item.accountId}</TableCell>

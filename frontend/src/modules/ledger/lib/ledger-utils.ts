@@ -1,68 +1,32 @@
-import { format } from "date-fns"
-import type { LedgerEmailOrder } from "@/modules/ledger/types"
+import i18n from "@/i18n"
+import type { LedgerCategorizationSource, LedgerEmailOrder, LedgerReviewStatus } from "@/modules/ledger/types"
 
 export function emailOrderTitle(order: LedgerEmailOrder): string {
   return [order.merchant, order.externalOrderId].filter(Boolean).join(" · ") || order.emailSubject || order.importerId
 }
 
-export function formatLedgerDate(value?: string): string {
-  if (!value) return "-"
-  return format(new Date(value), "yyyy-MM-dd")
-}
-
-export function formatAmountMinor(amountMinor: number, currency: string = "EUR", locale: string = navigator.language): string {
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amountMinor / 100)
+const sourceTypeKeys: Record<string, string> = {
+  "dkb.csv": "ledger.sourceTypes.dkbCsv",
+  "comdirect.csv": "ledger.sourceTypes.comdirectCsv",
+  enablebanking: "ledger.sourceTypes.enablebanking",
 }
 
 export function formatSourceType(sourceType: string): string {
-  switch (sourceType) {
-    case "dkb.csv":
-      return "DKB CSV"
-    case "comdirect.csv":
-      return "comdirect CSV"
-    case "enablebanking":
-      return "Enable Banking"
-    default:
-      return sourceType
-  }
+  const key = sourceTypeKeys[sourceType]
+  return key ? i18n.t(key) : sourceType
 }
 
-export function formatLedgerReviewStatus(reviewStatus: string): string {
-  switch (reviewStatus) {
-    case "needsReview":
-      return "Needs review"
-    case "confirmed":
-      return "Confirmed"
-    default:
-      return reviewStatus
-  }
+export function formatLedgerReviewStatus(reviewStatus: LedgerReviewStatus): string {
+  return i18n.t(`ledger.reviewStatus.${reviewStatus}`, { defaultValue: reviewStatus })
 }
 
-export function formatLedgerCategorizationSource(source: string): string {
-  switch (source) {
-    case "keyword":
-      return "Keyword"
-    case "manual":
-      return "Manual"
-    case "none":
-      return "Uncategorized"
-    default:
-      return source
-  }
+export function formatLedgerCategorizationSource(source: LedgerCategorizationSource): string {
+  return i18n.t(`ledger.categorizationSource.${source}`, { defaultValue: source })
 }
 
 export function formatLedgerSpecialCategory(specialCategory?: string): string {
-  switch (specialCategory) {
-    case "internalTransfer":
-      return "Internal transfer"
-    default:
-      return specialCategory ?? ""
-  }
+  if (specialCategory === "internalTransfer") return i18n.t("ledger.internalTransfer")
+  return specialCategory ?? ""
 }
 
 export function tokenizeLedgerMatchWords(...values: Array<string | undefined>): string[] {

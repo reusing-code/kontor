@@ -1,8 +1,8 @@
 import type { SyntheticEvent } from "react"
+import { formatDate, formatMinor } from "@/lib/format"
 import { ChevronDownIcon, ChevronRightIcon, Undo2Icon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { LedgerCategory, LedgerReviewQueueItem } from "@/modules/ledger/types"
-import { formatAmountMinor, formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
 import { entryItems, reviewProposal, type ReviewEntry, type ReviewProposal } from "@/modules/ledger/lib/review-queue"
 import { LedgerSuggestionBadge } from "@/modules/ledger/components/ledger-suggestion-badge"
 import { LedgerCategorySelect } from "@/modules/ledger/components/ledger-category-select"
@@ -64,7 +64,7 @@ export function LedgerReviewList({
   selection,
   showSelection,
 }: LedgerReviewListProps) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const categoryNameById = new Map(categories.map((category) => [category.id, category.name]))
   const categoryName = (id: string) => categoryNameById.get(id) ?? id
   const proposable = (items: LedgerReviewQueueItem[]) => items.filter((item) => reviewProposal(item, llm)).map((item) => item.id)
@@ -73,6 +73,7 @@ export function LedgerReviewList({
 
   function matchWordToggle(ids: string[], word: string) {
     return (
+      // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- only keeps the checkbox click (mouse or keyboard) from selecting the row
       <label className="flex items-center gap-2 text-xs text-muted-foreground" onClick={stopPropagation}>
         <Checkbox
           checked={checkedState(ids, selection.isMatchWordSelected)}
@@ -126,9 +127,9 @@ export function LedgerReviewList({
             )}
           </TableCell>
         )}
-        <TableCell className={cn(inGroup && "pl-8")}>{formatLedgerDate(item.bookingDate)}</TableCell>
+        <TableCell className={cn(inGroup && "pl-8")}>{formatDate(item.bookingDate)}</TableCell>
         <TableCell className={item.amountMinor < 0 ? "text-destructive" : "text-emerald-600"}>
-          {formatAmountMinor(item.amountMinor, item.currency, i18n.language)}
+          {formatMinor(item.amountMinor, item.currency)}
         </TableCell>
         <TableCell>{item.counterpartyName || "-"}</TableCell>
         <TableCell>
@@ -153,7 +154,7 @@ export function LedgerReviewList({
     const matchWordIds = proposal.matchWord
       ? items.filter((item) => reviewProposal(item, llm)?.matchWord === proposal.matchWord).map((item) => item.id)
       : []
-    const dates = [items[items.length - 1].bookingDate, items[0].bookingDate].map(formatLedgerDate)
+    const dates = [items[items.length - 1].bookingDate, items[0].bookingDate].map((date) => formatDate(date))
 
     return [
       <TableRow key={key} className="cursor-pointer" onClick={() => onToggleGroup(key)}>
@@ -170,7 +171,7 @@ export function LedgerReviewList({
           {dates[0] === dates[1] ? dates[0] : `${dates[0]} – ${dates[1]}`}
         </TableCell>
         <TableCell className={total < 0 ? "text-destructive" : "text-emerald-600"}>
-          {sameCurrency ? formatAmountMinor(total, items[0].currency, i18n.language) : "-"}
+          {sameCurrency ? formatMinor(total, items[0].currency) : "-"}
         </TableCell>
         <TableCell>
           <div className="flex items-center gap-1">

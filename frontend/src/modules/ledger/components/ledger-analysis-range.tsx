@@ -22,7 +22,7 @@ export function LedgerAnalysisRangeControl({ state, prefill, today, onChange }: 
 
   return (
     <div className="space-y-3">
-      <div role="group" aria-label={t("ledger.analysis.range.label")} className="flex flex-wrap gap-2">
+      <fieldset aria-label={t("ledger.analysis.range.label")} className="flex min-w-0 flex-wrap gap-2">
         {analysisPresets.map((preset) => {
           const active = state.kind === "preset" && state.preset === preset
           return (
@@ -49,7 +49,7 @@ export function LedgerAnalysisRangeControl({ state, prefill, today, onChange }: 
         >
           {t("ledger.analysis.range.custom")}
         </Button>
-      </div>
+      </fieldset>
       {custom && (
         <div className="space-y-2">
           <div className="flex flex-wrap items-end gap-3">

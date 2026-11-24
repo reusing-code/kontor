@@ -1,13 +1,4 @@
-export type FieldType = "text" | "number" | "date" | "url" | "textarea" | "billingInterval"
-
-export interface FieldConfig {
-  key: string
-  type: FieldType
-  i18nKey: string
-  required: boolean
-  showInTable: boolean
-  tableOrder: number
-}
+import type { FieldConfig } from "@/components/forms/field-config"
 
 export const contractFields: FieldConfig[] = [
   { key: "name", type: "text", i18nKey: "fields.name", required: true, showInTable: true, tableOrder: 0 },

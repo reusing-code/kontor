@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["eslint", "typescript", "react", "oxc", "unicorn"],
+  "plugins": ["eslint", "typescript", "react", "oxc", "unicorn", "jsx-a11y"],
   "categories": {
     "correctness": "error"
   },
@@ -11,10 +11,12 @@
   "ignorePatterns": ["dist"],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/exhaustive-deps": "warn",
+    "react/exhaustive-deps": "error",
     "react/incompatible-library": "warn",
     "react/unsupported-syntax": "warn",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    "jsx-a11y/anchor-ambiguous-text": "error",
+    "jsx-a11y/control-has-associated-label": ["error", { "controlComponents": ["Button"], "depth": 4 }]
   },
   "overrides": [
     {

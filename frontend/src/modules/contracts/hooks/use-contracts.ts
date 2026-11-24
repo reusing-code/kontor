@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { createCategoryItemHooks } from "@/hooks/category-item-hooks"
+import { contractKeys } from "@/modules/contracts/keys"
 import {
   getAllContracts,
   getContractById,
@@ -9,109 +11,33 @@ import {
   deleteContract,
   importContracts,
 } from "@/modules/contracts/lib/contract-repository"
-import type { ContractFormData } from "@/modules/contracts/types"
+import type { Contract, ContractFormData } from "@/modules/contracts/types"
 
-const contractsKey = (categoryId: string) => ["contracts", categoryId] as const
+export const contractHooks = createCategoryItemHooks<Contract, ContractFormData>({
+  kind: "contracts",
+  keys: contractKeys,
+  repository: {
+    getAll: getAllContracts,
+    getByCategory: getContractsByCategory,
+    getById: getContractById,
+    create: createContract,
+    update: updateContract,
+    remove: deleteContract,
+  },
+})
 
-export function useCategoryContracts(categoryId: string) {
-  return useQuery({
-    queryKey: contractsKey(categoryId),
-    queryFn: () => getContractsByCategory(categoryId),
-  })
-}
-
-export function useContracts() {
-  return useQuery({
-    queryKey: ["contracts"],
-    queryFn: getAllContracts,
-  })
-}
-
-export function useContract(id: string) {
-  return useQuery({
-    queryKey: ["contracts", id],
-    queryFn: () => getContractById(id),
-  })
-}
+export const useContracts = contractHooks.useItems
+export const useCategoryContracts = contractHooks.useItemsByCategory
+export const useContract = contractHooks.useItem
+export const useCreateContract = contractHooks.useCreateItem
+export const useCreateContractByCategory = contractHooks.useCreateItemByCategory
+export const useUpdateContract = contractHooks.useUpdateItem
+export const useDeleteContract = contractHooks.useDeleteItem
 
 export function useUpcomingRenewals(days: number = 365) {
   return useQuery({
-    queryKey: ["contracts", "upcoming-renewals", days],
+    queryKey: contractKeys.upcomingRenewals(days),
     queryFn: () => getUpcomingRenewals(days),
-  })
-}
-
-export function useCreateContract(categoryId: string) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (data: ContractFormData) => createContract(categoryId, data),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: contractsKey(categoryId) }),
-        qc.invalidateQueries({ queryKey: ["categories", "contracts"] }),
-        qc.invalidateQueries({ queryKey: ["summary"] }),
-      ])
-    },
-  })
-}
-
-export function useCreateContractByCategory() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ categoryId, data }: { categoryId: string; data: ContractFormData }) => createContract(categoryId, data),
-    onSuccess: async (contract) => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["contracts"] }),
-        qc.invalidateQueries({ queryKey: contractsKey(contract.categoryId) }),
-        qc.invalidateQueries({ queryKey: ["categories", "contracts"] }),
-        qc.invalidateQueries({ queryKey: ["summary"] }),
-      ])
-    },
-  })
-}
-
-export function useUpdateContract(categoryId: string) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: ContractFormData }) => updateContract(id, data),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["contracts"] }),
-        qc.invalidateQueries({ queryKey: contractsKey(categoryId) }),
-        qc.invalidateQueries({ queryKey: ["categories", "contracts"] }),
-        qc.invalidateQueries({ queryKey: ["summary"] }),
-      ])
-    },
-  })
-}
-
-export function useUpdateContractById() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: ContractFormData }) => updateContract(id, data),
-    onSuccess: async (contract) => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["contracts"] }),
-        qc.invalidateQueries({ queryKey: ["contracts", contract.id] }),
-        qc.invalidateQueries({ queryKey: ["categories", "contracts"] }),
-        qc.invalidateQueries({ queryKey: ["summary"] }),
-      ])
-    },
-  })
-}
-
-export function useDeleteContract(categoryId: string) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (id: string) => deleteContract(id),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["contracts"] }),
-        qc.invalidateQueries({ queryKey: contractsKey(categoryId) }),
-        qc.invalidateQueries({ queryKey: ["categories", "contracts"] }),
-        qc.invalidateQueries({ queryKey: ["summary"] }),
-      ])
-    },
   })
 }
 
@@ -119,12 +45,6 @@ export function useImportContracts() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (file: File) => importContracts(file),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["contracts"] }),
-        qc.invalidateQueries({ queryKey: ["categories", "contracts"] }),
-        qc.invalidateQueries({ queryKey: ["summary"] }),
-      ])
-    },
+    onSuccess: () => contractHooks.invalidate(qc),
   })
 }

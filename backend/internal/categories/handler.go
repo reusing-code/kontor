@@ -31,9 +31,8 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	module := r.PathValue("module")
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
@@ -47,13 +46,8 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	module := r.PathValue("module")
-	var input CategoryInput
-	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.BodyError(h.logger, w, err, "invalid request body")
-		return
-	}
-	if err := input.Validate(); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+	input, ok := httputil.Decode[CategoryInput](h.logger, w, r)
+	if !ok {
 		return
 	}
 
@@ -68,9 +62,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	module := r.PathValue("module")
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
@@ -80,18 +73,12 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input CategoryInput
-	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.BodyError(h.logger, w, err, "invalid request body")
-		return
-	}
-	if err := input.Validate(); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+	input, ok := httputil.Decode[CategoryInput](h.logger, w, r)
+	if !ok {
 		return
 	}
 
-	existing.Name = input.Name
-	existing.UpdatedAt = time.Now().UTC()
+	existing.Apply(input, time.Now().UTC())
 
 	if err := h.store.Update(r.Context(), middleware.GetUserID(r.Context()), module, existing); err != nil {
 		httputil.StoreError(h.logger, w, err)
@@ -102,9 +89,8 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	module := r.PathValue("module")
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 

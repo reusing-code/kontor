@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next"
+import { formatDate } from "@/lib/format"
 import { AlertTriangle } from "lucide-react"
 import { useCapabilities } from "@/hooks/use-capabilities"
 import { useBankConnections } from "@/modules/ledger/hooks/use-bank-connections"
 import { useStartBankAuthorization } from "@/modules/ledger/hooks/use-bank-authorization"
-import { formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
 import { Button } from "@/components/ui/button"
 
 // Warns while a bank consent is about to end or has ended; shows nothing for
@@ -26,7 +26,7 @@ export function BankConsentBanner() {
             <span>
               {connection.status === "expired"
                 ? t("ledger.bankImport.banner.expired", { bank: connection.aspspName })
-                : t("ledger.bankImport.banner.expiring", { bank: connection.aspspName, date: formatLedgerDate(connection.expiresAt) })}
+                : t("ledger.bankImport.banner.expiring", { bank: connection.aspspName, date: formatDate(connection.expiresAt) })}
             </span>
           </div>
           <Button

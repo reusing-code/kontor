@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router"
+import { formatDate, formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { useModules } from "@/hooks/use-modules"
-import { useLedgerTransaction } from "@/modules/ledger/hooks/use-ledger"
-import { formatAmountMinor, formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
+import { useLedgerTransaction } from "@/modules/ledger/hooks/use-ledger-transactions"
 import { transactionPath } from "@/modules/ledger/lib/module-links"
 
 interface LinkedTransactionsListProps {
@@ -10,7 +10,7 @@ interface LinkedTransactionsListProps {
 }
 
 function LinkedTransactionRow({ transactionId }: { transactionId: string }) {
-  const { i18n, t } = useTranslation()
+  const { t } = useTranslation()
   const { data: transaction } = useLedgerTransaction(transactionId)
 
   if (!transaction) {
@@ -20,9 +20,9 @@ function LinkedTransactionRow({ transactionId }: { transactionId: string }) {
   return (
     <Link to={transactionPath(transaction.id)} className="block rounded-md border p-3 text-sm transition-colors hover:bg-accent/40">
       <div className="flex items-center justify-between gap-3">
-        <span>{formatLedgerDate(transaction.bookingDate)}</span>
+        <span>{formatDate(transaction.bookingDate)}</span>
         <span className={transaction.amountMinor < 0 ? "text-destructive" : "text-emerald-600"}>
-          {formatAmountMinor(transaction.amountMinor, transaction.currency, i18n.language)}
+          {formatMinor(transaction.amountMinor, transaction.currency)}
         </span>
       </div>
       <div className="mt-1 text-muted-foreground">{transaction.counterpartyName || transaction.purpose || t("ledger.transaction")}</div>

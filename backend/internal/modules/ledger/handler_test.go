@@ -306,6 +306,37 @@ func TestLedgerReviewQueue_OnlyNeedsReview(t *testing.T) {
 	}
 }
 
+func TestLedgerReviewQueue_TotalCountsTheWholeQueue(t *testing.T) {
+	h, s := newTestHandler(t)
+	mux := newMux(h)
+
+	accountID := addAccount(t, s, "Main")
+	commitTransactions(t, s, accountID,
+		LedgerTransaction{ID: uuid.New(), AccountID: accountID, BookingDate: "2026-04-04", Currency: "EUR", ReviewStatus: LedgerTransactionReviewNeedsReview},
+		LedgerTransaction{ID: uuid.New(), AccountID: accountID, BookingDate: "2026-04-03", Currency: "EUR", ReviewStatus: LedgerTransactionReviewNeedsReview},
+		LedgerTransaction{ID: uuid.New(), AccountID: accountID, BookingDate: "2026-04-02", Currency: "EUR", ReviewStatus: LedgerTransactionReviewNeedsReview},
+		LedgerTransaction{ID: uuid.New(), AccountID: accountID, BookingDate: "2026-04-01", Currency: "EUR", ReviewStatus: LedgerTransactionReviewConfirmed},
+	)
+
+	for _, query := range []string{"limit=1", "limit=all", ""} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/ledger/transactions?"+query, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d; body: %s", query, rec.Code, rec.Body.String())
+		}
+		page := decodeJSON[struct {
+			Items []LedgerTransaction `json:"items"`
+			Total int                 `json:"total"`
+		}](t, rec)
+		if page.Total != 3 {
+			t.Fatalf("%s: total = %d, want 3", query, page.Total)
+		}
+		if query == "limit=1" && len(page.Items) != 1 {
+			t.Fatalf("limit=1: len(items) = %d, want 1", len(page.Items))
+		}
+	}
+}
+
 func TestLedgerReviewQueue_LimitAll(t *testing.T) {
 	h, s := newTestHandler(t)
 	mux := newMux(h)

@@ -4,7 +4,7 @@ import { useForm, type Resolver } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { vehicleFormSchema, type VehicleFormData, type Vehicle } from "@/modules/auto/types"
 import { vehicleFields } from "@/modules/auto/config/vehicle-fields"
-import { FormFieldRenderer } from "@/modules/contracts/components/contract-form-field"
+import { FormFieldRenderer } from "@/components/forms/form-field-renderer"
 import {
   Dialog,
   DialogContent,
@@ -14,12 +14,13 @@ import {
 } from "@/components/ui/dialog"
 import { Form } from "@/components/ui/form"
 import { Button } from "@/components/ui/button"
+import { useDialogSubmit } from "@/hooks/use-dialog-submit"
 
 interface VehicleDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   vehicle?: Vehicle | null
-  onSubmit: (data: VehicleFormData) => void
+  onSubmit: (data: VehicleFormData) => Promise<unknown>
   // Prefills the create form; ignored when editing. Pass a stable object.
   initialValues?: Partial<VehicleFormData>
 }
@@ -61,10 +62,7 @@ export function VehicleDialog({ open, onOpenChange, vehicle, onSubmit, initialVa
     }
   }, [open, vehicle, initialValues, form])
 
-  function handleSubmit(data: VehicleFormData) {
-    onSubmit(data)
-    onOpenChange(false)
-  }
+  const handleSubmit = useDialogSubmit(onSubmit, onOpenChange)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -83,7 +81,9 @@ export function VehicleDialog({ open, onOpenChange, vehicle, onSubmit, initialVa
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t("common.cancel")}
               </Button>
-              <Button type="submit">{t("common.save")}</Button>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {t("common.save")}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

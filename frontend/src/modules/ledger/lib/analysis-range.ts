@@ -81,7 +81,3 @@ export function formatMonth(month: string, locale: string): string {
   const date = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1))
   return new Intl.DateTimeFormat(locale, { month: "short", year: "2-digit", timeZone: "UTC" }).format(date)
 }
-
-export function formatRangeDate(isoDate: string, locale: string): string {
-  return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${isoDate}T00:00:00Z`))
-}

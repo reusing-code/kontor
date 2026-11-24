@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next"
+import { formatDateTime, formatMoney } from "@/lib/format"
 import { ExternalLink } from "lucide-react"
 import type { Draft, DraftEntityType, DraftTargetType } from "@/types/drafts"
 import { Card, CardContent } from "@/components/ui/card"
@@ -102,14 +103,13 @@ export function DraftCard({
   onAccept,
   onReject,
 }: DraftCardProps) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const target = draft.targetType
 
   const documentId = draft.source.kind === "paperless" ? Number(draft.source.ref) : NaN
-  const money = new Intl.NumberFormat(i18n.language, { style: "currency", currency: "EUR" })
 
   function display([, value, kind]: Field): string {
-    if (kind === "money" && typeof value === "number") return money.format(value)
+    if (kind === "money" && typeof value === "number") return formatMoney(value)
     if (kind === "costType" && typeof value === "string") return t(`costTypes.${value}`)
     if (kind === "billingInterval" && typeof value === "string") {
       return t(`fields.billing${value.charAt(0).toUpperCase()}${value.slice(1)}`, { defaultValue: value })
@@ -143,7 +143,7 @@ export function DraftCard({
               <p className="truncate font-medium">{title}</p>
               <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                 <span>{t(`drafts.sources.${draft.source.kind}`)}</span>
-                <span>{new Date(draft.createdAt).toLocaleString(i18n.language)}</span>
+                <span>{formatDateTime(draft.createdAt)}</span>
                 {draft.source.kind === "paperless" && draft.source.url && (
                   <a
                     href={draft.source.url}

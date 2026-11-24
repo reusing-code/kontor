@@ -3,10 +3,11 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { ExternalLink, FileSearch, Trash2 } from "lucide-react"
 import { usePaperlessConfig, usePaperlessLinks, useDetachPaperlessDocument } from "@/hooks/use-paperless"
-import type { PaperlessEntityType } from "@/types/paperless"
+import type { PaperlessEntityType, PaperlessLink } from "@/types/paperless"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PaperlessSearchDialog } from "@/components/paperless/paperless-search-dialog"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 
 interface PaperlessDocumentsSectionProps {
   entityType: PaperlessEntityType
@@ -27,14 +28,14 @@ export function PaperlessDocumentsSection({
   const { data: links } = usePaperlessLinks(entityType, entityId, configured)
   const detach = useDetachPaperlessDocument(entityType, entityId)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [detaching, setDetaching] = useState<PaperlessLink | null>(null)
 
   if (!configured) return null
 
-  function handleDetach(documentId: number) {
-    detach.mutate(documentId, {
-      onSuccess: () => toast.success(t("paperless.detached")),
-      onError: (err) => toast.error(err.message),
-    })
+  async function handleDetach() {
+    if (!detaching) return
+    await detach.mutateAsync(detaching.documentId)
+    toast.success(t("paperless.detached"))
   }
 
   const body = (
@@ -49,13 +50,14 @@ export function PaperlessDocumentsSection({
             title={t("paperless.openInPaperless")}
           >
             <ExternalLink className="h-4 w-4 shrink-0" />
-            <span className="truncate">{link.title || `#${link.documentId}`}</span>
+            <span className="truncate">{documentTitle(link)}</span>
           </a>
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => handleDetach(link.documentId)}
+            onClick={() => setDetaching(link)}
             disabled={detach.isPending}
+            aria-label={t("paperless.detachDocument", { title: documentTitle(link) })}
             title={t("paperless.detach")}
           >
             <Trash2 className="h-4 w-4" />
@@ -74,6 +76,13 @@ export function PaperlessDocumentsSection({
         entityId={entityId}
         entityUrl={entityUrl}
         existingDocIds={(links ?? []).map((l) => l.documentId)}
+      />
+      <DeleteConfirmDialog
+        open={detaching !== null}
+        onOpenChange={(open) => { if (!open) setDetaching(null) }}
+        description={t("paperless.detachConfirm", { title: detaching ? documentTitle(detaching) : "" })}
+        actionLabel={t("paperless.detach")}
+        onConfirm={handleDetach}
       />
     </div>
   )
@@ -95,4 +104,8 @@ export function PaperlessDocumentsSection({
       <CardContent>{body}</CardContent>
     </Card>
   )
+}
+
+function documentTitle(link: PaperlessLink): string {
+  return link.title || `#${link.documentId}`
 }

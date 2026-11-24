@@ -1,17 +1,13 @@
 import { useState } from "react"
+import { formatDate } from "@/lib/format"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Pencil, Trash2 } from "lucide-react"
 import { usePageTitle } from "@/hooks/use-page-title"
-import {
-  useDeleteLedgerAccount,
-  useLedgerAccount,
-  useLedgerCategories,
-  useLedgerTransactions,
-  useUpdateLedgerAccount,
-} from "@/modules/ledger/hooks/use-ledger"
-import { formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
+import { useDeleteLedgerAccount, useLedgerAccount, useUpdateLedgerAccount } from "@/modules/ledger/hooks/use-ledger-accounts"
+import { useLedgerCategories } from "@/modules/ledger/hooks/use-ledger-categories"
+import { useLedgerTransactions } from "@/modules/ledger/hooks/use-ledger-transactions"
 import { LedgerTransactionsTable } from "@/modules/ledger/components/ledger-transactions-table"
 import { LedgerAccountEditDialog } from "@/modules/ledger/components/ledger-account-edit-dialog"
 import { LedgerAccountDeleteDialog } from "@/modules/ledger/components/ledger-account-delete-dialog"
@@ -45,7 +41,6 @@ export function LedgerAccountPage() {
         toast.success(t("ledger.accountDelete.done", { name: account.name }))
         void navigate({ to: "/ledger" })
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 
@@ -89,7 +84,7 @@ export function LedgerAccountPage() {
           </div>
           <div>
             <div className="text-xs text-muted-foreground">{t("ledger.createdAt")}</div>
-            <div className="text-sm">{formatLedgerDate(account?.createdAt)}</div>
+            <div className="text-sm">{account ? formatDate(account.createdAt) : "-"}</div>
           </div>
         </CardContent>
       </Card>
@@ -122,7 +117,6 @@ export function LedgerAccountPage() {
                   setEditing(false)
                   toast.success(t("ledger.accountEdit.saved"))
                 },
-                onError: (error) => toast.error(error.message),
               })
             }
           />

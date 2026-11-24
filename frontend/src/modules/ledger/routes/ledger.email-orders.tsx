@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
-import { useLedgerEmailOrders } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerEmailOrders } from "@/modules/ledger/hooks/use-ledger-email"
 import { LedgerEmailLlmNotice } from "@/modules/ledger/components/ledger-email-llm-notice"
 import { LedgerEmailOrdersTable } from "@/modules/ledger/components/ledger-email-orders-table"
 

@@ -1,6 +1,6 @@
 import { Link, useMatchRoute } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
-import { useLedgerAccounts } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerAccounts } from "@/modules/ledger/hooks/use-ledger-accounts"
 import { useCapabilities } from "@/hooks/use-capabilities"
 import { cn } from "@/lib/utils"
 import { SidebarSection } from "@/components/sidebar"

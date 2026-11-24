@@ -2,19 +2,15 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Repeat } from "lucide-react"
-import { ApiError } from "@/lib/api"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { useCapabilities } from "@/hooks/use-capabilities"
 import { useModules } from "@/hooks/use-modules"
-import {
-  useLedgerAccounts,
-  useLedgerCategories,
-  useLedgerEmailAccounts,
-  useLedgerEmailOrders,
-  useLedgerImports,
-  useLedgerReviewQueue,
-  useRunLedgerRecurringDetection,
-} from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerAccounts } from "@/modules/ledger/hooks/use-ledger-accounts"
+import { useLedgerCategories } from "@/modules/ledger/hooks/use-ledger-categories"
+import { useLedgerEmailAccounts, useLedgerEmailOrders } from "@/modules/ledger/hooks/use-ledger-email"
+import { useLedgerImports } from "@/modules/ledger/hooks/use-ledger-imports"
+import { useRunLedgerRecurringDetection } from "@/modules/ledger/hooks/use-ledger-recurring"
+import { useLedgerReviewCount } from "@/modules/ledger/hooks/use-ledger-review"
 import { useBankConnections } from "@/modules/ledger/hooks/use-bank-connections"
 import { BankConsentBanner } from "@/modules/ledger/components/bank-consent-banner"
 import { LedgerAccountList } from "@/modules/ledger/components/ledger-account-list"
@@ -40,9 +36,6 @@ function DetectRecurringButton() {
           action: { label: t("ledger.recurring.openInbox"), onClick: () => void navigate({ to: "/inbox" }) },
         })
       },
-      onError: (error) => {
-        toast.error(error instanceof ApiError && error.status === 409 ? t("ledger.recurring.busy") : error.message)
-      },
     })
   }
 
@@ -66,7 +59,7 @@ export function LedgerIndexPage() {
   const { data: emailOrders = [] } = useLedgerEmailOrders()
   const { data: imports = [] } = useLedgerImports()
   const { data: categories = [] } = useLedgerCategories()
-  const { data: reviewPage } = useLedgerReviewQueue(10)
+  const { data: reviewCount = 0 } = useLedgerReviewCount()
 
   return (
     <div className="space-y-6">
@@ -91,7 +84,7 @@ export function LedgerIndexPage() {
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold">{reviewPage?.items.length ?? 0}</div>
+            <div className="text-3xl font-semibold">{reviewCount}</div>
             <p className="text-sm text-muted-foreground">{t("ledger.transactionsNeedReview")}</p>
           </CardContent>
         </Card>

@@ -1,10 +1,12 @@
 import { useState } from "react"
+import { formatMoney } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { toast } from "sonner"
 import { Plus } from "lucide-react"
 import { useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from "@/hooks/use-categories"
 import { getPurchaseSummary } from "@/modules/purchases/lib/purchase-repository"
+import { purchaseKeys } from "@/modules/purchases/keys"
 import { useQuery } from "@tanstack/react-query"
 import type { Category, CategoryFormData } from "@/types/category"
 import { Button } from "@/components/ui/button"
@@ -17,7 +19,7 @@ export function PurchasesDashboardPage() {
   usePageTitle(t("nav.purchases"), t("app.title"))
   const { data: categories = [] } = useCategories("purchases")
   const { data: summary } = useQuery({
-    queryKey: ["purchases-summary"],
+    queryKey: purchaseKeys.summary(),
     queryFn: getPurchaseSummary,
   })
   const summaryByCategory = new Map(
@@ -32,16 +34,15 @@ export function PurchasesDashboardPage() {
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null)
 
   function handleCreate(data: CategoryFormData) {
-    createCategory.mutate(data, { onSuccess: () => toast.success(t("category.created")) })
+    return createCategory.mutateAsync(data, { onSuccess: () => toast.success(t("category.created")) })
   }
 
   function handleUpdate(data: CategoryFormData) {
-    if (!editingCategory) return
-    updateCategory.mutate(
+    if (!editingCategory) return Promise.resolve()
+    return updateCategory.mutateAsync(
       { id: editingCategory.id, data },
       { onSuccess: () => toast.success(t("category.updated")) },
     )
-    setEditingCategory(null)
   }
 
   function handleDelete() {
@@ -76,7 +77,7 @@ export function PurchasesDashboardPage() {
                 totalAmount={catSummary?.totalSpent ?? 0}
                 itemLabel={t("purchase.purchaseCount", { count: catSummary?.purchaseCount ?? 0 })}
                 totalLabel={t("purchase.totalSpent", {
-                  amount: `${(catSummary?.totalSpent ?? 0).toFixed(2)} ${t("common.currency")}`,
+                  amount: formatMoney(catSummary?.totalSpent ?? 0),
                 })}
                 onEdit={() => setEditingCategory(cat)}
                 onDelete={() => setDeletingCategory(cat)}

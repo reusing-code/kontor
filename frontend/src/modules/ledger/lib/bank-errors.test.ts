@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import i18n from "@/i18n"
 import { ApiError } from "@/lib/api"
-import { bankErrorMessage } from "@/modules/ledger/hooks/use-bank-authorization"
+import { bankErrorMessage } from "@/modules/ledger/lib/bank-errors"
 
 const t = i18n.t.bind(i18n)
 

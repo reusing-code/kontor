@@ -32,7 +32,9 @@ interface LedgerCategoryDialogProps {
   initialParentId?: string
   // Prefills the create form (name, match words); ignored when editing.
   initialValues?: Partial<Pick<LedgerCategoryInput, "name" | "matchWords">>
-  onSubmit: (data: LedgerCategoryInput) => void
+  // Save stays disabled until a returned promise settles; closing is left to
+  // the caller, a rejection to the global mutation error toast.
+  onSubmit: (data: LedgerCategoryInput) => void | Promise<unknown>
 }
 
 export function LedgerCategoryDialog({
@@ -67,7 +69,7 @@ interface LedgerCategoryDialogFormProps {
   initialParentId?: string
   initialValues?: Partial<Pick<LedgerCategoryInput, "name" | "matchWords">>
   onOpenChange: (open: boolean) => void
-  onSubmit: (data: LedgerCategoryInput) => void
+  onSubmit: LedgerCategoryDialogProps["onSubmit"]
 }
 
 function LedgerCategoryDialogForm({
@@ -99,16 +101,16 @@ function LedgerCategoryDialogForm({
       <Form {...form}>
         <form
           className="space-y-4"
-          onSubmit={form.handleSubmit((data) => {
+          onSubmit={form.handleSubmit(async (data) => {
             const matchWords = matchWordsInput
               .split(",")
               .map((word) => word.trim())
               .filter(Boolean)
-            onSubmit({
-              name: data.name,
-              parentId: data.parentId,
-              matchWords,
-            })
+            try {
+              await onSubmit({ name: data.name, parentId: data.parentId, matchWords })
+            } catch {
+              // the global mutation error toast reports it
+            }
           })}
         >
           <FormField
@@ -170,7 +172,7 @@ function LedgerCategoryDialogForm({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("common.cancel")}
             </Button>
-            <Button type="submit">{t("common.save")}</Button>
+            <Button type="submit" disabled={form.formState.isSubmitting}>{t("common.save")}</Button>
           </DialogFooter>
         </form>
       </Form>

@@ -4,15 +4,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
-	)
+)
 
 func (h *Handler) VehicleSummary(w http.ResponseWriter, r *http.Request) {
-	vehicleID, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid vehicle id")
+	vehicleID, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid vehicle id")
+	if !ok {
 		return
 	}
 

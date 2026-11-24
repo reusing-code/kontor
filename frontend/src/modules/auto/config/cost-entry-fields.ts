@@ -1,4 +1,4 @@
-import type { FieldConfig } from "@/modules/contracts/config/contract-fields"
+import type { FieldConfig } from "@/components/forms/field-config"
 
 export const costEntryFields: FieldConfig[] = [
   { key: "date", type: "date", i18nKey: "costEntryFields.date", required: true, showInTable: true, tableOrder: 0 },

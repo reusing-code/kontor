@@ -3,7 +3,8 @@ import { useCreatePurchaseByCategory } from "@/modules/purchases/hooks/use-purch
 import { useCreateContractByCategory } from "@/modules/contracts/hooks/use-contracts"
 import { useCreateCostEntryByVehicle, useCreateVehicle } from "@/modules/auto/hooks/use-vehicles"
 import { useCreateCategory } from "@/hooks/use-categories"
-import { useCreateLedgerAccount, useCreateLedgerCategory, useLedgerCategories } from "@/modules/ledger/hooks/use-ledger"
+import { useCreateLedgerAccount } from "@/modules/ledger/hooks/use-ledger-accounts"
+import { useCreateLedgerCategory, useLedgerCategories } from "@/modules/ledger/hooks/use-ledger-categories"
 import { PurchaseDialog } from "@/modules/purchases/components/purchase-dialog"
 import { ContractDialog } from "@/modules/contracts/components/contract-dialog"
 import { CostEntryDialog } from "@/modules/auto/components/cost-entry-dialog"
@@ -22,12 +23,15 @@ interface PrefilledCreateDialogsProps {
   entry: PrefillEntry | null
   onClose: () => void
   // create runs the module's create mutation with the submitted form data.
-  onCreate: (entry: PrefillEntry, create: () => Promise<{ id: string }>) => void
+  // onCreate must reject when create does (the dialog then stays open with the
+  // input) and resolve once the entity exists, which closes the dialog.
+  onCreate: (entry: PrefillEntry, create: () => Promise<{ id: string }>) => Promise<unknown>
 }
 
 // PrefilledCreateDialogs opens the create dialog of entry's module with the
-// entry's fields filled in. Every dialog closes on submit; the ledger dialogs
-// leave closing to their caller, so they are closed here.
+// entry's fields filled in. Every dialog closes once onCreate resolved and
+// stays open when it rejected; the ledger dialogs leave closing to their
+// caller, so they are closed here.
 export function PrefilledCreateDialogs({ entry, onClose, onCreate }: PrefilledCreateDialogsProps) {
   const createPurchase = useCreatePurchaseByCategory()
   const createContract = useCreateContractByCategory()
@@ -76,55 +80,57 @@ export function PrefilledCreateDialogs({ entry, onClose, onCreate }: PrefilledCr
     if (!open) onClose()
   }
 
+  function submit(create: (entry: PrefillEntry) => Promise<{ id: string }>): Promise<unknown> {
+    return entry ? onCreate(entry, () => create(entry)) : Promise.resolve()
+  }
+
+  // The ledger dialogs wait for the promise but leave closing to the caller.
+  async function submitLedger(create: (entry: PrefillEntry) => Promise<{ id: string }>) {
+    try {
+      await submit(create)
+    } catch {
+      return
+    }
+    onClose()
+  }
+
   return (
     <>
       <PurchaseDialog
         open={entry?.type === "purchase"}
         onOpenChange={handleOpenChange}
         initialValues={purchaseInitial}
-        onSubmit={(data) => {
-          if (entry) onCreate(entry, () => createPurchase.mutateAsync({ categoryId: entry.parentId, data }))
-        }}
+        onSubmit={(data) => submit((e) => createPurchase.mutateAsync({ categoryId: e.parentId, data }))}
       />
       <ContractDialog
         open={entry?.type === "contract"}
         onOpenChange={handleOpenChange}
         initialValues={contractInitial}
-        onSubmit={(data) => {
-          if (entry) onCreate(entry, () => createContract.mutateAsync({ categoryId: entry.parentId, data }))
-        }}
+        onSubmit={(data) => submit((e) => createContract.mutateAsync({ categoryId: e.parentId, data }))}
       />
       <CostEntryDialog
         open={entry?.type === "cost"}
         onOpenChange={handleOpenChange}
         initialValues={costInitial}
-        onSubmit={(data) => {
-          if (entry) onCreate(entry, () => createCost.mutateAsync({ vehicleId: entry.parentId, data }))
-        }}
+        onSubmit={(data) => submit((e) => createCost.mutateAsync({ vehicleId: e.parentId, data }))}
       />
       <VehicleDialog
         open={entry?.type === "vehicle"}
         onOpenChange={handleOpenChange}
         initialValues={vehicleInitial}
-        onSubmit={(data) => {
-          if (entry) onCreate(entry, () => createVehicle.mutateAsync(data))
-        }}
+        onSubmit={(data) => submit(() => createVehicle.mutateAsync(data))}
       />
       <CategoryDialog
         open={entry?.type === "contract_category"}
         onOpenChange={handleOpenChange}
         initialValues={contractCategoryInitial}
-        onSubmit={(data) => {
-          if (entry) onCreate(entry, () => createContractCategory.mutateAsync(data))
-        }}
+        onSubmit={(data) => submit(() => createContractCategory.mutateAsync(data))}
       />
       <CategoryDialog
         open={entry?.type === "purchase_category"}
         onOpenChange={handleOpenChange}
         initialValues={purchaseCategoryInitial}
-        onSubmit={(data) => {
-          if (entry) onCreate(entry, () => createPurchaseCategory.mutateAsync(data))
-        }}
+        onSubmit={(data) => submit(() => createPurchaseCategory.mutateAsync(data))}
       />
       <LedgerCategoryDialog
         open={entry?.type === "ledger_category"}
@@ -132,19 +138,13 @@ export function PrefilledCreateDialogs({ entry, onClose, onCreate }: PrefilledCr
         categories={ledgerCategories}
         initialParentId={entry?.type === "ledger_category" && entry.parentId ? entry.parentId : undefined}
         initialValues={ledgerCategoryInitial}
-        onSubmit={(data) => {
-          if (entry) onCreate(entry, () => createLedgerCategory.mutateAsync(data))
-          onClose()
-        }}
+        onSubmit={(data) => submitLedger(() => createLedgerCategory.mutateAsync(data))}
       />
       <LedgerAccountDialog
         open={entry?.type === "ledger_account"}
         onOpenChange={handleOpenChange}
         initialValues={ledgerAccountInitial}
-        onSubmit={(data) => {
-          if (entry) onCreate(entry, () => createLedgerAccount.mutateAsync(data))
-          onClose()
-        }}
+        onSubmit={(data) => submitLedger(() => createLedgerAccount.mutateAsync(data))}
       />
     </>
   )

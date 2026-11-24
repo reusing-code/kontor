@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { LedgerAnalysisRange } from "@/modules/ledger/types"
-import { useLedgerNetWorthAnalysis } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerNetWorthAnalysis } from "@/modules/ledger/hooks/use-ledger-analysis"
 import { netWorthSeries } from "@/modules/ledger/lib/analysis-series"
 import { LedgerAnalysisCard } from "@/modules/ledger/components/ledger-analysis-card"
 import { NetWorthChart } from "@/modules/ledger/components/ledger-analysis-charts"

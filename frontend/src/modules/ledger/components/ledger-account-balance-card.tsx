@@ -1,10 +1,11 @@
 import { useState } from "react"
+import { formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { AlertTriangle } from "lucide-react"
 import type { LedgerAccount } from "@/modules/ledger/types"
-import { useDeleteLedgerAccountBalance, useSetLedgerAccountBalance } from "@/modules/ledger/hooks/use-ledger"
-import { formatAmountMinor, formatSourceType } from "@/modules/ledger/lib/ledger-utils"
+import { useDeleteLedgerAccountBalance, useSetLedgerAccountBalance } from "@/modules/ledger/hooks/use-ledger-accounts"
+import { formatSourceType } from "@/modules/ledger/lib/ledger-utils"
 import { hasDrift } from "@/modules/ledger/lib/balance"
 import { LedgerBalanceDialog } from "@/modules/ledger/components/ledger-balance-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -12,12 +13,12 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export function LedgerAccountBalanceCard({ account }: { account: LedgerAccount }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const [setting, setSetting] = useState(false)
   const setBalance = useSetLedgerAccountBalance()
   const deleteBalance = useDeleteLedgerAccountBalance()
   const balance = account.balance
-  const money = (minor: number) => formatAmountMinor(minor, account.currency, i18n.language)
+  const money = (minor: number) => formatMinor(minor, account.currency)
   const source = (value: string) => (value === "manual" ? t("ledger.balance.sourceManual") : formatSourceType(value))
 
   return (
@@ -35,7 +36,7 @@ export function LedgerAccountBalanceCard({ account }: { account: LedgerAccount }
               onClick={() =>
                 deleteBalance.mutate(
                   { id: account.id, asOf: balance.asOf },
-                  { onSuccess: () => toast.success(t("ledger.balance.removed")), onError: (error) => toast.error(error.message) },
+                  { onSuccess: () => toast.success(t("ledger.balance.removed")) },
                 )
               }
             >
@@ -58,13 +59,13 @@ export function LedgerAccountBalanceCard({ account }: { account: LedgerAccount }
               {t("ledger.balance.reported", { date: balance.asOf, source: source(balance.source) })}
             </div>
             {hasDrift(balance.driftMinor) && (
-              <div className="flex flex-wrap items-start gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm" role="status">
+              <output className="flex flex-wrap items-start gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm">
                 <Badge variant="outline" className="gap-1">
                   <AlertTriangle className="h-3 w-3" aria-hidden />
                   {t("ledger.balance.drift", { amount: money(balance.driftMinor) })}
                 </Badge>
                 <span className="text-muted-foreground">{t("ledger.balance.driftHint", { date: balance.asOf, previous: balance.previousAsOf })}</span>
-              </div>
+              </output>
             )}
           </>
         ) : (
@@ -83,7 +84,6 @@ export function LedgerAccountBalanceCard({ account }: { account: LedgerAccount }
                 setSetting(false)
                 toast.success(t("ledger.balance.saved"))
               },
-              onError: (error) => toast.error(error.message),
             },
           )
         }

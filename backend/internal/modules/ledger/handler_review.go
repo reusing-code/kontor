@@ -82,6 +82,8 @@ type ledgerReviewQueueItem struct {
 type ledgerReviewQueueResponse struct {
 	Items      []ledgerReviewQueueItem `json:"items"`
 	NextCursor string                  `json:"nextCursor,omitempty"`
+	// Total counts the whole queue, so a short page can still show the size.
+	Total int `json:"total"`
 }
 
 func (h *Handler) ReviewLedgerTransactionsBatch(w http.ResponseWriter, r *http.Request) {
@@ -129,5 +131,5 @@ func (h *Handler) reviewQueueResponse(ctx context.Context, userID string, page L
 			items[i].Suggestion = &v
 		}
 	}
-	return ledgerReviewQueueResponse{Items: items, NextCursor: page.NextCursor}, nil
+	return ledgerReviewQueueResponse{Items: items, NextCursor: page.NextCursor, Total: page.Total}, nil
 }

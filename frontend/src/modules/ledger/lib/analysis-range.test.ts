@@ -5,7 +5,6 @@ import {
   customRangeProblem,
   defaultAnalysisRange,
   formatMonth,
-  formatRangeDate,
   presetRange,
   resolveRange,
 } from "@/modules/ledger/lib/analysis-range"
@@ -98,11 +97,5 @@ describe("formatting", () => {
     expect(formatMonth("2026-03", "en")).toBe("Mar 26")
     expect(formatMonth("2025-12", "en")).toBe("Dec 25")
     expect(formatMonth("2026-01", "de")).toMatch(/^Jan\.? 26$/)
-  })
-
-  it("formats a date of the active range without shifting the day", () => {
-    vi.stubEnv("TZ", "America/Los_Angeles")
-    expect(formatRangeDate("2026-03-01", "en")).toBe("Mar 1, 2026")
-    expect(formatRangeDate("2026-03-01", "de")).toBe("01.03.2026")
   })
 })

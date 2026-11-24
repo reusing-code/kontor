@@ -1,14 +1,16 @@
 import { useState } from "react"
+import { formatMoney } from "@/lib/format"
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { toast } from "sonner"
 import { Plus, Upload } from "lucide-react"
 import { useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from "@/hooks/use-categories"
-import { useUpcomingRenewals } from "@/modules/contracts/hooks/use-contracts"
+import { useDeleteContract, useUpcomingRenewals, useUpdateContract } from "@/modules/contracts/hooks/use-contracts"
+import { contractKeys } from "@/modules/contracts/keys"
 import { useSettings } from "@/hooks/use-settings"
-import { getSummary, updateContract, deleteContract } from "@/modules/contracts/lib/contract-repository"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { getSummary } from "@/modules/contracts/lib/contract-repository"
+import { useQuery } from "@tanstack/react-query"
 import type { Category, CategoryFormData } from "@/types/category"
 import type { Contract, ContractFormData } from "@/modules/contracts/types"
 import { Button } from "@/components/ui/button"
@@ -25,7 +27,7 @@ export function ContractsDashboardPage() {
   usePageTitle(t("nav.contracts"), t("app.title"))
   const { data: categories = [] } = useCategories("contracts")
   const { data: summary } = useQuery({
-    queryKey: ["summary"],
+    queryKey: contractKeys.summary(),
     queryFn: getSummary,
   })
   const summaryByCategory = new Map(
@@ -37,7 +39,6 @@ export function ContractsDashboardPage() {
 
   const { data: settings } = useSettings()
   const { data: upcomingContracts = [] } = useUpcomingRenewals(settings?.renewalDays)
-  const qc = useQueryClient()
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -46,43 +47,20 @@ export function ContractsDashboardPage() {
   const [editingContract, setEditingContract] = useState<Contract | null>(null)
   const [deletingContract, setDeletingContract] = useState<Contract | null>(null)
 
-  const updateContractMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: ContractFormData }) => updateContract(id, data),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["contracts"] }),
-        qc.invalidateQueries({ queryKey: ["categories", "contracts"] }),
-        qc.invalidateQueries({ queryKey: ["summary"] }),
-      ])
-      toast.success(t("contract.updated"))
-      setEditingContract(null)
-    },
-  })
+  const updateContractMutation = useUpdateContract()
 
-  const deleteContractMutation = useMutation({
-    mutationFn: ({ id }: { id: string }) => deleteContract(id),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["contracts"] }),
-        qc.invalidateQueries({ queryKey: ["categories", "contracts"] }),
-        qc.invalidateQueries({ queryKey: ["summary"] }),
-      ])
-      toast.success(t("contract.deleted"))
-      setDeletingContract(null)
-    },
-  })
+  const deleteContractMutation = useDeleteContract()
 
   function handleCreate(data: CategoryFormData) {
-    createCategory.mutate(data, { onSuccess: () => toast.success(t("category.created")) })
+    return createCategory.mutateAsync(data, { onSuccess: () => toast.success(t("category.created")) })
   }
 
   function handleUpdate(data: CategoryFormData) {
-    if (!editingCategory) return
-    updateCategory.mutate(
+    if (!editingCategory) return Promise.resolve()
+    return updateCategory.mutateAsync(
       { id: editingCategory.id, data },
       { onSuccess: () => toast.success(t("category.updated")) },
     )
-    setEditingCategory(null)
   }
 
   function handleDelete() {
@@ -94,13 +72,18 @@ export function ContractsDashboardPage() {
   }
 
   function handleContractUpdate(data: ContractFormData) {
-    if (!editingContract) return
-    updateContractMutation.mutate({ id: editingContract.id, data })
+    if (!editingContract) return Promise.resolve()
+    return updateContractMutation.mutateAsync({ id: editingContract.id, data }, { onSuccess: () => toast.success(t("contract.updated")) })
   }
 
   function handleContractDelete() {
     if (!deletingContract) return
-    deleteContractMutation.mutate({ id: deletingContract.id })
+    deleteContractMutation.mutate(deletingContract.id, {
+      onSuccess: () => {
+        toast.success(t("contract.deleted"))
+        setDeletingContract(null)
+      },
+    })
   }
 
   return (
@@ -134,10 +117,10 @@ export function ContractsDashboardPage() {
                 secondaryAmount={catSummary?.yearlyTotal ?? 0}
                 itemLabel={t("dashboard.contractCount", { count: catSummary?.contractCount ?? 0 })}
                 totalLabel={t("dashboard.monthlyTotal", {
-                  amount: `${(catSummary?.monthlyTotal ?? 0).toFixed(2)} ${t("common.currency")}`,
+                  amount: formatMoney(catSummary?.monthlyTotal ?? 0),
                 })}
                 secondaryLabel={t("dashboard.yearlyTotal", {
-                  amount: `${(catSummary?.yearlyTotal ?? 0).toFixed(2)} ${t("common.currency")}`,
+                  amount: formatMoney(catSummary?.yearlyTotal ?? 0),
                 })}
                 onEdit={() => setEditingCategory(cat)}
                 onDelete={() => setDeletingCategory(cat)}

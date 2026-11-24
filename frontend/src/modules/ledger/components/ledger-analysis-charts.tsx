@@ -14,7 +14,8 @@ import {
 } from "recharts"
 import { AXIS_LINE, AXIS_TICK } from "@/components/charts/chart-axis"
 import { ChartTooltipBox } from "@/components/charts/chart-parts"
-import { formatMonth, formatRangeDate } from "@/modules/ledger/lib/analysis-range"
+import { formatDate } from "@/lib/format"
+import { formatMonth } from "@/modules/ledger/lib/analysis-range"
 import {
   chartRows,
   formatAmountCompact,
@@ -49,7 +50,7 @@ export function SpendingChart({ months, series }: { months: string[]; series: Ch
             return (
               <ChartTooltipBox
                 title={formatMonth(months[index], locale)}
-                rows={spendingTooltipRows(series, index, t("ledger.analysis.spending.total"), locale)}
+                rows={spendingTooltipRows(series, index, t("ledger.analysis.spending.total"))}
               />
             )
           }}
@@ -82,7 +83,7 @@ export function CashFlowChart({ months, series }: { months: string[]; series: Ch
           content={({ active, label }) => {
             const index = months.indexOf(String(label))
             if (!active || index < 0) return null
-            return <ChartTooltipBox title={formatMonth(months[index], locale)} rows={seriesTooltipRows(series, index, locale)} />
+            return <ChartTooltipBox title={formatMonth(months[index], locale)} rows={seriesTooltipRows(series, index)} />
           }}
         />
         {series.map((s) =>
@@ -125,7 +126,7 @@ export function NetWorthChart({ dates, series }: { dates: string[]; series: Char
           content={({ active, label }) => {
             const index = dates.indexOf(String(label))
             if (!active || index < 0) return null
-            return <ChartTooltipBox title={formatRangeDate(dates[index], locale)} rows={seriesTooltipRows(series, index, locale)} />
+            return <ChartTooltipBox title={formatDate(dates[index])} rows={seriesTooltipRows(series, index)} />
           }}
         />
         {series.map((s) => (

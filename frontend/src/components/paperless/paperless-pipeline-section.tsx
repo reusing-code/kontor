@@ -31,7 +31,6 @@ export function PaperlessPipelineSection() {
         setEdits({})
         toast.success(t("paperless.pipeline.saved"))
       },
-      onError: (err) => toast.error(err.message || t("settings.saveFailed")),
     })
   }
 
@@ -46,7 +45,6 @@ export function PaperlessPipelineSection() {
         toast.success(t("paperless.pipeline.runResult", { count: res.created, found: res.found }))
         if (res.failed > 0) toast.warning(t("paperless.pipeline.runFailed", { count: res.failed }))
       },
-      onError: (err) => toast.error(err.message),
     })
   }
 

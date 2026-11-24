@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next"
 import type { LedgerAccount } from "@/modules/ledger/types"
-import { useLedgerAccountDeleteSummary } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerAccountDeleteSummary } from "@/modules/ledger/hooks/use-ledger-accounts"
 import {
   AlertDialog,
   AlertDialogAction,

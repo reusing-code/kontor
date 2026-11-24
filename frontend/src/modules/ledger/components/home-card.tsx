@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
-import { useLedgerAccounts, useLedgerImports, useLedgerReviewQueue } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerAccounts } from "@/modules/ledger/hooks/use-ledger-accounts"
+import { useLedgerImports } from "@/modules/ledger/hooks/use-ledger-imports"
+import { useLedgerReviewCount } from "@/modules/ledger/hooks/use-ledger-review"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Landmark, ArrowRight } from "lucide-react"
 
@@ -9,7 +11,7 @@ export function LedgerHomeCard() {
 
   const { data: ledgerAccounts = [] } = useLedgerAccounts()
   const { data: ledgerImports = [] } = useLedgerImports()
-  const { data: ledgerReviewPage } = useLedgerReviewQueue(10)
+  const { data: reviewCount = 0 } = useLedgerReviewCount()
 
   return (
     <Link to="/ledger" className="group">
@@ -36,7 +38,7 @@ export function LedgerHomeCard() {
               <p className="text-sm text-muted-foreground">{t("ledger.importHistory")}</p>
             </div>
             <div>
-              <p className="text-2xl font-bold">{ledgerReviewPage?.items.length ?? 0}</p>
+              <p className="text-2xl font-bold">{reviewCount}</p>
               <p className="text-sm text-muted-foreground">{t("ledger.reviewQueue")}</p>
             </div>
           </div>

@@ -5,10 +5,8 @@ import { usePageTitle } from "@/hooks/use-page-title"
 import { toast } from "sonner"
 import { rootRoute } from "@/routes/__root"
 import { moduleGuard } from "@/modules/guard"
-import { useUpcomingRenewals } from "@/modules/contracts/hooks/use-contracts"
+import { useDeleteContract, useUpcomingRenewals, useUpdateContract } from "@/modules/contracts/hooks/use-contracts"
 import { useSettings } from "@/hooks/use-settings"
-import { updateContract, deleteContract } from "@/modules/contracts/lib/contract-repository"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { Contract, ContractFormData } from "@/modules/contracts/types"
 import { ContractsTable } from "@/modules/contracts/components/contracts-table"
 import { ContractDialog } from "@/modules/contracts/components/contract-dialog"
@@ -27,43 +25,27 @@ function UpcomingRenewalsPage() {
   usePageTitle(t("nav.upcomingRenewals"), t("app.title"))
   const { data: settings } = useSettings()
   const { data: contracts = [] } = useUpcomingRenewals(settings?.renewalDays)
-  const qc = useQueryClient()
 
   const [editingContract, setEditingContract] = useState<Contract | null>(null)
   const [deletingContract, setDeletingContract] = useState<Contract | null>(null)
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: ContractFormData }) => updateContract(id, data),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["contracts"] }),
-        qc.invalidateQueries({ queryKey: ["categories", "contracts"] }),
-      ])
-      toast.success(t("contract.updated"))
-      setEditingContract(null)
-    },
-  })
+  const updateMutation = useUpdateContract()
 
-  const deleteMutation = useMutation({
-    mutationFn: ({ id }: { id: string }) => deleteContract(id),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["contracts"] }),
-        qc.invalidateQueries({ queryKey: ["categories", "contracts"] }),
-      ])
-      toast.success(t("contract.deleted"))
-      setDeletingContract(null)
-    },
-  })
+  const deleteMutation = useDeleteContract()
 
   function handleUpdate(data: ContractFormData) {
-    if (!editingContract) return
-    updateMutation.mutate({ id: editingContract.id, data })
+    if (!editingContract) return Promise.resolve()
+    return updateMutation.mutateAsync({ id: editingContract.id, data }, { onSuccess: () => toast.success(t("contract.updated")) })
   }
 
   function handleDelete() {
     if (!deletingContract) return
-    deleteMutation.mutate({ id: deletingContract.id })
+    deleteMutation.mutate(deletingContract.id, {
+      onSuccess: () => {
+        toast.success(t("contract.deleted"))
+        setDeletingContract(null)
+      },
+    })
   }
 
   return (

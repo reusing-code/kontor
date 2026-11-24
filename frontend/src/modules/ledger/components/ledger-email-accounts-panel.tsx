@@ -2,7 +2,12 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Inbox, Plus } from "lucide-react"
-import { useCreateLedgerEmailAccount, useLedgerEmailAccounts, useRunLedgerEmailDrafts, useUpdateLedgerEmailAccount } from "@/modules/ledger/hooks/use-ledger"
+import {
+  useCreateLedgerEmailAccount,
+  useLedgerEmailAccounts,
+  useRunLedgerEmailDrafts,
+  useUpdateLedgerEmailAccount,
+} from "@/modules/ledger/hooks/use-ledger-email"
 import type { LedgerEmailAccount } from "@/modules/ledger/types"
 import { LedgerEmailAccountCard } from "@/modules/ledger/components/ledger-email-account-card"
 import { LedgerEmailAccountDialog } from "@/modules/ledger/components/ledger-email-account-dialog"
@@ -32,7 +37,6 @@ export function LedgerEmailAccountsPanel() {
         }
         result.warnings.forEach((warning) => toast.warning(warning))
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 
@@ -80,7 +84,6 @@ export function LedgerEmailAccountsPanel() {
                 toast.success(t("ledger.email.accountUpdated"))
                 setDialogOpen(false)
               },
-              onError: (error) => toast.error(error.message),
             })
             return
           }
@@ -89,7 +92,6 @@ export function LedgerEmailAccountsPanel() {
               toast.success(t("ledger.email.accountCreated"))
               setDialogOpen(false)
             },
-            onError: (error) => toast.error(error.message),
           })
         }}
       />

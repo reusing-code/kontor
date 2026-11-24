@@ -1,4 +1,5 @@
 import { createRoute } from "@tanstack/react-router"
+import { formatMoney } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
 import { useQuery } from "@tanstack/react-query"
@@ -7,6 +8,8 @@ import { modules } from "@/modules/registry"
 import { useModules } from "@/hooks/use-modules"
 import { getSummary } from "@/modules/contracts/lib/contract-repository"
 import { getPurchaseSummary } from "@/modules/purchases/lib/purchase-repository"
+import { contractKeys } from "@/modules/contracts/keys"
+import { purchaseKeys } from "@/modules/purchases/keys"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { CalendarClock } from "lucide-react"
 
@@ -45,13 +48,13 @@ function QuickStatsCard() {
   const purchasesEnabled = isEnabled("purchases")
 
   const { data: contractSummary } = useQuery({
-    queryKey: ["summary"],
+    queryKey: contractKeys.summary(),
     queryFn: getSummary,
     enabled: contractsEnabled,
   })
 
   const { data: purchaseSummary } = useQuery({
-    queryKey: ["purchases-summary"],
+    queryKey: purchaseKeys.summary(),
     queryFn: getPurchaseSummary,
     enabled: purchasesEnabled,
   })
@@ -78,7 +81,7 @@ function QuickStatsCard() {
             <div className="flex justify-between">
               <dt className="text-muted-foreground">{t("home.yearlyContracts")}</dt>
               <dd className="font-medium">
-                {(contractSummary?.totalYearlyAmount ?? 0).toFixed(2)} {t("common.currency")}
+                {formatMoney(contractSummary?.totalYearlyAmount ?? 0)}
               </dd>
             </div>
           )}

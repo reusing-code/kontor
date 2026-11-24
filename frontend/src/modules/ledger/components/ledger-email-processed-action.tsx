@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { RadioGroup } from "radix-ui"
 import { Input } from "@/components/ui/input"
 import { emailProcessedActions, type EmailProcessedAction } from "@/modules/ledger/types"
 import { LedgerEmailFolderList } from "@/modules/ledger/components/ledger-email-folder-list"
@@ -25,23 +25,23 @@ export function LedgerEmailProcessedAction({
   return (
     <div className="space-y-2">
       <div className="text-sm font-medium">{label}</div>
-      <div role="radiogroup" aria-label={label} className="flex gap-2">
+      <RadioGroup.Root
+        value={action}
+        onValueChange={(value) => onActionChange(value as EmailProcessedAction)}
+        orientation="horizontal"
+        aria-label={label}
+        className="flex gap-2"
+      >
         {emailProcessedActions.map((option) => (
-          <button
+          <RadioGroup.Item
             key={option}
-            type="button"
-            role="radio"
-            aria-checked={option === action}
-            onClick={() => onActionChange(option)}
-            className={cn(
-              "rounded-md border px-3 py-1.5 text-sm hover:bg-accent",
-              option === action && "border-primary bg-accent",
-            )}
+            value={option}
+            className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent data-[state=checked]:border-primary data-[state=checked]:bg-accent"
           >
             {t(`ledger.email.processed.${option}`)}
-          </button>
+          </RadioGroup.Item>
         ))}
-      </div>
+      </RadioGroup.Root>
       {action === "move" ? (
         <>
           <Input

@@ -19,7 +19,9 @@ interface LedgerAccountDialogProps {
   onOpenChange: (open: boolean) => void
   // Prefills the form. Pass a stable object.
   initialValues?: Partial<LedgerAccountInput>
-  onSubmit: (data: LedgerAccountInput) => void
+  // Save stays disabled until a returned promise settles; closing is left to
+  // the caller, a rejection to the global mutation error toast.
+  onSubmit: (data: LedgerAccountInput) => void | Promise<unknown>
 }
 
 export function LedgerAccountDialog({ open, onOpenChange, initialValues, onSubmit }: LedgerAccountDialogProps) {
@@ -54,7 +56,13 @@ function LedgerAccountDialogForm({
         <DialogTitle>{t("ledger.accountDialog.create")}</DialogTitle>
       </DialogHeader>
       <Form {...form}>
-        <form className="space-y-4" onSubmit={form.handleSubmit((data) => onSubmit({ ...data, iban: data.iban?.trim() || undefined }))}>
+        <form className="space-y-4" onSubmit={form.handleSubmit(async (data) => {
+            try {
+              await onSubmit({ ...data, iban: data.iban?.trim() || undefined })
+            } catch {
+              // the global mutation error toast reports it
+            }
+          })}>
           {fields.map(({ name, label, placeholder }) => (
             <FormField
               key={name}
@@ -75,7 +83,7 @@ function LedgerAccountDialogForm({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("common.cancel")}
             </Button>
-            <Button type="submit">{t("common.save")}</Button>
+            <Button type="submit" disabled={form.formState.isSubmitting}>{t("common.save")}</Button>
           </DialogFooter>
         </form>
       </Form>

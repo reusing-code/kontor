@@ -14,5 +14,6 @@ export function useQuickAddTypes(): ClassifiedEntityType[] {
 }
 
 export function useQuickAdd() {
-  return useMutation({ mutationFn: quickAdd })
+  // The dialog shows the translated error inline.
+  return useMutation({ mutationFn: quickAdd, meta: { errorToast: false } })
 }

@@ -1,287 +1,32 @@
 import { useMemo, useState } from "react"
-import { Link } from "@tanstack/react-router"
+import { formatDate } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { Copy, ExternalLink, Link2, Save } from "lucide-react"
-import { useCategories } from "@/hooks/use-categories"
+import { ExternalLink, Save } from "lucide-react"
 import { useModules } from "@/hooks/use-modules"
-import { useContracts, useCreateContractByCategory } from "@/modules/contracts/hooks/use-contracts"
-import {
-  useLedgerCategories,
-  useLedgerEmailOrders,
-  useReviewLedgerTransaction,
-  useUpdateLedgerTransactionDetails,
-} from "@/modules/ledger/hooks/use-ledger"
-import { LedgerCategorySelect } from "@/modules/ledger/components/ledger-category-select"
+import { useLedgerCategories } from "@/modules/ledger/hooks/use-ledger-categories"
+import { useLedgerEmailOrders } from "@/modules/ledger/hooks/use-ledger-email"
+import { useUpdateLedgerTransactionDetails } from "@/modules/ledger/hooks/use-ledger-transactions"
 import { LedgerSplitEditor } from "@/modules/ledger/components/ledger-split-editor"
-import { usePurchases } from "@/modules/purchases/hooks/use-purchases"
-import { useCostEntry, useCreateVehicle, useVehicles } from "@/modules/auto/hooks/use-vehicles"
-import { moduleReferenceToPath, referenceModuleId, vehiclePath } from "@/modules/ledger/lib/module-links"
-import { emailOrderTitle, formatAmountMinor, formatLedgerDate, formatLedgerReviewStatus, formatLedgerSpecialCategory } from "@/modules/ledger/lib/ledger-utils"
-import type { ContractFormData } from "@/modules/contracts/types"
+import { referenceModuleId, type ReferenceType } from "@/modules/ledger/lib/module-links"
+import { emailOrderTitle } from "@/modules/ledger/lib/ledger-utils"
 import type { LedgerTransaction, LedgerTransactionReference } from "@/modules/ledger/types"
-import type { VehicleFormData } from "@/modules/auto/types"
-import { ContractDialog } from "@/modules/contracts/components/contract-dialog"
-import { VehicleDialog } from "@/modules/auto/components/vehicle-dialog"
 import { LedgerTransferManager } from "@/modules/ledger/components/ledger-transfer-manager"
-import { CostFromTransaction, PurchaseFromTransaction } from "@/modules/ledger/components/ledger-transaction-create-actions"
-import { useTransactionLinker, type TransactionLinker } from "@/modules/ledger/hooks/use-transaction-linker"
+import { LedgerTransactionFieldsCard } from "@/modules/ledger/components/ledger-transaction-fields-card"
+import { LedgerTransactionCreateSection } from "@/modules/ledger/components/ledger-transaction-create-section"
+import { LedgerTransactionReferencePicker } from "@/modules/ledger/components/ledger-transaction-reference-picker"
+import { ReferenceRow } from "@/modules/ledger/components/ledger-transaction-reference-rows"
+import { useTransactionLinker } from "@/modules/ledger/hooks/use-transaction-linker"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 
-type ReferenceType = LedgerTransactionReference["type"]
-
-const REFERENCE_NAV_KEY: Record<ReferenceType, string> = {
-  purchase: "nav.purchases",
-  contract: "nav.contracts",
-  vehicle: "nav.auto",
-  cost: "ledger.referenceTypes.cost",
-}
-
-type TargetOption = { id: string; label: string }
-
-function TargetSelect({ options, value, onChange, placeholder }: {
-  options: TargetOption[]
-  value: string
-  onChange: (value: string) => void
-  placeholder: string
-}) {
-  return (
-    <Select value={value || undefined} onValueChange={onChange}>
-      <SelectTrigger className="w-full">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((option) => (
-          <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
-
-type TargetSelectProps = {
-  value: string
-  onChange: (value: string) => void
-  placeholder: string
-}
-
-function PurchaseTargetSelect(props: TargetSelectProps) {
-  const { data: purchases = [] } = usePurchases()
-  return <TargetSelect options={purchases.map((purchase) => ({ id: purchase.id, label: purchase.itemName }))} {...props} />
-}
-
-function ContractTargetSelect(props: TargetSelectProps) {
-  const { data: contracts = [] } = useContracts()
-  return <TargetSelect options={contracts.map((contract) => ({ id: contract.id, label: contract.name }))} {...props} />
-}
-
-function VehicleTargetSelect(props: TargetSelectProps) {
-  const { data: vehicles = [] } = useVehicles()
-  return <TargetSelect options={vehicles.map((vehicle) => ({ id: vehicle.id, label: vehicle.name }))} {...props} />
-}
-
-function ContractCreateAndLink({ transaction, link }: { transaction: LedgerTransaction; link: TransactionLinker }) {
-  const { t } = useTranslation()
-  const { data: contractCategories = [] } = useCategories("contracts")
-  const createContract = useCreateContractByCategory()
-  const [initialValues, setInitialValues] = useState<Partial<ContractFormData> | null>(null)
-  const [categoryId, setCategoryId] = useState("")
-
-  function openDialog() {
-    if (!categoryId) {
-      toast.error(t("ledger.selectCategoryFirst"))
-      return
-    }
-    const name = transaction.counterpartyName?.trim()
-    setInitialValues({
-      ...(name ? { name, company: name } : {}),
-      ...(transaction.currency === "EUR" ? { price: Math.abs(transaction.amountMinor) / 100 } : {}),
-      startDate: transaction.bookingDate.slice(0, 10),
-    })
-  }
-
-  function handleCreate(data: ContractFormData) {
-    createContract.mutate({ categoryId, data }, {
-      onSuccess: async (contract) => {
-        if (await link({ type: "contract", targetId: contract.id })) {
-          toast.success(t("ledger.referenceCreatedAndLinked", { type: t("nav.contracts") }))
-        }
-      },
-      onError: (error) => toast.error(error.message),
-    })
-  }
-
-  return (
-    <>
-      <Select value={categoryId || undefined} onValueChange={setCategoryId}>
-        <SelectTrigger className="w-[14rem]">
-          <SelectValue placeholder={t("ledger.contractCategoryForCreate")} />
-        </SelectTrigger>
-        <SelectContent>
-          {contractCategories.map((category) => (
-            <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Button type="button" variant="secondary" onClick={openDialog}>{t("ledger.createContractAndLink")}</Button>
-      <ContractDialog
-        open={initialValues !== null}
-        onOpenChange={(open) => { if (!open) setInitialValues(null) }}
-        initialValues={initialValues ?? undefined}
-        onSubmit={handleCreate}
-      />
-    </>
-  )
-}
-
-function VehicleCreateAndLink({ link }: { link: TransactionLinker }) {
-  const { t } = useTranslation()
-  const createVehicle = useCreateVehicle()
-  const [dialogOpen, setDialogOpen] = useState(false)
-
-  function handleCreate(data: VehicleFormData) {
-    createVehicle.mutate(data, {
-      onSuccess: async (vehicle) => {
-        setDialogOpen(false)
-        if (await link({ type: "vehicle", targetId: vehicle.id })) {
-          toast.success(t("ledger.referenceCreatedAndLinked", { type: t("nav.auto") }))
-        }
-      },
-      onError: (error) => toast.error(error.message),
-    })
-  }
-
-  return (
-    <>
-      <Button type="button" variant="secondary" onClick={() => setDialogOpen(true)}>{t("ledger.createVehicleAndLink")}</Button>
-      <VehicleDialog open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleCreate} />
-    </>
-  )
-}
-
-function ReferenceRowShell({ reference, label, description, hint, path = moduleReferenceToPath(reference), onRemove }: {
-  reference: LedgerTransactionReference
-  label: string
-  description?: string
-  hint?: string
-  path?: string | null
-  onRemove: () => void
-}) {
-  const { t } = useTranslation()
-
-  return (
-    <div className="flex items-center gap-2 rounded-md border p-3 text-sm">
-      <Link2 className="h-4 w-4 text-muted-foreground" />
-      <div className="min-w-0 flex-1">
-        {hint === undefined && path !== null ? (
-          <Link to={path} className="block truncate text-primary hover:underline">
-            {label}
-          </Link>
-        ) : (
-          <div className="block truncate">
-            {label} {hint ? <span className="text-muted-foreground">{hint}</span> : null}
-          </div>
-        )}
-        {description ? <div className="truncate text-xs text-muted-foreground">{description}</div> : null}
-      </div>
-      <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
-        {t("common.delete")}
-      </Button>
-    </div>
-  )
-}
-
-function PurchaseReferenceRow({ reference, onRemove }: { reference: LedgerTransactionReference; onRemove: () => void }) {
-  const { t } = useTranslation()
-  const { data: purchases = [] } = usePurchases()
-  const purchase = purchases.find((item) => item.id === reference.targetId)
-  const label = purchase?.itemName ?? `${t("nav.purchases")} ${reference.targetId}`
-  const description = purchase ? [purchase.dealer, purchase.purchaseDate].filter(Boolean).join(" • ") : undefined
-  return <ReferenceRowShell reference={reference} label={label} description={description} onRemove={onRemove} />
-}
-
-function ContractReferenceRow({ reference, onRemove }: { reference: LedgerTransactionReference; onRemove: () => void }) {
-  const { t } = useTranslation()
-  const { data: contracts = [] } = useContracts()
-  const contract = contracts.find((item) => item.id === reference.targetId)
-  const label = contract?.name ?? `${t("nav.contracts")} ${reference.targetId}`
-  const description = contract ? [contract.company, contract.startDate].filter(Boolean).join(" • ") : undefined
-  return <ReferenceRowShell reference={reference} label={label} description={description} onRemove={onRemove} />
-}
-
-function VehicleReferenceRow({ reference, onRemove }: { reference: LedgerTransactionReference; onRemove: () => void }) {
-  const { t } = useTranslation()
-  const { data: vehicles = [] } = useVehicles()
-  const vehicle = vehicles.find((item) => item.id === reference.targetId)
-  const label = vehicle?.name ?? `${t("nav.auto")} ${reference.targetId}`
-  const description = vehicle ? [vehicle.make, vehicle.model, vehicle.licensePlate].filter(Boolean).join(" • ") : undefined
-  return <ReferenceRowShell reference={reference} label={label} description={description} onRemove={onRemove} />
-}
-
-function CostReferenceRow({ reference, onRemove }: { reference: LedgerTransactionReference; onRemove: () => void }) {
-  const { t, i18n } = useTranslation()
-  const { data: cost } = useCostEntry(reference.targetId)
-  const { data: vehicles = [] } = useVehicles()
-  const vehicle = cost ? vehicles.find((item) => item.id === cost.vehicleId) : undefined
-  const label = cost ? cost.description || t(`costTypes.${cost.type}`) : `${t("ledger.referenceTypes.cost")} ${reference.targetId}`
-  const description = cost
-    ? [
-        vehicle?.name,
-        formatLedgerDate(cost.date),
-        cost.amount != null ? formatAmountMinor(Math.round(cost.amount * 100), "EUR", i18n.language) : undefined,
-      ].filter(Boolean).join(" • ")
-    : undefined
-  return (
-    <ReferenceRowShell
-      reference={reference}
-      label={label}
-      description={description}
-      path={cost ? vehiclePath(cost.vehicleId) : null}
-      onRemove={onRemove}
-    />
-  )
-}
-
-function ReferenceRow({ reference, enabled, onRemove }: {
-  reference: LedgerTransactionReference
-  enabled: boolean
-  onRemove: () => void
-}) {
-  const { t } = useTranslation()
-
-  if (!enabled) {
-    const label = `${t(REFERENCE_NAV_KEY[reference.type])} ${reference.targetId}`
-    return <ReferenceRowShell reference={reference} label={label} hint={t("modules.disabledHint")} onRemove={onRemove} />
-  }
-
-  switch (reference.type) {
-    case "purchase":
-      return <PurchaseReferenceRow reference={reference} onRemove={onRemove} />
-    case "contract":
-      return <ContractReferenceRow reference={reference} onRemove={onRemove} />
-    case "vehicle":
-      return <VehicleReferenceRow reference={reference} onRemove={onRemove} />
-    case "cost":
-      return <CostReferenceRow reference={reference} onRemove={onRemove} />
-  }
-}
-
 export function LedgerTransactionDetailsCard({ transaction }: { transaction: LedgerTransaction }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { isEnabled } = useModules()
   const { data: ledgerCategories = [] } = useLedgerCategories()
   const { data: emailOrders = [] } = useLedgerEmailOrders()
   const updateDetails = useUpdateLedgerTransactionDetails()
-  const reviewMutation = useReviewLedgerTransaction()
 
   const availableTypes = (["purchase", "contract", "vehicle"] as ReferenceType[]).filter((type) =>
     isEnabled(referenceModuleId({ type, targetId: "" })),
@@ -290,12 +35,7 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
   const [note, setNote] = useState(transaction.note ?? "")
   const [linksText, setLinksText] = useState((transaction.links ?? []).join("\n"))
   const [references, setReferences] = useState<LedgerTransactionReference[]>(transaction.references ?? [])
-  const [referenceType, setReferenceType] = useState<ReferenceType>("purchase")
-  const [referenceTargetId, setReferenceTargetId] = useState("")
 
-  const effectiveReferenceType = availableTypes.includes(referenceType) ? referenceType : availableTypes[0]
-
-  const categoryName = transaction.categoryId ? ledgerCategories.find((category) => category.id === transaction.categoryId)?.name : undefined
   const linkedEmailOrders = useMemo(
     () => emailOrders.filter((order) => (transaction.emailOrderIds ?? []).includes(order.id)),
     [emailOrders, transaction.emailOrderIds],
@@ -314,97 +54,16 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
 
   const link = useTransactionLinker(transaction.id, addReference)
 
-  function handleAddReference() {
-    if (!effectiveReferenceType || !referenceTargetId) {
-      return
-    }
-    addReference({ type: effectiveReferenceType, targetId: referenceTargetId })
-    setReferenceTargetId("")
-  }
-
-  function handleCopyLink() {
-    navigator.clipboard.writeText(window.location.href)
-      .then(() => toast.success(t("ledger.transactionLinkCopied")))
-      .catch(() => toast.error(t("ledger.transactionLinkCopyFailed")))
-  }
-
-  // Changing the category here reviews the transaction with it, like the review queue.
-  function handleCategoryChange(categoryId: string) {
-    if (!categoryId || categoryId === transaction.categoryId) return
-    reviewMutation.mutate({ id: transaction.id, data: { categoryId, addMatchWords: [] } }, {
-      onSuccess: () => toast.success(t("ledger.categoryChanged")),
-      onError: (error) => toast.error(error.message),
-    })
-  }
-
   function handleSave() {
     const links = linksText.split("\n").map((value) => value.trim()).filter(Boolean)
     updateDetails.mutate({ id: transaction.id, data: { note, links, references } }, {
       onSuccess: () => toast.success(t("ledger.transactionDetailsSaved")),
-      onError: (error) => toast.error(error.message),
     })
   }
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle>{t("ledger.transactionDetails")}</CardTitle>
-            <Button type="button" variant="outline" size="sm" onClick={handleCopyLink}>
-              <Copy className="mr-2 h-4 w-4" />
-              {t("ledger.copyTransactionLink")}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <div>
-            <div className="text-xs text-muted-foreground">{t("ledger.date")}</div>
-            <div>{formatLedgerDate(transaction.bookingDate)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">{t("ledger.valueDate")}</div>
-            <div>{formatLedgerDate(transaction.valueDate)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">{t("ledger.amount")}</div>
-            <div className={transaction.amountMinor < 0 ? "text-destructive" : "text-emerald-600"}>
-              {formatAmountMinor(transaction.amountMinor, transaction.currency, i18n.language)}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">{t("ledger.reviewState")}</div>
-            <div>{formatLedgerReviewStatus(transaction.reviewStatus)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">{t("ledger.counterparty")}</div>
-            <div>{transaction.counterpartyName || "-"}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">{t("ledger.category")}</div>
-            {transaction.transferPairTransactionId ? (
-              <div>{categoryName ?? t("ledger.noCategory")}</div>
-            ) : (
-              <LedgerCategorySelect
-                categories={ledgerCategories}
-                value={transaction.categoryId ?? ""}
-                onValueChange={handleCategoryChange}
-                placeholder={t("ledger.noCategory")}
-                disabled={reviewMutation.isPending}
-                aria-label={t("ledger.category")}
-              />
-            )}
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">{t("ledger.specialCategory")}</div>
-            <div>{transaction.specialCategory ? formatLedgerSpecialCategory(transaction.specialCategory) : "-"}</div>
-          </div>
-          <div className="md:col-span-2">
-            <div className="text-xs text-muted-foreground">{t("ledger.purpose")}</div>
-            <div className="whitespace-pre-wrap">{transaction.purpose || "-"}</div>
-          </div>
-        </CardContent>
-      </Card>
+      <LedgerTransactionFieldsCard transaction={transaction} categories={ledgerCategories} />
 
       <Card>
         <CardHeader>
@@ -437,7 +96,7 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
               linkedEmailOrders.map((order) => (
                 <div key={order.id} className="rounded-md border p-3 text-sm">
                   <div className="font-medium">{emailOrderTitle(order)}</div>
-                  <div className="text-xs text-muted-foreground">{formatLedgerDate(order.orderDate)}</div>
+                  <div className="text-xs text-muted-foreground">{formatDate(order.orderDate)}</div>
                   <div className="mt-2 space-y-1 text-muted-foreground">
                     {(order.items ?? []).map((item, index) => (
                       <div key={`${order.id}-${index}`}>{item.quantity}x {item.name}</div>
@@ -468,57 +127,9 @@ export function LedgerTransactionDetailsCard({ transaction }: { transaction: Led
 
           <div className="space-y-3">
             <div className="text-sm font-medium">{t("ledger.crossReferences")}</div>
-            {effectiveReferenceType !== undefined && (
-              <>
-                <div className="grid gap-2 md:grid-cols-[12rem_1fr_auto]">
-                  <Select
-                    value={effectiveReferenceType}
-                    onValueChange={(value) => { setReferenceType(value as ReferenceType); setReferenceTargetId("") }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableTypes.map((type) => (
-                        <SelectItem key={type} value={type}>{t(REFERENCE_NAV_KEY[type])}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {effectiveReferenceType === "purchase" && (
-                    <PurchaseTargetSelect value={referenceTargetId} onChange={setReferenceTargetId} placeholder={t("ledger.selectReferenceTarget")} />
-                  )}
-                  {effectiveReferenceType === "contract" && (
-                    <ContractTargetSelect value={referenceTargetId} onChange={setReferenceTargetId} placeholder={t("ledger.selectReferenceTarget")} />
-                  )}
-                  {effectiveReferenceType === "vehicle" && (
-                    <VehicleTargetSelect value={referenceTargetId} onChange={setReferenceTargetId} placeholder={t("ledger.selectReferenceTarget")} />
-                  )}
-                  <Button type="button" variant="outline" onClick={handleAddReference}>{t("ledger.addReference")}</Button>
-                </div>
-
-                {canCreate && (
-                  <div className="space-y-2 rounded-md border border-dashed p-3">
-                    <div className="text-sm font-medium">{t("ledger.createFromTransaction.title")}</div>
-                    <p className="text-xs text-muted-foreground">{t("ledger.createFromTransaction.hint")}</p>
-                    {isEnabled("purchases") && (
-                      <div className="flex flex-wrap gap-2">
-                        <PurchaseFromTransaction transaction={transaction} orders={linkedEmailOrders} link={link} />
-                      </div>
-                    )}
-                    {isEnabled("auto") && (
-                      <div className="flex flex-wrap gap-2">
-                        <CostFromTransaction transaction={transaction} orders={linkedEmailOrders} link={link} />
-                      </div>
-                    )}
-                    {(isEnabled("contracts") || isEnabled("auto")) && (
-                      <div className="flex flex-wrap gap-2">
-                        {isEnabled("contracts") && <ContractCreateAndLink transaction={transaction} link={link} />}
-                        {isEnabled("auto") && <VehicleCreateAndLink link={link} />}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
+            <LedgerTransactionReferencePicker availableTypes={availableTypes} onAdd={addReference} />
+            {availableTypes.length > 0 && canCreate && (
+              <LedgerTransactionCreateSection transaction={transaction} orders={linkedEmailOrders} link={link} />
             )}
 
             <div className="space-y-2">

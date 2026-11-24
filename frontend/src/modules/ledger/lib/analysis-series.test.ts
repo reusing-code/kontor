@@ -189,12 +189,12 @@ describe("chart rows and tooltip", () => {
   })
 
   it("lists the non-zero series of a month and the total", () => {
-    expect(spendingTooltipRows(chart, 0, "Total", "en")).toEqual([
+    expect(spendingTooltipRows(chart, 0, "Total")).toEqual([
       { name: "FOOD", value: "€123.45", color: "var(--viz-cat-1)" },
       { name: "CAR", value: "-€5.00", color: "var(--viz-cat-2)" },
       { name: "Total", value: "€118.45" },
     ])
-    expect(spendingTooltipRows(chart, 1, "Total", "en")).toEqual([
+    expect(spendingTooltipRows(chart, 1, "Total")).toEqual([
       { name: "CAR", value: "€7.00", color: "var(--viz-cat-2)" },
       { name: "Total", value: "€7.00" },
     ])
@@ -223,7 +223,7 @@ describe("cashFlowSeries", () => {
   })
 
   it("lists all three in the tooltip, zeros included", () => {
-    expect(seriesTooltipRows(flow, 1, "en")).toEqual([
+    expect(seriesTooltipRows(flow, 1)).toEqual([
       { name: "Income", value: "€0.00", color: "var(--viz-income)" },
       { name: "Expenses", value: "€40.00", color: "var(--viz-expenses)" },
       { name: "Net result", value: "-€40.00", color: "var(--viz-net)" },
@@ -257,7 +257,7 @@ describe("netWorthSeries", () => {
       ["acc-giro", "Giro", "var(--viz-cat-1)", 250000],
       ["acc-savings", "Savings", "var(--viz-cat-2)", 1000000],
     ])
-    expect(seriesTooltipRows(series, 0, "en")).toEqual([
+    expect(seriesTooltipRows(series, 0)).toEqual([
       { name: "Total", value: "€12,000.00", color: "var(--foreground)" },
       { name: "Giro", value: "€2,000.00", color: "var(--viz-cat-1)" },
       { name: "Savings", value: "€10,000.00", color: "var(--viz-cat-2)" },

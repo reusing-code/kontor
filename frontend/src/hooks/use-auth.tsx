@@ -1,10 +1,8 @@
 import { createContext, useContext, useState, useCallback } from "react"
 import type { ReactNode } from "react"
-import { getToken, setToken, clearToken } from "@/lib/api"
+import { USER_KEY, clearSession, getToken, setToken } from "@/lib/api"
 import { login as apiLogin, register as apiRegister } from "@/lib/auth-repository"
 import type { AuthUser, LoginData, RegisterData } from "@/types/auth"
-
-const USER_KEY = "user"
 
 function loadUser(): AuthUser | null {
   try {
@@ -47,8 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(() => {
-    clearToken()
-    localStorage.removeItem(USER_KEY)
+    clearSession()
     setTokenState(null)
     setUser(null)
     window.location.href = "/login"

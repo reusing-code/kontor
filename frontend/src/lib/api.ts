@@ -1,5 +1,6 @@
 const BASE = "/api/v1"
 const TOKEN_KEY = "token"
+export const USER_KEY = "user"
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
@@ -11,6 +12,11 @@ export function setToken(token: string): void {
 
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
+}
+
+export function clearSession(): void {
+  clearToken()
+  localStorage.removeItem(USER_KEY)
 }
 
 export class ApiError extends Error {
@@ -29,9 +35,20 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+export interface SendOptions {
+  json?: unknown
+  form?: FormData
+  // false: a 401 is an ordinary error (wrong credentials on login and
+  // register) instead of an expired session.
+  redirectOnUnauthorized?: boolean
+}
+
+// send is the one place that talks to the API: auth header, body encoding,
+// the expired-session redirect and ApiError for every non-2xx answer.
+export async function send(method: string, path: string, options: SendOptions = {}): Promise<Response> {
+  const { json, form, redirectOnUnauthorized = true } = options
   const headers: Record<string, string> = {}
-  if (body !== undefined) {
+  if (json !== undefined) {
     headers["Content-Type"] = "application/json"
   }
   const token = getToken()
@@ -42,11 +59,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: form ?? (json !== undefined ? JSON.stringify(json) : undefined),
   })
 
-  if (res.status === 401) {
-    clearToken()
+  if (res.status === 401 && redirectOnUnauthorized) {
+    clearSession()
     window.location.href = "/login"
     throw new ApiError(401, "unauthorized")
   }
@@ -56,101 +73,46 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new ApiError(res.status, data.error ?? res.statusText, data.code, data)
   }
 
+  return res
+}
+
+export async function sendJson<T>(method: string, path: string, options?: SendOptions): Promise<T> {
+  const res = await send(method, path, options)
   if (res.status === 204) return undefined as T
   return res.json()
 }
 
 export function get<T>(path: string): Promise<T> {
-  return request<T>("GET", path)
+  return sendJson<T>("GET", path)
 }
 
 export function post<T>(path: string, body: unknown): Promise<T> {
-  return request<T>("POST", path, body)
+  return sendJson<T>("POST", path, { json: body })
 }
 
 export function put<T>(path: string, body: unknown): Promise<T> {
-  return request<T>("PUT", path, body)
+  return sendJson<T>("PUT", path, { json: body })
 }
 
-export function del(path: string): Promise<void> {
-  return request<void>("DELETE", path)
+export async function del(path: string): Promise<void> {
+  await send("DELETE", path)
 }
 
 export function delJson<T>(path: string): Promise<T> {
-  return request<T>("DELETE", path)
+  return sendJson<T>("DELETE", path)
 }
 
-export async function postForm<T>(path: string, body: FormData): Promise<T> {
-  const headers: Record<string, string> = {}
-  const token = getToken()
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`
-  }
-
-  const res = await fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers,
-    body,
-  })
-
-  if (res.status === 401) {
-    clearToken()
-    window.location.href = "/login"
-    throw new ApiError(401, "unauthorized")
-  }
-
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}))
-    throw new ApiError(res.status, data.error ?? res.statusText, data.code, data)
-  }
-
-  if (res.status === 204) return undefined as T
-  return res.json()
+export function postForm<T>(path: string, body: FormData): Promise<T> {
+  return sendJson<T>("POST", path, { form: body })
 }
 
 export async function getBlob(path: string): Promise<Blob> {
-  const headers: Record<string, string> = {}
-  const token = getToken()
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`
-  }
-
-  const res = await fetch(`${BASE}${path}`, { headers })
-
-  if (res.status === 401) {
-    clearToken()
-    window.location.href = "/login"
-    throw new ApiError(401, "unauthorized")
-  }
-
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}))
-    throw new ApiError(res.status, data.error ?? res.statusText, data.code, data)
-  }
-
+  const res = await send("GET", path)
   return res.blob()
 }
 
 export async function download(path: string, fallbackFilename: string): Promise<void> {
-  const headers: Record<string, string> = {}
-  const token = getToken()
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`
-  }
-
-  const res = await fetch(`${BASE}${path}`, { headers })
-
-  if (res.status === 401) {
-    clearToken()
-    window.location.href = "/login"
-    throw new ApiError(401, "unauthorized")
-  }
-
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}))
-    throw new ApiError(res.status, data.error ?? res.statusText, data.code, data)
-  }
-
+  const res = await send("GET", path)
   const disposition = res.headers.get("Content-Disposition") ?? ""
   const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? fallbackFilename
   const url = URL.createObjectURL(await res.blob())

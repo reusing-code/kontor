@@ -1,7 +1,7 @@
 import { getRouteApi } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
-import { useLedgerTransaction } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerTransaction } from "@/modules/ledger/hooks/use-ledger-transactions"
 import { LedgerTransactionDetailsCard } from "@/modules/ledger/components/ledger-transaction-details-card"
 import { PaperlessDocumentsSection } from "@/components/paperless/paperless-documents-section"
 

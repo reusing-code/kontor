@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react"
+import { formatDate, formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { XIcon } from "lucide-react"
 import type { LedgerCategory, LedgerReviewInput, LedgerReviewQueueItem } from "@/modules/ledger/types"
-import { useReviewLedgerTransaction } from "@/modules/ledger/hooks/use-ledger"
-import { formatAmountMinor, formatLedgerDate, tokenizeLedgerMatchWords } from "@/modules/ledger/lib/ledger-utils"
+import { useReviewLedgerTransaction } from "@/modules/ledger/hooks/use-ledger-review"
+import { tokenizeLedgerMatchWords } from "@/modules/ledger/lib/ledger-utils"
 import { LedgerTransferManager } from "@/modules/ledger/components/ledger-transfer-manager"
 import { LedgerSuggestionBadge } from "@/modules/ledger/components/ledger-suggestion-badge"
 import { PaperlessDocumentsSection } from "@/components/paperless/paperless-documents-section"
@@ -36,7 +37,7 @@ function LedgerReviewPanelInner({
   onClose?: () => void
   showSuggestion: boolean
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const reviewMutation = useReviewLedgerTransaction()
   const isLinkedTransfer = Boolean(transaction.transferPairTransactionId)
   const suggestion = showSuggestion && !transaction.categoryId ? transaction.suggestion : undefined
@@ -58,7 +59,6 @@ function LedgerReviewPanelInner({
         setMatchWords("")
         onReviewed?.(transaction.id)
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 
@@ -78,12 +78,12 @@ function LedgerReviewPanelInner({
         <div className="grid gap-3 md:grid-cols-2">
           <div>
             <div className="text-xs text-muted-foreground">{t("ledger.date")}</div>
-            <div>{formatLedgerDate(transaction.bookingDate)}</div>
+            <div>{formatDate(transaction.bookingDate)}</div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">{t("ledger.amount")}</div>
             <div className={transaction.amountMinor < 0 ? "text-destructive" : "text-emerald-600"}>
-              {formatAmountMinor(transaction.amountMinor, transaction.currency, i18n.language)}
+              {formatMinor(transaction.amountMinor, transaction.currency)}
             </div>
           </div>
           <div>

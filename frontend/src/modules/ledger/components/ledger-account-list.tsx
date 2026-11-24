@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router"
+import { formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
 import { AlertTriangle } from "lucide-react"
 import type { LedgerAccount } from "@/modules/ledger/types"
-import { formatAmountMinor } from "@/modules/ledger/lib/ledger-utils"
 import { hasDrift } from "@/modules/ledger/lib/balance"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -11,7 +11,7 @@ interface LedgerAccountListProps {
 }
 
 export function LedgerAccountList({ accounts }: LedgerAccountListProps) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
 
   return (
     <Card>
@@ -32,10 +32,10 @@ export function LedgerAccountList({ accounts }: LedgerAccountListProps) {
                   <div className="mt-2 flex items-center gap-2 text-sm">
                     <span className="sr-only">{t("ledger.balance.current")}: </span>
                     <span className={account.balance && account.balance.currentMinor < 0 ? "font-semibold text-destructive" : "font-semibold"}>
-                      {account.balance ? formatAmountMinor(account.balance.currentMinor, account.currency, i18n.language) : "–"}
+                      {account.balance ? formatMinor(account.balance.currentMinor, account.currency) : "–"}
                     </span>
                     {account.balance && hasDrift(account.balance.driftMinor) && (
-                      <AlertTriangle className="h-4 w-4 text-yellow-600" aria-label={t("ledger.balance.drift", { amount: formatAmountMinor(account.balance.driftMinor, account.currency, i18n.language) })} />
+                      <AlertTriangle className="h-4 w-4 text-yellow-600" aria-label={t("ledger.balance.drift", { amount: formatMinor(account.balance.driftMinor, account.currency) })} />
                     )}
                   </div>
                 </div>

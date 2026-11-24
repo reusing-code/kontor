@@ -1,15 +1,15 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { usePageTitle } from "@/hooks/use-page-title"
+import { formatDate } from "@/lib/format"
 import type { LedgerAnalysisRange } from "@/modules/ledger/types"
 import { todayISO } from "@/modules/ledger/lib/balance"
 import {
   defaultAnalysisRange,
-  formatRangeDate,
   resolveRange,
   type AnalysisRangeState,
 } from "@/modules/ledger/lib/analysis-range"
-import { useLedgerCashFlowAnalysis } from "@/modules/ledger/hooks/use-ledger"
+import { useLedgerCashFlowAnalysis } from "@/modules/ledger/hooks/use-ledger-analysis"
 import { LedgerAnalysisCashFlow } from "@/modules/ledger/components/ledger-analysis-cash-flow"
 import { LedgerAnalysisNetWorth } from "@/modules/ledger/components/ledger-analysis-net-worth"
 import { LedgerAnalysisRanking } from "@/modules/ledger/components/ledger-analysis-ranking"
@@ -17,7 +17,7 @@ import { LedgerAnalysisRangeControl } from "@/modules/ledger/components/ledger-a
 import { LedgerAnalysisSpending } from "@/modules/ledger/components/ledger-analysis-spending"
 
 export function LedgerAnalysisPage() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   usePageTitle(t("ledger.analysis.title"), t("app.title"))
   const today = todayISO()
   // state is what the control shows, applied the last valid range the
@@ -36,8 +36,8 @@ export function LedgerAnalysisPage() {
   const cashFlow = useLedgerCashFlowAnalysis(applied)
   const current = cashFlow.isPlaceholderData ? undefined : cashFlow.data
   const dates = (from: string, to: string) => ({
-    from: formatRangeDate(from, i18n.language),
-    to: formatRangeDate(to, i18n.language),
+    from: formatDate(from),
+    to: formatDate(to),
   })
   const active =
     applied.from && applied.to

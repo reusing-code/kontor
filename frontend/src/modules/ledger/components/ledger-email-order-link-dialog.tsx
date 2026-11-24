@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react"
+import { formatDate, formatMinor } from "@/lib/format"
 import { useTranslation } from "react-i18next"
-import { useLedgerEmailOrderCandidates } from "@/modules/ledger/hooks/use-ledger"
-import { emailOrderTitle, formatAmountMinor, formatLedgerDate, tokenizeLedgerMatchWords } from "@/modules/ledger/lib/ledger-utils"
+import { useLedgerEmailOrderCandidates } from "@/modules/ledger/hooks/use-ledger-email"
+import { emailOrderTitle, tokenizeLedgerMatchWords } from "@/modules/ledger/lib/ledger-utils"
 import type { LedgerEmailOrder, LedgerEmailOrderCandidate, LedgerEmailOrderConversion } from "@/modules/ledger/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -82,7 +83,7 @@ function formatDayDelta(days: number): string {
 
 // Mount with key={order.id} so selection and window reset per order.
 export function LedgerEmailOrderLinkDialog({ open, onOpenChange, order, onConfirm }: LedgerEmailOrderLinkDialogProps) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [afterDays, setAfterDays] = useState<number | undefined>(undefined)
   const { data: result, isLoading } = useLedgerEmailOrderCandidates(open && order ? order.id : "", afterDays)
@@ -114,12 +115,12 @@ export function LedgerEmailOrderLinkDialog({ open, onOpenChange, order, onConfir
           <div className="space-y-4">
             <div className="rounded-md border p-4 space-y-2">
               <div className="font-medium">{emailOrderTitle(order)}</div>
-              <div className="text-sm text-muted-foreground">{formatLedgerDate(order.orderDate)} • {formatAmountMinor(order.totalMinor, order.currency, i18n.language)}</div>
+              <div className="text-sm text-muted-foreground">{formatDate(order.orderDate)} • {formatMinor(order.totalMinor, order.currency)}</div>
               {(result?.conversions ?? []).map((conversion) => (
                 <div key={conversion.currency} className="text-sm text-muted-foreground">
                   {t("ledger.email.convertedTotal", {
-                    amount: formatAmountMinor(conversion.totalMinor, conversion.currency, i18n.language),
-                    date: formatLedgerDate(conversion.rateDate),
+                    amount: formatMinor(conversion.totalMinor, conversion.currency),
+                    date: formatDate(conversion.rateDate),
                   })}
                 </div>
               ))}
@@ -147,16 +148,16 @@ export function LedgerEmailOrderLinkDialog({ open, onOpenChange, order, onConfir
               {candidates.map(({ transaction, accountName, dateDeltaDays, amountComparable, score }) => {
                 const checked = selectedIds.includes(transaction.id)
                 return (
-                  <button key={transaction.id} type="button" className="flex w-full items-start gap-3 rounded-md border p-3 text-left" onClick={() => toggle(transaction.id, !checked)}>
+                  <button key={transaction.id} type="button" aria-pressed={checked} className="flex w-full items-start gap-3 rounded-md border p-3 text-left" onClick={() => toggle(transaction.id, !checked)}>
                     <div className="pt-1">
                       <Badge variant={checked ? "default" : "outline"}>{checked ? t("common.selected") : t("common.select")}</Badge>
                     </div>
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">{formatAmountMinor(transaction.amountMinor, transaction.currency, i18n.language)}</span>
+                        <span className="font-medium">{formatMinor(transaction.amountMinor, transaction.currency)}</span>
                         <Badge variant="outline">{t("ledger.email.matchScore", { score })}</Badge>
                         <span className="text-sm text-muted-foreground">
-                          {formatLedgerDate(transaction.bookingDate)}
+                          {formatDate(transaction.bookingDate)}
                           {dateDeltaDays !== undefined ? ` (${t("ledger.email.dayDelta", { delta: formatDayDelta(dateDeltaDays) })})` : null}
                         </span>
                         {accountName ? <Badge variant="secondary">{accountName}</Badge> : null}

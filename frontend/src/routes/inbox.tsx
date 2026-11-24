@@ -16,6 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 import { BulkAcceptBar, type DraftTypeFilter } from "@/components/drafts/bulk-accept-bar"
 import { DraftCard } from "@/components/drafts/draft-card"
 import { PrefilledCreateDialogs } from "@/components/drafts/prefilled-create-dialogs"
@@ -55,6 +56,7 @@ export function InboxPage() {
   const parentOptions = useParentOptions()
 
   const [accepting, setAccepting] = useState<Draft | null>(null)
+  const [rejecting, setRejecting] = useState<Draft | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const acceptBatch = useAcceptDraftsBatch()
@@ -142,7 +144,6 @@ export function InboxPage() {
     updateDraft.mutate(
       { id: draft.id, input: { targetType, parentId, input } },
       {
-        onError: (err) => toast.error(err.message),
         onSettled: () => setBusyId(null),
       },
     )
@@ -153,30 +154,26 @@ export function InboxPage() {
     update(draft, type, "", convertInput(draft.targetType, type, draft.input))
   }
 
-  function handleReject(draft: Draft) {
-    setBusyId(draft.id)
-    rejectDraft.mutate(draft.id, {
-      onSuccess: (res) => {
-        toast.success(t("drafts.rejected"))
-        res.warnings.forEach((w) => toast.warning(w))
-      },
-      onError: (err) => toast.error(err.message),
-      onSettled: () => setBusyId(null),
-    })
+  async function handleReject() {
+    if (!rejecting) return
+    setBusyId(rejecting.id)
+    try {
+      const res = await rejectDraft.mutateAsync(rejecting.id)
+      toast.success(t("drafts.rejected"))
+      res.warnings.forEach((w) => toast.warning(w))
+    } finally {
+      setBusyId(null)
+    }
   }
 
   // The entity is created through the module's regular endpoint first; only
-  // then is the draft accepted, which links the source document.
+  // then is the draft accepted, which links the source document. A failed
+  // create rejects, so the create dialog stays open; a failed accept does not,
+  // since the entity exists.
   async function finishAccept(draft: Draft, { type, parentId }: PrefillEntry, create: () => Promise<{ id: string }>) {
     setBusyId(draft.id)
     try {
-      let entityId: string
-      try {
-        entityId = (await create()).id
-      } catch (err) {
-        toast.error(t("drafts.createFailed", { message: (err as Error).message }))
-        return
-      }
+      const entityId = (await create()).id
       try {
         const res = await acceptDraft.mutateAsync({
           id: draft.id,
@@ -184,8 +181,8 @@ export function InboxPage() {
         })
         toast.success(t(acceptedKeys[draft.source.kind] ?? "drafts.accepted"))
         res.warnings.forEach((w) => toast.warning(w))
-      } catch (err) {
-        toast.error(t("drafts.acceptFailed", { message: (err as Error).message }))
+      } catch {
+        // the mutation's error toast reports it
       }
     } finally {
       setBusyId(null)
@@ -238,7 +235,7 @@ export function InboxPage() {
             onChangeType={(type) => handleChangeType(draft, type)}
             onChangeParent={(parentId) => update(draft, draft.targetType, parentId, draft.input)}
             onAccept={() => setAccepting(draft)}
-            onReject={() => handleReject(draft)}
+            onReject={() => setRejecting(draft)}
           />
         ))}
       </div>
@@ -256,12 +253,18 @@ export function InboxPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <DeleteConfirmDialog
+        open={rejecting !== null}
+        onOpenChange={(open) => { if (!open) setRejecting(null) }}
+        description={t("drafts.rejectConfirm", { title: rejecting ? rejecting.source.title || `#${rejecting.source.ref}` : "" })}
+        actionLabel={t("drafts.reject")}
+        onConfirm={handleReject}
+      />
+
       <PrefilledCreateDialogs
         entry={acceptEntry}
         onClose={() => setAccepting(null)}
-        onCreate={(entry, create) => {
-          if (accepting) void finishAccept(accepting, entry, create)
-        }}
+        onCreate={(entry, create) => (accepting ? finishAccept(accepting, entry, create) : Promise.resolve())}
       />
     </div>
   )

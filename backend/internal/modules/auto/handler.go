@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/reusing-code/kontor/backend/internal/httputil"
 	"github.com/reusing-code/kontor/backend/internal/middleware"
-	)
+)
 
 func (h *Handler) ListVehicles(w http.ResponseWriter, r *http.Request) {
 	vehicles, err := h.store.ListVehicles(r.Context(), middleware.GetUserID(r.Context()))
@@ -19,9 +19,8 @@ func (h *Handler) ListVehicles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetVehicle(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
@@ -34,13 +33,8 @@ func (h *Handler) GetVehicle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreateVehicle(w http.ResponseWriter, r *http.Request) {
-	var input VehicleInput
-	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.BodyError(h.logger, w, err, "invalid request body")
-		return
-	}
-	if err := input.Validate(); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+	input, ok := httputil.Decode[VehicleInput](h.logger, w, r)
+	if !ok {
 		return
 	}
 
@@ -54,9 +48,8 @@ func (h *Handler) CreateVehicle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdateVehicle(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
@@ -66,31 +59,12 @@ func (h *Handler) UpdateVehicle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input VehicleInput
-	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.BodyError(h.logger, w, err, "invalid request body")
-		return
-	}
-	if err := input.Validate(); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+	input, ok := httputil.Decode[VehicleInput](h.logger, w, r)
+	if !ok {
 		return
 	}
 
-	existing.Name = input.Name
-	existing.Make = input.Make
-	existing.Model = input.Model
-	existing.Year = input.Year
-	existing.LicensePlate = input.LicensePlate
-	existing.PurchaseDate = input.PurchaseDate
-	existing.PurchasePrice = input.PurchasePrice
-	existing.PurchaseMileage = input.PurchaseMileage
-	existing.TargetMileage = input.TargetMileage
-	existing.TargetMonths = input.TargetMonths
-	existing.AnnualInsurance = input.AnnualInsurance
-	existing.AnnualTax = input.AnnualTax
-	existing.MaintenanceFactor = input.MaintenanceFactor
-	existing.Comments = input.Comments
-	existing.UpdatedAt = time.Now().UTC()
+	existing.Apply(input, time.Now().UTC())
 
 	if err := h.store.UpdateVehicle(r.Context(), middleware.GetUserID(r.Context()), existing); err != nil {
 		httputil.StoreError(h.logger, w, err)
@@ -100,9 +74,8 @@ func (h *Handler) UpdateVehicle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteVehicle(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
@@ -116,23 +89,7 @@ func (h *Handler) DeleteVehicle(w http.ResponseWriter, r *http.Request) {
 // newVehicle builds the vehicle a create request stores; input must be
 // validated.
 func newVehicle(id uuid.UUID, input VehicleInput, now time.Time) Vehicle {
-	return Vehicle{
-		ID:                id,
-		Name:              input.Name,
-		Make:              input.Make,
-		Model:             input.Model,
-		Year:              input.Year,
-		LicensePlate:      input.LicensePlate,
-		PurchaseDate:      input.PurchaseDate,
-		PurchasePrice:     input.PurchasePrice,
-		PurchaseMileage:   input.PurchaseMileage,
-		TargetMileage:     input.TargetMileage,
-		TargetMonths:      input.TargetMonths,
-		AnnualInsurance:   input.AnnualInsurance,
-		AnnualTax:         input.AnnualTax,
-		MaintenanceFactor: input.MaintenanceFactor,
-		Comments:          input.Comments,
-		CreatedAt:         now,
-		UpdatedAt:         now,
-	}
+	v := Vehicle{ID: id, CreatedAt: now}
+	v.Apply(input, now)
+	return v
 }

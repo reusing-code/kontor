@@ -1,4 +1,4 @@
-import type { FieldConfig } from "@/modules/contracts/config/contract-fields"
+import type { FieldConfig } from "@/components/forms/field-config"
 
 export const vehicleFields: FieldConfig[] = [
   { key: "name", type: "text", i18nKey: "vehicleFields.name", required: true, showInTable: true, tableOrder: 0 },

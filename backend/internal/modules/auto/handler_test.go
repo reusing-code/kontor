@@ -21,6 +21,7 @@ import (
 
 type handlerEnv struct {
 	mod    *Module
+	links  *link.Registry
 	engine *storage.Engine
 	side   *fakeTxnSide
 	mux    http.Handler
@@ -43,7 +44,7 @@ func newHandlerEnv(t *testing.T) handlerEnv {
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mux.ServeHTTP(w, r.WithContext(middleware.SetUserID(r.Context(), storeUser)))
 	})
-	return handlerEnv{mod: mod, engine: engine, side: side, mux: wrapped}
+	return handlerEnv{mod: mod, links: links, engine: engine, side: side, mux: wrapped}
 }
 
 func (e handlerEnv) do(t *testing.T, method, path string, body any) *httptest.ResponseRecorder {
@@ -82,7 +83,7 @@ func errorText(t *testing.T, rec *httptest.ResponseRecorder) string {
 
 func (e handlerEnv) addLink(t *testing.T, refType string, id, txnID uuid.UUID) {
 	t.Helper()
-	target, err := e.mod.store.links.Target(refType)
+	target, err := e.links.Target(refType)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +181,7 @@ func TestHandler_VehicleErrors(t *testing.T) {
 		{"create bad json", "POST", "/api/v1/vehicles", "{", http.StatusBadRequest, "invalid request body"},
 		{"create unknown field", "POST", "/api/v1/vehicles", map[string]any{"name": "V", "color": "red"}, http.StatusBadRequest, "invalid request body"},
 		{"create without name", "POST", "/api/v1/vehicles", map[string]any{"make": "VW"}, http.StatusBadRequest, "name is required"},
-		{"create bad date", "POST", "/api/v1/vehicles", map[string]any{"name": "V", "purchaseDate": "01.02.2024"}, http.StatusBadRequest, "purchaseDate must be in format YYYY-MM-DD"},
+		{"create bad date", "POST", "/api/v1/vehicles", map[string]any{"name": "V", "purchaseDate": "01.02.2024"}, http.StatusBadRequest, "purchaseDate must be a date in YYYY-MM-DD format"},
 		{"update invalid id", "PUT", "/api/v1/vehicles/nope", map[string]any{"name": "V"}, http.StatusBadRequest, "invalid id"},
 		{"update unknown", "PUT", unknown, map[string]any{"name": "V"}, http.StatusNotFound, "not found"},
 		{"update bad json", "PUT", existingPath, "{", http.StatusBadRequest, "invalid request body"},

@@ -11,6 +11,7 @@ import type {
   LedgerSpendingAnalysis,
 } from "@/modules/ledger/types"
 import { LedgerAnalysisPage } from "@/modules/ledger/routes/ledger.analysis"
+import { ledgerKeys } from "@/modules/ledger/keys"
 
 const at = "2026-01-01T10:00:00Z"
 
@@ -299,7 +300,7 @@ describe("LedgerAnalysisPage", () => {
     expect(await screen.findByText("Food")).toBeInTheDocument()
 
     failing = true
-    await queryClient.refetchQueries({ queryKey: ["ledger", "analysis", "cash-flow"] })
+    await queryClient.refetchQueries({ queryKey: [...ledgerKeys.analysis(), "cash-flow"] })
     const cashFlowCard = within(card("Cash flow"))
     expect(await cashFlowCard.findByText("This analysis could not be loaded.")).toBeInTheDocument()
     expect(screen.getAllByText("This analysis could not be loaded.")).toHaveLength(1)
@@ -328,7 +329,7 @@ describe("LedgerAnalysisPage", () => {
     expect(within(card("Top categories")).queryByText("No expenses in this period.")).toBeNull()
 
     failing = true
-    await queryClient.refetchQueries({ queryKey: ["ledger", "analysis", "ranking"] })
+    await queryClient.refetchQueries({ queryKey: [...ledgerKeys.analysis(), "ranking"] })
     await waitFor(() => expect(screen.getAllByText("This analysis could not be loaded.")).toHaveLength(2))
     expect(within(card("Top categories")).getByRole("button", { name: "Retry" })).toBeInTheDocument()
   })

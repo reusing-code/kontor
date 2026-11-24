@@ -1,10 +1,18 @@
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Pencil, Play, Trash2, Wifi } from "lucide-react"
-import { useDeleteLedgerEmailAccount, useLedgerEmailScanStatus, useStartLedgerEmailScan, useTestLedgerEmailAccount, useUploadLedgerEmailMessages } from "@/modules/ledger/hooks/use-ledger"
+import {
+  useDeleteLedgerEmailAccount,
+  useLedgerEmailScanStatus,
+  useStartLedgerEmailScan,
+  useTestLedgerEmailAccount,
+  useUploadLedgerEmailMessages,
+} from "@/modules/ledger/hooks/use-ledger-email"
 import type { LedgerEmailAccount } from "@/modules/ledger/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 
 const MAX_SHOWN_WARNINGS = 5
 
@@ -27,6 +35,8 @@ export function LedgerEmailAccountCard({ account, llmOff, onEdit }: LedgerEmailA
   const testAccount = useTestLedgerEmailAccount()
   const startScan = useStartLedgerEmailScan()
   const upload = useUploadLedgerEmailMessages()
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const uploadInput = useRef<HTMLInputElement>(null)
 
   function reportScan(report: ScanReport) {
     toast.success(t("ledger.email.scanSuccess", { count: report.ordersNew }))
@@ -68,7 +78,7 @@ export function LedgerEmailAccountCard({ account, llmOff, onEdit }: LedgerEmailA
         ))}
         <div className="text-xs text-muted-foreground">{t("ledger.email.lastScan")}: {account.lastScanAt ?? "-"}</div>
         {scanning ? (
-          <div className="text-sm" role="status">{t("ledger.email.scanProgress", { scanned: scan.emailsScanned, created: scan.ordersNew })}</div>
+          <output className="block text-sm">{t("ledger.email.scanProgress", { scanned: scan.emailsScanned, created: scan.ordersNew })}</output>
         ) : null}
       </div>
       <div className="flex flex-wrap gap-2">
@@ -77,7 +87,6 @@ export function LedgerEmailAccountCard({ account, llmOff, onEdit }: LedgerEmailA
           variant="outline"
           onClick={() => testAccount.mutate(account.id, {
             onSuccess: () => toast.success(t("ledger.email.testSuccess")),
-            onError: (error) => toast.error(error.message),
           })}
         >
           <Wifi className="mr-2 h-4 w-4" />{t("ledger.email.testConnection")}
@@ -86,36 +95,41 @@ export function LedgerEmailAccountCard({ account, llmOff, onEdit }: LedgerEmailA
           type="button"
           variant="outline"
           disabled={llmOff || !account.folder || busy}
-          onClick={() => startScan.mutate(account.id, { onError: (error) => toast.error(error.message) })}
+          onClick={() => startScan.mutate(account.id)}
         >
           <Play className="mr-2 h-4 w-4" />{scanning || startScan.isPending ? t("ledger.email.scanning") : t("ledger.email.scanNow")}
         </Button>
-        <label className="inline-flex">
-          <Input
-            type="file"
-            multiple
-            accept=".eml,message/rfc822"
-            className="hidden"
-            disabled={llmOff || busy}
-            onChange={(event) => {
-              const files = Array.from(event.target.files ?? [])
-              if (files.length === 0) {
-                return
-              }
-              upload.mutate({ id: account.id, files }, {
-                onSuccess: (result) => reportScan({ ordersNew: result.ordersNew, warnings: result.warnings, incomplete: Boolean(result.partial || result.skipped) }),
-                onError: (error) => toast.error(error.message),
-              })
-              event.target.value = ""
-            }}
-          />
-          <Button type="button" variant="outline" asChild aria-disabled={llmOff || busy} className={llmOff || busy ? "pointer-events-none opacity-50" : undefined}>
-            <span>{upload.isPending ? t("ledger.email.scanning") : t("ledger.email.scanUpload")}</span>
-          </Button>
-        </label>
+        <Input
+          ref={uploadInput}
+          type="file"
+          multiple
+          accept=".eml,message/rfc822"
+          className="hidden"
+          aria-label={t("ledger.email.scanUpload")}
+          disabled={llmOff || busy}
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? [])
+            if (files.length === 0) {
+              return
+            }
+            upload.mutate({ id: account.id, files }, {
+              onSuccess: (result) => reportScan({ ordersNew: result.ordersNew, warnings: result.warnings, incomplete: Boolean(result.partial || result.skipped) }),
+            })
+            event.target.value = ""
+          }}
+        />
+        <Button type="button" variant="outline" disabled={llmOff || busy} onClick={() => uploadInput.current?.click()}>
+          {upload.isPending ? t("ledger.email.scanning") : t("ledger.email.scanUpload")}
+        </Button>
         <Button type="button" variant="outline" onClick={() => onEdit(account)}><Pencil className="mr-2 h-4 w-4" />{t("common.edit")}</Button>
-        <Button type="button" variant="outline" onClick={() => deleteAccount.mutate(account.id, { onSuccess: () => toast.success(t("ledger.email.accountDeleted")), onError: (error) => toast.error(error.message) })}><Trash2 className="mr-2 h-4 w-4" />{t("common.delete")}</Button>
+        <Button type="button" variant="outline" onClick={() => setConfirmingDelete(true)}><Trash2 className="mr-2 h-4 w-4" />{t("common.delete")}</Button>
       </div>
+      <DeleteConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        description={t("ledger.email.accountDeleteConfirm", { name: account.name })}
+        onConfirm={() => deleteAccount.mutateAsync(account.id).then(() => toast.success(t("ledger.email.accountDeleted")))}
+      />
     </div>
   )
 }

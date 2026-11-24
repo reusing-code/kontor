@@ -59,16 +59,15 @@ function AutoVehicleDetailPage() {
   const paperlessConfigured = paperlessConfig?.configured ?? false
 
   function handleCreateCost(data: CostEntryFormData) {
-    createCostEntry.mutate(data, { onSuccess: () => toast.success(t("costEntry.created")) })
+    return createCostEntry.mutateAsync(data, { onSuccess: () => toast.success(t("costEntry.created")) })
   }
 
   function handleUpdateCost(data: CostEntryFormData) {
-    if (!editingEntry) return
-    updateCostEntry.mutate(
+    if (!editingEntry) return Promise.resolve()
+    return updateCostEntry.mutateAsync(
       { id: editingEntry.id, data },
       { onSuccess: () => toast.success(t("costEntry.updated")) },
     )
-    setEditingEntry(null)
   }
 
   function handleDeleteCost() {
@@ -80,12 +79,11 @@ function AutoVehicleDetailPage() {
   }
 
   function handleUpdateVehicle(data: VehicleFormData) {
-    if (!vehicle) return
-    updateVehicle.mutate(
+    if (!vehicle) return Promise.resolve()
+    return updateVehicle.mutateAsync(
       { id: vehicle.id, data },
       { onSuccess: () => toast.success(t("vehicle.updated")) },
     )
-    setEditingVehicle(false)
   }
 
   return (

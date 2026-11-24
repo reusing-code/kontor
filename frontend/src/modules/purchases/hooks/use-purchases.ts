@@ -1,4 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { createCategoryItemHooks } from "@/hooks/category-item-hooks"
+import { purchaseKeys } from "@/modules/purchases/keys"
 import {
   getAllPurchases,
   getPurchaseById,
@@ -7,101 +8,25 @@ import {
   updatePurchase,
   deletePurchase,
 } from "@/modules/purchases/lib/purchase-repository"
-import type { PurchaseFormData } from "@/modules/purchases/types"
+import type { Purchase, PurchaseFormData } from "@/modules/purchases/types"
 
-const purchasesKey = (categoryId: string) => ["purchases", categoryId] as const
+export const purchaseHooks = createCategoryItemHooks<Purchase, PurchaseFormData>({
+  kind: "purchases",
+  keys: purchaseKeys,
+  repository: {
+    getAll: getAllPurchases,
+    getByCategory: getPurchasesByCategory,
+    getById: getPurchaseById,
+    create: createPurchase,
+    update: updatePurchase,
+    remove: deletePurchase,
+  },
+})
 
-export function useCategoryPurchases(categoryId: string) {
-  return useQuery({
-    queryKey: purchasesKey(categoryId),
-    queryFn: () => getPurchasesByCategory(categoryId),
-  })
-}
-
-export function usePurchases() {
-  return useQuery({
-    queryKey: ["purchases"],
-    queryFn: getAllPurchases,
-  })
-}
-
-export function usePurchase(id: string) {
-  return useQuery({
-    queryKey: ["purchases", id],
-    queryFn: () => getPurchaseById(id),
-  })
-}
-
-export function useCreatePurchase(categoryId: string) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (data: PurchaseFormData) => createPurchase(categoryId, data),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: purchasesKey(categoryId) }),
-        qc.invalidateQueries({ queryKey: ["categories", "purchases"] }),
-        qc.invalidateQueries({ queryKey: ["purchases-summary"] }),
-      ])
-    },
-  })
-}
-
-export function useCreatePurchaseByCategory() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ categoryId, data }: { categoryId: string; data: PurchaseFormData }) => createPurchase(categoryId, data),
-    onSuccess: async (purchase) => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["purchases"] }),
-        qc.invalidateQueries({ queryKey: purchasesKey(purchase.categoryId) }),
-        qc.invalidateQueries({ queryKey: ["categories", "purchases"] }),
-        qc.invalidateQueries({ queryKey: ["purchases-summary"] }),
-      ])
-    },
-  })
-}
-
-export function useUpdatePurchase(categoryId: string) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: PurchaseFormData }) => updatePurchase(id, data),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["purchases"] }),
-        qc.invalidateQueries({ queryKey: purchasesKey(categoryId) }),
-        qc.invalidateQueries({ queryKey: ["categories", "purchases"] }),
-        qc.invalidateQueries({ queryKey: ["purchases-summary"] }),
-      ])
-    },
-  })
-}
-
-export function useUpdatePurchaseById() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: PurchaseFormData }) => updatePurchase(id, data),
-    onSuccess: async (purchase) => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["purchases"] }),
-        qc.invalidateQueries({ queryKey: ["purchases", purchase.id] }),
-        qc.invalidateQueries({ queryKey: ["categories", "purchases"] }),
-        qc.invalidateQueries({ queryKey: ["purchases-summary"] }),
-      ])
-    },
-  })
-}
-
-export function useDeletePurchase(categoryId: string) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (id: string) => deletePurchase(id),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["purchases"] }),
-        qc.invalidateQueries({ queryKey: purchasesKey(categoryId) }),
-        qc.invalidateQueries({ queryKey: ["categories", "purchases"] }),
-        qc.invalidateQueries({ queryKey: ["purchases-summary"] }),
-      ])
-    },
-  })
-}
+export const usePurchases = purchaseHooks.useItems
+export const useCategoryPurchases = purchaseHooks.useItemsByCategory
+export const usePurchase = purchaseHooks.useItem
+export const useCreatePurchase = purchaseHooks.useCreateItem
+export const useCreatePurchaseByCategory = purchaseHooks.useCreateItemByCategory
+export const useUpdatePurchase = purchaseHooks.useUpdateItem
+export const useDeletePurchase = purchaseHooks.useDeleteItem

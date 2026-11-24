@@ -41,7 +41,7 @@ func TestCreateVehicleFromDraft(t *testing.T) {
 	ctx := t.Context()
 
 	req := draftRequest(t, "", map[string]any{"name": "Golf", "purchaseDate": "2024-01-01", "purchasePrice": 1000})
-	path, err := mod.createVehicleFromDraft(ctx, storeUser, req)
+	path, err := mod.DraftCreators()[drafts.TargetVehicle](ctx, storeUser, req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestCreateVehicleFromDraft(t *testing.T) {
 	// A repeat finds the entity and changes nothing, even with other input.
 	again := req
 	again.Input = json.RawMessage(`{"name": "Other"}`)
-	if p, err := mod.createVehicleFromDraft(ctx, storeUser, again); err != nil || p != path {
+	if p, err := mod.DraftCreators()[drafts.TargetVehicle](ctx, storeUser, again); err != nil || p != path {
 		t.Errorf("repeat = %q, %v", p, err)
 	}
 	if v, _ := env.store.GetVehicle(ctx, storeUser, req.EntityID); v.Name != "Golf" {
@@ -72,7 +72,7 @@ func TestCreateVehicleFromDraft(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			req := draftRequest(t, "", tt.input)
-			_, err := mod.createVehicleFromDraft(ctx, storeUser, req)
+			_, err := mod.DraftCreators()[drafts.TargetVehicle](ctx, storeUser, req)
 			if createCode(err) != drafts.CodeInvalidInput {
 				t.Errorf("err = %v, want %s", err, drafts.CodeInvalidInput)
 			}
@@ -91,7 +91,7 @@ func TestCreateCostFromDraft(t *testing.T) {
 	vehiclePath := "/auto/vehicles/" + vehicle.ID.String()
 
 	req := draftRequest(t, vehicle.ID.String(), map[string]any{"type": "fuel", "amount": 70, "date": "2026-02-01"})
-	path, err := mod.createCostFromDraft(ctx, storeUser, req)
+	path, err := mod.DraftCreators()[drafts.TargetCost](ctx, storeUser, req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestCreateCostFromDraft(t *testing.T) {
 	// A repeat returns the stored entry's vehicle, whatever the draft says now.
 	again := req
 	again.ParentID = uuid.New().String()
-	if p, err := mod.createCostFromDraft(ctx, storeUser, again); err != nil || p != vehiclePath {
+	if p, err := mod.DraftCreators()[drafts.TargetCost](ctx, storeUser, again); err != nil || p != vehiclePath {
 		t.Errorf("repeat = %q, %v", p, err)
 	}
 	if list, _ := env.store.ListCostEntries(ctx, storeUser, vehicle.ID); len(list) != 1 {
@@ -127,7 +127,7 @@ func TestCreateCostFromDraft(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			req := draftRequest(t, tt.parent, tt.input)
-			_, err := mod.createCostFromDraft(ctx, storeUser, req)
+			_, err := mod.DraftCreators()[drafts.TargetCost](ctx, storeUser, req)
 			if createCode(err) != tt.code {
 				t.Errorf("err = %v, want %s", err, tt.code)
 			}
@@ -154,18 +154,18 @@ func TestDraftCreators_StoreErrors(t *testing.T) {
 
 	req := draftRequest(t, "", map[string]any{"name": "V"})
 	req.EntityID = badVehicle
-	if _, err := mod.createVehicleFromDraft(t.Context(), storeUser, req); err == nil || createCode(err) != "" {
+	if _, err := mod.DraftCreators()[drafts.TargetVehicle](t.Context(), storeUser, req); err == nil || createCode(err) != "" {
 		t.Errorf("vehicle lookup failure = %v, want a plain error", err)
 	}
 
 	req = draftRequest(t, vehicle.ID.String(), map[string]any{"type": "misc", "date": "2026-02-01"})
 	req.EntityID = badCost
-	if _, err := mod.createCostFromDraft(t.Context(), storeUser, req); err == nil || createCode(err) != "" {
+	if _, err := mod.DraftCreators()[drafts.TargetCost](t.Context(), storeUser, req); err == nil || createCode(err) != "" {
 		t.Errorf("cost lookup failure = %v, want a plain error", err)
 	}
 
 	req = draftRequest(t, badVehicle.String(), map[string]any{"type": "misc", "date": "2026-02-01"})
-	if _, err := mod.createCostFromDraft(t.Context(), storeUser, req); err == nil || createCode(err) != "" {
+	if _, err := mod.DraftCreators()[drafts.TargetCost](t.Context(), storeUser, req); err == nil || createCode(err) != "" {
 		t.Errorf("parent lookup failure = %v, want a plain error", err)
 	}
 }

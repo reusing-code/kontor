@@ -3,6 +3,7 @@ import { isRedirect } from "@tanstack/react-router"
 import { queryClient } from "@/lib/query-client"
 import { inboxRoute } from "@/routes/router"
 import { apiError, mockApi } from "@/test/api-mock"
+import { draftKeys } from "@/lib/query-keys"
 
 function routes(llm: boolean, configured: boolean, total: number) {
   return {
@@ -57,7 +58,7 @@ describe("inbox route guard", () => {
   })
 
   it("fetches the summary fresh, so a draft that just arrived opens the page", async () => {
-    queryClient.setQueryData(["drafts", "summary"], { pending: 0, total: 0 })
+    queryClient.setQueryData(draftKeys.summary(), { pending: 0, total: 0 })
     const api = mockApi(routes(false, false, 1))
 
     expect(await guard()).toBe("open")

@@ -24,7 +24,7 @@ type summaryResponse struct {
 }
 
 func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
-	cats, err := h.categories.List(r.Context(), middleware.GetUserID(r.Context()), "contracts")
+	cats, err := h.categories.List(r.Context(), middleware.GetUserID(r.Context()), ModuleID)
 	if err != nil {
 		httputil.StoreError(h.logger, w, err)
 		return

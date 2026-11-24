@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react"
+import { formatDate, formatMoney } from "@/lib/format"
 import { useTranslation } from "react-i18next"
-import { format } from "date-fns"
 import { ChevronRight, MoreVertical } from "lucide-react"
 import type { CostEntry } from "@/modules/auto/types"
 import {
@@ -54,7 +54,6 @@ function CostEntryDetailRow({ entry, colSpan }: { entry: CostEntry; colSpan: num
 
 export function CostEntriesTable({ entries, onEdit, onDelete, onDocuments }: CostEntriesTableProps) {
   const { t } = useTranslation()
-  const currency = t("common.currency")
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const totalColumns = 7 // chevron + date + type + description + amount + mileage + actions
@@ -113,11 +112,11 @@ export function CostEntriesTable({ entries, onEdit, onDelete, onDocuments }: Cos
                         />
                       )}
                     </TableCell>
-                    <TableCell>{format(new Date(entry.date), "yyyy-MM-dd")}</TableCell>
+                    <TableCell>{formatDate(entry.date)}</TableCell>
                     <TableCell>{t(`costTypes.${entry.type}`)}</TableCell>
                     <TableCell>{entry.description || "-"}</TableCell>
                     <TableCell className="text-right">
-                      {entry.amount != null ? `${entry.amount.toFixed(2)} ${currency}` : "-"}
+                      {entry.amount != null ? formatMoney(entry.amount) : "-"}
                     </TableCell>
                     <TableCell className="text-right">
                       {entry.mileage != null ? `${entry.mileage.toLocaleString()} km` : "-"}
@@ -125,7 +124,7 @@ export function CostEntriesTable({ entries, onEdit, onDelete, onDocuments }: Cos
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("common.actionsFor", { name: entry.description || t(`costTypes.${entry.type}`) })} title={t("common.actions")}>
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>

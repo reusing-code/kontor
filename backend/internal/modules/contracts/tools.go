@@ -138,14 +138,6 @@ func (m *Module) RegisterTools(r *mcptool.Registrar) {
 			if err := input.Validate(); err != nil {
 				return mcptool.DraftResult{}, mcptool.Errorf(mcptool.CodeInvalidInput, "%s", err.Error())
 			}
-			if err := mcptool.CheckDate("startDate", input.StartDate); err != nil {
-				return mcptool.DraftResult{}, err
-			}
-			if input.EndDate != "" {
-				if err := mcptool.CheckDate("endDate", input.EndDate); err != nil {
-					return mcptool.DraftResult{}, err
-				}
-			}
 			if err := m.checkCategory(ctx, c.UserID, in.CategoryID); err != nil {
 				return mcptool.DraftResult{}, err
 			}
@@ -157,12 +149,8 @@ func (m *Module) RegisterTools(r *mcptool.Registrar) {
 		mcptool.ScopeDrafts, false),
 		func(ctx context.Context, c mcptool.Call, in createContractCategoryDraftIn) (mcptool.DraftResult, error) {
 			input := in.Input
-			input.Name = strings.TrimSpace(input.Name)
 			if err := input.Validate(); err != nil {
 				return mcptool.DraftResult{}, mcptool.Errorf(mcptool.CodeInvalidInput, "%s", err.Error())
-			}
-			if err := mcptool.CheckLen("name", input.Name, 1, 200); err != nil {
-				return mcptool.DraftResult{}, err
 			}
 			return r.CreateDraftFrom(ctx, c, mcptool.DraftSpec{Target: drafts.TargetContractCategory, Input: input, Title: in.Title, Key: in.Key, Note: in.Note})
 		})

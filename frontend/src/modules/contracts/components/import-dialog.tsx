@@ -66,9 +66,6 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
           toast.warning(t("import.partial", { created: data.created, errors: data.errors.length }))
         }
       },
-      onError: (err) => {
-        toast.error(err.message)
-      },
     })
   }
 

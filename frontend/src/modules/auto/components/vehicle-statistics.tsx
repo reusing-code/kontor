@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next"
+import { formatMoney } from "@/lib/format"
 import type { VehicleSummary } from "@/modules/auto/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -23,8 +24,6 @@ interface VehicleStatisticsProps {
 
 export function VehicleStatistics({ summary }: VehicleStatisticsProps) {
   const { t } = useTranslation()
-  const currency = t("common.currency")
-  const fmt = (n: number) => n.toFixed(2)
   const fmtInt = (n: number) => Math.round(n).toLocaleString()
 
   return (
@@ -86,7 +85,7 @@ export function VehicleStatistics({ summary }: VehicleStatisticsProps) {
                   <div key={type} className="flex items-center gap-2 rounded-md border p-3">
                     <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: costTypeColor(type) }} />
                     <span className="truncate text-sm text-muted-foreground">{t(`costTypes.${type}`)}</span>
-                    <span className="ml-auto whitespace-nowrap text-sm font-medium">{fmt(val)} {currency}</span>
+                    <span className="ml-auto whitespace-nowrap text-sm font-medium">{formatMoney(val)}</span>
                   </div>
                 )
               })}
@@ -117,13 +116,13 @@ export function VehicleStatistics({ summary }: VehicleStatisticsProps) {
                   {summary.costsByYear.map((yc) => (
                     <TableRow key={yc.year}>
                       <TableCell className="font-medium">{yc.year}</TableCell>
-                      <TableCell className="text-right">{yc.service > 0 ? fmt(yc.service) : "-"}</TableCell>
-                      <TableCell className="text-right">{yc.fuel > 0 ? fmt(yc.fuel) : "-"}</TableCell>
-                      <TableCell className="text-right">{yc.insurance > 0 ? fmt(yc.insurance) : "-"}</TableCell>
-                      <TableCell className="text-right">{yc.tax > 0 ? fmt(yc.tax) : "-"}</TableCell>
-                      <TableCell className="text-right">{yc.tires > 0 ? fmt(yc.tires) : "-"}</TableCell>
-                      <TableCell className="text-right">{yc.misc > 0 ? fmt(yc.misc) : "-"}</TableCell>
-                      <TableCell className="text-right font-bold">{fmt(yc.total)}</TableCell>
+                      <TableCell className="text-right">{yc.service > 0 ? formatMoney(yc.service) : "-"}</TableCell>
+                      <TableCell className="text-right">{yc.fuel > 0 ? formatMoney(yc.fuel) : "-"}</TableCell>
+                      <TableCell className="text-right">{yc.insurance > 0 ? formatMoney(yc.insurance) : "-"}</TableCell>
+                      <TableCell className="text-right">{yc.tax > 0 ? formatMoney(yc.tax) : "-"}</TableCell>
+                      <TableCell className="text-right">{yc.tires > 0 ? formatMoney(yc.tires) : "-"}</TableCell>
+                      <TableCell className="text-right">{yc.misc > 0 ? formatMoney(yc.misc) : "-"}</TableCell>
+                      <TableCell className="text-right font-bold">{formatMoney(yc.total)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -154,7 +153,7 @@ export function VehicleStatistics({ summary }: VehicleStatisticsProps) {
                     <TableRow key={ym.year}>
                       <TableCell className="font-medium">{ym.year}</TableCell>
                       <TableCell className="text-right">{fmtInt(ym.km)} km</TableCell>
-                      <TableCell className="text-right">{ym.fuelCostPerKm > 0 ? `${fmt(ym.fuelCostPerKm)} ${currency}` : "-"}</TableCell>
+                      <TableCell className="text-right">{ym.fuelCostPerKm > 0 ? `${formatMoney(ym.fuelCostPerKm)}/km` : "-"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -186,28 +185,28 @@ export function VehicleStatistics({ summary }: VehicleStatisticsProps) {
               )}
               <div>
                 <div className="text-xs text-muted-foreground">{t("vehicleSummary.projectedTotalCost")}</div>
-                <div className="text-sm font-medium">{fmt(summary.projection.projectedTotalCost)} {currency}</div>
+                <div className="text-sm font-medium">{formatMoney(summary.projection.projectedTotalCost)}</div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">{t("vehicleSummary.projectedCostPerMonth")}</div>
-                <div className="text-sm font-medium">{fmt(summary.projection.projectedCostPerMonth)} {currency}</div>
+                <div className="text-sm font-medium">{formatMoney(summary.projection.projectedCostPerMonth)}</div>
               </div>
               {summary.projection.projectedCostPerKm > 0 && (
                 <div>
                   <div className="text-xs text-muted-foreground">{t("vehicleSummary.projectedCostPerKm")}</div>
-                  <div className="text-sm font-medium">{fmt(summary.projection.projectedCostPerKm)} {currency}</div>
+                  <div className="text-sm font-medium">{formatMoney(summary.projection.projectedCostPerKm)}</div>
                 </div>
               )}
               {summary.projection.theoreticalResidualValue > 0 && (
                 <div>
                   <div className="text-xs text-muted-foreground">{t("vehicleSummary.theoreticalResidual")}</div>
-                  <div className="text-sm font-medium">{fmt(summary.projection.theoreticalResidualValue)} {currency}</div>
+                  <div className="text-sm font-medium">{formatMoney(summary.projection.theoreticalResidualValue)}</div>
                 </div>
               )}
               {summary.projection.requiredSalePrice > 0 && (
                 <div>
                   <div className="text-xs text-muted-foreground">{t("vehicleSummary.requiredSalePrice")}</div>
-                  <div className="text-sm font-medium">{fmt(summary.projection.requiredSalePrice)} {currency}</div>
+                  <div className="text-sm font-medium">{formatMoney(summary.projection.requiredSalePrice)}</div>
                 </div>
               )}
             </div>

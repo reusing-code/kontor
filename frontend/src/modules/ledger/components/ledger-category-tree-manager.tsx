@@ -3,11 +3,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { ChevronRight, ChevronsDownUp, ChevronsUpDown, Pencil, Plus, Trash2 } from "lucide-react"
 import type { LedgerCategory, LedgerCategoryInput } from "@/modules/ledger/types"
-import {
-  useCreateLedgerCategory,
-  useDeleteLedgerCategory,
-  useUpdateLedgerCategory,
-} from "@/modules/ledger/hooks/use-ledger"
+import { useCreateLedgerCategory, useDeleteLedgerCategory, useUpdateLedgerCategory } from "@/modules/ledger/hooks/use-ledger-categories"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -52,25 +48,17 @@ export function LedgerCategoryTreeManager({ categories }: LedgerCategoryTreeMana
     return map
   }, [categories])
 
-  function handleCreate(data: LedgerCategoryInput) {
-    createCategory.mutate(data, {
-      onSuccess: () => {
-        toast.success(t("ledger.categoryCreated"))
-        setDialogState(null)
-      },
-      onError: (error) => toast.error(error.message),
-    })
+  async function handleCreate(data: LedgerCategoryInput) {
+    await createCategory.mutateAsync(data)
+    toast.success(t("ledger.categoryCreated"))
+    setDialogState(null)
   }
 
-  function handleUpdate(data: LedgerCategoryInput) {
+  async function handleUpdate(data: LedgerCategoryInput) {
     if (!dialogState?.category) return
-    updateCategory.mutate({ id: dialogState.category.id, data }, {
-      onSuccess: () => {
-        toast.success(t("ledger.categoryUpdated"))
-        setDialogState(null)
-      },
-      onError: (error) => toast.error(error.message),
-    })
+    await updateCategory.mutateAsync({ id: dialogState.category.id, data })
+    toast.success(t("ledger.categoryUpdated"))
+    setDialogState(null)
   }
 
   function handleDelete() {
@@ -80,7 +68,6 @@ export function LedgerCategoryTreeManager({ categories }: LedgerCategoryTreeMana
         toast.success(t("ledger.categoryDeleted"))
         setDeleteCandidate(null)
       },
-      onError: (error) => toast.error(error.message),
     })
   }
 
@@ -229,13 +216,7 @@ export function LedgerCategoryTreeManager({ categories }: LedgerCategoryTreeMana
         category={dialogCategory}
         categories={categories}
         initialParentId={dialogState?.mode === "create" ? dialogState.parentId : undefined}
-        onSubmit={(data) => {
-          if (dialogState?.mode === "edit") {
-            handleUpdate(data)
-            return
-          }
-          handleCreate(data)
-        }}
+        onSubmit={(data) => (dialogState?.mode === "edit" ? handleUpdate(data) : handleCreate(data))}
       />
 
       <DeleteConfirmDialog

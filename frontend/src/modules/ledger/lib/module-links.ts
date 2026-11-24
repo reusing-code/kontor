@@ -1,6 +1,15 @@
 import type { LedgerTransactionReference } from "@/modules/ledger/types"
 import type { ModuleId } from "@/types/modules"
 
+export type ReferenceType = LedgerTransactionReference["type"]
+
+export const REFERENCE_NAV_KEY: Record<ReferenceType, string> = {
+  purchase: "nav.purchases",
+  contract: "nav.contracts",
+  vehicle: "nav.auto",
+  cost: "ledger.referenceTypes.cost",
+}
+
 export function referenceModuleId(reference: LedgerTransactionReference): ModuleId {
   switch (reference.type) {
     case "purchase":

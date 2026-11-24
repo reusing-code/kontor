@@ -1,22 +1,25 @@
 import { useMemo, useState } from "react"
+import { formatDate, formatMinor } from "@/lib/format"
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { useLedgerEmailAccounts, useLinkLedgerEmailOrder, useRejectLedgerEmailOrder } from "@/modules/ledger/hooks/use-ledger"
-import { emailOrderTitle, formatAmountMinor, formatLedgerDate } from "@/modules/ledger/lib/ledger-utils"
+import { useLedgerEmailAccounts, useLinkLedgerEmailOrder, useRejectLedgerEmailOrder } from "@/modules/ledger/hooks/use-ledger-email"
+import { emailOrderTitle } from "@/modules/ledger/lib/ledger-utils"
 import type { LedgerEmailOrder } from "@/modules/ledger/types"
 import { LedgerEmailOrderLinkDialog } from "@/modules/ledger/components/ledger-email-order-link-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 
 export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { data: emailAccounts = [] } = useLedgerEmailAccounts()
   const emailAccountNames = useMemo(() => new Map(emailAccounts.map((account) => [account.id, account.name])), [emailAccounts])
   const linkOrder = useLinkLedgerEmailOrder()
   const rejectOrder = useRejectLedgerEmailOrder()
   const [selectedOrder, setSelectedOrder] = useState<LedgerEmailOrder | null>(null)
+  const [rejecting, setRejecting] = useState<LedgerEmailOrder | null>(null)
 
   return (
     <Card>
@@ -31,10 +34,10 @@ export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] 
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="font-medium">{emailOrderTitle(order)}</div>
-                  <div className="text-sm text-muted-foreground">{emailAccountNames.get(order.emailAccountId) ?? order.importerId} • {formatLedgerDate(order.orderDate)}{order.paymentMethod ? ` • ${t(`ledger.email.paymentMethod.${order.paymentMethod}`, { defaultValue: order.paymentMethod })}` : ""}</div>
+                  <div className="text-sm text-muted-foreground">{emailAccountNames.get(order.emailAccountId) ?? order.importerId} • {formatDate(order.orderDate)}{order.paymentMethod ? ` • ${t(`ledger.email.paymentMethod.${order.paymentMethod}`, { defaultValue: order.paymentMethod })}` : ""}</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-medium">{formatAmountMinor(order.totalMinor, order.currency, i18n.language)}</div>
+                  <div className="font-medium">{formatMinor(order.totalMinor, order.currency)}</div>
                   <Badge variant={order.matchStatus === "matched" ? "default" : order.matchStatus === "rejected" ? "secondary" : "outline"}>{t(`ledger.email.status.${order.matchStatus}`)}</Badge>
                 </div>
               </div>
@@ -50,7 +53,7 @@ export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] 
                   </Button>
                 ))}
                 {order.matchStatus !== "rejected" ? (
-                  <Button type="button" variant="outline" onClick={() => rejectOrder.mutate(order.id, { onSuccess: () => toast.success(t("ledger.email.orderRejected")), onError: (error) => toast.error(error.message) })}>{t("ledger.email.reject")}</Button>
+                  <Button type="button" variant="outline" onClick={() => setRejecting(order)}>{t("ledger.email.reject")}</Button>
                 ) : null}
                 {order.linkedTransactionIds?.length ? null : <Button type="button" variant="outline" onClick={() => setSelectedOrder(order)}>{t("ledger.email.review")}</Button>}
               </div>
@@ -72,9 +75,15 @@ export function LedgerEmailOrdersTable({ orders }: { orders: LedgerEmailOrder[] 
               toast.success(t("ledger.email.orderLinked"))
               setSelectedOrder(null)
             },
-            onError: (error) => toast.error(error.message),
           })
         }}
+      />
+      <DeleteConfirmDialog
+        open={rejecting !== null}
+        onOpenChange={(open) => { if (!open) setRejecting(null) }}
+        description={t("ledger.email.rejectConfirm", { order: rejecting ? emailOrderTitle(rejecting) : "" })}
+        actionLabel={t("ledger.email.reject")}
+        onConfirm={() => rejecting ? rejectOrder.mutateAsync(rejecting.id).then(() => toast.success(t("ledger.email.orderRejected"))) : undefined}
       />
     </Card>
   )

@@ -19,9 +19,8 @@ func (h *Handler) ListPurchases(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListPurchasesByCategory(w http.ResponseWriter, r *http.Request) {
-	catID, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid category id")
+	catID, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid category id")
+	if !ok {
 		return
 	}
 
@@ -34,24 +33,18 @@ func (h *Handler) ListPurchasesByCategory(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) CreatePurchaseInCategory(w http.ResponseWriter, r *http.Request) {
-	catID, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid category id")
+	catID, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid category id")
+	if !ok {
 		return
 	}
 
-	if _, err := h.categories.Get(r.Context(), middleware.GetUserID(r.Context()), "purchases", catID); err != nil {
+	if _, err := h.categories.Get(r.Context(), middleware.GetUserID(r.Context()), ModuleID, catID); err != nil {
 		httputil.StoreError(h.logger, w, err)
 		return
 	}
 
-	var input PurchaseInput
-	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.BodyError(h.logger, w, err, "invalid request body")
-		return
-	}
-	if err := input.Validate(); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+	input, ok := httputil.Decode[PurchaseInput](h.logger, w, r)
+	if !ok {
 		return
 	}
 
@@ -65,9 +58,8 @@ func (h *Handler) CreatePurchaseInCategory(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) GetPurchase(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
@@ -80,9 +72,8 @@ func (h *Handler) GetPurchase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdatePurchase(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
@@ -92,29 +83,12 @@ func (h *Handler) UpdatePurchase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input PurchaseInput
-	if err := httputil.ReadJSON(r, &input); err != nil {
-		httputil.BodyError(h.logger, w, err, "invalid request body")
-		return
-	}
-	if err := input.Validate(); err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, err.Error())
+	input, ok := httputil.Decode[PurchaseInput](h.logger, w, r)
+	if !ok {
 		return
 	}
 
-	existing.Type = input.Type
-	existing.ItemName = input.ItemName
-	existing.Brand = input.Brand
-	existing.ArticleNumber = input.ArticleNumber
-	existing.Dealer = input.Dealer
-	existing.Price = input.Price
-	existing.PurchaseDate = input.PurchaseDate
-	existing.DescriptionURL = input.DescriptionURL
-	existing.InvoiceURL = input.InvoiceURL
-	existing.HandbookURL = input.HandbookURL
-	existing.Consumables = input.Consumables
-	existing.Comments = input.Comments
-	existing.UpdatedAt = time.Now().UTC()
+	existing.Apply(input, time.Now().UTC())
 
 	if err := h.store.Update(r.Context(), middleware.GetUserID(r.Context()), existing); err != nil {
 		httputil.StoreError(h.logger, w, err)
@@ -124,9 +98,8 @@ func (h *Handler) UpdatePurchase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeletePurchase(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		httputil.Error(h.logger, w, http.StatusBadRequest, "invalid id")
+	id, ok := httputil.PathUUID(h.logger, w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
@@ -140,22 +113,7 @@ func (h *Handler) DeletePurchase(w http.ResponseWriter, r *http.Request) {
 // newPurchase builds the purchase a create request stores; input must be
 // validated.
 func newPurchase(id, catID uuid.UUID, input PurchaseInput, now time.Time) Purchase {
-	return Purchase{
-		ID:             id,
-		CategoryID:     catID,
-		Type:           input.Type,
-		ItemName:       input.ItemName,
-		Brand:          input.Brand,
-		ArticleNumber:  input.ArticleNumber,
-		Dealer:         input.Dealer,
-		Price:          input.Price,
-		PurchaseDate:   input.PurchaseDate,
-		DescriptionURL: input.DescriptionURL,
-		InvoiceURL:     input.InvoiceURL,
-		HandbookURL:    input.HandbookURL,
-		Consumables:    input.Consumables,
-		Comments:       input.Comments,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-	}
+	p := Purchase{ID: id, CategoryID: catID, CreatedAt: now}
+	p.Apply(input, now)
+	return p
 }
