@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 ## Documentation maintenance
 
-After every change, check whether `AGENTS.md` (root, `backend/`, `frontend/`) and `README.md` (root, `frontend/`) need updating. Keep these files in sync with the actual code — new modules, routes, DB keys, API endpoints, and dependency versions must be reflected here.
+Follow the [repository documentation guidance](../AGENTS.md#documentation-maintenance). Keep backend architecture and database details here; update the [REST API reference](../docs/api.md) when an endpoint changes.
 
 ## Prerequisites
 
